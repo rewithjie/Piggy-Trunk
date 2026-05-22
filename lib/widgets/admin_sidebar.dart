@@ -102,7 +102,10 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       widget.onLogout();
     } else {
       final screen = _screenForRoute(route);
-      
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.hideCurrentSnackBar();
+      messenger?.removeCurrentSnackBar();
+
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => screen,
@@ -221,23 +224,22 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
           ),
 
             Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(child: buildMainItems()),
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
                       children: [
-                        Divider(
-                          color: borderColor,
-                          thickness: 1,
-                          height: 1,
-                        ),
-                        buildFooterItems(),
+                        buildMainItems(),
                       ],
                     ),
                   ),
+                  Divider(
+                    color: borderColor,
+                    thickness: 1,
+                    height: 1,
+                  ),
+                  buildFooterItems(),
                 ],
               ),
             ),

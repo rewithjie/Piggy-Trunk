@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../providers/admin_profile_provider.dart';
@@ -7,21 +8,42 @@ import '../providers/admin_profile_provider.dart';
 /// Reusable Top Bar Widget with Notification & Admin Profile (No Title)
 class ScreenTopBar extends ConsumerWidget {
   final int notificationCount;
-  final String? adminName;
-  final String? adminRole;
   final bool showDivider;
 
   const ScreenTopBar({
     Key? key,
     this.notificationCount = 1,
-    this.adminName = 'Admin',
-    this.adminRole = 'SYSTEM ADMINISTRATOR',
     this.showDivider = true,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final adminProfile = ref.watch(adminProfileProvider);
+    final user = Supabase.instance.client.auth.currentUser;
+    final metadata = user?.userMetadata ?? const <String, dynamic>{};
+    final metadataName = (metadata['admin_name'] ?? '').toString().trim();
+    final metadataRole = (metadata['role'] ?? '').toString().trim();
+    final metadataPhoto = (metadata['profile_picture_url'] ?? '').toString().trim();
+    final resolvedName = adminProfile.adminName.trim().isNotEmpty ? adminProfile.adminName : (metadataName.isNotEmpty ? metadataName : 'Admin');
+    final resolvedRole = adminProfile.role.trim().isNotEmpty ? adminProfile.role : (metadataRole.isNotEmpty ? metadataRole : 'System Administrator');
+    final resolvedPhoto = (adminProfile.profilePictureUrl != null && adminProfile.profilePictureUrl!.trim().isNotEmpty)
+        ? adminProfile.profilePictureUrl!.trim()
+        : (metadataPhoto.isNotEmpty ? metadataPhoto : '');
+
+    final shouldHydrateFromMetadata =
+        metadataName.isNotEmpty &&
+        adminProfile.adminName == 'Admin' &&
+        (adminProfile.profilePictureUrl == null || adminProfile.profilePictureUrl!.isEmpty);
+    if (shouldHydrateFromMetadata) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(adminProfileProvider.notifier).updateProfile(
+              adminName: metadataName,
+              role: metadataRole.isNotEmpty ? metadataRole : 'System Administrator',
+              profilePictureUrl: metadataPhoto.isNotEmpty ? metadataPhoto : null,
+              email: user?.email ?? adminProfile.email,
+            );
+      });
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor = isDark ? const Color(0xff151f2e) : PiggyTrunkTheme.ptSurface;
     final borderColor = isDark ? const Color(0xff28354a) : PiggyTrunkTheme.ptBorder;
@@ -58,8 +80,9 @@ class ScreenTopBar extends ConsumerWidget {
                 children: [
           /// NOTIFICATION BELL WITH BADGE
           Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            width: 50,
+            height: 50,
+            margin: const EdgeInsets.only(right: 10),
             decoration: BoxDecoration(
               border: Border.all(
                 color: borderColor,
@@ -68,27 +91,26 @@ class ScreenTopBar extends ConsumerWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
               children: [
                 IconButton(
                   icon: const Icon(
                     Icons.notifications_outlined,
-                    size: 24,
+                    size: 22,
                   ),
                   color: textColor,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Notifications coming soon'),
-                      ),
-                    );
-                  },
+                  onPressed: () {},
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                  constraints: const BoxConstraints(
+                    minWidth: 50,
+                    minHeight: 50,
+                  ),
                 ),
                 if (notificationCount > 0)
                   Positioned(
-                    right: 0,
-                    top: 0,
+                    right: -2,
+                    top: -2,
                     child: Container(
                       width: 20,
                       height: 20,
@@ -112,11 +134,13 @@ class ScreenTopBar extends ConsumerWidget {
             ),
           ),
           /// ADMIN PROFILE (CLICKABLE)
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pushNamed('/settings');
-                },
-                child: Container(
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pushNamed('/settings');
+                  },
+                  child: Container(
                   constraints: const BoxConstraints(maxWidth: 260),
                   height: 50,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -137,27 +161,29 @@ class ScreenTopBar extends ConsumerWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: accentDark.withOpacity(0.2),
+                      border: Border.all(
+                        color: isDark ? textColor.withValues(alpha: 0.75) : const Color(0xFF2F4A6A),
+                        width: 1.6,
+                      ),
                     ),
-                    child: adminProfile.profilePictureUrl != null &&
-                            adminProfile.profilePictureUrl!.isNotEmpty
+                    child: resolvedPhoto.isNotEmpty
                         ? ClipOval(
                             child: Image.network(
-                              adminProfile.profilePictureUrl!,
+                              resolvedPhoto,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
                                 return Icon(
-                                  Icons.person,
-                                  size: 16,
-                                  color: textColor,
+                                  Icons.person_outline,
+                                  size: 18,
+                                  color: isDark ? textColor.withValues(alpha: 0.9) : const Color(0xFF2F4A6A),
                                 );
                               },
                             ),
                           )
                         : Icon(
-                            Icons.person,
-                            size: 16,
-                            color: textColor,
+                            Icons.person_outline,
+                            size: 18,
+                            color: isDark ? textColor.withValues(alpha: 0.9) : const Color(0xFF2F4A6A),
                           ),
                   ),
                   const SizedBox(width: 8),
@@ -169,7 +195,7 @@ class ScreenTopBar extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              adminProfile.adminName,
+                              resolvedName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.jakarta(
@@ -180,7 +206,7 @@ class ScreenTopBar extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              adminProfile.role.toUpperCase(),
+                              resolvedRole.toUpperCase(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.jakarta(
@@ -197,6 +223,7 @@ class ScreenTopBar extends ConsumerWidget {
                     ],
                   ),
                 ),
+              ),
               ),
                 ],
                 ),

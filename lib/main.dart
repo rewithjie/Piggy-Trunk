@@ -52,7 +52,14 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      home: const DashboardScreen(),
+      onGenerateInitialRoutes: (initialRouteName) {
+        return [
+          MaterialPageRoute<void>(
+            builder: (_) => const DashboardScreen(),
+            settings: const RouteSettings(name: '/dashboard'),
+          ),
+        ];
+      },
       routes: {
         '/login': (context) => const AdminLoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),

@@ -46,7 +46,6 @@ class _POSScreenState extends State<POSScreen> {
 
       final rows = (response as List)
           .map((row) => POSProduct.fromJson(row as Map<String, dynamic>))
-          .where((p) => p.units > 0)
           .toList();
 
       if (!mounted) return;
@@ -73,6 +72,38 @@ class _POSScreenState extends State<POSScreen> {
     return _products.where((p) => p.category.toLowerCase() == category.toLowerCase()).toList();
   }
 
+  void _clearOrder() {
+    if (currentOrder.items.isEmpty) return;
+    setState(() {
+      currentOrder.clearOrder();
+      _orderItemCounter = 0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Order cleared.')),
+    );
+  }
+
+  void _completeTransaction() {
+    if (currentOrder.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No items in the order yet.')),
+      );
+      return;
+    }
+
+    final itemCount = currentOrder.totalItems;
+    final total = currentOrder.total;
+
+    setState(() {
+      currentOrder.clearOrder();
+      _orderItemCounter = 0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Transaction completed: $itemCount item(s), PHP ${total.toStringAsFixed(2)}')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,10 +118,7 @@ class _POSScreenState extends State<POSScreen> {
           Expanded(
             child: Column(
               children: [
-                const ScreenTopBar(
-                  adminName: 'Admin',
-                  adminRole: 'SYSTEM ADMINISTRATOR',
-                ),
+                const ScreenTopBar(),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -159,14 +187,6 @@ class _POSScreenState extends State<POSScreen> {
                   'POS',
                   style: AppTextStyles.sectionTitle(_text),
                 ),
-                IconButton(
-                  tooltip: 'Refresh products',
-                  onPressed: _loadProductsFromInventory,
-                  icon: Icon(
-                    Icons.refresh,
-                    color: _muted,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -234,28 +254,30 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildPOSProductCard(POSProduct product) {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _orderItemCounter++;
-          currentOrder.addItem(
-            OrderItem(
-              id: _orderItemCounter,
-              productId: product.id,
-              productName: product.name,
-              price: product.price,
-              quantity: 1,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _orderItemCounter++;
+            currentOrder.addItem(
+              OrderItem(
+                id: _orderItemCounter,
+                productId: product.id,
+                productName: product.name,
+                price: product.price,
+                quantity: 1,
+              ),
+            );
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${product.name} added to order'),
+              duration: const Duration(milliseconds: 800),
             ),
           );
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${product.name} added to order'),
-            duration: const Duration(milliseconds: 800),
-          ),
-        );
-      },
-      child: Container(
+        },
+        child: Container(
         width: 180,
         decoration: BoxDecoration(
           color: _surface,
@@ -339,6 +361,7 @@ class _POSScreenState extends State<POSScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -434,6 +457,109 @@ class _POSScreenState extends State<POSScreen> {
                       style: AppTextStyles.bodyStrong(_text),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isTight = constraints.maxWidth < 360;
+
+                    if (isTight) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _completeTransaction,
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: Text(
+                              'Complete Transaction',
+                              style: AppTextStyles.jakarta(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              foregroundColor: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                              minimumSize: const Size(0, 52),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: _clearOrder,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 52),
+                              side: BorderSide(
+                                color: _isDark ? const Color(0xFF7F94B2) : PiggyTrunkTheme.ptPrimary,
+                                width: 1,
+                              ),
+                              foregroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              'Clear Order',
+                              style: AppTextStyles.jakarta(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _completeTransaction,
+                            icon: const Icon(Icons.check_circle_outline, size: 18),
+                            label: Text(
+                              'Complete Transaction',
+                              style: AppTextStyles.jakarta(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              foregroundColor: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                              minimumSize: const Size(0, 52),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _clearOrder,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 52),
+                              side: BorderSide(
+                                color: _isDark ? const Color(0xFF7F94B2) : PiggyTrunkTheme.ptPrimary,
+                                width: 1,
+                              ),
+                              foregroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              'Clear Order',
+                              style: AppTextStyles.jakarta(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),

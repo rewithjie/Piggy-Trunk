@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,7 +39,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _successDark => _isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
   Color get _inProgressDark => _isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
-  final TextEditingController _capitalCtrl = TextEditingController(text: '0.00');
+  final TextEditingController _capitalCtrl = TextEditingController();
   final TextEditingController _totalHogCtrl = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   bool _showInlineCalendar = false;
@@ -123,7 +124,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     String selectedHogType = 'Auto-populated';
 
     final initialCapitalCtrl = TextEditingController(
-      text: existing?.initialCapital.toString() ?? '',
+      text: existing != null ? existing.initialCapital.toInt().toString() : '',
     );
 
     final totalHogCtrl = TextEditingController(
@@ -289,14 +290,15 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     child: TextField(
                                       controller: initialCapitalCtrl,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         color: _fieldText,
                                       ),
                                       decoration: InputDecoration(
                                         border: InputBorder.none,
-                                        hintText: '0.00',
+                                        hintText: '0',
                                         hintStyle: GoogleFonts.plusJakartaSans(
                                           fontSize: 14,
                                           color: _hintText,
@@ -457,25 +459,28 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                             color: _fieldText,
                                           ),
                                         ),
-                                        GestureDetector(
-                                          onTap: () async {
-                                            final picked = await showDatePicker(
-                                              context: statefulContext,
-                                              initialDate: DateTime.tryParse(investmentDateCtrl.text) ?? DateTime.now(),
-                                              firstDate: DateTime(2020),
-                                              lastDate: DateTime(2050),
-                                            );
-                                            if (picked != null) {
-                                              setDialogState(() {
-                                                investmentDateCtrl.text =
-                                                    '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-                                              });
-                                            }
-                                          },
-                                          child: Icon(
-                                            Icons.calendar_today,
-                                            size: 18,
-                                            color: _fieldBorder,
+                                        MouseRegion(
+                                          cursor: SystemMouseCursors.click,
+                                          child: GestureDetector(
+                                            onTap: () async {
+                                              final picked = await showDatePicker(
+                                                context: statefulContext,
+                                                initialDate: DateTime.tryParse(investmentDateCtrl.text) ?? DateTime.now(),
+                                                firstDate: DateTime(2020),
+                                                lastDate: DateTime(2050),
+                                              );
+                                              if (picked != null) {
+                                                setDialogState(() {
+                                                  investmentDateCtrl.text =
+                                                      '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                                                });
+                                              }
+                                            },
+                                            child: Icon(
+                                              Icons.calendar_today,
+                                              size: 18,
+                                              color: _fieldBorder,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -494,7 +499,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           children: [
                             ElevatedButton.icon(
                               onPressed: () async {
-                                final parsedCapital = double.tryParse(initialCapitalCtrl.text.trim());
+                                final parsedCapital = int.tryParse(initialCapitalCtrl.text.trim());
                                 final parsedTotalHog = int.tryParse(totalHogCtrl.text.trim());
                                 final parsedDate = DateTime.tryParse(investmentDateCtrl.text.trim());
 
@@ -645,10 +650,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Expanded(
             child: Column(
               children: [
-                const ScreenTopBar(
-                  adminName: 'Admin',
-                  adminRole: 'SYSTEM ADMINISTRATOR',
-                ),
+                const ScreenTopBar(),
                 Expanded(child: _buildMainState(context)),
               ],
             ),
@@ -831,8 +833,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     TextField(
                       controller: _capitalCtrl,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
-                      decoration: _createInputDecoration('0.00').copyWith(
+                      decoration: _createInputDecoration('0').copyWith(
                         prefixIcon: Container(
                           width: 44,
                           alignment: Alignment.center,
@@ -1141,7 +1144,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Future<void> _submitCreateInvestment() async {
-    final capital = double.tryParse(_capitalCtrl.text.trim());
+    final capital = int.tryParse(_capitalCtrl.text.trim());
     final totalHog = int.tryParse(_totalHogCtrl.text.trim());
     if (_selectedRaiserId == null || capital == null || totalHog == null || _selectedHogType.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1166,7 +1169,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       if (!mounted) return;
       setState(() {
         _isCreatingInvestment = false;
-        _capitalCtrl.text = '0.00';
+        _capitalCtrl.clear();
         _totalHogCtrl.clear();
         _selectedRaiserId = null;
         _selectedRaiserName = '';

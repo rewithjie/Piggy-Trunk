@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
@@ -26,7 +27,9 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   bool _showCreateForm = false;
-  String? _selectedPigType;
+  String? _loadErrorMessage;
+  String? _createErrorMessage;
+  String? _selectedPigType = 'Fattening';
   String _selectedStatus = 'Active';
   static const List<String> _lifecycleStages = <String>[
     'Booster',
@@ -80,12 +83,13 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       if (!mounted) return;
       setState(() {
         _raisers = (response as List).cast<Map<String, dynamic>>();
+        _loadErrorMessage = null;
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load raisers: $e')),
-      );
+      setState(() {
+        _loadErrorMessage = 'Load failed: $e';
+      });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -103,7 +107,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     _emailCtrl.clear();
     _addressCtrl.clear();
     _createFormKey.currentState?.reset();
-    _selectedPigType = null;
+    _selectedPigType = 'Fattening';
     _selectedStatus = 'Active';
   }
 
@@ -122,6 +126,14 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     return isValid ? null : 'Please enter a valid email address';
   }
 
+  String? _validatePhone(String? value) {
+    final requiredError = _validateRequired(value, 'Phone');
+    if (requiredError != null) return requiredError;
+    final phone = value!.trim();
+    if (phone.length != 11) return 'Phone must be exactly 11 digits';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -135,7 +147,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           Expanded(
             child: Column(
               children: [
-                const ScreenTopBar(adminName: 'Admin', adminRole: 'SYSTEM ADMINISTRATOR'),
+                const ScreenTopBar(),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -171,6 +183,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           'Hog Raiser',
           style: AppTextStyles.pageTitle(_titleColor),
         ),
+        if (_loadErrorMessage != null) ...[
+          const SizedBox(height: 10),
+          _buildErrorBanner(_loadErrorMessage!),
+        ],
         const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
@@ -184,7 +200,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton.icon(
-                  onPressed: () => setState(() => _showCreateForm = true),
+                  onPressed: () => setState(() {
+                    _showCreateForm = true;
+                    _selectedPigType ??= 'Fattening';
+                    _selectedStatus = _selectedStatus.trim().isEmpty ? 'Active' : _selectedStatus;
+                  }),
                   icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
                   label: Text(
                     'Create New Account',
@@ -402,6 +422,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 letterSpacing: -0.04,
               ),
             ),
+            if (_createErrorMessage != null) ...[
+              const SizedBox(height: 12),
+              _buildErrorBanner(_createErrorMessage!),
+            ],
             const SizedBox(height: 18),
             _buildLabel(Icons.person_2_outlined, 'HOG RAISER NAME', fontSize: 14),
             const SizedBox(height: 8),
@@ -423,7 +447,12 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     hint: '+63 XXX XXX XXXX',
                     fontSize: 14,
                     hintSize: 14,
-                    validator: (value) => _validateRequired(value, 'Phone'),
+                    validator: _validatePhone,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
                   ),
                 ])),
                 const SizedBox(width: 14),
@@ -535,12 +564,16 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     required double fontSize,
     required double hintSize,
     String? Function(String?)? validator,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return SizedBox(
       height: 64,
       child: TextFormField(
         controller: controller,
         validator: validator,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         cursorColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
         style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w500, color: _fieldText),
         decoration: InputDecoration(
@@ -640,35 +673,89 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     final status = _selectedStatus.trim();
 
     if (name.isEmpty || phone.isEmpty || email.isEmpty || address.isEmpty || pigType.isEmpty || status.isEmpty) {
+      setState(() {
+        _createErrorMessage = 'Please complete all required fields.';
+      });
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all required fields.')));
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _createErrorMessage = null;
+    });
     try {
-      await _supabase.from('hog_raisers').insert({
+      final basePayload = <String, dynamic>{
         'name': name,
         'phone': phone,
         'email': email,
         'address': address,
         'pig_type': pigType,
         'status': status,
-      });
+      };
+
+      // Keep new raisers consistent with lifecycle map and handle DB variants.
+      final payloadWithLifecycle = <String, dynamic>{
+        ...basePayload,
+        'lifecycle_stage': 'Pre-Starter',
+      };
+
+      try {
+        await _supabase.from('hog_raisers').insert(payloadWithLifecycle);
+      } on PostgrestException catch (_) {
+        await _supabase.from('hog_raisers').insert(basePayload);
+      }
 
       if (!mounted) return;
       setState(() {
         _resetCreateForm();
         _showCreateForm = false;
+        _createErrorMessage = null;
       });
       await _loadRaisers(keyword: _searchCtrl.text);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Raiser account created successfully.')));
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      final details = (e.details ?? '').toString().trim();
+      final hint = (e.hint ?? '').toString().trim();
+      final cleanDetails = details.isNotEmpty ? ' $details' : '';
+      final cleanHint = hint.isNotEmpty ? ' Hint: $hint' : '';
+      setState(() {
+        _createErrorMessage = 'Create failed: ${e.message}.$cleanDetails$cleanHint';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Create failed: ${e.message}.$cleanDetails$cleanHint')),
+      );
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _createErrorMessage = 'Create failed: $e';
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create failed: $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Widget _buildErrorBanner(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _accentDark.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _accentDark.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        message,
+        style: AppTextStyles.jakarta(
+          size: 13,
+          weight: FontWeight.w600,
+          color: _titleColor,
+        ),
+      ),
+    );
   }
 
   Future<void> _openEditRaiserDialog(Map<String, dynamic> row) async {
@@ -698,7 +785,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildDialogInput(nameCtrl, 'Name'),
-                  _buildDialogInput(phoneCtrl, 'Phone'),
+                  _buildDialogInput(
+                    phoneCtrl,
+                    'Phone',
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                  ),
                   _buildDialogInput(emailCtrl, 'Email'),
                   _buildDialogInput(addressCtrl, 'Address'),
                   const SizedBox(height: 8),
@@ -737,6 +832,12 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 if (name.isEmpty || phone.isEmpty || email.isEmpty || address.isEmpty) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(content: Text('Please complete all required fields.')),
+                  );
+                  return;
+                }
+                if (phone.length != 11) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text('Phone must be exactly 11 digits.')),
                   );
                   return;
                 }
@@ -804,11 +905,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     }
   }
 
-  Widget _buildDialogInput(TextEditingController controller, String label) {
+  Widget _buildDialogInput(
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
         controller: controller,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
         cursorColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
         style: AppTextStyles.body(_fieldText),
         decoration: _dialogDecoration(label),

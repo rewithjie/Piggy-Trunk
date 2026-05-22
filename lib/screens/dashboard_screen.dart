@@ -36,10 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               children: [
                 /// REUSABLE TOP BAR
-                ScreenTopBar(
-                  adminName: 'Admin',
-                  adminRole: 'SYSTEM ADMINISTRATOR',
-                ),
+                const ScreenTopBar(),
                 /// MAIN DASHBOARD CONTENT
                 Expanded(
                   child: SingleChildScrollView(

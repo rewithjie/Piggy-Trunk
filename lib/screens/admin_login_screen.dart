@@ -284,20 +284,23 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           ),
           decoration: LoginStyles.passwordFieldDecoration(
             hintText: 'Enter your password',
-            suffixIcon: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isPasswordVisible = !_isPasswordVisible;
-                });
-              },
-              child: Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Icon(
-                  _isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                  size: LoginStyles.visibilityIconSize,
-                  color: _isPasswordVisible
-                      ? LoginStyles.fieldIconColorActive
-                      : LoginStyles.fieldIconColor,
+            suffixIcon: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isPasswordVisible = !_isPasswordVisible;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(
+                    _isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                    size: LoginStyles.visibilityIconSize,
+                    color: _isPasswordVisible
+                        ? LoginStyles.fieldIconColorActive
+                        : LoginStyles.fieldIconColor,
+                  ),
                 ),
               ),
             ),
@@ -377,19 +380,22 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   Widget _buildForgotPasswordLink() {
-    return GestureDetector(
-      onTap: () {
-        // Navigate to forgot password screen
-        // Navigator.pushNamed(context, '/forgot-password');
-      },
-      child: Text(
-        'FORGOT PASSWORD?',
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: LoginStyles.labelText,
-          letterSpacing: 0.08,
-          decoration: TextDecoration.underline,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () {
+          // Navigate to forgot password screen
+          // Navigator.pushNamed(context, '/forgot-password');
+        },
+        child: Text(
+          'FORGOT PASSWORD?',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: LoginStyles.labelText,
+            letterSpacing: 0.08,
+            decoration: TextDecoration.underline,
+          ),
         ),
       ),
     );

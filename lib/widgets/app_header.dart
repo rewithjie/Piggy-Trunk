@@ -29,9 +29,12 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       title: showLogo
           ? Row(
               children: [
-                GestureDetector(
-                  onTap: onLogoTap,
-                  child: PiggyTrunkLogo(size: LogoSize.small),
+                MouseRegion(
+                  cursor: onLogoTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                  child: GestureDetector(
+                    onTap: onLogoTap,
+                    child: PiggyTrunkLogo(size: LogoSize.small),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -166,13 +169,16 @@ class LogoHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Hero(
-        tag: tag,
-        child: PiggyTrunkLogo(
-          size: size,
-          withBorder: withBorder,
+    return MouseRegion(
+      cursor: onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Hero(
+          tag: tag,
+          child: PiggyTrunkLogo(
+            size: size,
+            withBorder: withBorder,
+          ),
         ),
       ),
     );

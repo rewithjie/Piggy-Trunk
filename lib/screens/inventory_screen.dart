@@ -398,10 +398,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           Expanded(
             child: Column(
               children: [
-                const ScreenTopBar(
-                  adminName: 'Admin',
-                  adminRole: 'SYSTEM ADMINISTRATOR',
-                ),
+                const ScreenTopBar(),
                 Expanded(child: _buildMainContent()),
               ],
             ),
@@ -460,20 +457,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         icon: Icon(
                           _isArchiveMode ? Icons.inventory_2_outlined : Icons.archive_outlined,
                           size: 18,
-                          color: Colors.white,
+                          color: _titleColor,
                         ),
                         label: Text(
                           _isArchiveMode ? 'Back to Active' : 'Archives',
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
+                            color: _titleColor,
                             fontWeight: FontWeight.w700,
                             fontSize: 15,
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
+                          backgroundColor: _fieldBg,
                           side: BorderSide(
-                            color: Colors.white,
+                            color: _panelBorder,
                           ),
                           minimumSize: const Size(170, 52),
                           padding: const EdgeInsets.symmetric(horizontal: 16),

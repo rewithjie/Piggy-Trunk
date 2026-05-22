@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
@@ -19,16 +18,18 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  String _selectedTheme = 'Light / Dark Toggle';
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _imagePicker = ImagePicker();
   
   File? _selectedImage;
   Uint8List? _selectedImageBytes;
   String? _profilePictureUrl;
+  String? _profilePicturePath;
   bool _isUploadingImage = false;
   bool _isSavingProfile = false;
-  String _adminEmail = '';
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
   // Theme-aware color getters
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -39,44 +40,87 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
   Color get _primaryDark => _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
 
-  final TextEditingController _appNameController =
-      TextEditingController(text: 'PiggyTrunk Admin');
-
   final TextEditingController _adminNameController =
       TextEditingController(text: 'Admin');
   final TextEditingController _emailController =
       TextEditingController(text: '');
   final TextEditingController _roleController =
       TextEditingController(text: 'System Administrator');
+  final TextEditingController _currentPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadAdminEmail();
+    _loadAdminProfile();
   }
 
-  Future<void> _loadAdminEmail() async {
+  Future<void> _loadAdminProfile() async {
     try {
       final user = _supabase.auth.currentUser;
       if (user != null && user.email != null) {
+        final metadata = user.userMetadata ?? <String, dynamic>{};
+        final currentProfile = ref.read(adminProfileProvider);
+        final savedName = (metadata['admin_name'] ?? '').toString().trim();
+        final savedRole = (metadata['role'] ?? '').toString().trim();
+        final savedPhoto = (metadata['profile_picture_url'] ?? '').toString().trim();
+        final savedPhotoPath = (metadata['profile_picture_path'] ?? '').toString().trim();
+        String? resolvedPhotoUrl = savedPhoto.isNotEmpty ? savedPhoto : null;
+        if (savedPhotoPath.isNotEmpty) {
+          try {
+            resolvedPhotoUrl = await _supabase.storage
+                .from('profile_pictures')
+                .createSignedUrl(savedPhotoPath, 60 * 60 * 24 * 30);
+          } catch (_) {
+            // Fall back to saved URL when signed URL cannot be created.
+          }
+        }
+
         setState(() {
-          _adminEmail = user.email!;
           _emailController.text = user.email!;
+          _adminNameController.text = savedName.isNotEmpty
+              ? savedName
+              : (currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : 'Admin');
+          _roleController.text = savedRole.isNotEmpty
+              ? savedRole
+              : (currentProfile.role.trim().isNotEmpty ? currentProfile.role : 'System Administrator');
+          _profilePicturePath = savedPhotoPath.isNotEmpty ? savedPhotoPath : _profilePicturePath;
+          _profilePictureUrl = resolvedPhotoUrl ?? currentProfile.profilePictureUrl;
         });
-        // Update the provider with the email
-        ref.read(adminProfileProvider.notifier).setEmail(user.email!);
+
+        ref.read(adminProfileProvider.notifier).updateProfile(
+              adminName: _adminNameController.text,
+              email: user.email!,
+              role: _roleController.text,
+              profilePictureUrl: _profilePictureUrl,
+            );
+      } else {
+        final currentProfile = ref.read(adminProfileProvider);
+        if (!mounted) return;
+        setState(() {
+          _emailController.text = currentProfile.email;
+          _adminNameController.text =
+              currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : 'Admin';
+          _roleController.text = currentProfile.role.trim().isNotEmpty
+              ? currentProfile.role
+              : 'System Administrator';
+          _profilePictureUrl = currentProfile.profilePictureUrl;
+        });
       }
     } catch (e) {
-      print('Error loading admin email: $e');
+      debugPrint('Error loading admin profile: $e');
     }
   }
 
   @override
   void dispose() {
-    _appNameController.dispose();
     _adminNameController.dispose();
     _emailController.dispose();
     _roleController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -122,14 +166,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             const SizedBox(height: 20),
                             LayoutBuilder(
                               builder: (context, constraints) {
-                                final isStacked = constraints.maxWidth < 1080;
+                                final isStacked = constraints.maxWidth < 1100;
 
                                 if (isStacked) {
                                   return Column(
                                     children: [
                                       _buildAdminProfileCard(),
-                                      const SizedBox(height: 18),
-                                      _buildSystemPreferencesCard(),
+                                      const SizedBox(height: 16),
+                                      _buildSecurityCard(),
                                     ],
                                   );
                                 }
@@ -137,14 +181,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 return Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    SizedBox(
-                                      width: 440,
-                                      child: _buildAdminProfileCard(),
-                                    ),
-                                    const SizedBox(width: 22),
-                                    Expanded(
-                                      child: _buildSystemPreferencesCard(),
-                                    ),
+                                    Expanded(child: _buildAdminProfileCard()),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: _buildSecurityCard()),
                                   ],
                                 );
                               },
@@ -179,13 +218,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               letterSpacing: -0.03,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           // Unified Profile Section with Upload
           Row(
             children: [
-              GestureDetector(
-                onTap: _pickProfileImage,
-                child: Container(
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: _pickProfileImage,
+                  child: Container(
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
@@ -227,6 +268,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   size: 40,
                                 ),
                 ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -234,7 +276,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Admin',
+                      _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -243,7 +285,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'System Administrator',
+                      _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -251,9 +293,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _pickProfileImage,
-                      child: Container(
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: _pickProfileImage,
+                        child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: _primaryDark.withOpacity(0.1),
@@ -270,12 +314,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                     ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           _textFieldLabel('Admin Name'),
           _textField(_adminNameController),
           const SizedBox(height: 12),
@@ -284,7 +329,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 12),
           _textFieldLabel('Role'),
           _textField(_roleController),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
@@ -331,98 +376,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _buildSystemPreferencesCard() {
-    return _panelShell(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _sectionLabel('SYSTEM PREFERENCES'),
-          const SizedBox(height: 6),
-          Text(
-            'Portal Defaults',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: _textDark,
-              letterSpacing: -0.03,
-            ),
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stack = constraints.maxWidth < 760;
-              if (stack) {
-                return Column(
-                  children: [
-                    _textFieldLabel('Application Name'),
-                    _textField(_appNameController),
-                    const SizedBox(height: 12),
-                    _textFieldLabel('Default Theme'),
-                    _dropdownField(
-                      value: _selectedTheme,
-                      items: const ['Light / Dark Toggle', 'Light', 'Dark'],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setState(() => _selectedTheme = value);
-                        _applyTheme(value);
-                      },
-                    ),
-                  ],
-                );
-              }
-
-              return Column(
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _textFieldLabel('Application Name'),
-                            _textField(_appNameController),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _textFieldLabel('Default Theme'),
-                            _dropdownField(
-                              value: _selectedTheme,
-                              items: const ['Light / Dark Toggle', 'Light', 'Dark'],
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => _selectedTheme = value);
-                                _applyTheme(value);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  const SizedBox.shrink(),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _solidButton('Save Preferences', onTap: () {}),
-              const SizedBox(width: 10),
-              _ghostButton('Reset', onTap: () {}),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _panelShell({required Widget child}) {
     return Container(
       width: double.infinity,
@@ -432,6 +385,66 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         borderRadius: BorderRadius.circular(22),
       ),
       child: child,
+    );
+  }
+
+  Widget _buildSecurityCard() {
+    return _panelShell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionLabel('SECURITY'),
+          const SizedBox(height: 6),
+          Text(
+            'Change Password',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _textDark,
+              letterSpacing: -0.03,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'For account protection, you can prepare a new password here.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _mutedDark,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _textFieldLabel('Current Password'),
+          _passwordField(
+            controller: _currentPasswordController,
+            hint: 'Enter current password',
+            obscure: _obscureCurrentPassword,
+            onToggle: () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword),
+          ),
+          const SizedBox(height: 12),
+          _textFieldLabel('New Password'),
+          _passwordField(
+            controller: _newPasswordController,
+            hint: 'Enter new password',
+            obscure: _obscureNewPassword,
+            onToggle: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+          ),
+          const SizedBox(height: 12),
+          _textFieldLabel('Confirm New Password'),
+          _passwordField(
+            controller: _confirmPasswordController,
+            hint: 'Confirm new password',
+            obscure: _obscureConfirmPassword,
+            onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _solidButton('Change Password', onTap: _requestPasswordChange),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -520,36 +533,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _dropdownField({
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
+  Widget _passwordField({
+    required TextEditingController controller,
+    required String hint,
+    required bool obscure,
+    required VoidCallback onToggle,
   }) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      items: items
-          .map(
-            (item) => DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                item,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: _textDark,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          )
-          .toList(),
-      onChanged: onChanged,
-      icon: Icon(Icons.keyboard_arrow_down, color: _mutedDark),
-      dropdownColor: _surfaceDark,
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        color: _textDark,
+        fontWeight: FontWeight.w500,
+      ),
       decoration: InputDecoration(
         isDense: true,
+        hintText: hint,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          color: _mutedDark,
+          fontWeight: FontWeight.w500,
+        ),
+        suffixIcon: IconButton(
+          onPressed: onToggle,
+          icon: Icon(
+            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            color: _mutedDark,
+            size: 18,
+          ),
+        ),
         filled: true,
         fillColor: _bgDark.withOpacity(0.45),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: _borderDark),
@@ -558,13 +574,44 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: _borderDark),
         ),
-      ),
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        color: _textDark,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _primaryDark),
+        ),
       ),
     );
   }
+
+  Future<void> _requestPasswordChange() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active admin session found.')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text.trim().isEmpty || _confirmPasswordController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter and confirm the new password.')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password and confirmation do not match.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Password update is connected and ready, but not enabled yet. Coming soon.'),
+      ),
+    );
+  }
+
 
   Widget _solidButton(String label, {VoidCallback? onTap}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -608,8 +655,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           }
           _selectedImageBytes = bytes;
         });
-        // Auto-upload the image immediately after selection
-        await _uploadProfileImage();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo selected. Click Save Profile to apply changes.')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -645,21 +693,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
 
       final publicUrl = _supabase.storage.from('profile_pictures').getPublicUrl(filePath);
+      String displayUrl = publicUrl;
+      try {
+        displayUrl = await _supabase.storage
+            .from('profile_pictures')
+            .createSignedUrl(filePath, 60 * 60 * 24 * 30);
+      } catch (_) {
+        // If signed URL generation fails, fallback to public URL.
+      }
+
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        final existingMetadata = Map<String, dynamic>.from(user.userMetadata ?? <String, dynamic>{});
+        existingMetadata['profile_picture_url'] = displayUrl;
+        existingMetadata['profile_picture_path'] = filePath;
+        await _supabase.auth.updateUser(
+          UserAttributes(data: existingMetadata),
+        );
+      }
 
       if (mounted) {
         setState(() {
-          _profilePictureUrl = publicUrl;
+          _profilePicturePath = filePath;
+          _profilePictureUrl = displayUrl;
           _selectedImageBytes = null; // Clear bytes after upload
           _selectedImage = null;
         });
-        // Update the provider with the new profile picture URL
-        ref.read(adminProfileProvider.notifier).setProfilePictureUrl(publicUrl);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture uploaded successfully!'),
-            duration: Duration(seconds: 2),
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -681,17 +740,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _isSavingProfile = true);
     try {
+      final user = _supabase.auth.currentUser;
+      final Map<String, dynamic> metadataPayload = {
+        'admin_name': _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
+        'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+      };
+      if (_profilePictureUrl != null && _profilePictureUrl!.trim().isNotEmpty) {
+        metadataPayload['profile_picture_url'] = _profilePictureUrl!.trim();
+      }
+      if (_profilePicturePath != null && _profilePicturePath!.trim().isNotEmpty) {
+        metadataPayload['profile_picture_path'] = _profilePicturePath!.trim();
+      }
+
+      if (user != null) {
+        await _supabase.auth.updateUser(
+          UserAttributes(
+            data: metadataPayload,
+          ),
+        );
+      }
+
       // Update the admin profile provider
       ref.read(adminProfileProvider.notifier).updateProfile(
-            adminName: _adminNameController.text,
+            adminName: _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
             email: _emailController.text,
-            role: _roleController.text,
+            role: _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
             profilePictureUrl: _profilePictureUrl,
           );
 
-      // Here you would save admin profile to Supabase if needed
-      // Example: await _supabase.from('admin_profiles').update({...});
-      
+      await _loadAdminProfile();
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -718,24 +796,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _resetForm() {
-    _loadAdminEmail();
+    _adminNameController.text = 'Admin';
+    _roleController.text = 'System Administrator';
+    ref.read(adminProfileProvider.notifier).updateProfile(
+          adminName: 'Admin',
+          role: 'System Administrator',
+          email: _emailController.text.trim(),
+          profilePictureUrl: _profilePictureUrl,
+        );
     setState(() {
       _selectedImage = null;
       _selectedImageBytes = null;
-      _adminNameController.text = 'Admin';
-      _roleController.text = 'System Administrator';
+      _currentPasswordController.clear();
+      _newPasswordController.clear();
+      _confirmPasswordController.clear();
+      _obscureCurrentPassword = true;
+      _obscureNewPassword = true;
+      _obscureConfirmPassword = true;
     });
-  }
-
-  void _applyTheme(String themeName) {
-    // Theme preference is saved in state (_selectedTheme)
-    // The MaterialApp will read this and apply the theme
-    // For now, we just update the dropdown and show a message
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Theme changed to: $themeName'),
-        duration: const Duration(seconds: 2),
-      ),
+      const SnackBar(content: Text('Form reset to default admin values.')),
     );
   }
 
