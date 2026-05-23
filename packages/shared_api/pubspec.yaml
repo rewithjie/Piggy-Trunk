@@ -1,0 +1,12 @@
+name: shared_api
+description: Shared API client layer for PiggyTrunk clients.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  http: ^1.5.0
+  shared_models:
+    path: ../shared_models

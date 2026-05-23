@@ -2,6 +2,26 @@
 
 Flutter admin app backed by Supabase.
 
+## Multi-App Direction (Scaffold Added)
+
+This repository now includes a starter monorepo layout for:
+
+- `apps/admin_web`
+- `apps/cashier_web`
+- `apps/partner_web`
+- `apps/hog_raiser_mobile`
+- `packages/shared_models`
+- `packages/shared_api`
+- `docs/architecture/*`
+
+Start with the architecture docs:
+
+1. `docs/architecture/multi_app_blueprint.md`
+2. `docs/architecture/role_access_matrix.md`
+3. `docs/architecture/api_contract_v1.md`
+
+Current production/admin code is still in root `lib/`. Move features gradually into `apps/admin_web` and shared logic into `packages/*`.
+
 ## Database Setup (Supabase)
 
 1. Create a Supabase project.
