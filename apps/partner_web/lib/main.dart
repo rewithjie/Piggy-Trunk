@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'screens/partner_dashboard_screen.dart';
+import 'screens/partner_login_screen.dart';
 
 void main() {
   runApp(const PartnerWebApp());
@@ -12,10 +14,13 @@ class PartnerWebApp extends StatelessWidget {
     return MaterialApp(
       title: 'PiggyTrunk Partner',
       debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: Center(
-          child: Text('Partner Web Scaffold Ready'),
-        ),
+      initialRoute: '/login',
+      routes: {
+        '/login': (_) => const PartnerLoginScreen(),
+        '/dashboard': (_) => const PartnerDashboardScreen(),
+      },
+      onUnknownRoute: (_) => MaterialPageRoute(
+        builder: (_) => const PartnerLoginScreen(),
       ),
     );
   }
