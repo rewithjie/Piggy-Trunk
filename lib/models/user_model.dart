@@ -20,6 +20,41 @@ class User {
     this.isActive = true,
   });
 
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      emailVerifiedAt: json['email_verified_at']?.toString() ??
+          json['emailVerifiedAt']?.toString(),
+      createdAt: json['created_at']?.toString() ??
+          json['createdAt']?.toString() ??
+          '',
+      updatedAt: json['updated_at']?.toString() ??
+          json['updatedAt']?.toString() ??
+          '',
+      role: json['role']?.toString(),
+      isActive: json['is_active'] is bool
+          ? json['is_active'] as bool
+          : json['isActive'] is bool
+              ? json['isActive'] as bool
+              : true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'email_verified_at': emailVerifiedAt,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+      'role': role,
+      'is_active': isActive,
+    };
+  }
+
   User copyWith({
     int? id,
     String? name,

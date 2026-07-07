@@ -15,21 +15,22 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
-  if (supabaseUrl == null ||
-      supabaseUrl.isEmpty ||
-      supabaseAnonKey == null ||
-      supabaseAnonKey.isEmpty) {
-    throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env');
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // Ignore missing env file during local development.
   }
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-  );
+  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+
+  if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseAnonKey != null && supabaseAnonKey.isNotEmpty) {
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+    );
+  }
 
   runApp(
     const ProviderScope(
@@ -52,14 +53,7 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      onGenerateInitialRoutes: (initialRouteName) {
-        return [
-          MaterialPageRoute<void>(
-            builder: (_) => const DashboardScreen(),
-            settings: const RouteSettings(name: '/dashboard'),
-          ),
-        ];
-      },
+      initialRoute: '/login',
       routes: {
         '/login': (context) => const AdminLoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),

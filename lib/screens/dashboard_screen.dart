@@ -5,7 +5,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -41,42 +41,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                    child: Center(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 1400),
-                        decoration: BoxDecoration(
-                          color: _surfaceDark.withOpacity(0.5),
-                          border: Border.all(
-                            color: _borderDark,
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            /// Dashboard Title
-                            Text(
-                              'Dashboard',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w800,
-                                color: _textDark,
-                                letterSpacing: -0.04,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final contentWidth = constraints.maxWidth > 1400 ? 1400.0 : constraints.maxWidth;
+                        return Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: contentWidth,
+                            decoration: BoxDecoration(
+                              color: _surfaceDark.withValues(alpha: 0.5),
+                              border: Border.all(
+                                color: _borderDark,
+                                width: 1,
                               ),
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            const SizedBox(height: 24),
+                            padding: const EdgeInsets.all(32),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                /// Dashboard Title
+                                Text(
+                                  'Dashboard',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w800,
+                                    color: _textDark,
+                                    letterSpacing: -0.04,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
 
-                            /// KPI CARDS ROW (4 Cards)
-                            _buildKpiCardsRow(),
-                            const SizedBox(height: 32),
+                                /// KPI CARDS ROW (4 Cards)
+                                _buildKpiCardsRow(),
+                                const SizedBox(height: 32),
 
-                            /// INVESTMENT ALLOCATION SECTION
-                            _buildInvestmentAllocationSection(),
-                          ],
-                        ),
-                      ),
+                                /// INVESTMENT ALLOCATION SECTION
+                                _buildInvestmentAllocationSection(),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -96,23 +102,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'label': 'TOTAL CURRENT INVESTMENT', 'value': '₱0'},
       {'label': 'NUMBER OF MORTALITY', 'value': '0'},
     ];
+    const cardWidth = 320.0;
+    const spacing = 16.0;
+    final totalWidth = kpiData.length * cardWidth + (kpiData.length - 1) * spacing;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(
-          kpiData.length,
-          (index) => Padding(
-            padding: EdgeInsets.only(
-              right: index < kpiData.length - 1 ? 16 : 0,
-            ),
-            child: _buildKpiCard(
-              label: kpiData[index]['label'] as String,
-              value: kpiData[index]['value'] as String,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final groupWidth = totalWidth <= constraints.maxWidth ? totalWidth : constraints.maxWidth;
+        return Center(
+          child: SizedBox(
+            width: groupWidth,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  kpiData.length,
+                  (index) => Padding(
+                    padding: EdgeInsets.only(
+                      right: index < kpiData.length - 1 ? spacing : 0,
+                    ),
+                    child: SizedBox(width: cardWidth, child: _buildKpiCard(
+                      label: kpiData[index]['label'] as String,
+                      value: kpiData[index]['value'] as String,
+                    )),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -171,7 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
-            color: _surfaceDark.withOpacity(0.2),
+            color: _surfaceDark.withValues(alpha: 0.2),
             border: Border.all(
               color: _borderDark,
               width: 1,

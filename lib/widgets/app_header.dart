@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'piggyremovedbg.dart';
+import 'piggy_trunk_logo.dart';
 import '../theme/app_theme.dart';
 
 /// Reusable App Header with Logo
@@ -10,12 +10,12 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onLogoTap;
 
   const AppHeader({
-    Key? key,
+    super.key,
     required this.title,
     this.actions,
     this.showLogo = true,
     this.onLogoTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -63,10 +63,10 @@ class AppDrawer extends StatelessWidget {
   final VoidCallback? onLogout;
 
   const AppDrawer({
-    Key? key,
+    super.key,
     required this.items,
     this.onLogout,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +104,7 @@ class AppDrawer extends StatelessWidget {
               title: Text(item.label),
               onTap: item.onTap,
             );
-          }).toList(),
+          }),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -135,10 +135,10 @@ class LogoFAB extends StatelessWidget {
   final IconData icon;
 
   const LogoFAB({
-    Key? key,
+    super.key,
     required this.onPressed,
     required this.icon,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -160,12 +160,12 @@ class LogoHero extends StatelessWidget {
   final VoidCallback? onTap;
 
   const LogoHero({
-    Key? key,
+    super.key,
     this.size = 120,
     this.withBorder = false,
     this.tag = 'logo_hero',
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

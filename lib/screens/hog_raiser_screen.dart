@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/raiser_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
@@ -16,11 +17,11 @@ class HogRaiserScreen extends StatefulWidget {
 
 class _HogRaiserScreenState extends State<HogRaiserScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
+  final RaiserService _raiserService = RaiserService();
   final GlobalKey<FormState> _createFormKey = GlobalKey<FormState>();
   final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _phoneCtrl = TextEditingController();
-  final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _addressCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _raisers = [];
@@ -29,6 +30,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   bool _showCreateForm = false;
   String? _loadErrorMessage;
   String? _createErrorMessage;
+  String? _createdRaiserEmail;
+  String? _createdTemporaryPassword;
   String? _selectedPigType = 'Fattening';
   String _selectedStatus = 'Active';
   static const List<String> _lifecycleStages = <String>[
@@ -66,7 +69,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     _searchCtrl.dispose();
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
-    _emailCtrl.dispose();
     _addressCtrl.dispose();
     super.dispose();
   }
@@ -104,7 +106,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   void _resetCreateForm() {
     _nameCtrl.clear();
     _phoneCtrl.clear();
-    _emailCtrl.clear();
     _addressCtrl.clear();
     _createFormKey.currentState?.reset();
     _selectedPigType = 'Fattening';
@@ -118,13 +119,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     return null;
   }
 
-  String? _validateEmail(String? value) {
-    final requiredError = _validateRequired(value, 'Email');
-    if (requiredError != null) return requiredError;
-    final email = value!.trim();
-    final isValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
-    return isValid ? null : 'Please enter a valid email address';
-  }
+
 
   String? _validatePhone(String? value) {
     final requiredError = _validateRequired(value, 'Phone');
@@ -204,6 +199,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     _showCreateForm = true;
                     _selectedPigType ??= 'Fattening';
                     _selectedStatus = _selectedStatus.trim().isEmpty ? 'Active' : _selectedStatus;
+                    _createdRaiserEmail = null;
+                    _createdTemporaryPassword = null;
                   }),
                   icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
                   label: Text(
@@ -455,19 +452,35 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     ],
                   ),
                 ])),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _buildLabel(Icons.email_outlined, 'EMAIL', fontSize: 14),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _emailCtrl,
-                    hint: 'official@raiser-domain.com',
-                    fontSize: 14,
-                    hintSize: 14,
-                    validator: _validateEmail,
-                  ),
-                ])),
               ],
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _fieldBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _fieldBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Generated credentials',
+                    style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w700, color: _titleColor),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildCredentialRow(
+                    'Email',
+                    _createdRaiserEmail ?? 'Auto-generated after create',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildCredentialRow(
+                    'Password',
+                    _createdTemporaryPassword ?? 'Auto-generated after create',
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             _buildLabel(Icons.location_on_outlined, 'ADDRESS', fontSize: 14),
@@ -529,6 +542,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                   onPressed: () => setState(() {
                     _resetCreateForm();
                     _showCreateForm = false;
+                    _createdRaiserEmail = null;
+                    _createdTemporaryPassword = null;
                   }),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(108, 52),
@@ -538,6 +553,36 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 ),
               ],
             ),
+            if (_createdRaiserEmail != null || _createdTemporaryPassword != null) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _fieldBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _fieldBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Generated credentials',
+                      style: AppTextStyles.jakarta(size: 16, weight: FontWeight.w700, color: _titleColor),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCredentialRow('Email', _createdRaiserEmail ?? 'Generating...'),
+                    const SizedBox(height: 12),
+                    _buildCredentialRow('Temporary password', _createdTemporaryPassword ?? 'Generating...'),
+                    const SizedBox(height: 12),
+                    Text(
+                      'These credentials were generated for the new raiser account. Copy them or take note before closing.',
+                      style: AppTextStyles.body(_hintText),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         ),
@@ -667,12 +712,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
     final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
-    final email = _emailCtrl.text.trim();
     final address = _addressCtrl.text.trim();
     final pigType = _selectedPigType?.trim() ?? '';
     final status = _selectedStatus.trim();
 
-    if (name.isEmpty || phone.isEmpty || email.isEmpty || address.isEmpty || pigType.isEmpty || status.isEmpty) {
+    if (name.isEmpty || phone.isEmpty || address.isEmpty || pigType.isEmpty || status.isEmpty) {
       setState(() {
         _createErrorMessage = 'Please complete all required fields.';
       });
@@ -685,36 +729,34 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       _createErrorMessage = null;
     });
     try {
-      final basePayload = <String, dynamic>{
-        'name': name,
-        'phone': phone,
-        'email': email,
-        'address': address,
-        'pig_type': pigType,
-        'status': status,
-      };
+      final result = await _raiserService.createRaiser(
+        name: name,
+        phone: phone,
+        address: address,
+        lifecycleStage: 'Pre-Starter',
+        status: status,
+      );
 
-      // Keep new raisers consistent with lifecycle map and handle DB variants.
-      final payloadWithLifecycle = <String, dynamic>{
-        ...basePayload,
-        'lifecycle_stage': 'Pre-Starter',
-      };
+      final data = (result['data'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final temporaryPassword = data['temporary_password'] as String?;
+      final createdEmail = (data['auth_user'] as Map<String, dynamic>?)?['email'] as String?;
 
-      try {
-        await _supabase.from('hog_raisers').insert(payloadWithLifecycle);
-      } on PostgrestException catch (_) {
-        await _supabase.from('hog_raisers').insert(basePayload);
-      }
+      if (!mounted) return;
+      setState(() {
+        _createdRaiserEmail = createdEmail;
+        _createdTemporaryPassword = temporaryPassword;
+        _createErrorMessage = null;
+      });
 
+      await _showCreatedRaiserDialog(createdEmail, temporaryPassword);
       if (!mounted) return;
       setState(() {
         _resetCreateForm();
         _showCreateForm = false;
-        _createErrorMessage = null;
+        _createdRaiserEmail = null;
+        _createdTemporaryPassword = null;
       });
       await _loadRaisers(keyword: _searchCtrl.text);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Raiser account created successfully.')));
     } on PostgrestException catch (e) {
       if (!mounted) return;
       final details = (e.details ?? '').toString().trim();
@@ -729,13 +771,98 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _createErrorMessage = 'Create failed: $e';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create failed: $e')));
+      final msg = e.toString();
+      if (msg.contains('Admin session is not available')) {
+        setState(() {
+          _createErrorMessage = 'Admin session is not available. Please sign in again.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Expanded(child: Text('Admin session is not available. Please sign in again.')),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  child: const Text('Sign in'),
+                ),
+              ],
+            ),
+          ),
+        );
+      } else {
+        setState(() {
+          _createErrorMessage = 'Create failed: $e';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  Future<void> _showCreatedRaiserDialog(String? email, String? password) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: _cardBg,
+          title: Text(
+            'Raiser Account Created',
+            style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w800, color: _titleColor),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Credentials', style: AppTextStyles.jakarta(size: 16, weight: FontWeight.w800, color: _titleColor)),
+              const SizedBox(height: 16),
+              _buildCredentialRow('Email', email ?? 'Generated automatically'),
+              const SizedBox(height: 12),
+              _buildCredentialRow('Temporary password', password ?? 'Not available'),
+              const SizedBox(height: 18),
+              Text(
+                'Copy these credentials and give them to the raiser. They should change their password on first login.',
+                style: AppTextStyles.body(_hintText),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: 'Email: $email\nPassword: ${password ?? ''}'));
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Copy Credentials'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCredentialRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w700, color: _titleColor)),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: _fieldBg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _fieldBorder),
+          ),
+          child: Text(value, style: AppTextStyles.body(_fieldText)),
+        ),
+      ],
+    );
   }
 
   Widget _buildErrorBanner(String message) {

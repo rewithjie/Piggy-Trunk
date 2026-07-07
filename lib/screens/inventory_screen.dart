@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../models/product_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/inventory_data_adapter.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 
@@ -87,14 +88,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _supabase
-          .from(_table)
-          .select()
-          .eq('is_archived', _isArchiveMode)
-          .order('created_at', ascending: false);
-
-      final rows = (response as List)
-          .map((row) => Product.fromJson(row as Map<String, dynamic>))
+      final response = await _loadInventoryRows();
+      final rows = response
+          .map((row) => Product.fromJson(row))
           .toList();
 
       if (!mounted) return;
@@ -108,6 +104,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadInventoryRows() async {
+    try {
+      final response = await _supabase
+          .from(_table)
+          .select()
+          .eq('is_archived', _isArchiveMode)
+          .order('created_at', ascending: false);
+
+      final rows = response as List;
+      return normalizeInventoryRows(rows, sourceTable: _table);
+    } catch (e) {
+      final fallbackResponse = await _supabase.from('products').select();
+      final fallbackRows = fallbackResponse as List;
+      return normalizeInventoryRows(fallbackRows, sourceTable: 'products');
     }
   }
 

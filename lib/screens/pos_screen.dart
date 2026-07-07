@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pos_model.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/inventory_data_adapter.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 
@@ -38,14 +39,9 @@ class _POSScreenState extends State<POSScreen> {
   Future<void> _loadProductsFromInventory() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _supabase
-          .from('inventory_products')
-          .select()
-          .eq('is_archived', false)
-          .order('created_at', ascending: false);
-
-      final rows = (response as List)
-          .map((row) => POSProduct.fromJson(row as Map<String, dynamic>))
+      final response = await _loadInventoryRows();
+      final rows = response
+          .map((row) => POSProduct.fromJson(row))
           .toList();
 
       if (!mounted) return;
@@ -59,6 +55,23 @@ class _POSScreenState extends State<POSScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadInventoryRows() async {
+    try {
+      final response = await _supabase
+          .from('inventory_products')
+          .select()
+          .eq('is_archived', false)
+          .order('created_at', ascending: false);
+
+      final rows = response as List;
+      return normalizeInventoryRows(rows, sourceTable: 'inventory_products');
+    } catch (e) {
+      final fallbackResponse = await _supabase.from('products').select();
+      final fallbackRows = fallbackResponse as List;
+      return normalizeInventoryRows(fallbackRows, sourceTable: 'products');
     }
   }
 
