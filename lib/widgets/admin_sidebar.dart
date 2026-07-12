@@ -196,18 +196,18 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(8),
                       child: SizedBox(
-                        width: 58,
-                        height: 58,
+                        width: 72,
+                        height: 72,
                         child: Image.asset(
-                          'assets/piggytrunkremovebg.png',
+                          'assets/piggytrunk_logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
                     ),
-                    SizedBox(width: showExpandedContent ? 12 : 6),
-                    if (showExpandedContent)
+                    SizedBox(width: showExpandedContent ? 12 : 2),
+                    if (showExpandedContent) ...[
                       Flexible(
                         child: Text(
                           'PiggyTrunk',
@@ -215,7 +215,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                    ],
                     _buildSidebarToggle(isExpanded),
                   ],
                 ),
@@ -366,7 +367,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
           ref.read(sidebarExpandedProvider.notifier).state = !isExpanded;
         },
         child: Container(
-          padding: const EdgeInsets.all(6),
+          padding: EdgeInsets.all(isExpanded ? 6 : 2),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
             color: Colors.transparent,

@@ -9,20 +9,26 @@ class PiggyTrunkLogo extends StatelessWidget {
   final Alignment imageAlignment;
 
   const PiggyTrunkLogo({
-    Key? key,
+    super.key,
     this.size = 120,
     this.withBorder = false,
     this.borderRadius,
     this.imageAlignment = const Alignment(-0.06, 0.0),
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
-    final primaryColor = isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
-    final accentColor = isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
-    
+    final surfaceColor = isDark
+        ? PiggyTrunkTheme.ptSurfaceDark
+        : PiggyTrunkTheme.ptSurface;
+    final primaryColor = isDark
+        ? PiggyTrunkTheme.ptPrimaryDark
+        : PiggyTrunkTheme.ptPrimary;
+    final accentColor = isDark
+        ? PiggyTrunkTheme.ptAccentDark
+        : PiggyTrunkTheme.ptAccent;
+
     final logo = _buildLogo(context, isDark, accentColor, surfaceColor);
 
     if (!withBorder) {
@@ -47,14 +53,19 @@ class PiggyTrunkLogo extends StatelessWidget {
     );
   }
 
-  Widget _buildLogo(BuildContext context, bool isDark, Color accentColor, Color surfaceColor) {
+  Widget _buildLogo(
+    BuildContext context,
+    bool isDark,
+    Color accentColor,
+    Color surfaceColor,
+  ) {
     // Try to load image, fallback to icon if not found
     return SizedBox(
       width: size,
       height: size,
       child: Center(
         child: Image.asset(
-          'assets/piggytrunkremovebg.png',
+          'assets/piggytrunk_logo.png',
           width: size,
           height: size,
           fit: BoxFit.contain,
@@ -78,18 +89,11 @@ class PiggyTrunkLogo extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            accentColor.withOpacity(0.8),
-            accentColor.withOpacity(0.9),
-          ],
+          colors: [accentColor.withOpacity(0.8), accentColor.withOpacity(0.9)],
         ),
       ),
       child: Center(
-        child: Icon(
-          Icons.pets_rounded,
-          size: size * 0.6,
-          color: surfaceColor,
-        ),
+        child: Icon(Icons.pets_rounded, size: size * 0.6, color: surfaceColor),
       ),
     );
   }
@@ -101,5 +105,5 @@ class LogoSize {
   static const double small = 48;
   static const double medium = 68;
   static const double large = 120;
-  static const double extraLarge = 164;
+  static const double extraLarge = 320;
 }

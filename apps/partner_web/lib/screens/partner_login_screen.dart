@@ -364,7 +364,7 @@ class _PartnerLoginScreenState extends State<PartnerLoginScreen> {
                   width: 164,
                   height: 164,
                   child: Image.asset(
-                    'assets/piggytrunkremovebg.png',
+                    'assets/piggytrunk_logo.png',
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
                         const Icon(Icons.savings_outlined, size: 120, color: _brandColor),

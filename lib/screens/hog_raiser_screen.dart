@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../services/raiser_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
@@ -17,31 +16,13 @@ class HogRaiserScreen extends StatefulWidget {
 
 class _HogRaiserScreenState extends State<HogRaiserScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  final RaiserService _raiserService = RaiserService();
-  final GlobalKey<FormState> _createFormKey = GlobalKey<FormState>();
   final TextEditingController _searchCtrl = TextEditingController();
-  final TextEditingController _nameCtrl = TextEditingController();
-  final TextEditingController _phoneCtrl = TextEditingController();
-  final TextEditingController _addressCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _raisers = [];
   bool _isLoading = true;
-  bool _isSubmitting = false;
-  bool _showCreateForm = false;
+  int _currentTab = 0; // 0 = Active, 1 = Pending
   String? _loadErrorMessage;
-  String? _createErrorMessage;
-  String? _createdRaiserEmail;
-  String? _createdTemporaryPassword;
-  String? _selectedPigType = 'Fattening';
-  String _selectedStatus = 'Active';
-  static const List<String> _lifecycleStages = <String>[
-    'Booster',
-    'Pre-Starter',
-    'Starter',
-    'Grower',
-    'Finisher',
-    'Selling',
-  ];
+  final Map<int, String?> _selectedPigTypes = {};
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
@@ -67,16 +48,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
-    _nameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _addressCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _loadRaisers({String keyword = ''}) async {
     setState(() => _isLoading = true);
     try {
-      dynamic query = _supabase.from('hog_raisers').select();
+      dynamic query = _supabase
+          .from('hog_raisers')
+          .select('id, hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users(email, supabase_user_id)');
       if (keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }
@@ -84,7 +64,27 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
       if (!mounted) return;
       setState(() {
-        _raisers = (response as List).cast<Map<String, dynamic>>();
+        _raisers = (response as List).cast<Map<String, dynamic>>().map((r) {
+          final appUsers = r['app_users'] as Map<String, dynamic>?;
+          return {
+            ...r,
+            'email': appUsers?['email'] ?? '',
+            'supabase_user_id': appUsers?['supabase_user_id'],
+          };
+        }).where((r) => r['supabase_user_id'] != null).toList();
+
+        // Populate initial pig types state
+        for (final r in _raisers) {
+          final id = _parseId(r['id'] ?? r['hog_raiser_id']);
+          if (id != null) {
+            final isPending = (r['account_status'] ?? '').toString().toLowerCase() == 'pending';
+            // Only initialize if not already tracked or if it's a fresh load
+            if (!_selectedPigTypes.containsKey(id)) {
+              _selectedPigTypes[id] = isPending ? null : r['pig_type']?.toString();
+            }
+          }
+        }
+        
         _loadErrorMessage = null;
       });
     } catch (e) {
@@ -103,31 +103,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     return int.tryParse(rawId.toString());
   }
 
-  void _resetCreateForm() {
-    _nameCtrl.clear();
-    _phoneCtrl.clear();
-    _addressCtrl.clear();
-    _createFormKey.currentState?.reset();
-    _selectedPigType = 'Fattening';
-    _selectedStatus = 'Active';
-  }
-
-  String? _validateRequired(String? value, String label) {
-    if (value == null || value.trim().isEmpty) {
-      return '$label is required';
-    }
-    return null;
-  }
-
-
-
-  String? _validatePhone(String? value) {
-    final requiredError = _validateRequired(value, 'Phone');
-    if (requiredError != null) return requiredError;
-    final phone = value!.trim();
-    if (phone.length != 11) return 'Phone must be exactly 11 digits';
-    return null;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,7 +132,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                                 borderRadius: BorderRadius.circular(30),
                               ),
                               padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
-                              child: _showCreateForm ? _buildCreateForm() : _buildListView(),
+                              child: _buildListView(),
                             ),
                           ),
                         ),
@@ -171,17 +146,34 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _buildListView() {
+    final activeCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'active').length;
+    final pendingCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'pending').length;
+
+    final filteredRaisers = _raisers.where((r) {
+      final status = (r['account_status'] ?? '').toString().toLowerCase();
+      final tabStatus = _currentTab == 0 ? 'active' : 'pending';
+      return status == tabStatus;
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Hog Raiser',
+          'Hog Raiser Management',
           style: AppTextStyles.pageTitle(_titleColor),
         ),
         if (_loadErrorMessage != null) ...[
           const SizedBox(height: 10),
           _buildErrorBanner(_loadErrorMessage!),
         ],
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            _buildTabButton(0, 'Active Raisers', activeCount),
+            const SizedBox(width: 12),
+            _buildTabButton(1, 'Pending Approvals', pendingCount),
+          ],
+        ),
         const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
@@ -192,30 +184,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ElevatedButton.icon(
-                  onPressed: () => setState(() {
-                    _showCreateForm = true;
-                    _selectedPigType ??= 'Fattening';
-                    _selectedStatus = _selectedStatus.trim().isEmpty ? 'Active' : _selectedStatus;
-                    _createdRaiserEmail = null;
-                    _createdTemporaryPassword = null;
-                  }),
-                  icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
-                  label: Text(
-                    'Create New Account',
-                    style: AppTextStyles.button(_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-                    foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
               Row(
                 children: [
                   Expanded(
@@ -260,22 +228,48 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               const SizedBox(height: 18),
               _tableHeader(),
               const SizedBox(height: 8),
-              if (_raisers.isEmpty)
+              if (filteredRaisers.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 50),
                   child: Center(
                     child: Text(
-                      'No raiser found',
-                      style: AppTextStyles.jakarta(size: 24, weight: FontWeight.w700, color: _titleColor),
+                      _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
+                      style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
                     ),
                   ),
                 )
               else
-                ..._raisers.map(_tableRow),
+                ...filteredRaisers.map(_tableRow),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTabButton(int index, String label, int count) {
+    final isSelected = _currentTab == index;
+    final textStyle = AppTextStyles.jakarta(
+      size: 14,
+      weight: isSelected ? FontWeight.w800 : FontWeight.w600,
+      color: isSelected 
+          ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white) 
+          : _hintText,
+    );
+    return ElevatedButton(
+      onPressed: () => setState(() => _currentTab = index),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected 
+            ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary) 
+            : (_isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD)),
+        foregroundColor: isSelected 
+            ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white) 
+            : _titleColor,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size(180, 48),
+      ),
+      child: Text('$label ($count)', style: textStyle),
     );
   }
 
@@ -300,7 +294,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _tableRow(Map<String, dynamic> row) {
-    final currentStage = row['lifecycle_stage']?.toString().trim();
+    final raiserId = _parseId(row['id'] ?? row['hog_raiser_id']);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
@@ -309,561 +303,88 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: Text((row['name'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
+              Expanded(child: Text('Raiser - ${(row['name'] ?? '')}', style: AppTextStyles.body(_titleColor))),
               Expanded(child: Text((row['address'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
               Expanded(child: Text((row['phone'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
-              Expanded(child: Text((row['pig_type'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
-              Expanded(child: Text((row['status'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
               Expanded(
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => _openEditRaiserDialog(row),
-                      icon: Icon(Icons.edit_outlined, size: 16, color: _hintText),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 10),
-                    IconButton(
-                      onPressed: () => _deleteRaiser(row),
-                      icon: Icon(Icons.delete_outline, size: 16, color: _accentDark),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
+                child: _currentTab == 1 && raiserId != null
+                    ? Container(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedPigTypes[raiserId],
+                            hint: Text(
+                              'Select Type',
+                              style: AppTextStyles.body(_hintText).copyWith(fontSize: 14),
+                            ),
+                            dropdownColor: _cardBg,
+                            iconEnabledColor: _titleColor,
+                            style: AppTextStyles.body(_fieldText).copyWith(fontSize: 14),
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              filled: true,
+                              fillColor: _fieldBg,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: _fieldBorder),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: _fieldFocus),
+                              ),
+                            ),
+                            items: const ['Fattening', 'Sow']
+                                .map((type) => DropdownMenuItem(
+                                      value: type,
+                                      child: Text(type),
+                                    ))
+                                .toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedPigTypes[raiserId] = val;
+                              });
+                            },
+                          ),
+                        ),
+                      )
+                    : Text((row['pig_type'] ?? '').toString(), style: AppTextStyles.body(_titleColor)),
+              ),
+              Expanded(child: Text((row['account_status'] ?? '').toString().toUpperCase(), style: AppTextStyles.body(_titleColor))),
+              Expanded(
+                child: (row['account_status'] ?? '').toString().toLowerCase() == 'pending'
+                    ? Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => _approveRaiserDirectly(row),
+                            icon: const Icon(Icons.check_circle_outline, size: 24, color: Colors.green),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Approve Raiser',
+                          ),
+                          const SizedBox(width: 12),
+                          IconButton(
+                            onPressed: () => _deleteRaiser(row),
+                            icon: Icon(Icons.close_rounded, size: 24, color: _accentDark),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Reject',
+                          ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
-          if (currentStage != null && currentStage.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _buildLifecycleMap(currentStage),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildLifecycleMap(String currentStage) {
-    final activeIndex = _lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
-    final normalizedIndex = activeIndex < 0 ? 0 : activeIndex;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(_lifecycleStages.length, (index) {
-          final stage = _lifecycleStages[index];
-          final isDone = index < normalizedIndex;
-          final isCurrent = index == normalizedIndex;
 
-          Color bgColor;
-          Color fgColor;
-          IconData icon;
-          if (isDone) {
-            bgColor = const Color(0xFF10B981);
-            fgColor = Colors.white;
-            icon = Icons.check;
-          } else if (isCurrent) {
-            bgColor = const Color(0xFFF97316);
-            fgColor = Colors.white;
-            icon = Icons.priority_high_rounded;
-          } else {
-            bgColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
-            fgColor = Colors.white;
-            icon = Icons.radio_button_unchecked;
-          }
 
-          return Padding(
-            padding: EdgeInsets.only(right: index == _lifecycleStages.length - 1 ? 0 : 24),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: bgColor,
-                  child: Icon(icon, size: 14, color: fgColor),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  stage,
-                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _titleColor),
-                ),
-              ],
-            ),
-          );
-        }),
-      ),
-    );
-  }
 
-  Widget _buildCreateForm() {
-    return Center(
-        child: Form(
-          key: _createFormKey,
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 920),
-            decoration: BoxDecoration(
-              color: _isDark ? const Color(0xFF12213A) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: _cardBorder, width: 1),
-            ),
-            padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Create New Raiser',
-              style: AppTextStyles.jakarta(
-                size: 30,
-                weight: FontWeight.w800,
-                color: _titleColor,
-                letterSpacing: -0.04,
-              ),
-            ),
-            if (_createErrorMessage != null) ...[
-              const SizedBox(height: 12),
-              _buildErrorBanner(_createErrorMessage!),
-            ],
-            const SizedBox(height: 18),
-            _buildLabel(Icons.person_2_outlined, 'HOG RAISER NAME', fontSize: 14),
-            const SizedBox(height: 8),
-            _buildTextField(
-              controller: _nameCtrl,
-              hint: 'Enter name',
-              fontSize: 14,
-              hintSize: 14,
-              validator: (value) => _validateRequired(value, 'Name'),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _buildLabel(Icons.phone_outlined, 'PHONE', fontSize: 14),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _phoneCtrl,
-                    hint: '+63 XXX XXX XXXX',
-                    fontSize: 14,
-                    hintSize: 14,
-                    validator: _validatePhone,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                  ),
-                ])),
-              ],
-            ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: _fieldBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _fieldBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Generated credentials',
-                    style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w700, color: _titleColor),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCredentialRow(
-                    'Email',
-                    _createdRaiserEmail ?? 'Auto-generated after create',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCredentialRow(
-                    'Password',
-                    _createdTemporaryPassword ?? 'Auto-generated after create',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            _buildLabel(Icons.location_on_outlined, 'ADDRESS', fontSize: 14),
-            const SizedBox(height: 8),
-            _buildTextField(
-              controller: _addressCtrl,
-              hint: 'e.g., Malasiqui, San Carlos',
-              fontSize: 14,
-              hintSize: 14,
-              validator: (value) => _validateRequired(value, 'Address'),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _buildLabel(Icons.view_module_outlined, 'SELECT PIG', fontSize: 14),
-                  const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedPigType,
-                    hint: 'Select breed type',
-                    items: const ['Fattening', 'Sow'],
-                    fontSize: 14,
-                    onChanged: (v) => setState(() => _selectedPigType = v),
-                  ),
-                ])),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  _buildLabel(Icons.verified_outlined, 'STATUS', fontSize: 14),
-                  const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedStatus,
-                    hint: 'Select status',
-                    items: const ['Active', 'Inactive'],
-                    fontSize: 14,
-                    onChanged: (v) => setState(() => _selectedStatus = v ?? 'Active'),
-                  ),
-                ])),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _isSubmitting ? null : _createRaiser,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(
-                    _isSubmitting ? 'Creating...' : 'Create New Account',
-                    style: AppTextStyles.button(_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-                    foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                    minimumSize: const Size(230, 52),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: () => setState(() {
-                    _resetCreateForm();
-                    _showCreateForm = false;
-                    _createdRaiserEmail = null;
-                    _createdTemporaryPassword = null;
-                  }),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(108, 52),
-                    side: BorderSide(color: _fieldBorder, width: 1),
-                  ),
-                  child: Text('Cancel', style: AppTextStyles.body(_titleColor)),
-                ),
-              ],
-            ),
-            if (_createdRaiserEmail != null || _createdTemporaryPassword != null) ...[
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _fieldBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _fieldBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Generated credentials',
-                      style: AppTextStyles.jakarta(size: 16, weight: FontWeight.w700, color: _titleColor),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildCredentialRow('Email', _createdRaiserEmail ?? 'Generating...'),
-                    const SizedBox(height: 12),
-                    _buildCredentialRow('Temporary password', _createdTemporaryPassword ?? 'Generating...'),
-                    const SizedBox(height: 12),
-                    Text(
-                      'These credentials were generated for the new raiser account. Copy them or take note before closing.',
-                      style: AppTextStyles.body(_hintText),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildLabel(IconData icon, String label, {double fontSize = 23}) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: _titleColor),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w800, color: _titleColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required double fontSize,
-    required double hintSize,
-    String? Function(String?)? validator,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-  }) {
-    return SizedBox(
-      height: 64,
-      child: TextFormField(
-        controller: controller,
-        validator: validator,
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
-        cursorColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-        style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w500, color: _fieldText),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: AppTextStyles.jakarta(size: hintSize, weight: FontWeight.w500, color: _hintText),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          filled: true,
-          fillColor: _fieldBg,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _fieldBorder),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _fieldFocus),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdown({
-    required String? value,
-    required String hint,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-    required double fontSize,
-  }) {
-    return SizedBox(
-      height: 66,
-      child: DropdownButtonFormField<String>(
-        initialValue: value,
-        isExpanded: true,
-        isDense: true,
-        borderRadius: BorderRadius.circular(12),
-        menuMaxHeight: 220,
-        icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
-        dropdownColor: _fieldBg,
-        style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w500, color: _fieldText),
-        decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          filled: true,
-          fillColor: _fieldBg,
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _fieldBorder),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: _fieldFocus),
-          ),
-        ),
-        hint: Text(
-          hint,
-          style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w600, color: _hintText),
-        ),
-        items: items
-            .map(
-              (item) => DropdownMenuItem<String>(
-                value: item,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    item,
-                    style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w600, color: _fieldText),
-                  ),
-                ),
-              ),
-            )
-            .toList(),
-        onChanged: onChanged,
-        selectedItemBuilder: (context) => items
-            .map(
-              (item) => Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  item,
-                  style: AppTextStyles.jakarta(size: fontSize, weight: FontWeight.w600, color: _fieldText),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Future<void> _createRaiser() async {
-    if (_isSubmitting) return;
-    final form = _createFormKey.currentState;
-    if (form == null || !form.validate()) return;
-
-    final name = _nameCtrl.text.trim();
-    final phone = _phoneCtrl.text.trim();
-    final address = _addressCtrl.text.trim();
-    final pigType = _selectedPigType?.trim() ?? '';
-    final status = _selectedStatus.trim();
-
-    if (name.isEmpty || phone.isEmpty || address.isEmpty || pigType.isEmpty || status.isEmpty) {
-      setState(() {
-        _createErrorMessage = 'Please complete all required fields.';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all required fields.')));
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-      _createErrorMessage = null;
-    });
-    try {
-      final result = await _raiserService.createRaiser(
-        name: name,
-        phone: phone,
-        address: address,
-        lifecycleStage: 'Pre-Starter',
-        status: status,
-      );
-
-      final data = (result['data'] as Map<String, dynamic>?) ?? <String, dynamic>{};
-      final temporaryPassword = data['temporary_password'] as String?;
-      final createdEmail = (data['auth_user'] as Map<String, dynamic>?)?['email'] as String?;
-
-      if (!mounted) return;
-      setState(() {
-        _createdRaiserEmail = createdEmail;
-        _createdTemporaryPassword = temporaryPassword;
-        _createErrorMessage = null;
-      });
-
-      await _showCreatedRaiserDialog(createdEmail, temporaryPassword);
-      if (!mounted) return;
-      setState(() {
-        _resetCreateForm();
-        _showCreateForm = false;
-        _createdRaiserEmail = null;
-        _createdTemporaryPassword = null;
-      });
-      await _loadRaisers(keyword: _searchCtrl.text);
-    } on PostgrestException catch (e) {
-      if (!mounted) return;
-      final details = (e.details ?? '').toString().trim();
-      final hint = (e.hint ?? '').toString().trim();
-      final cleanDetails = details.isNotEmpty ? ' $details' : '';
-      final cleanHint = hint.isNotEmpty ? ' Hint: $hint' : '';
-      setState(() {
-        _createErrorMessage = 'Create failed: ${e.message}.$cleanDetails$cleanHint';
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Create failed: ${e.message}.$cleanDetails$cleanHint')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString();
-      if (msg.contains('Admin session is not available')) {
-        setState(() {
-          _createErrorMessage = 'Admin session is not available. Please sign in again.';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Expanded(child: Text('Admin session is not available. Please sign in again.')),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pushReplacementNamed('/login'),
-                  child: const Text('Sign in'),
-                ),
-              ],
-            ),
-          ),
-        );
-      } else {
-        setState(() {
-          _createErrorMessage = 'Create failed: $e';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Create failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  Future<void> _showCreatedRaiserDialog(String? email, String? password) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: _cardBg,
-          title: Text(
-            'Raiser Account Created',
-            style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w800, color: _titleColor),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Credentials', style: AppTextStyles.jakarta(size: 16, weight: FontWeight.w800, color: _titleColor)),
-              const SizedBox(height: 16),
-              _buildCredentialRow('Email', email ?? 'Generated automatically'),
-              const SizedBox(height: 12),
-              _buildCredentialRow('Temporary password', password ?? 'Not available'),
-              const SizedBox(height: 18),
-              Text(
-                'Copy these credentials and give them to the raiser. They should change their password on first login.',
-                style: AppTextStyles.body(_hintText),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: 'Email: $email\nPassword: ${password ?? ''}'));
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Copy Credentials'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Done'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildCredentialRow(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w700, color: _titleColor)),
-        const SizedBox(height: 6),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: _fieldBg,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _fieldBorder),
-          ),
-          child: Text(value, style: AppTextStyles.body(_fieldText)),
-        ),
-      ],
-    );
-  }
 
   Widget _buildErrorBanner(String message) {
     return Container(
@@ -885,186 +406,176 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     );
   }
 
-  Future<void> _openEditRaiserDialog(Map<String, dynamic> row) async {
-    final id = _parseId(row['id']);
+
+  Future<void> _approveRaiserDirectly(Map<String, dynamic> row) async {
+    final id = _parseId(row['id'] ?? row['hog_raiser_id']);
+    final userId = _parseId(row['user_id']);
     if (id == null) return;
 
-    final nameCtrl = TextEditingController(text: (row['name'] ?? '').toString());
-    final phoneCtrl = TextEditingController(text: (row['phone'] ?? '').toString());
-    final emailCtrl = TextEditingController(text: (row['email'] ?? '').toString());
-    final addressCtrl = TextEditingController(text: (row['address'] ?? '').toString());
-    String pigType = (row['pig_type'] ?? 'Fattening').toString();
-    String status = (row['status'] ?? 'Active').toString();
+    final selectedType = _selectedPigTypes[id];
+    if (selectedType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a Pig Type from the dropdown first.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    await showDialog<void>(
+    final name = (row['name'] ?? '').toString();
+
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: _cardBg,
-          title: Text(
-            'Edit Raiser',
-            style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
-          ),
-          content: SizedBox(
-            width: 440,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildDialogInput(nameCtrl, 'Name'),
-                  _buildDialogInput(
-                    phoneCtrl,
-                    'Phone',
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                  ),
-                  _buildDialogInput(emailCtrl, 'Email'),
-                  _buildDialogInput(addressCtrl, 'Address'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: pigType,
-                    decoration: _dialogDecoration('Pig Type'),
-                    items: const ['Fattening', 'Sow']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (v) => pigType = v ?? pigType,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    decoration: _dialogDecoration('Status'),
-                    items: const ['Active', 'Inactive']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (v) => status = v ?? status,
-                  ),
-                ],
-              ),
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _cardBg,
+        title: Text(
+          'Approve Hog Raiser',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: Text(
+          'Are you sure you want to approve "$name" as "$selectedType"?',
+          style: AppTextStyles.body(_titleColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.button(Colors.white70),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameCtrl.text.trim();
-                final phone = phoneCtrl.text.trim();
-                final email = emailCtrl.text.trim();
-                final address = addressCtrl.text.trim();
-                if (name.isEmpty || phone.isEmpty || email.isEmpty || address.isEmpty) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('Please complete all required fields.')),
-                  );
-                  return;
-                }
-                if (phone.length != 11) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('Phone must be exactly 11 digits.')),
-                  );
-                  return;
-                }
-                try {
-                  await _supabase.from('hog_raisers').update({
-                    'name': name,
-                    'phone': phone,
-                    'email': email,
-                    'address': address,
-                    'pig_type': pigType,
-                    'status': status,
-                  }).eq('id', id);
-                  if (!dialogContext.mounted) return;
-                  Navigator.pop(dialogContext);
-                  await _loadRaisers(keyword: _searchCtrl.text);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Raiser updated successfully.')),
-                  );
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Update failed: $e')),
-                  );
-                }
-              },
-              child: const Text('Save Changes'),
+            child: Text(
+              'Approve',
+              style: AppTextStyles.button(Colors.white),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+      final List<Future> updates = [
+        _supabase.from('hog_raisers').update({
+          'pig_type': selectedType,
+          'status': 'Active',
+          'account_status': 'active',
+        }).eq(pkCol, id),
+      ];
+
+      if (userId != null) {
+        updates.add(
+          _supabase.from('app_users').update({
+            'status': 'active',
+          }).eq('user_id', userId),
+        );
+      }
+
+      await Future.wait(updates);
+      await _loadRaisers(keyword: _searchCtrl.text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Raiser "$name" approved successfully.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Approval failed: $e', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _deleteRaiser(Map<String, dynamic> row) async {
-    final id = _parseId(row['id']);
+    final id = _parseId(row['id'] ?? row['hog_raiser_id']);
+    final userId = _parseId(row['user_id']);
     if (id == null) return;
     final name = (row['name'] ?? '').toString();
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Raiser'),
-        content: Text('Delete raiser "$name"?'),
+        backgroundColor: _cardBg,
+        title: Text(
+          'Reject Hog Raiser',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: Text(
+          'Are you sure you want to reject "$name"?',
+          style: AppTextStyles.body(_titleColor),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.button(Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accentDark,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Reject',
+              style: AppTextStyles.button(Colors.white),
+            ),
+          ),
         ],
       ),
     );
 
     if (confirm != true) return;
+
+    setState(() => _isLoading = true);
     try {
-      await _supabase.from('hog_raisers').delete().eq('id', id);
+      if (userId != null) {
+        await _supabase.from('app_users').delete().eq('user_id', userId);
+      } else {
+        final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+        await _supabase.from('hog_raisers').delete().eq(pkCol, id);
+      }
       await _loadRaisers(keyword: _searchCtrl.text);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Raiser deleted.')),
+        SnackBar(
+          content: Text('Raiser registration rejected successfully.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
+        SnackBar(
+          content: Text('Rejection failed: $e', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Widget _buildDialogInput(
-    TextEditingController controller,
-    String label, {
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        inputFormatters: inputFormatters,
-        cursorColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-        style: AppTextStyles.body(_fieldText),
-        decoration: _dialogDecoration(label),
-      ),
-    );
-  }
-
-  InputDecoration _dialogDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: AppTextStyles.body(_hintText),
-      filled: true,
-      fillColor: _fieldBg,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldFocus),
-      ),
-    );
   }
 }

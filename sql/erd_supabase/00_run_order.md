@@ -17,7 +17,13 @@ Run these files in order in Supabase SQL Editor:
 15. `15_supply.sql`
 16. `16_sales.sql`
 17. `17_investments.sql`
-18. `90_rls_policies.sql`
+18. `18_add_supabase_user_id_to_app_users.sql`
+19. `19_inventory_products.sql`
+20. `20_investment_records.sql`
+21. `21_dashboard_summary_view.sql`
+22. `22_auth_signup_trigger.sql`
+23. `23_hog_raisers_foreign_key.sql`
+24. `90_rls_policies.sql`
 
 Notes:
 - `USER` from your ERD is mapped to `app_users` because `user` is a reserved keyword in PostgreSQL.

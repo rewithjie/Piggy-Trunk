@@ -1,6 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:piggytrunk/theme/app_theme.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/signup_screen.dart';
+import 'screens/dashboard_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // Ignore missing env file during local development.
+  }
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+
+  if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseAnonKey != null && supabaseAnonKey.isNotEmpty) {
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+    );
+  }
+
   runApp(const HogRaiserMobileApp());
 }
 
@@ -12,11 +37,16 @@ class HogRaiserMobileApp extends StatelessWidget {
     return MaterialApp(
       title: 'PiggyTrunk Hog Raiser',
       debugShowCheckedModeBanner: false,
-      home: const Scaffold(
-        body: Center(
-          child: Text('Hog Raiser Mobile Scaffold Ready'),
-        ),
-      ),
+      theme: PiggyTrunkTheme.lightTheme,
+      darkTheme: PiggyTrunkTheme.darkTheme,
+      themeMode: ThemeMode.light,
+      initialRoute: '/onboarding',
+      routes: {
+        '/onboarding': (context) => const OnboardingScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignUpScreen(),
+        '/dashboard': (context) => const MobileDashboardScreen(),
+      },
     );
   }
 }

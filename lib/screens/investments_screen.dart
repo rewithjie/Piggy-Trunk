@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/investment_model.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 
@@ -72,8 +73,18 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Future<void> _loadInvestments() async {
     setState(() => _isLoading = true);
     try {
+      // Auto-migrate: convert any old pending investments to active in the database
+      try {
+        await _supabase
+            .from('investment_records')
+            .update({'stage': 'active'})
+            .eq('stage', 'pending');
+      } catch (_) {
+        // Ignore silent migration failures (e.g. offline/network)
+      }
+
       final response = await _supabase
-          .from('investments')
+          .from('investment_records')
           .select()
           .order('investment_date', ascending: false);
 
@@ -99,11 +110,18 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     try {
       final response = await _supabase
           .from('hog_raisers')
-          .select('id,name,pig_type')
+          .select('id, hog_raiser_id, name, pig_type')
           .eq('status', 'Active')
           .order('name', ascending: true);
       if (!mounted) return;
-      setState(() => _raisers = (response as List).cast<Map<String, dynamic>>());
+      final rows = (response as List).cast<Map<String, dynamic>>().map((r) {
+        return {
+          ...r,
+          'id': (r['id'] ?? r['hog_raiser_id'] ?? '').toString(),
+          'real_pk_col': r['id'] != null ? 'id' : 'hog_raiser_id',
+        };
+      }).toList();
+      setState(() => _raisers = rows);
     } catch (_) {}
   }
 
@@ -141,10 +159,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     try {
       final response = await _supabase
           .from('hog_raisers')
-          .select('id, name, pig_type')
+          .select('id, hog_raiser_id, name, pig_type')
           .eq('status', 'Active')
           .order('name', ascending: true);
-      raisers = List<Map<String, dynamic>>.from(response as List);
+      // Normalize: expose 'id' key so the dropdown value matching still works
+      raisers = (response as List).cast<Map<String, dynamic>>().map((r) {
+        return {
+          ...r,
+          'id': (r['id'] ?? r['hog_raiser_id'] ?? '').toString(),
+          'real_pk_col': r['id'] != null ? 'id' : 'hog_raiser_id',
+        };
+      }).toList();
       if (raisers.isNotEmpty && existing == null) {
         selectedRaiserId = raisers[0]['id'].toString();
         selectedHogType = (raisers[0]['pig_type'] ?? 'Auto-populated').toString();
@@ -220,38 +245,56 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedRaiserId,
-                          decoration: _createInputDecoration('Select an authorized raiser'),
-                          isExpanded: true,
-                          menuMaxHeight: 260,
-                          borderRadius: BorderRadius.circular(12),
-                          dropdownColor: _fieldBg,
-                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
-                          style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
-                          items: raisers
-                              .map((raiser) => DropdownMenuItem<String>(
-                                    value: raiser['id'].toString(),
-                                    child: Text(
-                                      (raiser['name'] ?? '').toString(),
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: _fieldText,
-                                      ),
-                                    ),
-                                  ))
-                              .toList(),
-                          onChanged: (value) {
-                            final selectedRow = raisers.where((r) => r['id'].toString() == value).toList();
-                            setDialogState(() {
-                              selectedRaiserId = value;
-                              if (selectedRow.isNotEmpty) {
-                                selectedHogType = (selectedRow.first['pig_type'] ?? 'Auto-populated').toString();
-                              }
-                            });
-                          },
-                        ),
+                        isEdit
+                            ? Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: _fieldBg.withValues(alpha: 0.5),
+                                  border: Border.all(color: _fieldBorder.withValues(alpha: 0.5), width: 1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                child: Text(
+                                  existing?.raiserName ?? '',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: _fieldText,
+                                  ),
+                                ),
+                              )
+                            : DropdownButtonFormField<String>(
+                                initialValue: selectedRaiserId,
+                                decoration: _createInputDecoration('Select an authorized raiser'),
+                                isExpanded: true,
+                                menuMaxHeight: 260,
+                                borderRadius: BorderRadius.circular(12),
+                                dropdownColor: _fieldBg,
+                                icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
+                                style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
+                                items: raisers
+                                    .map((raiser) => DropdownMenuItem<String>(
+                                          value: raiser['id'].toString(),
+                                          child: Text(
+                                            (raiser['name'] ?? '').toString(),
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                              color: _fieldText,
+                                            ),
+                                          ),
+                                        ))
+                                    .toList(),
+                                onChanged: (value) {
+                                  final selectedRow = raisers.where((r) => r['id'].toString() == value).toList();
+                                  setDialogState(() {
+                                    selectedRaiserId = value;
+                                    if (selectedRow.isNotEmpty) {
+                                      selectedHogType = (selectedRow.first['pig_type'] ?? 'Auto-populated').toString();
+                                    }
+                                  });
+                                },
+                              ),
                         const SizedBox(height: 24),
 
                         // INITIAL CAPITAL & HOG TYPE Row
@@ -348,10 +391,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                     child: Text(
-                                      'Auto-populated',
+                                      selectedHogType,
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
-                                        color: _hintText,
+                                        fontWeight: selectedHogType == 'Auto-populated' ? FontWeight.normal : FontWeight.w600,
+                                        color: selectedHogType == 'Auto-populated' ? _hintText : _fieldText,
                                       ),
                                     ),
                                   ),
@@ -444,8 +488,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                   const SizedBox(height: 12),
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: _fieldBg,
-                                      border: Border.all(color: _fieldBorder, width: 1),
+                                      color: isEdit ? _fieldBg.withValues(alpha: 0.5) : _fieldBg,
+                                      border: Border.all(color: isEdit ? _fieldBorder.withValues(alpha: 0.5) : _fieldBorder, width: 1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -456,33 +500,39 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                           _formatDateForDisplay(investmentDateCtrl.text),
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 14,
-                                            color: _fieldText,
+                                            color: isEdit ? _hintText : _fieldText,
                                           ),
                                         ),
-                                        MouseRegion(
-                                          cursor: SystemMouseCursors.click,
-                                          child: GestureDetector(
-                                            onTap: () async {
-                                              final picked = await showDatePicker(
-                                                context: statefulContext,
-                                                initialDate: DateTime.tryParse(investmentDateCtrl.text) ?? DateTime.now(),
-                                                firstDate: DateTime(2020),
-                                                lastDate: DateTime(2050),
-                                              );
-                                              if (picked != null) {
-                                                setDialogState(() {
-                                                  investmentDateCtrl.text =
-                                                      '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-                                                });
-                                              }
-                                            },
-                                            child: Icon(
-                                              Icons.calendar_today,
-                                              size: 18,
-                                              color: _fieldBorder,
-                                            ),
-                                          ),
-                                        ),
+                                        isEdit
+                                            ? Icon(
+                                                Icons.calendar_today_outlined,
+                                                size: 18,
+                                                color: _fieldBorder.withValues(alpha: 0.5),
+                                              )
+                                            : MouseRegion(
+                                                cursor: SystemMouseCursors.click,
+                                                child: GestureDetector(
+                                                  onTap: () async {
+                                                    final picked = await showDatePicker(
+                                                      context: statefulContext,
+                                                      initialDate: DateTime.tryParse(investmentDateCtrl.text) ?? DateTime.now(),
+                                                      firstDate: DateTime(2020),
+                                                      lastDate: DateTime(2050),
+                                                    );
+                                                    if (picked != null) {
+                                                      setDialogState(() {
+                                                        investmentDateCtrl.text =
+                                                            '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                                                      });
+                                                    }
+                                                  },
+                                                  child: Icon(
+                                                    Icons.calendar_today,
+                                                    size: 18,
+                                                    color: _fieldBorder,
+                                                  ),
+                                                ),
+                                              ),
                                       ],
                                     ),
                                   ),
@@ -508,7 +558,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                     parsedTotalHog == null ||
                                     parsedDate == null) {
                                   ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                    const SnackBar(content: Text('Please fill all fields correctly.')),
+                                    SnackBar(
+                                      content: Text(
+                                        'Please fill all fields correctly.',
+                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
                                   );
                                   return;
                                 }
@@ -526,19 +582,25 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                   'hog_type': selectedHogType,
                                   'total_hog': parsedTotalHog,
                                   'investment_date': parsedDate.toIso8601String(),
-                                  'stage': 'pending',
+                                  if (!isEdit) 'stage': 'active',
                                 };
+
+                                final raiserRow = raisers.firstWhere(
+                                  (r) => r['id'].toString() == selectedRaiserId,
+                                  orElse: () => {},
+                                );
+                                final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
 
                                 try {
                                   if (isEdit) {
-                                    await _supabase.from('investments').update(payload).eq('id', existing.id);
+                                    await _supabase.from('investment_records').update(payload).eq('id', existing.id);
                                   } else {
-                                    await _supabase.from('investments').insert(payload);
+                                    await _supabase.from('investment_records').insert(payload);
                                   }
                                   await _supabase
                                       .from('hog_raisers')
                                       .update({'lifecycle_stage': 'Booster'})
-                                      .eq('id', int.parse(selectedRaiserId!));
+                                      .eq(pkCol, int.parse(selectedRaiserId!));
 
                                   if (!dialogContext.mounted) return;
                                   Navigator.pop(dialogContext);
@@ -546,46 +608,57 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                   if (!mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(isEdit ? 'Investment updated.' : 'Investment added.'),
+                                      content: Text(
+                                        isEdit ? 'Investment updated successfully.' : 'Investment added successfully.',
+                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                      ),
+                                      backgroundColor: Colors.green,
                                     ),
                                   );
                                 } catch (e) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Save failed: $e')),
+                                  if (!dialogContext.mounted) return;
+                                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Save failed: $e',
+                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                      ),
+                                      backgroundColor: Colors.red,
+                                    ),
                                   );
                                 }
                               },
-                              icon: const Icon(Icons.add, size: 18),
+                              icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
                               label: Text(
                                 isEdit ? 'Save Changes' : 'Create Investment',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: const Color(0xFF0F1C2F),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                                elevation: 0,
                               ),
                             ),
                             const SizedBox(width: 12),
                             ElevatedButton(
                               onPressed: () => Navigator.pop(dialogContext),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                side: BorderSide(color: _fieldBorder, width: 1),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                backgroundColor: _isDark ? const Color(0xFF1E293B) : Colors.grey[200],
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                                elevation: 0,
                               ),
                               child: Text(
                                 'Cancel',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: _fieldText,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isDark ? Colors.white70 : Colors.black87,
                                 ),
                               ),
                             ),
@@ -604,14 +677,52 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Future<void> _deleteInvestment(Investment investment) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Investment'),
-        content: Text('Delete investment for ${investment.raiserName}?'),
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        title: Text(
+          'Delete Investment',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: Text(
+          'Delete investment for ${investment.raiserName}?',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            color: isDark ? Colors.white70 : Colors.black54,
+          ),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Delete')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? const Color(0xFF334155) : Colors.grey[200],
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.button(isDark ? Colors.white : Colors.black87),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF758C),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Delete',
+              style: AppTextStyles.button(Colors.white),
+            ),
+          ),
         ],
       ),
     );
@@ -619,16 +730,50 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     if (confirm != true) return;
 
     try {
-      await _supabase.from('investments').delete().eq('id', investment.id);
+      // 1. Delete the investment record
+      await _supabase.from('investment_records').delete().eq('id', investment.id);
+
+      // 2. Reset the corresponding raiser's lifecycle_stage back to null in hog_raisers table
+      final raiserIdStr = investment.hogRaiserId;
+      final raiserId = int.tryParse(raiserIdStr);
+      if (raiserId != null) {
+        final raiserCheck = await _supabase
+            .from('hog_raisers')
+            .select('id, hog_raiser_id')
+            .or('id.eq.$raiserId,hog_raiser_id.eq.$raiserIdStr')
+            .maybeSingle();
+
+        if (raiserCheck != null) {
+          final pkCol = raiserCheck['id'] != null ? 'id' : 'hog_raiser_id';
+          final pkVal = raiserCheck[pkCol];
+          await _supabase
+              .from('hog_raisers')
+              .update({'lifecycle_stage': null})
+              .eq(pkCol, pkVal);
+        }
+      }
+
       await _loadInvestments();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Investment deleted.')),
+        SnackBar(
+          content: Text(
+            'Investment deleted successfully.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
+        SnackBar(
+          content: Text(
+            'Delete failed: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -696,14 +841,31 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Investment',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w800,
-                          color: _titleColor,
-                          letterSpacing: -0.04,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Investment',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              color: _titleColor,
+                              letterSpacing: -0.04,
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => setState(() => _isCreatingInvestment = true),
+                            icon: const Icon(Icons.add_rounded, size: 20),
+                            label: Text(
+                              'Add Investment',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            style: _primaryWhiteButtonStyle(minWidth: 180),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       _buildTableHeader(),
@@ -1148,24 +1310,35 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final totalHog = int.tryParse(_totalHogCtrl.text.trim());
     if (_selectedRaiserId == null || capital == null || totalHog == null || _selectedHogType.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all required fields.')),
+        SnackBar(
+          content: Text(
+            'Please complete all required fields.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
     try {
-      await _supabase.from('investments').insert({
+      await _supabase.from('investment_records').insert({
         'hog_raiser_id': _selectedRaiserId,
         'raiser_name': _selectedRaiserName,
         'initial_capital': capital,
         'hog_type': _selectedHogType,
         'total_hog': totalHog,
         'investment_date': _selectedDate.toIso8601String(),
-        'stage': 'pending',
+        'stage': 'active',
       });
+      final raiserRow = _raisers.firstWhere(
+        (r) => r['id'].toString() == _selectedRaiserId,
+        orElse: () => {},
+      );
+      final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
       await _supabase
           .from('hog_raisers')
           .update({'lifecycle_stage': 'Booster'})
-          .eq('id', int.parse(_selectedRaiserId!));
+          .eq(pkCol, int.parse(_selectedRaiserId!));
       if (!mounted) return;
       setState(() {
         _isCreatingInvestment = false;
@@ -1179,12 +1352,24 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       await _loadInvestments();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Investment added.')),
+        SnackBar(
+          content: Text(
+            'Investment added.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Create failed: $e')),
+        SnackBar(
+          content: Text(
+            'Create failed: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -1205,18 +1390,26 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
       child: Row(
         children: headers
+            .asMap()
+            .entries
             .map(
-              (h) => Expanded(
-                child: Text(
-                  h,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.03,
-                    color: _headerText,
+              (entry) {
+                final index = entry.key;
+                final h = entry.value;
+                final align = index == 0 ? TextAlign.left : TextAlign.center;
+                return Expanded(
+                  child: Text(
+                    h,
+                    textAlign: align,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.03,
+                      color: _headerText,
+                    ),
                   ),
-                ),
-              ),
+                );
+              }
             )
             .toList(),
       ),
@@ -1244,6 +1437,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Expanded(
             child: Text(
               '₱${investment.initialCapital.toStringAsFixed(2)}',
+              textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1254,6 +1448,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Expanded(
             child: Text(
               investment.hogType,
+              textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1264,6 +1459,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Expanded(
             child: Text(
               '${investment.totalHog} heads',
+              textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1274,6 +1470,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           Expanded(
             child: Text(
               _formatDateForDisplay(investment.investmentDate.toString()),
+              textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1282,21 +1479,24 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             ),
           ),
           Expanded(
-            child: _buildStageBadge(investment.stage),
+            child: Center(
+              child: _buildStageBadge(investment.stage),
+            ),
           ),
           Expanded(
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
                   onPressed: () => _openInvestmentDialog(existing: investment),
-                  icon: Icon(Icons.edit_outlined, size: 16, color: _headerText),
+                  icon: Icon(Icons.edit_outlined, size: 24, color: _headerText),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 16),
                 IconButton(
                   onPressed: () => _deleteInvestment(investment),
-                  icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFFF758C)),
+                  icon: const Icon(Icons.delete_outline, size: 24, color: const Color(0xFFFF758C)),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),

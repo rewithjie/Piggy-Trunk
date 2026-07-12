@@ -27,6 +27,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   bool _isLoading = true;
   bool _showAddProductForm = false;
   bool _isSubmitting = false;
+  Product? _editingProduct;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _accentDark => _isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
@@ -83,6 +84,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _imageCtrl.clear();
     _selectedImageBytes = null;
     _selectedImageName = null;
+    _editingProduct = null;
   }
 
   Future<void> _loadProducts() async {
@@ -124,109 +126,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  Future<void> _openProductDialog({Product? existing}) async {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final categoryCtrl = TextEditingController(text: existing?.category.isNotEmpty == true ? existing!.category : 'Feeds');
-    final descriptionCtrl = TextEditingController(text: existing?.description ?? '');
-    final priceCtrl = TextEditingController(text: existing?.price.toString() ?? '');
-    final unitsCtrl = TextEditingController(text: existing?.units.toString() ?? '');
-    final imageCtrl = TextEditingController(text: existing?.image ?? '');
-    final soldCtrl = TextEditingController(text: existing?.sold.toString() ?? '0');
-
-    final isEdit = existing != null;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: _cardBg,
-          title: Text(
-            isEdit ? 'Edit Product' : 'Add Product',
-            style: GoogleFonts.plusJakartaSans(
-              color: _titleColor,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: SizedBox(
-              width: 430,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildInput(nameCtrl, 'Product Name'),
-                  _buildInput(categoryCtrl, 'Category'),
-                  _buildInput(descriptionCtrl, 'Description'),
-                  _buildInput(priceCtrl, 'Price', keyboardType: TextInputType.number),
-                  _buildInput(unitsCtrl, 'Units', keyboardType: TextInputType.number),
-                  _buildInput(soldCtrl, 'Sold', keyboardType: TextInputType.number),
-                  _buildInput(imageCtrl, 'Image URL (optional)'),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name = nameCtrl.text.trim();
-                final category = categoryCtrl.text.trim();
-                final description = descriptionCtrl.text.trim();
-                final image = imageCtrl.text.trim();
-                final price = double.tryParse(priceCtrl.text.trim());
-                final units = int.tryParse(unitsCtrl.text.trim());
-                final sold = int.tryParse(soldCtrl.text.trim());
-
-                if (name.isEmpty || category.isEmpty || price == null || units == null || sold == null) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(content: Text('Please complete all required fields.')),
-                  );
-                  return;
-                }
-
-                final payload = {
-                  'name': name,
-                  'category_id': category.toLowerCase().replaceAll(' ', '_'),
-                  'category': category,
-                  'description': description,
-                  'price': price,
-                  'units': units,
-                  'sold': sold,
-                  'image': image.isEmpty ? null : image,
-                  'is_archived': existing?.isArchived ?? false,
-                };
-
-                try {
-                  if (isEdit) {
-                    await _supabase.from(_table).update(payload).eq('id', existing.id);
-                  } else {
-                    await _supabase.from(_table).insert(payload);
-                  }
-
-                  if (!dialogContext.mounted) return;
-                  Navigator.pop(dialogContext);
-                  await _loadProducts();
-
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(isEdit ? 'Product updated.' : 'Product added.')),
-                  );
-                } catch (e) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Save failed: $e')),
-                  );
-                }
-              },
-              style: _whiteButtonStyle(),
-              child: Text(isEdit ? 'Save Changes' : 'Create Product'),
-            ),
-          ],
-        );
-      },
-    );
+  void _openProductDialog({Product? existing}) {
+    if (existing != null) {
+      setState(() {
+        _editingProduct = existing;
+        _nameCtrl.text = existing.name;
+        _categoryCtrl.text = existing.category.isNotEmpty == true ? existing.category : 'Feeds';
+        _descriptionCtrl.text = existing.description;
+        _priceCtrl.text = existing.price.toInt().toString();
+        _unitsCtrl.text = existing.units.toString();
+        _imageCtrl.text = existing.image ?? '';
+        _selectedImageBytes = null;
+        _selectedImageName = null;
+        _showAddProductForm = true;
+      });
+    } else {
+      setState(() {
+        _resetAddProductForm();
+        _showAddProductForm = true;
+      });
+    }
   }
 
   Future<void> _submitAddProduct() async {
@@ -240,7 +159,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     if (name.isEmpty || category.isEmpty || priceInt == null || units == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all required fields.')),
+        SnackBar(
+          content: Text(
+            'Please complete all required fields.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -250,33 +175,53 @@ class _InventoryScreenState extends State<InventoryScreen> {
       String? imageUrl = image.isEmpty ? null : image;
       if (_selectedImageBytes != null && _selectedImageName != null) {
         imageUrl = await _uploadProductImage(_selectedImageBytes!, _selectedImageName!);
+      } else if (_editingProduct != null) {
+        imageUrl = _editingProduct!.image;
       }
 
-      await _supabase.from(_table).insert({
+      final payload = {
         'name': name,
         'category_id': category.toLowerCase().replaceAll(' ', '_'),
         'category': category,
         'description': description,
         'price': priceInt.toDouble(),
         'units': units,
-        'sold': 0,
         'image': imageUrl,
-        'is_archived': false,
-      });
+      };
+
+      if (_editingProduct != null) {
+        await _supabase.from(_table).update(payload).eq('id', _editingProduct!.id);
+      } else {
+        payload['sold'] = 0;
+        payload['is_archived'] = false;
+        await _supabase.from(_table).insert(payload);
+      }
 
       if (!mounted) return;
-      _nameCtrl.clear();
+      final wasEditing = _editingProduct != null;
       _resetAddProductForm();
       setState(() => _showAddProductForm = false);
       await _loadProducts();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Product added.')),
+        SnackBar(
+          content: Text(
+            wasEditing ? 'Product updated successfully.' : 'Product added successfully.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Create failed: $e')),
+        SnackBar(
+          content: Text(
+            _editingProduct != null ? 'Update failed: $e' : 'Create failed: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -320,7 +265,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open image picker: $e')),
+        SnackBar(
+          content: Text(
+            'Could not open image picker: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -329,12 +280,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
     const bucket = 'product-images';
     final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
     final path = 'inventory/${DateTime.now().millisecondsSinceEpoch}_$safeName';
-    await _supabase.storage.from(bucket).uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(upsert: true),
-        );
-    return _supabase.storage.from(bucket).getPublicUrl(path);
+    try {
+      await _supabase.storage.from(bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+      return _supabase.storage.from(bucket).getPublicUrl(path);
+    } catch (e) {
+      final errStr = e.toString();
+      if (errStr.contains('Bucket not found')) {
+        throw 'Supabase storage bucket "product-images" is missing. Please create a public storage bucket named "product-images" in your Supabase dashboard.';
+      }
+      rethrow;
+    }
   }
 
   Future<void> _toggleArchive(Product product) async {
@@ -343,12 +302,24 @@ class _InventoryScreenState extends State<InventoryScreen> {
       await _loadProducts();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(product.isArchived ? 'Product restored.' : 'Product archived.')),
+        SnackBar(
+          content: Text(
+            product.isArchived ? 'Product restored successfully.' : 'Product archived successfully.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Update failed: $e')),
+        SnackBar(
+          content: Text(
+            'Update failed: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -543,19 +514,72 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ],
                   ),
                 )
-              else
-                GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 1.35,
+              else ...[
+                for (final cat in _categoryOptions) ...[
+                  Builder(
+                    builder: (context) {
+                      final catProducts = _products.where((p) => p.category.toLowerCase() == cat.toLowerCase()).toList();
+                      if (catProducts.isEmpty) return const SizedBox.shrink();
+                      
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final crossAxisCount = screenWidth > 1400 ? 4 : (screenWidth > 900 ? 3 : 2);
+                      final childAspectRatio = screenWidth > 1400 ? 0.70 : (screenWidth > 900 ? 0.76 : 0.82);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 24, bottom: 12),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 4,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  cat,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: _titleColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '(${catProducts.length})',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: _mutedColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 20,
+                              mainAxisSpacing: 20,
+                              childAspectRatio: childAspectRatio,
+                            ),
+                            itemCount: catProducts.length,
+                            itemBuilder: (context, index) => _buildProductCard(catProducts[index]),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      );
+                    },
                   ),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _products.length,
-                  itemBuilder: (context, index) => _buildProductCard(_products[index]),
-                ),
+                ],
+              ],
             ],
           ),
         ),
@@ -592,7 +616,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Add New Product',
+                    _editingProduct == null ? 'Add New Product' : 'Edit Product',
                     style: GoogleFonts.plusJakartaSans(
                       color: _titleColor,
                       fontSize: 30,
@@ -624,19 +648,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                     style: BorderStyle.solid,
                                   ),
                                 ),
-                                child: _selectedImageBytes == null
-                                    ? Center(
-                                        child: Text(
-                                          'Click to upload\nPNG, JPG, WebP',
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            color: _mutedColor,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      )
-                                    : ClipRRect(
+                                child: _selectedImageBytes != null
+                                    ? ClipRRect(
                                         borderRadius: BorderRadius.circular(11),
                                         child: Stack(
                                           fit: StackFit.expand,
@@ -666,7 +679,53 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                             ),
                                           ],
                                         ),
-                                      ),
+                                      )
+                                    : (_editingProduct?.image != null && _editingProduct!.image!.isNotEmpty
+                                        ? ClipRRect(
+                                            borderRadius: BorderRadius.circular(11),
+                                            child: Stack(
+                                              fit: StackFit.expand,
+                                              children: [
+                                                Image.network(
+                                                  _editingProduct!.image!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) => Center(
+                                                    child: Icon(Icons.broken_image_outlined, color: _mutedColor, size: 32),
+                                                  ),
+                                                ),
+                                                Positioned(
+                                                  right: 8,
+                                                  top: 8,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black.withValues(alpha: 0.55),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Text(
+                                                      'Change',
+                                                      style: GoogleFonts.plusJakartaSans(
+                                                        color: Colors.white,
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              'Click to upload\nPNG, JPG, WebP',
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                color: _mutedColor,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          )),
                               ),
                             ),
                             if (_selectedImageName != null) ...[
@@ -704,7 +763,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       _formLabel('CATEGORY *'),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
-                                        initialValue: _categoryCtrl.text.isEmpty ? 'Feeds' : _categoryCtrl.text,
+                                        value: _categoryCtrl.text.isEmpty ? 'Feeds' : _categoryCtrl.text,
                                         isExpanded: true,
                                         decoration: InputDecoration(
                                           filled: true,
@@ -826,7 +885,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         style: _whiteButtonStyle(minWidth: 190),
                         icon: const Icon(Icons.check, size: 18),
                         label: Text(
-                          _isSubmitting ? 'Adding...' : 'Add Product',
+                          _isSubmitting
+                              ? (_editingProduct == null ? 'Adding...' : 'Saving...')
+                              : (_editingProduct == null ? 'Add Product' : 'Save Changes'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
@@ -885,102 +946,172 @@ class _InventoryScreenState extends State<InventoryScreen> {
         border: Border.all(color: _cardBorder, width: 1),
         borderRadius: BorderRadius.circular(16),
       ),
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  product.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: _titleColor,
+          // Top: Product Image (Full width, BoxFit.cover)
+          Container(
+            height: 170,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _fieldBg,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(15),
+                topRight: Radius.circular(15),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(15),
+                topRight: Radius.circular(15),
+              ),
+              child: product.image != null && product.image!.isNotEmpty
+                  ? Image.network(
+                      product.image!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Icon(Icons.broken_image_outlined, color: _mutedColor, size: 32),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(Icons.image_outlined, color: _mutedColor, size: 32),
+                    ),
+            ),
+          ),
+          // Bottom: Content Area
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'PRODUCT NAME: ${product.name}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: _isDark ? Colors.white : const Color(0xFF3B5B83),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      _buildStockBadge(product),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              _buildStockBadge(product),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Category: ${product.category}',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              color: _mutedColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            product.description.isEmpty ? 'No description available.' : product.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              color: _fieldText,
-            ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: _buildMetric('Price', 'PHP ${product.price.toStringAsFixed(2)}'),
-              ),
-              Expanded(
-                child: _buildMetric('Units', '${product.units}'),
-              ),
-              Expanded(
-                child: _buildMetric('Sold', '${product.sold}'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _openProductDialog(existing: product),
-                  icon: Icon(Icons.edit_outlined, size: 16, color: _mutedColor),
-                  label: Text(
-                    'Edit',
+                  const SizedBox(height: 6),
+                  Text(
+                    'DESCRIPTION: ${product.description.isEmpty ? 'None' : product.description}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
                       color: _mutedColor,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _panelBorder),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  const Spacer(),
+                  // Price row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'PRICE',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _mutedColor,
+                        ),
+                      ),
+                      Text(
+                        '₱${product.price.toStringAsFixed(2)}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: _titleColor,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  // Stock row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Stock:',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: _mutedColor,
+                        ),
+                      ),
+                      Text(
+                        '${product.units} units',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _titleColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _openProductDialog(existing: product),
+                          icon: Icon(Icons.edit_outlined, size: 14, color: _mutedColor),
+                          label: Text(
+                            'Edit',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _mutedColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: _panelBorder),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _toggleArchive(product),
+                          icon: Icon(
+                            _isArchiveMode ? Icons.unarchive_outlined : Icons.archive_outlined,
+                            size: 14,
+                            color: _accentDark,
+                          ),
+                          label: Text(
+                            _isArchiveMode ? 'Restore' : 'Archive',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _accentDark,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: _panelBorder),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _toggleArchive(product),
-                  icon: Icon(
-                    _isArchiveMode ? Icons.unarchive_outlined : Icons.archive_outlined,
-                    size: 16,
-                    color: _accentDark,
-                  ),
-                  label: Text(
-                    _isArchiveMode ? 'Restore' : 'Archive',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: _accentDark,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _panelBorder),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
