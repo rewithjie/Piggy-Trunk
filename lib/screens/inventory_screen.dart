@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 
 import '../models/product_model.dart';
+import '../models/product_log_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../widgets/admin_sidebar.dart';
@@ -51,6 +52,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
+
+  List<ProductLog> _logs = [];
+  bool _isLoadingLogs = false;
+  String? _selectedLogFilter; 
+  String? _filterProductId;
+  String? _filterProductName;
+  String? _logsErrorMessage;
+
   static const List<String> _categoryOptions = <String>[
     'Feeds',
     'Vitamins',
@@ -191,10 +200,38 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
       if (_editingProduct != null) {
         await _supabase.from(_table).update(payload).eq('id', _editingProduct!.id);
+        
+        List<String> changes = [];
+        if (_editingProduct!.name != name) changes.add('Name: "${_editingProduct!.name}" -> "$name"');
+        if (_editingProduct!.category != category) changes.add('Category: "${_editingProduct!.category}" -> "$category"');
+        if (_editingProduct!.price != priceInt.toDouble()) changes.add('Price: ₱${_editingProduct!.price.toInt()} -> ₱$priceInt');
+        if (_editingProduct!.units != units) changes.add('Stock: ${_editingProduct!.units} -> $units');
+        if (_editingProduct!.description != description) changes.add('Description updated');
+        
+        final detailsStr = changes.isEmpty ? 'No field changes' : changes.join(', ');
+        
+        await _insertProductLog(
+          productId: _editingProduct!.id,
+          productName: name,
+          action: 'UPDATE',
+          price: priceInt.toDouble(),
+          units: units,
+          details: detailsStr,
+        );
       } else {
         payload['sold'] = 0;
         payload['is_archived'] = false;
-        await _supabase.from(_table).insert(payload);
+        final inserted = await _supabase.from(_table).insert(payload).select().single();
+        final insertedId = inserted['id']?.toString();
+        
+        await _insertProductLog(
+          productId: insertedId,
+          productName: name,
+          action: 'ADD',
+          price: priceInt.toDouble(),
+          units: units,
+          details: 'Initial stock of $units units at ₱$priceInt.00',
+        );
       }
 
       if (!mounted) return;
@@ -298,7 +335,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Future<void> _toggleArchive(Product product) async {
     try {
-      await _supabase.from(_table).update({'is_archived': !product.isArchived}).eq('id', product.id);
+      final newArchivedState = !product.isArchived;
+      await _supabase.from(_table).update({'is_archived': newArchivedState}).eq('id', product.id);
+      
+      final action = newArchivedState ? 'ARCHIVE' : 'RESTORE';
+      final details = newArchivedState 
+          ? 'Product moved to archives' 
+          : 'Product restored to active inventory';
+          
+      await _insertProductLog(
+        productId: product.id,
+        productName: product.name,
+        action: action,
+        price: product.price,
+        units: product.units,
+        details: details,
+      );
+
       await _loadProducts();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -372,6 +425,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     Theme.of(context);
     return Scaffold(
       backgroundColor: _bgDark,
+      endDrawer: _buildLogsDrawer(),
       body: Row(
 
         children: [
@@ -433,6 +487,42 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                   Row(
                     children: [
+                      Builder(
+                        builder: (context) => OutlinedButton.icon(
+                          onPressed: () async {
+                            setState(() {
+                              _filterProductId = null;
+                              _filterProductName = null;
+                              _selectedLogFilter = null;
+                            });
+                            _loadLogs();
+                            Scaffold.of(context).openEndDrawer();
+                          },
+                          icon: Icon(
+                            Icons.history_toggle_off_rounded,
+                            size: 18,
+                            color: _titleColor,
+                          ),
+                          label: Text(
+                            'Activity Logs',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _titleColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: _fieldBg,
+                            side: BorderSide(
+                              color: _panelBorder,
+                            ),
+                            minimumSize: const Size(160, 52),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       OutlinedButton.icon(
                         onPressed: () async {
                           setState(() => _isArchiveMode = !_isArchiveMode);
@@ -1062,7 +1152,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                   const SizedBox(height: 12),
                   // Action buttons
-                  Row(
+                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
@@ -1107,6 +1197,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Builder(
+                        builder: (context) => Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: _panelBorder),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: IconButton(
+                            padding: EdgeInsets.zero,
+                            icon: Icon(Icons.history, size: 18, color: _mutedColor),
+                            tooltip: 'View Product Logs',
+                            onPressed: () {
+                              setState(() {
+                                _filterProductId = product.id;
+                                _filterProductName = product.name;
+                                _selectedLogFilter = null;
+                              });
+                              _loadLogs();
+                              Scaffold.of(context).openEndDrawer();
+                            },
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1118,30 +1233,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  Widget _buildMetric(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
-            color: _mutedColor,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            color: _titleColor,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildStockBadge(Product product) {
     final lowStock = product.units <= 10;
@@ -1174,6 +1265,494 @@ class _InventoryScreenState extends State<InventoryScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 0,
+    );
+  }
+
+  Future<void> _insertProductLog({
+    required String? productId,
+    required String productName,
+    required String action, 
+    required double price,
+    required int units,
+    String? details,
+  }) async {
+    try {
+      final userEmail = _supabase.auth.currentUser?.email ?? 'Unknown Admin';
+      await _supabase.from('inventory_logs').insert({
+        'product_id': productId,
+        'product_name': productName,
+        'action': action,
+        'performed_by': userEmail,
+        'price': price,
+        'units': units,
+        'details': details,
+      });
+    } catch (e) {
+      debugPrint('Failed to insert product log to Supabase: $e');
+    }
+  }
+
+  Future<void> _loadLogs() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingLogs = true;
+      _logsErrorMessage = null;
+    });
+    try {
+      var query = _supabase.from('inventory_logs').select();
+      if (_filterProductId != null) {
+        query = query.eq('product_id', _filterProductId!);
+      }
+      final response = await query.order('created_at', ascending: false);
+      final list = response as List;
+      final parsed = list.map((e) => ProductLog.fromJson(e)).toList();
+      
+      if (!mounted) return;
+      setState(() {
+        _logs = parsed;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _logsErrorMessage = 'Could not load activity logs.\nMake sure the database table is created: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLogs = false);
+      }
+    }
+  }
+
+  String _formatDate(DateTime dt) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final month = months[dt.month - 1];
+    final day = dt.day.toString().padLeft(2, '0');
+    final year = dt.year;
+    final hourVal = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final hour = hourVal.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$month $day, $year $hour:$minute $ampm';
+  }
+
+  Widget _buildLogsDrawer() {
+    final title = _filterProductName != null 
+        ? 'History: $_filterProductName' 
+        : 'Inventory Activity Logs';
+
+    final filteredList = _logs.where((log) {
+      if (_selectedLogFilter == null) return true;
+      if (_selectedLogFilter == 'ADD') return log.action == 'ADD';
+      if (_selectedLogFilter == 'UPDATE') return log.action == 'UPDATE';
+      if (_selectedLogFilter == 'ARCHIVE') return log.action == 'ARCHIVE' || log.action == 'RESTORE';
+      return true;
+    }).toList();
+
+    return Drawer(
+      width: MediaQuery.of(context).size.width > 600 ? 550 : double.infinity,
+      backgroundColor: _cardBg,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: _titleColor,
+                          ),
+                        ),
+                        if (_filterProductName != null) ...[
+                          const SizedBox(height: 4),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                _filterProductId = null;
+                                _filterProductName = null;
+                              });
+                              _loadLogs();
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Showing only this product. Click to clear.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: _accentDark,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.clear, size: 12, color: _accentDark),
+                              ],
+                            ),
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Real-time log of product addition & updates.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: _mutedColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.refresh, color: _mutedColor),
+                    onPressed: _loadLogs,
+                    tooltip: 'Refresh Logs',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: _mutedColor),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildLogFilterChip(null, 'All Actions'),
+                    const SizedBox(width: 8),
+                    _buildLogFilterChip('ADD', 'Creations'),
+                    const SizedBox(width: 8),
+                    _buildLogFilterChip('UPDATE', 'Updates'),
+                    const SizedBox(width: 8),
+                    _buildLogFilterChip('ARCHIVE', 'Archive/Restore'),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+
+            Expanded(
+              child: _isLoadingLogs
+                  ? const Center(child: CircularProgressIndicator())
+                  : _logsErrorMessage != null
+                      ? _buildLogsErrorState()
+                      : filteredList.isEmpty
+                          ? _buildLogsEmptyState()
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(20),
+                              itemCount: filteredList.length,
+                              itemBuilder: (context, index) {
+                                return _buildLogItem(filteredList[index]);
+                              },
+                            ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogFilterChip(String? filterValue, String label) {
+    final isSelected = _selectedLogFilter == filterValue;
+    final activeColor = _isDark ? PiggyTrunkTheme.ptPrimary : const Color(0xFF315C8F);
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _selectedLogFilter = filterValue;
+          });
+        }
+      },
+      labelStyle: GoogleFonts.plusJakartaSans(
+        color: isSelected ? Colors.white : _titleColor,
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
+      ),
+      backgroundColor: _fieldBg,
+      selectedColor: activeColor,
+      side: BorderSide(color: isSelected ? Colors.transparent : _cardBorder),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+
+  Widget _buildLogsErrorState() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _isDark ? const Color(0x11FF758C) : const Color(0xFFFFF0F2),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+                const SizedBox(width: 10),
+                Text(
+                  'Database Setup Required',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'To view and record real-time product logs, the database table must be created in your Supabase project.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: _titleColor,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Instruction:',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: _titleColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Run the SQL script 24_inventory_logs.sql in the Supabase SQL Editor.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: _mutedColor,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _isDark ? const Color(0xFF1C2D44) : const Color(0xFFEDF2F7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                'sql/erd_supabase/24_inventory_logs.sql',
+                style: GoogleFonts.firaCode(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _loadLogs,
+              style: _whiteButtonStyle(minWidth: 150),
+              child: const Text('Try Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogsEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history_edu_outlined, size: 48, color: _mutedColor),
+          const SizedBox(height: 16),
+          Text(
+            'No Activity Logs Found',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _titleColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _selectedLogFilter != null
+                ? 'No activities found matching this filter.'
+                : 'Activities will appear here when products are modified.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              color: _mutedColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogItem(ProductLog log) {
+    Color badgeBg;
+    Color badgeFg;
+    String badgeText = log.action;
+
+    switch (log.action) {
+      case 'ADD':
+        badgeBg = const Color(0xFFDCFCE7);
+        badgeFg = const Color(0xFF15803D);
+        badgeText = 'CREATED';
+        break;
+      case 'UPDATE':
+        badgeBg = const Color(0xFFDBEAFE);
+        badgeFg = const Color(0xFF1D4ED8);
+        badgeText = 'UPDATED';
+        break;
+      case 'ARCHIVE':
+        badgeBg = const Color(0xFFFEF3C7);
+        badgeFg = const Color(0xFFB45309);
+        badgeText = 'ARCHIVED';
+        break;
+      case 'RESTORE':
+        badgeBg = const Color(0xFFCCFBF1);
+        badgeFg = const Color(0xFF0F766E);
+        badgeText = 'RESTORED';
+        break;
+      default:
+        badgeBg = _fieldBg;
+        badgeFg = _mutedColor;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _isDark ? const Color(0xFF15263F) : Colors.white,
+        border: Border.all(color: _cardBorder),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  badgeText,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: badgeFg,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              Text(
+                _formatDate(log.createdAt),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          Text(
+            log.productName,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: _titleColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+
+          Row(
+            children: [
+              Icon(Icons.person_outline_rounded, size: 14, color: _mutedColor),
+              const SizedBox(width: 4),
+              Text(
+                'By: ${log.performedBy}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (log.details != null && log.details!.isNotEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _fieldBg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _cardBorder.withValues(alpha: 0.5)),
+              ),
+              child: Text(
+                log.details!,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  color: _titleColor,
+                  fontWeight: FontWeight.w500,
+                  height: 1.35,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Price: ₱${log.price.toStringAsFixed(2)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _mutedColor,
+                ),
+              ),
+              Text(
+                'Stock: ${log.units} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _mutedColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

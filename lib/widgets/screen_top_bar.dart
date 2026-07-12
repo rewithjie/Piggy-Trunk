@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../providers/admin_profile_provider.dart';
+import '../providers/admin_notifications_provider.dart';
+import '../models/admin_notification_model.dart';
 
 /// Reusable Top Bar Widget with Notification & Admin Profile (No Title)
 class ScreenTopBar extends ConsumerWidget {
@@ -19,6 +21,9 @@ class ScreenTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final adminProfile = ref.watch(adminProfileProvider);
+    final asyncNotifications = ref.watch(adminNotificationsProvider);
+    final notifications = asyncNotifications.value ?? <AdminNotification>[];
+    final unreadCount = notifications.where((n) => !n.isRead).length;
     final user = Supabase.instance.client.auth.currentUser;
     final metadata = user?.userMetadata ?? const <String, dynamic>{};
     final metadataName = (metadata['admin_name'] ?? '').toString().trim();
@@ -78,7 +83,7 @@ class ScreenTopBar extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-          /// NOTIFICATION BELL WITH BADGE
+          /// NOTIFICATION BELL WITH BADGE & REAL-TIME POPUP
           Container(
             width: 50,
             height: 50,
@@ -90,47 +95,236 @@ class ScreenTopBar extends ConsumerWidget {
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    size: 22,
-                  ),
-                  color: textColor,
-                  onPressed: () {},
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 50,
-                    minHeight: 50,
-                  ),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                hoverColor: Colors.transparent,
+                splashColor: Colors.transparent,
+              ),
+              child: PopupMenuButton<void>(
+                offset: const Offset(0, 56),
+                elevation: 8,
+                tooltip: 'Notifications',
+                color: surfaceColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: borderColor, width: 1),
                 ),
-                if (notificationCount > 0)
-                  Positioned(
-                    right: -2,
-                    top: -2,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: accentDark,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Center(
-                        child: Text(
-                          notificationCount.toString(),
-                          style: AppTextStyles.jakarta(
-                            size: 11,
-                            weight: FontWeight.w700,
-                            color: badgeTextColor,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 50,
+                  minHeight: 50,
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_outlined,
+                      size: 22,
+                      color: textColor,
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: accentDark,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: Text(
+                              unreadCount.toString(),
+                              style: AppTextStyles.jakarta(
+                                size: 11,
+                                weight: FontWeight.w700,
+                                color: badgeTextColor,
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                  ],
+                ),
+                itemBuilder: (context) {
+                  return [
+                    // Header
+                    PopupMenuItem<void>(
+                      enabled: false,
+                      child: Container(
+                        width: 320,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Notifications',
+                              style: AppTextStyles.jakarta(
+                                size: 15,
+                                weight: FontWeight.w700,
+                                color: textColor,
+                              ),
+                            ),
+                            if (unreadCount > 0)
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  AdminNotificationService.markAllAsRead();
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  'Mark all read',
+                                  style: AppTextStyles.jakarta(
+                                    size: 12,
+                                    weight: FontWeight.w600,
+                                    color: accentDark,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                    const PopupMenuDivider(),
+                    // Notification Items
+                    if (notifications.isEmpty)
+                      PopupMenuItem<void>(
+                        enabled: false,
+                        child: Container(
+                          width: 320,
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.notifications_none, size: 36, color: mutedColor),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No new notifications',
+                                style: AppTextStyles.jakarta(
+                                  size: 13,
+                                  color: mutedColor,
+                                  weight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ...notifications.take(5).map((notif) {
+                        return PopupMenuItem<void>(
+                          onTap: () {
+                            AdminNotificationService.markAsRead(notif.notificationId);
+                            if (notif.type == 'new_raiser') {
+                              Navigator.of(context).pushNamed('/raisers');
+                            } else if (notif.type == 'stock_request') {
+                              Navigator.of(context).pushNamed('/inventory');
+                            }
+                          },
+                          child: Container(
+                            width: 320,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (!notif.isRead)
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        margin: const EdgeInsets.only(top: 4, right: 8),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.blue,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    else
+                                      const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        notif.title,
+                                        style: AppTextStyles.jakarta(
+                                          size: 13,
+                                          weight: notif.isRead ? FontWeight.w500 : FontWeight.w700,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _formatTimeAgo(notif.createdAt),
+                                      style: AppTextStyles.jakarta(
+                                        size: 10,
+                                        weight: FontWeight.w500,
+                                        color: mutedColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 16),
+                                  child: Text(
+                                    notif.message,
+                                    style: AppTextStyles.jakarta(
+                                      size: 12,
+                                      weight: FontWeight.w500,
+                                      color: mutedColor,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    const PopupMenuDivider(),
+                    // Footer Actions
+                    PopupMenuItem<void>(
+                      enabled: false,
+                      child: SizedBox(
+                        width: 320,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (notifications.isNotEmpty)
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  AdminNotificationService.clearAll();
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  'Clear all',
+                                  style: AppTextStyles.jakarta(
+                                    size: 12,
+                                    weight: FontWeight.w600,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ),
+                            const Spacer(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ];
+                },
+              ),
             ),
           ),
           /// ADMIN PROFILE (CLICKABLE)
@@ -233,5 +427,20 @@ class ScreenTopBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inDays >= 7) {
+      return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
+    } else if (difference.inDays >= 1) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours >= 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes >= 1) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }

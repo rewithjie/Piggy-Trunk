@@ -18,3 +18,7 @@ comment on column public.app_users.must_change_password is 'Flag to require firs
 comment on column public.app_users.password_reset_token is 'Optional token for password reset flows';
 comment on column public.app_users.password_reset_sent_at is 'Timestamp when reset token was issued';
 comment on column public.app_users.email_verified is 'Tracks whether the email was verified via Supabase Auth.';
+
+-- Add email column to hog_raisers (kung wala pa)
+alter table public.hog_raisers 
+  add column if not exists email text;

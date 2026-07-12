@@ -60,10 +60,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final user = _supabase.auth.currentUser;
       if (user != null && user.email != null) {
+        // Query app_users table first to get saved database name and role
+        String? dbName;
+        String? dbRole;
+        try {
+          final res = await _supabase
+              .from('app_users')
+              .select('name, role')
+              .eq('email', user.email!)
+              .maybeSingle();
+          if (res != null) {
+            dbName = res['name']?.toString();
+            dbRole = res['role']?.toString();
+          }
+        } catch (e) {
+          debugPrint('Error loading profile from DB: $e');
+        }
+
         final metadata = user.userMetadata ?? <String, dynamic>{};
         final currentProfile = ref.read(adminProfileProvider);
-        final savedName = (metadata['admin_name'] ?? '').toString().trim();
-        final savedRole = (metadata['role'] ?? '').toString().trim();
+
+        // Fallbacks: DB Name -> user metadata (admin_name, full_name, name) -> Riverpod state -> Split Email -> 'Admin'
+        final String fallbackEmailName = user.email!.split('@')[0];
+        final String savedName = (dbName ?? 
+            metadata['admin_name'] ?? 
+            metadata['full_name'] ?? 
+            metadata['name'] ?? 
+            '').toString().trim();
+        final String savedRole = (dbRole ?? metadata['role'] ?? '').toString().trim();
+
         final savedPhoto = (metadata['profile_picture_url'] ?? '').toString().trim();
         final savedPhotoPath = (metadata['profile_picture_path'] ?? '').toString().trim();
         String? resolvedPhotoUrl = savedPhoto.isNotEmpty ? savedPhoto : null;
@@ -81,7 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _emailController.text = user.email!;
           _adminNameController.text = savedName.isNotEmpty
               ? savedName
-              : (currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : 'Admin');
+              : (currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : fallbackEmailName);
           _roleController.text = savedRole.isNotEmpty
               ? savedRole
               : (currentProfile.role.trim().isNotEmpty ? currentProfile.role : 'System Administrator');
@@ -147,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       child: Container(
                         constraints: const BoxConstraints(maxWidth: 1400),
                         decoration: BoxDecoration(
-                          color: _surfaceDark.withOpacity(0.45),
+                          color: _surfaceDark.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         padding: const EdgeInsets.all(26),
@@ -300,7 +325,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _primaryDark.withOpacity(0.1),
+                          color: _primaryDark.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: _primaryDark, width: 1),
                         ),
@@ -333,7 +358,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: _surfaceDark.withOpacity(0.7),
+              color: _surfaceDark.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: _borderDark),
             ),
@@ -381,7 +406,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _surfaceDark.withOpacity(0.75),
+        color: _surfaceDark.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(22),
       ),
       child: child,
@@ -454,7 +479,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       style: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         fontWeight: FontWeight.w700,
-        color: _textDark.withOpacity(0.85),
+        color: _textDark.withValues(alpha: 0.85),
         letterSpacing: 0.08,
       ),
     );
@@ -485,7 +510,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-        fillColor: _bgDark.withOpacity(0.45),
+        fillColor: _bgDark.withValues(alpha: 0.45),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -515,7 +540,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       decoration: InputDecoration(
         isDense: true,
         filled: true,
-        fillColor: _bgDark.withOpacity(0.25),
+        fillColor: _bgDark.withValues(alpha: 0.25),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -564,7 +589,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
         filled: true,
-        fillColor: _bgDark.withOpacity(0.45),
+        fillColor: _bgDark.withValues(alpha: 0.45),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -585,30 +610,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _requestPasswordChange() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active admin session found.')),
-      );
+      _showThemedSnackBar('No active admin session found.', backgroundColor: Colors.red);
       return;
     }
 
     if (_newPasswordController.text.trim().isEmpty || _confirmPasswordController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter and confirm the new password.')),
-      );
+      _showThemedSnackBar('Please enter and confirm the new password.', backgroundColor: Colors.red);
       return;
     }
 
     if (_newPasswordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password and confirmation do not match.')),
-      );
+      _showThemedSnackBar('New password and confirmation do not match.', backgroundColor: Colors.red);
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Password update is connected and ready, but not enabled yet. Coming soon.'),
-      ),
+    _showThemedSnackBar(
+      'Password update is connected and ready, but not enabled yet. Coming soon.',
+      backgroundColor: const Color(0xFF315C8F),
     );
   }
 
@@ -647,47 +665,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         maxWidth: 200,
       );
 
-      if (pickedFile != null && mounted) {
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          if (!kIsWeb) {
-            _selectedImage = File(pickedFile.path);
-          }
-          _selectedImageBytes = bytes;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo selected. Click Save Profile to apply changes.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
-      }
-    }
-  }
+      if (pickedFile == null || !mounted) return;
 
-  Future<void> _uploadProfileImage() async {
-    if (_selectedImage == null && _selectedImageBytes == null) return;
+      final bytes = await pickedFile.readAsBytes();
+      
+      setState(() {
+        _isUploadingImage = true;
+      });
 
-    setState(() => _isUploadingImage = true);
-    try {
+      _showThemedSnackBar(
+        'Uploading profile picture to Supabase storage...',
+        backgroundColor: const Color(0xFF315C8F),
+        duration: const Duration(seconds: 2),
+      );
+
       final fileName = 'admin-profile-${DateTime.now().millisecondsSinceEpoch}.png';
       final filePath = 'admin_profiles/$fileName';
 
-      if (kIsWeb && _selectedImageBytes != null) {
-        // Web: use bytes to upload
+      if (kIsWeb) {
         await _supabase.storage.from('profile_pictures').uploadBinary(
           filePath,
-          _selectedImageBytes!,
+          bytes,
           fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
         );
-      } else if (_selectedImage != null) {
-        // Mobile: use file to upload
+      } else {
         await _supabase.storage.from('profile_pictures').upload(
           filePath,
-          _selectedImage!,
+          File(pickedFile.path),
           fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
         );
       }
@@ -699,7 +703,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             .from('profile_pictures')
             .createSignedUrl(filePath, 60 * 60 * 24 * 30);
       } catch (_) {
-        // If signed URL generation fails, fallback to public URL.
+        // Fallback to public URL
       }
 
       final user = _supabase.auth.currentUser;
@@ -716,21 +720,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         setState(() {
           _profilePicturePath = filePath;
           _profilePictureUrl = displayUrl;
-          _selectedImageBytes = null; // Clear bytes after upload
+          _selectedImageBytes = null;
           _selectedImage = null;
+          _isUploadingImage = false;
         });
+
+        // Update provider immediately so it syncs across top bars
+        ref.read(adminProfileProvider.notifier).updateProfile(
+              adminName: _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
+              email: _emailController.text,
+              role: _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+              profilePictureUrl: displayUrl,
+            );
+
+        _showThemedSnackBar(
+          'Profile picture updated successfully!',
+          backgroundColor: Colors.green,
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading image: $e')),
+        setState(() {
+          _isUploadingImage = false;
+        });
+        _showThemedSnackBar(
+          'Error uploading image: $e',
+          backgroundColor: Colors.red,
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingImage = false);
-      }
     }
+  }
+
+  Future<void> _uploadProfileImage() async {
+    // Deprecated: Upload is now done automatically upon image selection in _pickProfileImage.
   }
 
   Future<void> _saveAdminProfile() async {
@@ -758,6 +780,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             data: metadataPayload,
           ),
         );
+
+        // Sync name and role to the public.app_users database table
+        await _supabase.from('app_users').update({
+          'name': _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
+          'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+        }).eq('email', user.email!);
       }
 
       // Update the admin profile provider
@@ -771,11 +799,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await _loadAdminProfile();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile saved successfully!'),
-            duration: Duration(seconds: 2),
-          ),
+        _showThemedSnackBar(
+          'Profile saved successfully!',
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
         );
         setState(() {
           _selectedImage = null; // Clear selected image after save
@@ -784,8 +811,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving profile: $e')),
+        _showThemedSnackBar(
+          'Error saving profile: $e',
+          backgroundColor: Colors.red,
         );
       }
     } finally {
@@ -802,11 +830,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           adminName: 'Admin',
           role: 'System Administrator',
           email: _emailController.text.trim(),
-          profilePictureUrl: _profilePictureUrl,
+          profilePictureUrl: null,
         );
     setState(() {
       _selectedImage = null;
       _selectedImageBytes = null;
+      _profilePictureUrl = null;
+      _profilePicturePath = null;
       _currentPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();
@@ -814,8 +844,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _obscureNewPassword = true;
       _obscureConfirmPassword = true;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Form reset to default admin values.')),
+    _showThemedSnackBar(
+      'Form reset to default admin values.',
+      backgroundColor: Colors.orange,
     );
   }
 
@@ -839,6 +870,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+
+  void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: backgroundColor ?? const Color(0xFF315C8F),
+        behavior: SnackBarBehavior.floating,
+        duration: duration ?? const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.only(bottom: 24, left: 32, right: 32),
       ),
     );
   }

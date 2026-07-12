@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/pos_model.dart';
@@ -36,6 +37,30 @@ class _POSScreenState extends State<POSScreen> {
     _loadProductsFromInventory();
   }
 
+  void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: backgroundColor ?? const Color(0xFF315C8F),
+        behavior: SnackBarBehavior.floating,
+        duration: duration ?? const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        margin: const EdgeInsets.only(bottom: 24, left: 32, right: 32),
+      ),
+    );
+  }
+
   Future<void> _loadProductsFromInventory() async {
     setState(() => _isLoading = true);
     try {
@@ -48,9 +73,7 @@ class _POSScreenState extends State<POSScreen> {
       setState(() => _products = rows);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load POS products: $e')),
-      );
+      _showThemedSnackBar('Failed to load POS products: $e', backgroundColor: Colors.red);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -91,16 +114,12 @@ class _POSScreenState extends State<POSScreen> {
       currentOrder.clearOrder();
       _orderItemCounter = 0;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Order cleared.')),
-    );
+    _showThemedSnackBar('Order cleared.', backgroundColor: Colors.orange);
   }
 
   void _completeTransaction() {
     if (currentOrder.items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No items in the order yet.')),
-      );
+      _showThemedSnackBar('No items in the order yet.', backgroundColor: Colors.red);
       return;
     }
 
@@ -112,8 +131,9 @@ class _POSScreenState extends State<POSScreen> {
       _orderItemCounter = 0;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Transaction completed: $itemCount item(s), PHP ${total.toStringAsFixed(2)}')),
+    _showThemedSnackBar(
+      'Transaction completed: $itemCount item(s), PHP ${total.toStringAsFixed(2)}',
+      backgroundColor: Colors.green,
     );
   }
 
@@ -283,11 +303,10 @@ class _POSScreenState extends State<POSScreen> {
               ),
             );
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${product.name} added to order'),
-              duration: const Duration(milliseconds: 800),
-            ),
+          _showThemedSnackBar(
+            '${product.name} added to order',
+            backgroundColor: const Color(0xFF315C8F),
+            duration: const Duration(milliseconds: 800),
           );
         },
         child: Container(
