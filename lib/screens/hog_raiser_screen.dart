@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
+import '../main.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
@@ -24,6 +25,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   String? _loadErrorMessage;
   final Map<int, String?> _selectedPigTypes = {};
 
+  RealtimeChannel? _raisersSubscription;
+
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _accentDark => _isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
@@ -42,12 +45,44 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    if (isInitialLaunch) {
+      isInitialLaunch = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      });
+      return;
+    }
     _loadRaisers();
+    _subscribeToRaisers();
+  }
+
+  void _subscribeToRaisers() {
+    _raisersSubscription = _supabase
+        .channel('public:hog_raisers')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'hog_raisers',
+          callback: (payload) {
+            _loadRaisers(keyword: _searchCtrl.text);
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    if (_raisersSubscription != null) {
+      _supabase.removeChannel(_raisersSubscription!);
+    }
     super.dispose();
   }
 
@@ -56,7 +91,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     try {
       dynamic query = _supabase
           .from('hog_raisers')
-          .select('id, hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users(email, supabase_user_id)');
+          .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(email, supabase_user_id)');
       if (keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }

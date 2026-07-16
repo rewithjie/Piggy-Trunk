@@ -8,6 +8,7 @@ import '../theme/app_text_styles.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../main.dart';
 
 class POSScreen extends StatefulWidget {
   const POSScreen({super.key});
@@ -34,6 +35,20 @@ class _POSScreenState extends State<POSScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    if (isInitialLaunch) {
+      isInitialLaunch = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      });
+      return;
+    }
     _loadProductsFromInventory();
   }
 

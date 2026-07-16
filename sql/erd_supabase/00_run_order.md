@@ -25,7 +25,9 @@ Run these files in order in Supabase SQL Editor:
 23. `23_hog_raisers_foreign_key.sql`
 24. `24_inventory_logs.sql`
 25. `25_admin_notifications.sql`
-26. `90_rls_policies.sql`
+26. `26_hog_reports.sql`
+27. `27_hog_raisers_avatar.sql`
+28. `90_rls_policies.sql`
 
 Notes:
 - `USER` from your ERD is mapped to `app_users` because `user` is a reserved keyword in PostgreSQL.

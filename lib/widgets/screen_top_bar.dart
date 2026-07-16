@@ -366,18 +366,20 @@ class ScreenTopBar extends ConsumerWidget {
                               resolvedPhoto,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                return Icon(
-                                  Icons.person_outline,
-                                  size: 18,
-                                  color: isDark ? textColor.withValues(alpha: 0.9) : const Color(0xFF2F4A6A),
+                                return ClipOval(
+                                  child: Image.asset(
+                                    'assets/piggytrunk_logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
                                 );
                               },
                             ),
                           )
-                        : Icon(
-                            Icons.person_outline,
-                            size: 18,
-                            color: isDark ? textColor.withValues(alpha: 0.9) : const Color(0xFF2F4A6A),
+                        : ClipOval(
+                            child: Image.asset(
+                              'assets/piggytrunk_logo.png',
+                              fit: BoxFit.contain,
+                            ),
                           ),
                   ),
                   const SizedBox(width: 8),

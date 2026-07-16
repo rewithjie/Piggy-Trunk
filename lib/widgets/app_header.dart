@@ -23,7 +23,6 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceDark = isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
     final textDark = isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
-    final primaryDark = isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
     
     return AppBar(
       title: showLogo

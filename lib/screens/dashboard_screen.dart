@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../main.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -40,6 +41,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    isInitialLaunch = false;
     _loadDashboardData();
   }
 
@@ -76,7 +85,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       final raisersRes = await _supabase
           .from('hog_raisers')
-          .select('id, hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
+          .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
           .eq('account_status', 'active')
           .order('name', ascending: true);
 
@@ -114,7 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _supabase.from('hogs').select('hog_id').eq('status', 'dead'),
         _supabase
             .from('hog_raisers')
-            .select('id, hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
+            .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
             .eq('account_status', 'active')
             .order('name', ascending: true),
       ]);
@@ -626,7 +635,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildLifecycleMap(currentStage.toString()),
+                    _buildLifecycleMap(currentStage.toString(), pigType.toString()),
                   ],
                 );
               },
@@ -636,15 +645,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLifecycleMap(String currentStage) {
-    final List<String> lifecycleStages = [
-      'Booster',
-      'Pre-Starter',
-      'Starter',
-      'Grower',
-      'Finisher',
-      'Selling'
-    ];
+  Widget _buildLifecycleMap(String currentStage, String pigType) {
+    final List<String> lifecycleStages = pigType.toLowerCase() == 'sow'
+        ? ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+        : ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
     final activeIndex = lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
     final normalizedIndex = activeIndex < 0 ? 0 : activeIndex;
 
@@ -662,8 +666,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           fgColor = Colors.white;
           icon = Icons.check;
         } else if (isCurrent) {
-          bgColor = const Color(0xFFF97316);
-          fgColor = Colors.white;
+          bgColor = _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
+          fgColor = _isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
           icon = Icons.priority_high_rounded;
         } else {
           bgColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);

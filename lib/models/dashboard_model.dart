@@ -1,4 +1,4 @@
-/// Dashboard Models without json_serializable (manual parsing)
+// Dashboard Models without json_serializable (manual parsing)
 
 class AdminUser {
   final String name;

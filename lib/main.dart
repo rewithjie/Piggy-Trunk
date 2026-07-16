@@ -12,6 +12,7 @@ import 'screens/pos_screen.dart';
 import 'screens/settings_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
+bool isInitialLaunch = true;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

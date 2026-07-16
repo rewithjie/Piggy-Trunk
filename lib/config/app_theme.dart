@@ -97,7 +97,6 @@ class AppTheme {
         primary: primaryColor,
         secondary: const Color(0xFF445571),
         surface: surfaceColor,
-        background: backgroundColor,
         error: dangerColor,
       ),
       scaffoldBackgroundColor: backgroundColor,
@@ -171,8 +170,8 @@ class AppTheme {
         ),
       ),
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
             return primaryColor;
           }
           return Colors.transparent;

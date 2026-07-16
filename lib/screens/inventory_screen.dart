@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../main.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -70,6 +71,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    if (isInitialLaunch) {
+      isInitialLaunch = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      });
+      return;
+    }
     _loadProducts();
   }
 

@@ -64,3 +64,29 @@ $$ language plpgsql;
 create or replace trigger trigger_on_hog_raiser_insert
 after insert on public.hog_raisers
 for each row execute function public.notify_admin_on_new_raiser();
+
+-- 4. Trigger on hog_raisers update (lifecycle_stage progress change)
+create or replace function public.notify_admin_on_raiser_stage_update()
+returns trigger as $$
+begin
+  if old.lifecycle_stage is distinct from new.lifecycle_stage and new.lifecycle_stage is not null then
+    insert into public.admin_notifications (title, message, type, metadata)
+    values (
+      'Raiser Progress Updated',
+      coalesce(new.name, 'A hog raiser') || ' has updated their progress stage to ' || new.lifecycle_stage || '.',
+      'progress_update',
+      jsonb_build_object(
+        'hog_raiser_id', new.hog_raiser_id,
+        'raiser_name', new.name,
+        'old_stage', old.lifecycle_stage,
+        'new_stage', new.lifecycle_stage
+      )
+    );
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+create or replace trigger trigger_on_raiser_stage_update
+after update of lifecycle_stage on public.hog_raisers
+for each row execute function public.notify_admin_on_raiser_stage_update();

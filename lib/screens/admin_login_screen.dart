@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../widgets/piggy_trunk_logo.dart';
 import '../styles/login_styles.dart';
@@ -38,6 +39,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     _passwordController = TextEditingController();
     _emailFocus = FocusNode();
     _passwordFocus = FocusNode();
+
+    // Auto-redirect if session already exists
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      }
+    });
   }
 
   @override
@@ -176,14 +185,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       'Admin Login',
       style: LoginStyles.titleStyle(context),
       textAlign: TextAlign.center,
-    );
-  }
-
-  Widget _buildSubtitle() {
-    return const Text(
-      'Manage your PiggyTrunk admin dashboard with secure access',
-      textAlign: TextAlign.center,
-      style: LoginStyles.subtitleStyle,
     );
   }
 

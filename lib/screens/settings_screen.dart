@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../providers/admin_profile_provider.dart';
+import '../main.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -53,6 +54,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    if (isInitialLaunch) {
+      isInitialLaunch = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      });
+      return;
+    }
     _loadAdminProfile();
   }
 
@@ -279,18 +294,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     _profilePictureUrl!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
-                                      return Icon(
-                                        Icons.person_outline,
-                                        color: _textDark,
-                                        size: 40,
+                                      return ClipOval(
+                                        child: Image.asset(
+                                          'assets/piggytrunk_logo.png',
+                                          fit: BoxFit.contain,
+                                        ),
                                       );
                                     },
                                   ),
                                 )
-                              : Icon(
-                                  Icons.person_outline,
-                                  color: _textDark,
-                                  size: 40,
+                              : ClipOval(
+                                  child: Image.asset(
+                                    'assets/piggytrunk_logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                 ),
                 ),

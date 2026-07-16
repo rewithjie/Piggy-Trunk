@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 title: const Text(
-                  'Account Pending',
+                  'Nakabinbing Account',
                   style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF18314F)),
                 ),
                 content: const Text(
@@ -96,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('OK', style: TextStyle(color: Color(0xFF2366CC))),
+                    child: const Text('Sige po', style: TextStyle(color: Color(0xFF2366CC))),
                   ),
                 ],
               ),
@@ -114,11 +114,23 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (e) {
+      String tagalogMessage = e.message;
+      final lowercaseMsg = e.message.toLowerCase();
+      if (lowercaseMsg.contains('invalid login credentials') || 
+          lowercaseMsg.contains('invalid credentials') || 
+          lowercaseMsg.contains('user not found')) {
+        tagalogMessage = 'Mali ang inyong email o password. Paki-check at subukan ulit.';
+      } else if (lowercaseMsg.contains('email not confirmed')) {
+        tagalogMessage = 'Hindi pa kumpirmado ang inyong email address. Paki-check ang inyong inbox.';
+      } else if (lowercaseMsg.contains('rate limit')) {
+        tagalogMessage = 'Masyadong maraming beses na sumubok. Mangyaring maghintay ng ilang sandali.';
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.message,
+              tagalogMessage,
               style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.red,

@@ -4,7 +4,11 @@ create table if not exists public.stock_requests (
   status text not null default 'pending',
   decision_date date,
   assignment_id bigint not null references public.assignments(assignment_id) on delete restrict,
-  hog_raiser_id bigint not null references public.hog_raisers(hog_raiser_id) on delete restrict
+  hog_raiser_id bigint not null references public.hog_raisers(hog_raiser_id) on delete restrict,
+  category text not null default 'Feeds',
+  quantity integer not null default 1,
+  feed_type text,
+  notes text
 );
 
 create index if not exists idx_stock_requests_assignment on public.stock_requests(assignment_id);

@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../main.dart';
 
 class InvestmentsScreen extends StatefulWidget {
   const InvestmentsScreen({super.key});
@@ -30,7 +31,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _cardBg => _isDark ? const Color(0xFF132238) : Colors.white;
   Color get _cardBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
   Color get _titleColor => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _headerBg => _isDark ? const Color(0xFF0C1628) : const Color(0xFFEFF4FC);
   Color get _headerText => _isDark ? const Color(0xFF9EC0E8) : const Color(0xFF4B6281);
   Color get _fieldBg => _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
   Color get _fieldBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC);
@@ -63,6 +63,20 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   @override
   void initState() {
     super.initState();
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      });
+      return;
+    }
+    if (isInitialLaunch) {
+      isInitialLaunch = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      });
+      return;
+    }
     _loadInitialData();
   }
 
@@ -110,7 +124,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     try {
       final response = await _supabase
           .from('hog_raisers')
-          .select('id, hog_raiser_id, name, pig_type')
+          .select('hog_raiser_id, name, pig_type')
           .eq('status', 'Active')
           .order('name', ascending: true);
       if (!mounted) return;
@@ -133,6 +147,20 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     } catch (e) {
       return 'Select date';
     }
+  }
+
+  String _formatCurrency(double amount) {
+    final String fixed = amount.toStringAsFixed(2);
+    final List<String> parts = fixed.split('.');
+    final String integerPart = parts[0];
+    final String decimalPart = parts[1];
+    
+    final String formattedInteger = integerPart.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    
+    return '₱$formattedInteger.$decimalPart';
   }
 
   Future<void> _openInvestmentDialog({Investment? existing}) async {
@@ -159,7 +187,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     try {
       final response = await _supabase
           .from('hog_raisers')
-          .select('id, hog_raiser_id, name, pig_type')
+          .select('hog_raiser_id, name, pig_type')
           .eq('status', 'Active')
           .order('name', ascending: true);
       // Normalize: expose 'id' key so the dropdown value matching still works
@@ -255,7 +283,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                 ),
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 child: Text(
-                                  existing?.raiserName ?? '',
+                                  existing.raiserName,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -739,17 +767,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       if (raiserId != null) {
         final raiserCheck = await _supabase
             .from('hog_raisers')
-            .select('id, hog_raiser_id')
-            .or('id.eq.$raiserId,hog_raiser_id.eq.$raiserIdStr')
+            .select('hog_raiser_id')
+            .eq('hog_raiser_id', raiserId)
             .maybeSingle();
 
         if (raiserCheck != null) {
-          final pkCol = raiserCheck['id'] != null ? 'id' : 'hog_raiser_id';
-          final pkVal = raiserCheck[pkCol];
+          final pkVal = raiserCheck['hog_raiser_id'];
           await _supabase
               .from('hog_raisers')
               .update({'lifecycle_stage': null})
-              .eq(pkCol, pkVal);
+              .eq('hog_raiser_id', pkVal);
         }
       }
 
@@ -1436,7 +1463,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ),
           Expanded(
             child: Text(
-              '₱${investment.initialCapital.toStringAsFixed(2)}',
+              _formatCurrency(investment.initialCapital),
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,

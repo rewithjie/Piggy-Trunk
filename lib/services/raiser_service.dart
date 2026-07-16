@@ -48,7 +48,7 @@ class RaiserService {
     final uri = Uri.parse('$supabaseUrl/functions/v1/create-raiser');
     // Debug: show masked token presence for diagnosis
     try {
-      debugPrint('RaiserService: using access token ${accessToken != null ? accessToken.substring(0, 8) + '...' : 'null'}');
+      debugPrint('RaiserService: using access token ${accessToken.substring(0, 8)}...');
     } catch (_) {}
 
     final response = await _httpClient.post(
