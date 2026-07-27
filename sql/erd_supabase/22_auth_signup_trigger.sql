@@ -61,6 +61,24 @@ begin
       'pending', -- admin approval status
       user_address -- dynamic address from metadata
     );
+  elsif user_role = 'partner' then
+    insert into public.partner_investors (
+      user_id,
+      address,
+      contact_number
+    )
+    values (
+      new_app_user_id,
+      user_address,
+      user_phone
+    );
+  elsif user_role = 'cashier' then
+    insert into public.cashiers (
+      user_id
+    )
+    values (
+      new_app_user_id
+    );
   end if;
 
   return new;
@@ -73,3 +91,18 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row
   execute function public.handle_new_user();
+
+-- Automatically delete public profile when auth.users is deleted
+create or replace function public.handle_deleted_user()
+returns trigger as $$
+begin
+  delete from public.app_users where supabase_user_id = old.id;
+  return old;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_deleted on auth.users;
+create trigger on_auth_user_deleted
+  after delete on auth.users
+  for each row
+  execute function public.handle_deleted_user();

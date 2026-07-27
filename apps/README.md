@@ -1,10 +1,8 @@
 # Apps Workspace
 
-Each client app should be isolated here, but connected to shared packages.
+This directory contains the main client applications of the PiggyTrunk platform.
 
-- `admin_web`: existing admin portal (migrate current `lib/` here gradually)
-- `cashier_web`: POS flow for cashier role
-- `partner_web`: investment dashboard for partner role
-- `hog_raiser_mobile`: mobile operations for hog raisers
+- `piggytrunk_mobile`: The unified mobile application for all roles (Hog Raisers, Partners/Investors, Cashiers, and Admin Mobile).
+- Root directory (`lib/`): The main Admin/System Web and Desktop portal.
 
-Keep business entities and API client code in `packages/` to avoid duplication.
+All business models and shared API queries are kept in the `packages/` directory to share them across the web and mobile platforms.

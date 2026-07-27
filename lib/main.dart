@@ -10,6 +10,7 @@ import 'screens/investments_screen.dart';
 import 'screens/inventory_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/user_approvals_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
@@ -63,6 +64,7 @@ class MyApp extends ConsumerWidget {
         '/inventory': (context) => const InventoryScreen(),
         '/pos': (context) => const POSScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/users': (context) => const UserApprovalsScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

@@ -29,23 +29,30 @@ class ScreenTopBar extends ConsumerWidget {
     final metadataName = (metadata['admin_name'] ?? '').toString().trim();
     final metadataRole = (metadata['role'] ?? '').toString().trim();
     final metadataPhoto = (metadata['profile_picture_url'] ?? '').toString().trim();
-    final resolvedName = adminProfile.adminName.trim().isNotEmpty ? adminProfile.adminName : (metadataName.isNotEmpty ? metadataName : 'Admin');
-    final resolvedRole = adminProfile.role.trim().isNotEmpty ? adminProfile.role : (metadataRole.isNotEmpty ? metadataRole : 'System Administrator');
-    final resolvedPhoto = (adminProfile.profilePictureUrl != null && adminProfile.profilePictureUrl!.trim().isNotEmpty)
-        ? adminProfile.profilePictureUrl!.trim()
+    
+    // Use provider state as the source of truth if it has been hydrated,
+    // otherwise fall back to user metadata for initial UI rendering.
+    final resolvedName = adminProfile.isHydrated
+        ? adminProfile.adminName
+        : (metadataName.isNotEmpty ? metadataName : 'Admin');
+    final resolvedRole = adminProfile.isHydrated
+        ? adminProfile.role
+        : (metadataRole.isNotEmpty ? metadataRole : 'System Administrator');
+    final resolvedPhoto = adminProfile.isHydrated
+        ? (adminProfile.profilePictureUrl ?? '')
         : (metadataPhoto.isNotEmpty ? metadataPhoto : '');
 
     final shouldHydrateFromMetadata =
-        metadataName.isNotEmpty &&
-        adminProfile.adminName == 'Admin' &&
-        (adminProfile.profilePictureUrl == null || adminProfile.profilePictureUrl!.isEmpty);
+        !adminProfile.isHydrated &&
+        (metadataName.isNotEmpty || metadataRole.isNotEmpty || metadataPhoto.isNotEmpty);
     if (shouldHydrateFromMetadata) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(adminProfileProvider.notifier).updateProfile(
-              adminName: metadataName,
+              adminName: metadataName.isNotEmpty ? metadataName : 'Admin',
               role: metadataRole.isNotEmpty ? metadataRole : 'System Administrator',
               profilePictureUrl: metadataPhoto.isNotEmpty ? metadataPhoto : null,
               email: user?.email ?? adminProfile.email,
+              isHydrated: true,
             );
       });
     }
@@ -221,10 +228,10 @@ class ScreenTopBar extends ConsumerWidget {
                         return PopupMenuItem<void>(
                           onTap: () {
                             AdminNotificationService.markAsRead(notif.notificationId);
-                            if (notif.type == 'new_raiser') {
+                            if (notif.type == 'new_raiser' || notif.type == 'hog_report') {
                               Navigator.of(context).pushNamed('/raisers');
                             } else if (notif.type == 'stock_request') {
-                              Navigator.of(context).pushNamed('/inventory');
+                              Navigator.of(context).pushNamed('/inventory', arguments: 'stock_request');
                             }
                           },
                           child: Container(

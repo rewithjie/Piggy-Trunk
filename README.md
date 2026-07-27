@@ -4,12 +4,9 @@ Flutter admin app backed by Supabase.
 
 ## Multi-App Direction (Scaffold Added)
 
-This repository now includes a starter monorepo layout for:
+This repository includes a starter monorepo layout for:
 
-- `apps/admin_web`
-- `apps/cashier_web`
-- `apps/partner_web`
-- `apps/hog_raiser_mobile`
+- `apps/piggytrunk_mobile`: Unified mobile application for all roles (Hog Raiser, Partner/Investor, Cashier, and Admin Mobile).
 - `packages/shared_models`
 - `packages/shared_api`
 - `docs/architecture/*`
@@ -20,7 +17,7 @@ Start with the architecture docs:
 2. `docs/architecture/role_access_matrix.md`
 3. `docs/architecture/api_contract_v1.md`
 
-Current production/admin code is still in root `lib/`. Move features gradually into `apps/admin_web` and shared logic into `packages/*`.
+Current production/admin web code is still in the root `lib/` directory. Shared logic is in `packages/*`.
 
 ## Database Setup (Supabase)
 

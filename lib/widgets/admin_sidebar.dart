@@ -10,6 +10,7 @@ import '../screens/investments_screen.dart';
 import '../screens/inventory_screen.dart';
 import '../screens/pos_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/user_approvals_screen.dart';
 
 final sidebarExpandedProvider = StateProvider<bool>((ref) => false);
 
@@ -42,11 +43,18 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         fallbackIcon: Icons.apps_outlined,
         route: '/dashboard',
       ),
+
       SidebarItem(
         label: 'Hog Raiser',
         iconAsset: 'assets/icons/sidebar/raisers.svg',
         fallbackIcon: Icons.group_outlined,
         route: '/raisers',
+      ),
+      SidebarItem(
+        label: 'User Approvals',
+        iconAsset: '',
+        fallbackIcon: Icons.people_outline,
+        route: '/users',
       ),
       SidebarItem(
         label: 'Investment',
@@ -56,13 +64,13 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       ),
       SidebarItem(
         label: 'Inventory',
-        iconAsset: 'assets/icons/sidebar/inventory.svg',
-        fallbackIcon: Icons.inventory_2_outlined,
+        iconAsset: 'assets/icons/sidebar/pos.svg',
+        fallbackIcon: Icons.description_outlined,
         route: '/inventory',
       ),
       SidebarItem(
         label: 'POS',
-        iconAsset: 'assets/icons/sidebar/pos.svg',
+        iconAsset: 'assets/icons/sidebar/inventory.svg',
         fallbackIcon: Icons.point_of_sale_outlined,
         route: '/pos',
       ),
@@ -265,6 +273,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         return const POSScreen();
       case '/settings':
         return const SettingsScreen();
+      case '/users':
+        return const UserApprovalsScreen();
       default:
         return const DashboardScreen();
     }

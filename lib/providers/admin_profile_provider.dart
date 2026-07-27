@@ -6,12 +6,14 @@ class AdminProfile {
   final String email;
   final String role;
   final String? profilePictureUrl;
+  final bool isHydrated;
 
   AdminProfile({
     required this.adminName,
     required this.email,
     required this.role,
     this.profilePictureUrl,
+    this.isHydrated = false,
   });
 
   AdminProfile copyWith({
@@ -19,12 +21,15 @@ class AdminProfile {
     String? email,
     String? role,
     String? profilePictureUrl,
+    bool clearProfilePicture = false,
+    bool? isHydrated,
   }) {
     return AdminProfile(
       adminName: adminName ?? this.adminName,
       email: email ?? this.email,
       role: role ?? this.role,
-      profilePictureUrl: profilePictureUrl ?? this.profilePictureUrl,
+      profilePictureUrl: clearProfilePicture ? null : (profilePictureUrl ?? this.profilePictureUrl),
+      isHydrated: isHydrated ?? this.isHydrated,
     );
   }
 }
@@ -38,6 +43,7 @@ class AdminProfileNotifier extends StateNotifier<AdminProfile> {
             email: '',
             role: 'System Administrator',
             profilePictureUrl: null,
+            isHydrated: false,
           ),
         );
 
@@ -46,12 +52,16 @@ class AdminProfileNotifier extends StateNotifier<AdminProfile> {
     String? email,
     String? role,
     String? profilePictureUrl,
+    bool clearProfilePicture = false,
+    bool? isHydrated,
   }) {
     state = state.copyWith(
       adminName: adminName,
       email: email,
       role: role,
       profilePictureUrl: profilePictureUrl,
+      clearProfilePicture: clearProfilePicture,
+      isHydrated: isHydrated ?? true,
     );
   }
 
@@ -60,7 +70,7 @@ class AdminProfileNotifier extends StateNotifier<AdminProfile> {
   }
 
   void setProfilePictureUrl(String url) {
-    state = state.copyWith(profilePictureUrl: url);
+    state = state.copyWith(profilePictureUrl: url, clearProfilePicture: false);
   }
 }
 

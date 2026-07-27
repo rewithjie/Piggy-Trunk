@@ -30,6 +30,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
   bool _showAddProductForm = false;
   bool _isSubmitting = false;
   Product? _editingProduct;
+  int _activeTab = 0; // 0 = Inventory Products, 1 = Raiser Stock Requests
+  List<Map<String, dynamic>> _stockRequests = [];
+  bool _isLoadingRequests = false;
+  String _requestsFilter = 'All'; // 'All', 'Pending', 'Approved', 'Rejected'
+  bool _isProcessingRequest = false;
+  bool _hasCheckedArgs = false;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _accentDark => _isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
@@ -86,6 +92,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
       return;
     }
     _loadProducts();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasCheckedArgs) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args == 'stock_request') {
+        setState(() {
+          _activeTab = 1;
+        });
+        _loadStockRequests();
+      }
+      _hasCheckedArgs = true;
+    }
   }
 
   @override
@@ -500,26 +521,57 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       letterSpacing: -0.04,
                     ),
                   ),
-                  Row(
-                    children: [
-                      Builder(
-                        builder: (context) => OutlinedButton.icon(
+                  if (_activeTab == 0)
+                    Row(
+                      children: [
+                        Builder(
+                          builder: (context) => OutlinedButton.icon(
+                            onPressed: () async {
+                              setState(() {
+                                _filterProductId = null;
+                                _filterProductName = null;
+                                _selectedLogFilter = null;
+                              });
+                              _loadLogs();
+                              Scaffold.of(context).openEndDrawer();
+                            },
+                            icon: Icon(
+                              Icons.history_toggle_off_rounded,
+                              size: 18,
+                              color: _titleColor,
+                            ),
+                            label: Text(
+                              'Activity Logs',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _titleColor,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: _fieldBg,
+                              side: BorderSide(
+                                color: _panelBorder,
+                              ),
+                              minimumSize: const Size(160, 52),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton.icon(
                           onPressed: () async {
-                            setState(() {
-                              _filterProductId = null;
-                              _filterProductName = null;
-                              _selectedLogFilter = null;
-                            });
-                            _loadLogs();
-                            Scaffold.of(context).openEndDrawer();
+                            setState(() => _isArchiveMode = !_isArchiveMode);
+                            await _loadProducts();
                           },
                           icon: Icon(
-                            Icons.history_toggle_off_rounded,
+                            _isArchiveMode ? Icons.inventory_2_outlined : Icons.archive_outlined,
                             size: 18,
                             color: _titleColor,
                           ),
                           label: Text(
-                            'Activity Logs',
+                            _isArchiveMode ? 'Back to Active' : 'Archives',
                             style: GoogleFonts.plusJakartaSans(
                               color: _titleColor,
                               fontWeight: FontWeight.w700,
@@ -531,164 +583,160 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             side: BorderSide(
                               color: _panelBorder,
                             ),
-                            minimumSize: const Size(160, 52),
+                            minimumSize: const Size(170, 52),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          setState(() => _isArchiveMode = !_isArchiveMode);
-                          await _loadProducts();
-                        },
-                        icon: Icon(
-                          _isArchiveMode ? Icons.inventory_2_outlined : Icons.archive_outlined,
-                          size: 18,
-                          color: _titleColor,
-                        ),
-                        label: Text(
-                          _isArchiveMode ? 'Back to Active' : 'Archives',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: _titleColor,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: _fieldBg,
-                          side: BorderSide(
-                            color: _panelBorder,
-                          ),
-                          minimumSize: const Size(170, 52),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () => setState(() => _showAddProductForm = true),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: Text(
-                          'Add Product',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: _whiteButtonStyle(),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              if (_products.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: _cardBg,
-                    border: Border.all(color: _cardBorder),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _isArchiveMode ? 'No archived products found.' : 'No products found.',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
-                          color: _titleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (!_isArchiveMode)
-                        ElevatedButton(
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
                           onPressed: () => setState(() => _showAddProductForm = true),
-                          style: _whiteButtonStyle(minWidth: 220),
-                          child: Text(
-                            'Create First Product',
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            'Add Product',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
+                          style: _whiteButtonStyle(),
                         ),
-                    ],
-                  ),
-                )
-              else ...[
-                for (final cat in _categoryOptions) ...[
-                  Builder(
-                    builder: (context) {
-                      final catProducts = _products.where((p) => p.category.toLowerCase() == cat.toLowerCase()).toList();
-                      if (catProducts.isEmpty) return const SizedBox.shrink();
-                      
-                      final screenWidth = MediaQuery.of(context).size.width;
-                      final crossAxisCount = screenWidth > 1400 ? 4 : (screenWidth > 900 ? 3 : 2);
-                      final childAspectRatio = screenWidth > 1400 ? 0.70 : (screenWidth > 900 ? 0.76 : 0.82);
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 24, bottom: 12),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 4,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  cat,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w800,
-                                    color: _titleColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '(${catProducts.length})',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: _mutedColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              crossAxisSpacing: 20,
-                              mainAxisSpacing: 20,
-                              childAspectRatio: childAspectRatio,
-                            ),
-                            itemCount: catProducts.length,
-                            itemBuilder: (context, index) => _buildProductCard(catProducts[index]),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      );
-                    },
-                  ),
+                      ],
+                    ),
                 ],
-              ],
+              ),
+              const SizedBox(height: 16),
+              // Tab Toggle Container
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _fieldBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _panelBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTabButton(0, 'Inventory Products', Icons.description_outlined),
+                    _buildTabButton(1, 'Raiser Stock Requests', Icons.assignment_outlined),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _activeTab == 0 ? _buildProductsSection() : _buildStockRequestsContent(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildProductsSection() {
+    if (_products.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          border: Border.all(color: _cardBorder),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          children: [
+            Text(
+              _isArchiveMode ? 'No archived products found.' : 'No products found.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: _titleColor,
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (!_isArchiveMode)
+              ElevatedButton(
+                onPressed: () => setState(() => _showAddProductForm = true),
+                style: _whiteButtonStyle(minWidth: 220),
+                child: Text(
+                  'Create First Product',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final cat in _categoryOptions) ...[
+          Builder(
+            builder: (context) {
+              final catProducts = _products.where((p) => p.category.toLowerCase() == cat.toLowerCase()).toList();
+              if (catProducts.isEmpty) return const SizedBox.shrink();
+              
+              final screenWidth = MediaQuery.of(context).size.width;
+              final crossAxisCount = screenWidth > 1400 ? 4 : (screenWidth > 900 ? 3 : 2);
+              final childAspectRatio = screenWidth > 1400 ? 0.70 : (screenWidth > 900 ? 0.76 : 0.82);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24, bottom: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          cat,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _titleColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '(${catProducts.length})',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _mutedColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
+                      childAspectRatio: childAspectRatio,
+                    ),
+                    itemCount: catProducts.length,
+                    itemBuilder: (context, index) => _buildProductCard(catProducts[index]),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 
@@ -1769,5 +1817,764 @@ class _InventoryScreenState extends State<InventoryScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildTabButton(int index, String label, IconData icon) {
+    final isSelected = _activeTab == index;
+    final activeColor = _isDark ? PiggyTrunkTheme.ptPrimary : const Color(0xFF315C8F);
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _activeTab = index;
+        });
+        if (index == 1) {
+          _loadStockRequests();
+        } else {
+          _loadProducts();
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : _titleColor,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                color: isSelected ? Colors.white : _titleColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadStockRequests() async {
+    if (!mounted) return;
+    setState(() => _isLoadingRequests = true);
+    try {
+      final response = await _supabase
+          .from('stock_requests')
+          .select('*, hog_raisers(name)')
+          .order('request_date', ascending: false);
+      
+      if (!mounted) return;
+      setState(() {
+        _stockRequests = List<Map<String, dynamic>>.from(response as List);
+      });
+    } catch (e) {
+      debugPrint('Error loading stock requests: $e');
+      _showThemedSnackBar('Failed to load stock requests: $e', backgroundColor: Colors.redAccent);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingRequests = false);
+      }
+    }
+  }
+
+  void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: backgroundColor ?? const Color(0xFF315C8F),
+        behavior: SnackBarBehavior.floating,
+        duration: duration ?? const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStockRequestsContent() {
+    if (_isLoadingRequests) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final filteredRequests = _stockRequests.where((req) {
+      if (_requestsFilter == 'All') return true;
+      return (req['status'] as String).toLowerCase() == _requestsFilter.toLowerCase();
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                _buildRequestFilterChip('All', 'All Requests'),
+                const SizedBox(width: 8),
+                _buildRequestFilterChip('Pending', 'Pending'),
+                const SizedBox(width: 8),
+                _buildRequestFilterChip('Approved', 'Approved'),
+                const SizedBox(width: 8),
+                _buildRequestFilterChip('Rejected', 'Rejected'),
+              ],
+            ),
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, color: _titleColor),
+              onPressed: _loadStockRequests,
+              tooltip: 'Refresh Requests',
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (filteredRequests.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
+            decoration: BoxDecoration(
+              color: _cardBg,
+              border: Border.all(color: _cardBorder),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Center(
+              child: Text(
+                'No requests found.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: _titleColor,
+                ),
+              ),
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              color: _cardBg,
+              border: Border.all(color: _cardBorder),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(17),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final tableWidth = constraints.maxWidth > 1000 ? constraints.maxWidth : 1000.0;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Table(
+                        columnWidths: const {
+                          0: FlexColumnWidth(1.2), // Raiser
+                          1: FlexColumnWidth(1.0), // Date
+                          2: FlexColumnWidth(1.0), // Category
+                          3: FlexColumnWidth(1.0), // Detail
+                          4: FlexColumnWidth(0.8), // Quantity
+                          5: FlexColumnWidth(1.0), // Status
+                          6: FlexColumnWidth(1.8), // Actions
+                        },
+                        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                        children: [
+                          TableRow(
+                            decoration: BoxDecoration(
+                              color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                              border: Border(bottom: BorderSide(color: _cardBorder)),
+                            ),
+                            children: [
+                              _tableHeaderCell('RAISER NAME'),
+                              _tableHeaderCell('REQUEST DATE'),
+                              _tableHeaderCell('CATEGORY'),
+                              _tableHeaderCell('FEED TYPE'),
+                              _tableHeaderCell('QUANTITY'),
+                              _tableHeaderCell('STATUS'),
+                              _tableHeaderCell('ACTIONS'),
+                            ],
+                          ),
+                          ...filteredRequests.map((req) => _buildRequestRow(req)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _tableHeaderCell(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Text(
+        label,
+        style: GoogleFonts.plusJakartaSans(
+          color: _titleColor,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestFilterChip(String filterValue, String label) {
+    final isSelected = _requestsFilter == filterValue;
+    final activeColor = _isDark ? PiggyTrunkTheme.ptPrimary : const Color(0xFF315C8F);
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _requestsFilter = filterValue;
+          });
+        }
+      },
+      labelStyle: GoogleFonts.plusJakartaSans(
+        color: isSelected ? Colors.white : _titleColor,
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
+      ),
+      backgroundColor: _fieldBg,
+      selectedColor: activeColor,
+      side: BorderSide(color: isSelected ? Colors.transparent : _cardBorder),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+
+  TableRow _buildRequestRow(Map<String, dynamic> req) {
+    final raiser = req['hog_raisers'] as Map<String, dynamic>?;
+    final raiserName = raiser?['name'] ?? 'Unknown Raiser';
+    final requestDate = req['request_date']?.toString() ?? 'N/A';
+    final category = req['category']?.toString() ?? 'Feeds';
+    final feedType = req['feed_type']?.toString() ?? 'N/A';
+    final quantity = req['quantity']?.toString() ?? '0';
+    final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
+
+    Color statusBg;
+    Color statusFg;
+    if (status == 'APPROVED') {
+      statusBg = const Color(0x3343CB89);
+      statusFg = const Color(0xFF43CB89);
+    } else if (status == 'REJECTED') {
+      statusBg = const Color(0x33FF758C);
+      statusFg = const Color(0xFFFF758C);
+    } else {
+      statusBg = const Color(0x33FFAA00);
+      statusFg = const Color(0xFFFFAA00);
+    }
+
+    return TableRow(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+      ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            raiserName,
+            style: GoogleFonts.plusJakartaSans(
+              color: _titleColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            requestDate,
+            style: GoogleFonts.plusJakartaSans(
+              color: _mutedColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            category,
+            style: GoogleFonts.plusJakartaSans(
+              color: _titleColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            feedType,
+            style: GoogleFonts.plusJakartaSans(
+              color: _titleColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            '$quantity units',
+            style: GoogleFonts.plusJakartaSans(
+              color: _titleColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              status,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                color: statusFg,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: status == 'PENDING'
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _isProcessingRequest ? null : () => _showApproveDialog(req),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: PiggyTrunkTheme.ptSuccess,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(80, 34),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text(
+                        'Approve',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    OutlinedButton(
+                      onPressed: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: PiggyTrunkTheme.ptMuted,
+                        side: BorderSide(color: _panelBorder),
+                        minimumSize: const Size(70, 34),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: Text(
+                        'Reject',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  'No Actions',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: _mutedColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showApproveDialog(Map<String, dynamic> req) async {
+    final category = req['category']?.toString() ?? 'Feeds';
+    final feedType = req['feed_type']?.toString() ?? '';
+    final requestedQuantity = (req['quantity'] as num?)?.toInt() ?? 1;
+    final raiser = req['hog_raisers'] as Map<String, dynamic>?;
+    final raiserName = raiser?['name'] ?? 'Unknown Raiser';
+    final requestId = req['request_id'];
+
+    List<Product> matchingProducts = _products.where((p) {
+      return p.category.toLowerCase() == category.toLowerCase();
+    }).toList();
+
+    Product? selectedProduct;
+    if (matchingProducts.isNotEmpty) {
+      if (category.toLowerCase() == 'feeds' && feedType.isNotEmpty) {
+        selectedProduct = matchingProducts.firstWhere(
+          (p) => p.name.toLowerCase().contains(feedType.toLowerCase()),
+          orElse: () => matchingProducts.first,
+        );
+      } else {
+        selectedProduct = matchingProducts.first;
+      }
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        Product? selectedProdInDialog = selectedProduct;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final hasSufficientStock = selectedProdInDialog != null && selectedProdInDialog!.units >= requestedQuantity;
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                width: 480,
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _cardBorder),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Approve Stock Request',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _titleColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Raiser: $raiserName',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _titleColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Requesting: $requestedQuantity units of $category${feedType.isNotEmpty ? ' ($feedType)' : ''}',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _titleColor,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'SELECT PRODUCT FROM INVENTORY TO RELEASE:',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (matchingProducts.isEmpty)
+                      Text(
+                        'No products found in the inventory under "$category" category. Please add a product first.',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<Product>(
+                        value: selectedProdInDialog,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: _fieldBg,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _cardBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _fieldFocus),
+                          ),
+                        ),
+                        dropdownColor: _fieldBg,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: _fieldText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: _mutedColor),
+                        items: matchingProducts
+                            .map((prod) => DropdownMenuItem<Product>(
+                                  value: prod,
+                                  child: Text('${prod.name} (${prod.units} left)'),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          setStateDialog(() {
+                            selectedProdInDialog = val;
+                          });
+                        },
+                      ),
+                    if (selectedProdInDialog != null) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Current Stock: ${selectedProdInDialog!.units} units',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: hasSufficientStock ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (!hasSufficientStock) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'WARNING: Insufficient stock. You only have ${selectedProdInDialog!.units} units available but $requestedQuantity are requested.',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _titleColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: (selectedProdInDialog == null || !hasSufficientStock)
+                              ? null
+                              : () {
+                                  Navigator.of(context).pop();
+                                  _processApproveRequest(requestId, selectedProdInDialog!, requestedQuantity, raiserName);
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: PiggyTrunkTheme.ptSuccess,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: Text(
+                            'Confirm Approval',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _processApproveRequest(
+    dynamic requestId,
+    Product product,
+    int quantity,
+    String raiserName,
+  ) async {
+    setState(() => _isProcessingRequest = true);
+    try {
+      final finalUnits = product.units - quantity;
+
+      await _supabase.from('stock_requests').update({
+        'status': 'approved',
+        'decision_date': DateTime.now().toIso8601String().split('T').first,
+      }).eq('request_id', requestId);
+
+      await _supabase.from(_table).update({
+        'units': finalUnits,
+      }).eq('id', product.id);
+
+      await _insertProductLog(
+        productId: product.id,
+        productName: product.name,
+        action: 'UPDATE',
+        price: product.price,
+        units: finalUnits,
+        details: 'Approved stock request for $raiserName: Released $quantity units of ${product.category}. New stock: $finalUnits.',
+      );
+
+      _showThemedSnackBar(
+        'Stock request approved successfully.',
+        backgroundColor: PiggyTrunkTheme.ptSuccess,
+      );
+
+      await Future.wait([_loadProducts(), _loadStockRequests()]);
+    } catch (e) {
+      debugPrint('Error approving stock request: $e');
+      _showThemedSnackBar(
+        'Failed to approve request: $e',
+        backgroundColor: Colors.redAccent,
+      );
+    } finally {
+      setState(() => _isProcessingRequest = false);
+    }
+  }
+
+  Future<void> _confirmRejectRequest(Map<String, dynamic> req) async {
+    final requestId = req['request_id'];
+    final category = req['category']?.toString() ?? 'Feeds';
+    final quantity = (req['quantity'] as num?)?.toInt() ?? 1;
+    final raiser = req['hog_raisers'] as Map<String, dynamic>?;
+    final raiserName = raiser?['name'] ?? 'Unknown Raiser';
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Container(
+            width: 450,
+            decoration: BoxDecoration(
+              color: _cardBg,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _cardBorder),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reject Stock Request',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Are you sure you want to reject the stock request from $raiserName for $quantity units of $category?',
+                  style: GoogleFonts.plusJakartaSans(color: _titleColor, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _titleColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _processRejectRequest(requestId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text(
+                        'Confirm Rejection',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _processRejectRequest(dynamic requestId) async {
+    setState(() => _isProcessingRequest = true);
+    try {
+      await _supabase.from('stock_requests').update({
+        'status': 'rejected',
+        'decision_date': DateTime.now().toIso8601String().split('T').first,
+      }).eq('request_id', requestId);
+
+      _showThemedSnackBar(
+        'Stock request rejected.',
+        backgroundColor: Colors.orange,
+      );
+
+      await _loadStockRequests();
+    } catch (e) {
+      debugPrint('Error rejecting stock request: $e');
+      _showThemedSnackBar(
+        'Failed to reject request: $e',
+        backgroundColor: Colors.redAccent,
+      );
+    } finally {
+      setState(() => _isProcessingRequest = false);
+    }
   }
 }

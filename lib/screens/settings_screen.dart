@@ -73,7 +73,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _loadAdminProfile() async {
     try {
-      final user = _supabase.auth.currentUser;
+      final userResponse = await _supabase.auth.getUser();
+      final user = userResponse.user;
       if (user != null && user.email != null) {
         // Query app_users table first to get saved database name and role
         String? dbName;
@@ -125,8 +126,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _roleController.text = savedRole.isNotEmpty
               ? savedRole
               : (currentProfile.role.trim().isNotEmpty ? currentProfile.role : 'System Administrator');
-          _profilePicturePath = savedPhotoPath.isNotEmpty ? savedPhotoPath : _profilePicturePath;
-          _profilePictureUrl = resolvedPhotoUrl ?? currentProfile.profilePictureUrl;
+          _profilePicturePath = savedPhotoPath.isNotEmpty ? savedPhotoPath : null;
+          _profilePictureUrl = resolvedPhotoUrl;
         });
 
         ref.read(adminProfileProvider.notifier).updateProfile(
@@ -134,6 +135,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               email: user.email!,
               role: _roleController.text,
               profilePictureUrl: _profilePictureUrl,
+              clearProfilePicture: _profilePictureUrl == null,
+              isHydrated: true,
             );
       } else {
         final currentProfile = ref.read(adminProfileProvider);
@@ -783,13 +786,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final Map<String, dynamic> metadataPayload = {
         'admin_name': _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
         'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+        'profile_picture_url': (_profilePictureUrl != null && _profilePictureUrl!.trim().isNotEmpty) ? _profilePictureUrl!.trim() : '',
+        'profile_picture_path': (_profilePicturePath != null && _profilePicturePath!.trim().isNotEmpty) ? _profilePicturePath!.trim() : '',
       };
-      if (_profilePictureUrl != null && _profilePictureUrl!.trim().isNotEmpty) {
-        metadataPayload['profile_picture_url'] = _profilePictureUrl!.trim();
-      }
-      if (_profilePicturePath != null && _profilePicturePath!.trim().isNotEmpty) {
-        metadataPayload['profile_picture_path'] = _profilePicturePath!.trim();
-      }
 
       if (user != null) {
         await _supabase.auth.updateUser(
@@ -811,6 +810,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             email: _emailController.text,
             role: _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
             profilePictureUrl: _profilePictureUrl,
+            clearProfilePicture: _profilePictureUrl == null,
+            isHydrated: true,
           );
 
       await _loadAdminProfile();
@@ -840,7 +841,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  void _resetForm() {
+  Future<void> _resetForm() async {
     _adminNameController.text = 'Admin';
     _roleController.text = 'System Administrator';
     ref.read(adminProfileProvider.notifier).updateProfile(
@@ -848,6 +849,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           role: 'System Administrator',
           email: _emailController.text.trim(),
           profilePictureUrl: null,
+          clearProfilePicture: true,
+          isHydrated: true,
         );
     setState(() {
       _selectedImage = null;
@@ -861,6 +864,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _obscureNewPassword = true;
       _obscureConfirmPassword = true;
     });
+
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null) {
+        final Map<String, dynamic> metadataPayload = {
+          'admin_name': 'Admin',
+          'role': 'System Administrator',
+          'profile_picture_url': '',
+          'profile_picture_path': '',
+        };
+        await _supabase.auth.updateUser(
+          UserAttributes(
+            data: metadataPayload,
+          ),
+        );
+
+        // Sync name and role to the public.app_users database table
+        await _supabase.from('app_users').update({
+          'name': 'Admin',
+          'role': 'System Administrator',
+        }).eq('email', user.email!);
+      }
+    } catch (e) {
+      debugPrint('Error saving reset state: $e');
+    }
+
     _showThemedSnackBar(
       'Form reset to default admin values.',
       backgroundColor: Colors.orange,

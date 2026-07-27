@@ -4,10 +4,8 @@ This project can evolve from one Flutter admin app into a multi-client platform.
 
 ## Target Clients
 
-1. `admin_web` - system management
-2. `cashier_web` - point of sale workflow
-3. `partner_web` - investor dashboard
-4. `hog_raiser_mobile` - raiser task logging and updates
+1. Root project (`lib/`) - Web/Desktop Admin portal
+2. `piggytrunk_mobile` - Unified mobile app (Hog Raiser, Cashier POS, Partner Investor, Admin Mobile)
 
 ## Shared Platform
 
@@ -23,10 +21,7 @@ All clients should use:
 ```text
 piggytrunk/
   apps/
-    admin_web/
-    cashier_web/
-    partner_web/
-    hog_raiser_mobile/
+    piggytrunk_mobile/
   packages/
     shared_models/
     shared_api/
@@ -40,9 +35,8 @@ piggytrunk/
 1. Finalize role matrix and permissions
 2. Create shared package interfaces (`shared_models`, `shared_api`)
 3. Extract current admin domain logic into shared layers
-4. Build `cashier_web` first (fast validation of shared API)
-5. Build `partner_web`
-6. Build `hog_raiser_mobile`
+4. Implement dynamic role routing on `piggytrunk_mobile`
+5. Implement cashier, partner, and admin UIs within the mobile app.
 
 ## Security Rules
 

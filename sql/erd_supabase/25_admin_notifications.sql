@@ -90,3 +90,59 @@ $$ language plpgsql;
 create or replace trigger trigger_on_raiser_stage_update
 after update of lifecycle_stage on public.hog_raisers
 for each row execute function public.notify_admin_on_raiser_stage_update();
+
+-- 5. Trigger on partner_investors insert
+create or replace function public.notify_admin_on_new_partner()
+returns trigger as $$
+declare
+  partner_name text;
+begin
+  select name into partner_name 
+  from public.app_users 
+  where user_id = new.user_id;
+
+  insert into public.admin_notifications (title, message, type, metadata)
+  values (
+    'New Partner Investor Registered',
+    coalesce(partner_name, 'A new partner') || ' registered and is pending approval.',
+    'new_partner',
+    jsonb_build_object(
+      'partner_investor_id', new.partner_investor_id,
+      'partner_name', partner_name
+    )
+  );
+  return new;
+end;
+$$ language plpgsql;
+
+create or replace trigger trigger_on_partner_investor_insert
+after insert on public.partner_investors
+for each row execute function public.notify_admin_on_new_partner();
+
+-- 6. Trigger on cashiers insert
+create or replace function public.notify_admin_on_new_cashier()
+returns trigger as $$
+declare
+  cashier_name text;
+begin
+  select name into cashier_name 
+  from public.app_users 
+  where user_id = new.user_id;
+
+  insert into public.admin_notifications (title, message, type, metadata)
+  values (
+    'New Cashier Registered',
+    coalesce(cashier_name, 'A new cashier') || ' registered and is pending approval.',
+    'new_cashier',
+    jsonb_build_object(
+      'cashier_id', new.cashier_id,
+      'cashier_name', cashier_name
+    )
+  );
+  return new;
+end;
+$$ language plpgsql;
+
+create or replace trigger trigger_on_cashier_insert
+after insert on public.cashiers
+for each row execute function public.notify_admin_on_new_cashier();

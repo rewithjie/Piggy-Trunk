@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'piggy_trunk_logo.dart';
 import '../theme/app_theme.dart';
 
@@ -106,7 +107,15 @@ class AppDrawer extends StatelessWidget {
           }),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.logout),
+            leading: SvgPicture.asset(
+              'assets/icons/sidebar/logout.svg',
+              width: 18,
+              height: 18,
+              colorFilter: ColorFilter.mode(
+                Theme.of(context).iconTheme.color ?? PiggyTrunkTheme.ptText,
+                BlendMode.srcIn,
+              ),
+            ),
             title: const Text('Logout'),
             onTap: onLogout,
           ),
