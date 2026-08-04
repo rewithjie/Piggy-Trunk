@@ -39,6 +39,15 @@ class AuthService {
         }),
       );
 
+      // Handle Remember Me state persistence
+      if (rememberMe) {
+        await _secureStorage.write(key: 'remembered_email', value: email);
+        await _secureStorage.write(key: 'remember_me', value: 'true');
+      } else {
+        await _secureStorage.delete(key: 'remembered_email');
+        await _secureStorage.write(key: 'remember_me', value: 'false');
+      }
+
       return {
         'success': true,
         'message': 'Login successful! Welcome back, ${user.email}',
@@ -54,6 +63,21 @@ class AuthService {
         'success': false,
         'message': 'Error: ${e.toString()}',
       };
+    }
+  }
+
+  /// Get remembered email and remember me status
+  Future<Map<String, dynamic>> getRememberedCredentials() async {
+    try {
+      final email = await _secureStorage.read(key: 'remembered_email');
+      final rememberMeStr = await _secureStorage.read(key: 'remember_me');
+      final rememberMe = rememberMeStr == 'true';
+      return {
+        'email': email ?? '',
+        'rememberMe': rememberMe && (email != null && email.isNotEmpty),
+      };
+    } catch (e) {
+      return {'email': '', 'rememberMe': false};
     }
   }
 

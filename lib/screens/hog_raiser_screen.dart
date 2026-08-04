@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
@@ -89,6 +88,41 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   Future<void> _loadRaisers({String keyword = ''}) async {
     setState(() => _isLoading = true);
     try {
+      // Self-healing sync: Ensure all hog_raiser users in app_users have a matching hog_raisers record
+      try {
+        final pendingAppUsers = await _supabase
+            .from('app_users')
+            .select('user_id, name, email, status, role')
+            .or('role.ilike.%raiser%,role.ilike.%hog_raiser%');
+
+        for (final au in (pendingAppUsers as List)) {
+          final uid = au['user_id'];
+          final uStatus = (au['status'] ?? 'Pending').toString();
+          if (uid != null) {
+            final exists = await _supabase
+                .from('hog_raisers')
+                .select('hog_raiser_id')
+                .eq('user_id', uid)
+                .maybeSingle();
+
+            if (exists == null) {
+              await _supabase.from('hog_raisers').insert({
+                'user_id': uid,
+                'name': au['name'] ?? au['email']?.toString().split('@').first ?? 'Hog Raiser',
+                'phone': 'N/A',
+                'address': 'N/A',
+                'status': 'Inactive',
+                'account_status': uStatus,
+                'pig_type': 'N/A',
+                'lifecycle_stage': 'N/A',
+              });
+            }
+          }
+        }
+      } catch (syncErr) {
+        debugPrint('Notice during raiser sync: $syncErr');
+      }
+
       dynamic query = _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(email, supabase_user_id)');
@@ -309,7 +343,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _tableHeader() {
-    final headers = ['HOG RAISER', 'ADDRESS', 'PHONE NUMBER', 'PIG TYPE', 'STATUS', 'ACTIONS'];
+    final headers = ['HOG RAISER', 'ADDRESS', 'PHONE NUMBER', 'STATUS', 'ACTIONS'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
@@ -329,7 +363,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _tableRow(Map<String, dynamic> row) {
-    final raiserId = _parseId(row['id'] ?? row['hog_raiser_id']);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
@@ -341,49 +374,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               Expanded(child: Text('Raiser - ${(row['name'] ?? '')}', style: AppTextStyles.body(_titleColor))),
               Expanded(child: Text((row['address'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
               Expanded(child: Text((row['phone'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
-              Expanded(
-                child: _currentTab == 1 && raiserId != null
-                    ? Container(
-                        padding: const EdgeInsets.only(right: 16),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedPigTypes[raiserId],
-                            hint: Text(
-                              'Select Type',
-                              style: AppTextStyles.body(_hintText).copyWith(fontSize: 14),
-                            ),
-                            dropdownColor: _cardBg,
-                            iconEnabledColor: _titleColor,
-                            style: AppTextStyles.body(_fieldText).copyWith(fontSize: 14),
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              filled: true,
-                              fillColor: _fieldBg,
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: _fieldBorder),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: _fieldFocus),
-                              ),
-                            ),
-                            items: const ['Fattening', 'Sow']
-                                .map((type) => DropdownMenuItem(
-                                      value: type,
-                                      child: Text(type),
-                                    ))
-                                .toList(),
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedPigTypes[raiserId] = val;
-                              });
-                            },
-                          ),
-                        ),
-                      )
-                    : Text((row['pig_type'] ?? '').toString(), style: AppTextStyles.body(_titleColor)),
-              ),
               Expanded(child: Text((row['account_status'] ?? '').toString().toUpperCase(), style: AppTextStyles.body(_titleColor))),
               Expanded(
                 child: (row['account_status'] ?? '').toString().toLowerCase() == 'pending'
@@ -406,7 +396,33 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                           ),
                         ],
                       )
-                    : const SizedBox.shrink(),
+                    : Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => _showRaiserDetailsDialog(row),
+                            icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Tingnan ang Detalye',
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            onPressed: () => _showEditRaiserDialog(row),
+                            icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.amber),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'I-edit ang Raiser',
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton(
+                            onPressed: () => _archiveRaiser(row),
+                            icon: const Icon(Icons.archive_outlined, size: 20, color: Colors.orangeAccent),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'I-archive ang Raiser',
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -447,17 +463,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     final userId = _parseId(row['user_id']);
     if (id == null) return;
 
-    final selectedType = _selectedPigTypes[id];
-    if (selectedType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please select a Pig Type from the dropdown first.', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     final name = (row['name'] ?? '').toString();
 
     final confirm = await showDialog<bool>(
@@ -469,7 +474,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
         ),
         content: Text(
-          'Are you sure you want to approve "$name" as "$selectedType"?',
+          'Are you sure you want to approve "$name"?',
           style: AppTextStyles.body(_titleColor),
         ),
         actions: [
@@ -504,7 +509,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
       final List<Future> updates = [
         _supabase.from('hog_raisers').update({
-          'pig_type': selectedType,
           'status': 'Active',
           'account_status': 'active',
         }).eq(pkCol, id),
@@ -612,5 +616,272 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _archiveRaiser(Map<String, dynamic> row) async {
+    final id = _parseId(row['id'] ?? row['hog_raiser_id']);
+    final userId = _parseId(row['user_id']);
+    if (id == null) return;
+    final name = (row['name'] ?? '').toString();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _cardBg,
+        title: Text(
+          'I-archive ang Hog Raiser',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: Text(
+          'Sigurado ka bang gustong i-archive si "$name"?',
+          style: AppTextStyles.body(_titleColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              'Kanselahin',
+              style: AppTextStyles.button(_hintText),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'I-archive',
+              style: AppTextStyles.button(Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+      final List<Future> updates = [
+        _supabase.from('hog_raisers').update({
+          'status': 'Archived',
+          'account_status': 'archived',
+        }).eq(pkCol, id),
+      ];
+
+      if (userId != null) {
+        updates.add(
+          _supabase.from('app_users').update({
+            'status': 'archived',
+          }).eq('user_id', userId),
+        );
+      }
+
+      await Future.wait(updates);
+      await _loadRaisers(keyword: _searchCtrl.text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Matagumpay na nai-archive si "$name".', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Archiving failed: $e', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showRaiserDetailsDialog(Map<String, dynamic> row) {
+    final name = (row['name'] ?? 'Hog Raiser').toString();
+    final email = (row['email'] ?? 'N/A').toString();
+    final phone = (row['phone'] ?? 'N/A').toString();
+    final address = (row['address'] ?? 'N/A').toString();
+    final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
+    final pigType = (row['pig_type'] ?? 'N/A').toString();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Detalye ng Hog Raiser',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailItem('Pangalan', name),
+            _detailItem('Email', email),
+            _detailItem('Telepono', phone),
+            _detailItem('Address', address),
+            _detailItem('Pig Type', pigType),
+            _detailItem('Status', status),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: PiggyTrunkTheme.ptPrimary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Isara'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w700, color: _hintText),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w600, color: _titleColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditRaiserDialog(Map<String, dynamic> row) {
+    final id = _parseId(row['id'] ?? row['hog_raiser_id']);
+    final userId = _parseId(row['user_id']);
+    if (id == null) return;
+
+    final nameCtrl = TextEditingController(text: (row['name'] ?? '').toString());
+    final phoneCtrl = TextEditingController(text: (row['phone'] ?? '').toString());
+    final addressCtrl = TextEditingController(text: (row['address'] ?? '').toString());
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _cardBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'I-edit ang Detalye ng Raiser',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Pangalan', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: nameCtrl,
+                style: AppTextStyles.body(_titleColor),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text('Telepono', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: phoneCtrl,
+                style: AppTextStyles.body(_titleColor),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text('Address', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: addressCtrl,
+                maxLines: 2,
+                style: AppTextStyles.body(_titleColor),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text('Kanselahin', style: AppTextStyles.button(_hintText)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              setState(() => _isLoading = true);
+              try {
+                final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+                await _supabase.from('hog_raisers').update({
+                  'name': nameCtrl.text.trim(),
+                  'phone': phoneCtrl.text.trim(),
+                  'address': addressCtrl.text.trim(),
+                }).eq(pkCol, id);
+
+                if (userId != null) {
+                  try {
+                    await _supabase.from('app_users').update({
+                      'name': nameCtrl.text.trim(),
+                    }).eq('user_id', userId);
+                  } catch (_) {}
+                }
+
+                await _loadRaisers(keyword: _searchCtrl.text);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Matagumpay na na-update ang raiser profile!', style: AppTextStyles.body(Colors.white)),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Update failed: $e', style: AppTextStyles.body(Colors.white)),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: PiggyTrunkTheme.ptPrimary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('I-save'),
+          ),
+        ],
+      ),
+    );
   }
 }

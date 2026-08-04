@@ -6,7 +6,8 @@ create table if not exists public.app_users (
   role text not null,
   status text not null default 'active',
   created_at timestamptz not null default now(),
-  created_by bigint references public.app_users(user_id)
+  created_by bigint references public.app_users(user_id),
+  supabase_user_id uuid unique
 );
 
 create index if not exists idx_app_users_role on public.app_users(role);

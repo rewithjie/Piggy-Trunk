@@ -53,9 +53,13 @@ dependencies:
   # SVG support
   flutter_svg: ^2.0.0
   supabase_flutter: ^2.12.4
+  google_sign_in: ^6.2.1
   flutter_dotenv: ^5.2.1
   image_picker: ^1.1.2
   file_picker: ^10.3.2
+  flutter_local_notifications: ^17.0.0
+  permission_handler: ^11.3.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

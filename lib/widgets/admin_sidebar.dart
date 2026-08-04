@@ -19,10 +19,10 @@ class AdminSidebar extends ConsumerStatefulWidget {
   final VoidCallback onLogout;
 
   const AdminSidebar({
-    Key? key,
+    super.key,
     required this.currentRoute,
     required this.onLogout,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<AdminSidebar> createState() => _AdminSidebarState();
@@ -57,7 +57,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         route: '/users',
       ),
       SidebarItem(
-        label: 'Investment',
+        label: 'Investment Management',
         iconAsset: 'assets/icons/sidebar/investment.svg',
         fallbackIcon: Icons.trending_up_outlined,
         route: '/investments',
@@ -307,15 +307,15 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: isActive
-              ? borderColor.withOpacity(0.5)
+              ? borderColor.withValues(alpha: 0.5)
               : _hoveredRoute == item.route
-                  ? borderColor.withOpacity(0.3)
+                  ? borderColor.withValues(alpha: 0.3)
                   : Colors.transparent,
           border: Border.all(
             color: isActive
                 ? borderColor
                 : _hoveredRoute == item.route
-                    ? borderColor.withOpacity(0.5)
+                    ? borderColor.withValues(alpha: 0.5)
                     : Colors.transparent,
             width: 1,
           ),

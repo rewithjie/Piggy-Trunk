@@ -22,12 +22,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _activeRaisers = 0;
   int _batchCount = 0;
   double _totalCapital = 0;
-  int _mortalityCount = 0;
 
   // Allocation values
   double _fatteningCapital = 0;
   double _sowCapital = 0;
-  DateTime? _startOfInvestment;
   List<Map<String, dynamic>> _activeRaisersList = [];
 
   // Theme-aware color getters
@@ -73,13 +71,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _activeRaisers = (response['active_raisers'] as num?)?.toInt() ?? 0;
           _batchCount = realBatchCount;
           _totalCapital = (response['total_capital'] as num?)?.toDouble() ?? 0;
-          _mortalityCount = (response['mortality_count'] as num?)?.toInt() ?? 0;
           _fatteningCapital = (response['fattening_capital'] as num?)?.toDouble() ?? 0;
           _sowCapital = (response['sow_capital'] as num?)?.toDouble() ?? 0;
-          final rawDate = response['start_of_investment'];
-          if (rawDate != null) {
-            _startOfInvestment = DateTime.tryParse(rawDate.toString());
-          }
         });
       }
 
@@ -133,7 +126,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final raisers = results[0] as List;
       final batches = results[1] as List;
       final investmentRows = results[2] as List;
-      final deadHogs = results[3] as List;
       final activeRaisers = results[4] as List;
 
       double totalCapital = 0;
@@ -169,10 +161,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _activeRaisers = raisers.length;
         _batchCount = batches.length;
         _totalCapital = totalCapital;
-        _mortalityCount = deadHogs.length;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;
-        _startOfInvestment = earliest;
         _activeRaisersList = filteredActiveRaisers.cast<Map<String, dynamic>>();
       });
     } catch (_) {
@@ -187,18 +177,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       (m) => '${m[1]},',
     );
     return '₱$formatted';
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'N/A';
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-
-  String _formatPercent(double capital, double total) {
-    if (total == 0) return '0%';
-    return '${((capital / total) * 100).toStringAsFixed(1)}%';
   }
 
   @override
@@ -297,10 +275,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildKpiCardsRow() {
     final kpiData = [
       {
-        'label': 'START OF INVESTMENT',
-        'value': _formatDate(_startOfInvestment),
-      },
-      {
         'label': 'NUMBER OF HOG BATCH',
         'value': _batchCount.toString(),
       },
@@ -308,13 +282,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'label': 'TOTAL CURRENT INVESTMENT',
         'value': _formatCurrency(_totalCapital),
       },
-      {
-        'label': 'NUMBER OF MORTALITY',
-        'value': _mortalityCount.toString(),
-      },
     ];
-    const cardWidth = 320.0;
-    const spacing = 16.0;
+    const cardWidth = 360.0;
+    const spacing = 20.0;
     final totalWidth = kpiData.length * cardWidth + (kpiData.length - 1) * spacing;
 
     return LayoutBuilder(
@@ -392,9 +362,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// INVESTMENT ALLOCATION SECTION — now driven by live Supabase data
   Widget _buildInvestmentAllocationSection() {
-    final fatteningPercent = _formatPercent(_fatteningCapital, _totalCapital);
-    final sowPercent = _formatPercent(_sowCapital, _totalCapital);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth >= 1100;
@@ -438,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '${_activeRaisers} active raiser${_activeRaisers == 1 ? '' : 's'}',
+                '$_activeRaisers active raiser${_activeRaisers == 1 ? '' : 's'}',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -454,13 +421,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     _buildAllocationCard(
                       title: 'FATTENING',
-                      percentage: fatteningPercent,
                       amount: _formatCurrency(_fatteningCapital),
                       width: cardWidth,
                     ),
                     _buildAllocationCard(
                       title: 'SOW',
-                      percentage: sowPercent,
                       amount: _formatCurrency(_sowCapital),
                       width: cardWidth,
                     ),
@@ -477,7 +442,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// Individual Allocation Card with Top Border Accent
   Widget _buildAllocationCard({
     required String title,
-    required String percentage,
     required String amount,
     required double width,
   }) {
@@ -509,21 +473,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  percentage,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: _textDark,
-                  ),
-                ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 Text(
                   amount,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
                     color: _textDark,
                   ),
                 ),

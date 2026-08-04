@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../services/email_service.dart';
 import '../main.dart';
 
 class UserApprovalsScreen extends StatefulWidget {
@@ -37,6 +38,9 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   Color get _fieldText => _isDark ? const Color(0xFFE6F1FF) : const Color(0xFF18314F);
   Color get _hintText => _isDark ? const Color(0xFF8FA7C4) : const Color(0xFF5D7391);
 
+  RealtimeChannel? _appUsersChannel;
+  bool _hasCheckedRouteArgs = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,10 +59,42 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       return;
     }
     _loadUsers();
+    _subscribeToAppUsers();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasCheckedRouteArgs) {
+      _hasCheckedRouteArgs = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args == 'pending_partner' || args == 'pending') {
+        setState(() => _currentTab = 1);
+      } else if (args == 'pending_cashier') {
+        setState(() => _currentTab = 3);
+      }
+    }
+  }
+
+  void _subscribeToAppUsers() {
+    _appUsersChannel = _supabase
+        .channel('public:app_users_changes')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_users',
+          callback: (payload) {
+            if (mounted) {
+              _loadUsers(keyword: _searchCtrl.text);
+            }
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
+    _appUsersChannel?.unsubscribe();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -68,21 +104,27 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     try {
       dynamic query = _supabase
           .from('app_users')
-          .select('user_id, name, email, role, status, created_at')
-          .inFilter('role', ['partner', 'cashier']);
+          .select('user_id, name, email, role, status, created_at');
 
       if (keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,email.ilike.%$keyword%');
       }
 
-      final response = await query.order('name', ascending: true);
+      final response = await query.order('user_id', ascending: false);
+      final list = (response as List).cast<Map<String, dynamic>>();
+      debugPrint('UserApprovalsScreen loaded ${list.length} app_users: $list');
+
       if (mounted) {
         setState(() {
-          _users = (response as List).cast<Map<String, dynamic>>();
+          _users = list.where((u) {
+            final r = u['role']?.toString().toLowerCase() ?? '';
+            return r != 'admin';
+          }).toList();
           _loadErrorMessage = null;
         });
       }
     } catch (e) {
+      debugPrint('UserApprovalsScreen _loadUsers error: $e');
       if (mounted) {
         setState(() {
           _loadErrorMessage = 'Load failed: $e';
@@ -141,6 +183,43 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
           .from('app_users')
           .update({'status': 'active'})
           .eq('user_id', userId);
+
+      try {
+        await _supabase
+            .from('cashiers')
+            .update({'status': 'active'})
+            .eq('user_id', userId);
+      } catch (_) {}
+
+      try {
+        await _supabase
+            .from('partner_investors')
+            .update({'status': 'active'})
+            .eq('user_id', userId);
+      } catch (_) {}
+
+      try {
+        await _supabase
+            .from('hog_raisers')
+            .update({'account_status': 'active', 'status': 'Active'})
+            .eq('user_id', userId);
+      } catch (_) {}
+
+      // Trigger Resend Account Approval Email
+      try {
+        final targetUser = _users.firstWhere((u) => u['user_id'] == userId, orElse: () => {});
+        final email = targetUser['email']?.toString() ?? '';
+        final role = targetUser['role']?.toString() ?? 'user';
+        if (email.isNotEmpty) {
+          EmailService().sendAccountApprovalEmail(
+            recipientEmail: email,
+            recipientName: name,
+            role: role,
+          );
+        }
+      } catch (e) {
+        debugPrint("Notice: Failed to send approval email: $e");
+      }
 
       await _loadUsers(keyword: _searchCtrl.text);
 
@@ -279,25 +358,25 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final activePartnersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
       final s = u['status']?.toString().toLowerCase() ?? '';
-      return r == 'partner' && s == 'active';
+      return (r.contains('partner') || r == 'investor') && (s == 'active' || s == 'approved');
     }).length;
 
     final pendingPartnersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
       final s = u['status']?.toString().toLowerCase() ?? '';
-      return r == 'partner' && s == 'pending';
+      return (r.contains('partner') || r == 'investor') && (s == 'pending');
     }).length;
 
     final activeCashiersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
       final s = u['status']?.toString().toLowerCase() ?? '';
-      return r == 'cashier' && s == 'active';
+      return r.contains('cashier') && (s == 'active' || s == 'approved');
     }).length;
 
     final pendingCashiersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
       final s = u['status']?.toString().toLowerCase() ?? '';
-      return r == 'cashier' && s == 'pending';
+      return r.contains('cashier') && (s == 'pending');
     }).length;
 
     // Filter list by selected tab
@@ -305,10 +384,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       final r = u['role']?.toString().toLowerCase() ?? '';
       final s = u['status']?.toString().toLowerCase() ?? '';
       
-      if (_currentTab == 0) return r == 'partner' && s == 'active';
-      if (_currentTab == 1) return r == 'partner' && s == 'pending';
-      if (_currentTab == 2) return r == 'cashier' && s == 'active';
-      return r == 'cashier' && s == 'pending';
+      if (_currentTab == 0) return (r.contains('partner') || r == 'investor') && (s == 'active' || s == 'approved');
+      if (_currentTab == 1) return (r.contains('partner') || r == 'investor') && s == 'pending';
+      if (_currentTab == 2) return r.contains('cashier') && (s == 'active' || s == 'approved');
+      return r.contains('cashier') && s == 'pending';
     }).toList();
 
     return Column(
@@ -374,18 +453,30 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  ElevatedButton(
+                  ElevatedButton.icon(
                     onPressed: () => _loadUsers(keyword: _searchCtrl.text),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(100, 48),
+                      minimumSize: const Size(110, 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: Text(
+                    icon: const Icon(Icons.search, size: 18),
+                    label: Text(
                       'Search',
                       style: AppTextStyles.button(_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => _loadUsers(keyword: _searchCtrl.text),
+                    icon: Icon(Icons.refresh_rounded, color: _isDark ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptPrimary, size: 24),
+                    tooltip: 'Refresh Users List',
+                    style: IconButton.styleFrom(
+                      backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                      minimumSize: const Size(48, 48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],

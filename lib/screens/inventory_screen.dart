@@ -369,49 +369,238 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
-  Future<void> _toggleArchive(Product product) async {
-    try {
-      final newArchivedState = !product.isArchived;
-      await _supabase.from(_table).update({'is_archived': newArchivedState}).eq('id', product.id);
-      
-      final action = newArchivedState ? 'ARCHIVE' : 'RESTORE';
-      final details = newArchivedState 
-          ? 'Product moved to archives' 
-          : 'Product restored to active inventory';
-          
-      await _insertProductLog(
-        productId: product.id,
-        productName: product.name,
-        action: action,
-        price: product.price,
-        units: product.units,
-        details: details,
+  void _openRestockDialog({Product? initialProduct}) {
+    if (_products.isEmpty) {
+      _showThemedSnackBar(
+        'No products available in inventory to restock.',
+        backgroundColor: Colors.orange,
       );
-
-      await _loadProducts();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            product.isArchived ? 'Product restored successfully.' : 'Product archived successfully.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Update failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+      return;
     }
+
+    Product selectedProduct = initialProduct != null && _products.any((p) => p.id == initialProduct.id)
+        ? _products.firstWhere((p) => p.id == initialProduct.id)
+        : _products.first;
+
+    final quantityCtrl = TextEditingController();
+    bool isSubmittingRestock = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Container(
+                width: 480,
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _cardBorder),
+                ),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: PiggyTrunkTheme.ptPrimary.withAlpha(30),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.add_shopping_cart,
+                            color: PiggyTrunkTheme.ptPrimary,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Restock Inventory',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _titleColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _formLabel('SELECT PRODUCT *'),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<Product>(
+                      initialValue: selectedProduct,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: _fieldBg,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: _cardBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: _fieldFocus),
+                        ),
+                      ),
+                      dropdownColor: _fieldBg,
+                      borderRadius: BorderRadius.circular(12),
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _fieldText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      items: _products.map((prod) {
+                        return DropdownMenuItem<Product>(
+                          value: prod,
+                          child: Text(
+                            '[${prod.category}] ${prod.name} (Stock: ${prod.units} units)',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setDialogState(() => selectedProduct = val);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _formLabel('ADD QUANTITY (UNITS) *'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: quantityCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'e.g., 50',
+                        hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 14),
+                        filled: true,
+                        fillColor: _fieldBg,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: _cardBorder),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: _fieldFocus),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: isSubmittingRestock ? null : () => Navigator.of(dialogContext).pop(),
+                          child: Text(
+                            'Cancel',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _titleColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: isSubmittingRestock
+                              ? null
+                              : () async {
+                                  final addUnits = int.tryParse(quantityCtrl.text.trim());
+                                  if (addUnits == null || addUnits <= 0) {
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Please enter a valid stock quantity greater than 0.',
+                                          style: GoogleFonts.plusJakartaSans(color: Colors.white),
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setDialogState(() => isSubmittingRestock = true);
+                                  final newUnits = selectedProduct.units + addUnits;
+
+                                  try {
+                                    await _supabase.from(_table).update({
+                                      'units': newUnits,
+                                    }).eq('id', selectedProduct.id);
+
+                                    await _insertProductLog(
+                                      productId: selectedProduct.id,
+                                      productName: selectedProduct.name,
+                                      action: 'RESTOCK',
+                                      price: selectedProduct.price,
+                                      units: newUnits,
+                                      details: 'Restocked +$addUnits units. Previous: ${selectedProduct.units}, New: $newUnits.',
+                                    );
+
+                                    if (!dialogContext.mounted) return;
+                                    Navigator.of(dialogContext).pop();
+                                    await _loadProducts();
+
+                                    _showThemedSnackBar(
+                                      'Successfully restocked +$addUnits units to ${selectedProduct.name}.',
+                                      backgroundColor: PiggyTrunkTheme.ptSuccess,
+                                    );
+                                  } catch (e) {
+                                    setDialogState(() => isSubmittingRestock = false);
+                                    if (!dialogContext.mounted) return;
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Restock failed: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                          icon: isSubmittingRestock
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.check, size: 16),
+                          label: Text(
+                            isSubmittingRestock ? 'Saving...' : 'Confirm Restock',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: PiggyTrunkTheme.ptPrimary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
+
+
 
   Widget _buildInput(
     TextEditingController controller,
@@ -420,15 +609,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     List<TextInputFormatter>? inputFormatters,
     double minHeight = 0,
     bool withBottomPadding = true,
+    bool enabled = true,
   }) {
     return Padding(
       padding: EdgeInsets.only(bottom: withBottomPadding ? 12 : 0),
       child: TextField(
         controller: controller,
+        enabled: enabled,
         keyboardType: keyboardType,
         inputFormatters: inputFormatters,
         style: GoogleFonts.plusJakartaSans(
-          color: _fieldText,
+          color: enabled ? _fieldText : _mutedColor,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -440,12 +631,16 @@ class _InventoryScreenState extends State<InventoryScreen> {
             fontWeight: FontWeight.w500,
           ),
           filled: true,
-          fillColor: _fieldBg,
+          fillColor: enabled ? _fieldBg : _fieldBg.withAlpha(100),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           constraints: minHeight > 0 ? BoxConstraints(minHeight: minHeight) : null,
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: _cardBorder),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: _cardBorder.withAlpha(80)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -561,17 +756,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                         const SizedBox(width: 12),
                         OutlinedButton.icon(
-                          onPressed: () async {
-                            setState(() => _isArchiveMode = !_isArchiveMode);
-                            await _loadProducts();
-                          },
+                          onPressed: _openRestockDialog,
                           icon: Icon(
-                            _isArchiveMode ? Icons.inventory_2_outlined : Icons.archive_outlined,
+                            Icons.add_shopping_cart,
                             size: 18,
                             color: _titleColor,
                           ),
                           label: Text(
-                            _isArchiveMode ? 'Back to Active' : 'Archives',
+                            'Restock',
                             style: GoogleFonts.plusJakartaSans(
                               color: _titleColor,
                               fontWeight: FontWeight.w700,
@@ -583,7 +775,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             side: BorderSide(
                               color: _panelBorder,
                             ),
-                            minimumSize: const Size(170, 52),
+                            minimumSize: const Size(150, 52),
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
@@ -679,8 +871,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
               if (catProducts.isEmpty) return const SizedBox.shrink();
               
               final screenWidth = MediaQuery.of(context).size.width;
-              final crossAxisCount = screenWidth > 1400 ? 4 : (screenWidth > 900 ? 3 : 2);
-              final childAspectRatio = screenWidth > 1400 ? 0.70 : (screenWidth > 900 ? 0.76 : 0.82);
+              final crossAxisCount = screenWidth > 1200 ? 2 : 1;
+              final childAspectRatio = screenWidth > 1400 ? 2.6 : (screenWidth > 1100 ? 2.35 : (screenWidth > 700 ? 2.1 : 1.7));
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -916,7 +1108,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                       _formLabel('CATEGORY *'),
                                       const SizedBox(height: 8),
                                       DropdownButtonFormField<String>(
-                                        value: _categoryCtrl.text.isEmpty ? 'Feeds' : _categoryCtrl.text,
+                                        initialValue: _categoryCtrl.text.isEmpty ? 'Feeds' : _categoryCtrl.text,
                                         isExpanded: true,
                                         decoration: InputDecoration(
                                           filled: true,
@@ -979,14 +1171,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               ],
                             ),
                             const SizedBox(height: 12),
-                            _formLabel('PRICE (PHP) *'),
+                            _formLabel(_editingProduct != null ? 'PRICE (PHP) (Locked)' : 'PRICE (PHP) *'),
                             const SizedBox(height: 8),
                             _buildInput(
                               _priceCtrl,
                               '0',
+                              enabled: _editingProduct == null,
                               keyboardType: TextInputType.number,
                               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                             ),
+                            if (_editingProduct != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Price is non-editable after product creation.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.orangeAccent,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             _formLabel('DESCRIPTION'),
                             const SizedBox(height: 8),
@@ -1099,25 +1303,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
         border: Border.all(color: _cardBorder, width: 1),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
+      padding: const EdgeInsets.all(14),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top: Product Image (Full width, BoxFit.cover)
+          // Left Column: Square Product Image (1:1 Ratio)
           Container(
-            height: 170,
-            width: double.infinity,
+            width: 155,
+            height: 155,
             decoration: BoxDecoration(
               color: _fieldBg,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(15),
-                topRight: Radius.circular(15),
-              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _cardBorder.withAlpha(80)),
             ),
             child: ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(15),
-                topRight: Radius.circular(15),
-              ),
+              borderRadius: BorderRadius.circular(11),
               child: product.image != null && product.image!.isNotEmpty
                   ? Image.network(
                       product.image!,
@@ -1131,164 +1331,170 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ),
             ),
           ),
-          // Bottom: Content Area
+          const SizedBox(width: 14),
+          // Right Column: Product Details & Actions
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'PRODUCT NAME: ${product.name}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: _isDark ? Colors.white : const Color(0xFF3B5B83),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      _buildStockBadge(product),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'DESCRIPTION: ${product.description.isEmpty ? 'None' : product.description}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: _mutedColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Price row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'PRICE',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Top Row: Title + Stock Badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        product.name,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _mutedColor,
-                        ),
-                      ),
-                      Text(
-                        '₱${product.price.toStringAsFixed(2)}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: _titleColor,
+                          color: _isDark ? Colors.white : const Color(0xFF3B5B83),
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 6),
+                    _buildStockBadge(product),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Description
+                Text(
+                  product.description.isEmpty ? 'No description' : product.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: _mutedColor,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 6),
-                  // Stock row
-                  Row(
+                ),
+                const SizedBox(height: 8),
+                // Price & Stock Row Container
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _fieldBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Stock:',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: _mutedColor,
-                        ),
-                      ),
-                      Text(
-                        '${product.units} units',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _titleColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Action buttons
-                   Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openProductDialog(existing: product),
-                          icon: Icon(Icons.edit_outlined, size: 14, color: _mutedColor),
-                          label: Text(
-                            'Edit',
+                      Row(
+                        children: [
+                          Text(
+                            'PRICE: ',
                             style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
                               color: _mutedColor,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
                             ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: _panelBorder),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _toggleArchive(product),
-                          icon: Icon(
-                            _isArchiveMode ? Icons.unarchive_outlined : Icons.archive_outlined,
-                            size: 14,
-                            color: _accentDark,
-                          ),
-                          label: Text(
-                            _isArchiveMode ? 'Restore' : 'Archive',
+                          Text(
+                            '₱${product.price.toStringAsFixed(2)}',
                             style: GoogleFonts.plusJakartaSans(
-                              color: _accentDark,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: _titleColor,
                             ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: _panelBorder),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Builder(
-                        builder: (context) => Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: _panelBorder),
-                            borderRadius: BorderRadius.circular(8),
+                      Row(
+                        children: [
+                          Text(
+                            'Stock: ',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: _mutedColor,
+                            ),
                           ),
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: Icon(Icons.history, size: 18, color: _mutedColor),
-                            tooltip: 'View Product Logs',
-                            onPressed: () {
-                              setState(() {
-                                _filterProductId = product.id;
-                                _filterProductName = product.name;
-                                _selectedLogFilter = null;
-                              });
-                              _loadLogs();
-                              Scaffold.of(context).openEndDrawer();
-                            },
+                          Text(
+                            '${product.units} units',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: _titleColor,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 10),
+                // Action Buttons Row (Wider & Taller Buttons)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openProductDialog(existing: product),
+                        icon: Icon(Icons.edit_outlined, size: 15, color: _mutedColor),
+                        label: Text(
+                          'Edit',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _mutedColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: _panelBorder, width: 1.2),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openRestockDialog(initialProduct: product),
+                        icon: const Icon(Icons.add_shopping_cart, size: 15),
+                        label: Text(
+                          'Restock',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: PiggyTrunkTheme.ptPrimary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Builder(
+                      builder: (context) => Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: _panelBorder, width: 1.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          icon: Icon(Icons.history, size: 18, color: _mutedColor),
+                          tooltip: 'View Product Logs',
+                          onPressed: () {
+                            setState(() {
+                              _filterProductId = product.id;
+                              _filterProductName = product.name;
+                              _selectedLogFilter = null;
+                            });
+                            _loadLogs();
+                            Scaffold.of(context).openEndDrawer();
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -1387,14 +1593,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   String _formatDate(DateTime dt) {
+    final localDt = dt.toLocal();
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final month = months[dt.month - 1];
-    final day = dt.day.toString().padLeft(2, '0');
-    final year = dt.year;
-    final hourVal = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+    final month = months[localDt.month - 1];
+    final day = localDt.day.toString().padLeft(2, '0');
+    final year = localDt.year;
+    final hourVal = localDt.hour > 12 ? localDt.hour - 12 : (localDt.hour == 0 ? 12 : localDt.hour);
     final hour = hourVal.toString().padLeft(2, '0');
-    final minute = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+    final minute = localDt.minute.toString().padLeft(2, '0');
+    final ampm = localDt.hour >= 12 ? 'PM' : 'AM';
     return '$month $day, $year $hour:$minute $ampm';
   }
 
@@ -1407,7 +1614,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       if (_selectedLogFilter == null) return true;
       if (_selectedLogFilter == 'ADD') return log.action == 'ADD';
       if (_selectedLogFilter == 'UPDATE') return log.action == 'UPDATE';
-      if (_selectedLogFilter == 'ARCHIVE') return log.action == 'ARCHIVE' || log.action == 'RESTORE';
+      if (_selectedLogFilter == 'RESTOCK') return log.action == 'RESTOCK';
       return true;
     }).toList();
 
@@ -1502,7 +1709,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     const SizedBox(width: 8),
                     _buildLogFilterChip('UPDATE', 'Updates'),
                     const SizedBox(width: 8),
-                    _buildLogFilterChip('ARCHIVE', 'Archive/Restore'),
+                    _buildLogFilterChip('RESTOCK', 'Restocks'),
                   ],
                 ),
               ),
@@ -1682,15 +1889,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
         badgeFg = const Color(0xFF1D4ED8);
         badgeText = 'UPDATED';
         break;
-      case 'ARCHIVE':
-        badgeBg = const Color(0xFFFEF3C7);
-        badgeFg = const Color(0xFFB45309);
-        badgeText = 'ARCHIVED';
-        break;
-      case 'RESTORE':
-        badgeBg = const Color(0xFFCCFBF1);
-        badgeFg = const Color(0xFF0F766E);
-        badgeText = 'RESTORED';
+      case 'RESTOCK':
+        badgeBg = const Color(0xFFE0E7FF);
+        badgeFg = const Color(0xFF4338CA);
+        badgeText = 'RESTOCKED';
         break;
       default:
         badgeBg = _fieldBg;
@@ -1867,14 +2069,53 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (!mounted) return;
     setState(() => _isLoadingRequests = true);
     try {
-      final response = await _supabase
-          .from('stock_requests')
-          .select('*, hog_raisers(name)')
-          .order('request_date', ascending: false);
-      
+      dynamic response;
+      try {
+        response = await _supabase
+            .from('stock_requests')
+            .select('*, hog_raisers(name)')
+            .order('request_date', ascending: false);
+      } catch (relErr) {
+        // Fallback if foreign key relationship is not in PostgREST schema cache
+        debugPrint('Foreign key relation fallback: $relErr');
+        response = await _supabase
+            .from('stock_requests')
+            .select('*')
+            .order('request_date', ascending: false);
+      }
+
+      final rawList = List<Map<String, dynamic>>.from(response as List);
+
+      // Extract raiser IDs to fetch names if missing
+      final hogRaiserIds = rawList
+          .map((r) => (r['hog_raiser_id'] ?? r['raiser_id'] ?? r['user_id'])?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      Map<String, String> raiserNameMap = {};
+      if (hogRaiserIds.isNotEmpty) {
+        try {
+          final raisersRes = await _supabase
+              .from('hog_raisers')
+              .select('id, name')
+              .filter('id', 'in', hogRaiserIds.toList());
+          for (final raiser in raisersRes as List) {
+            raiserNameMap[raiser['id'].toString()] = raiser['name']?.toString() ?? 'Unknown Raiser';
+          }
+        } catch (_) {}
+      }
+
+      for (var req in rawList) {
+        final raiserId = (req['hog_raiser_id'] ?? req['raiser_id'] ?? req['user_id'])?.toString();
+        if (raiserId != null && raiserNameMap.containsKey(raiserId)) {
+          req['fetched_raiser_name'] = raiserNameMap[raiserId];
+        }
+      }
+
       if (!mounted) return;
       setState(() {
-        _stockRequests = List<Map<String, dynamic>>.from(response as List);
+        _stockRequests = rawList;
       });
     } catch (e) {
       debugPrint('Error loading stock requests: $e');
@@ -2062,7 +2303,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   TableRow _buildRequestRow(Map<String, dynamic> req) {
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
-    final raiserName = raiser?['name'] ?? 'Unknown Raiser';
+    final raiserName = req['fetched_raiser_name'] ??
+        req['raiser_name'] ??
+        req['hog_raiser_name'] ??
+        req['user_name'] ??
+        raiser?['name'] ??
+        'Unknown Raiser';
     final requestDate = req['request_date']?.toString() ?? 'N/A';
     final category = req['category']?.toString() ?? 'Feeds';
     final feedType = req['feed_type']?.toString() ?? 'N/A';
@@ -2310,7 +2556,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       )
                     else
                       DropdownButtonFormField<Product>(
-                        value: selectedProdInDialog,
+                        initialValue: selectedProdInDialog,
                         isExpanded: true,
                         decoration: InputDecoration(
                           filled: true,

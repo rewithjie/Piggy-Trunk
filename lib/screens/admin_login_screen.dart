@@ -6,7 +6,7 @@ import '../widgets/piggy_trunk_logo.dart';
 import '../styles/login_styles.dart';
 
 class AdminLoginScreen extends StatefulWidget {
-  const AdminLoginScreen({Key? key}) : super(key: key);
+  const AdminLoginScreen({super.key});
 
   @override
   State<AdminLoginScreen> createState() => _AdminLoginScreenState();
@@ -40,6 +40,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     _emailFocus = FocusNode();
     _passwordFocus = FocusNode();
 
+    _loadRememberedCredentials();
+
     // Auto-redirect if session already exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Supabase.instance.client.auth.currentSession;
@@ -47,6 +49,19 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         Navigator.of(context).pushReplacementNamed('/dashboard');
       }
     });
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    final credentials = await _authService.getRememberedCredentials();
+    final savedEmail = credentials['email'] as String? ?? '';
+    final rememberMeStatus = credentials['rememberMe'] as bool? ?? false;
+
+    if (mounted && savedEmail.isNotEmpty) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _rememberMe = rememberMeStatus;
+      });
+    }
   }
 
   @override
@@ -358,8 +373,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             color: LoginStyles.checkboxColor,
             width: 1.4,
           ),
-          fillColor: MaterialStateProperty.resolveWith((states) {
-            if (states.contains(MaterialState.selected)) {
+          fillColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
               return _actionColor;
             }
             return Colors.white;
@@ -410,7 +425,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: _actionColor,
-          disabledBackgroundColor: _actionColor.withOpacity(0.6),
+          disabledBackgroundColor: _actionColor.withValues(alpha: 0.6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -421,7 +436,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   strokeWidth: 2.5,
                 ),
               )

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -49,6 +50,10 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         return;
       }
       debugPrint('DEBUG INFO: Logged in user Auth ID: ${user.id}, Email: ${user.email}');
+
+      // Initialize native notification listener for Hog Raiser
+      NotificationService().requestPermission();
+      NotificationService().startRoleRealtimeListener(role: 'raiser', userId: user.id);
 
       // 1. Fetch user profile from app_users
       var appUser = await Supabase.instance.client
@@ -596,6 +601,15 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         'phone': newPhone,
         'address': newAddress,
       }).eq('hog_raiser_id', raiserId);
+
+      final userId = _raiserData['user_id'];
+      if (userId != null) {
+        try {
+          await Supabase.instance.client.from('app_users').update({
+            'name': newName,
+          }).eq('user_id', userId);
+        } catch (_) {}
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

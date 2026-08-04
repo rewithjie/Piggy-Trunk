@@ -62,10 +62,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       imagePath: 'assets/onboarding_profit.png',
     ),
     OnboardingData(
-      title: 'Magpatuloy',
+      title: 'Handa Ka Na Ba?',
       description:
           'Ikaw ba ay handa nang kumonekta sa mga investors at palaguin ang iyong pagbababuyan? Magsimula na ngayon!',
       imagePath: 'assets/onboarding_start.png',
+    ),
+    OnboardingData(
+      title: 'Pumili ng Gampanin',
+      description:
+          'Piliin ang iyong gampanin sa PiggyTrunk upang magpatuloy:',
+      imagePath: '',
     ),
   ];
 
@@ -270,7 +276,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             const SizedBox(height: 12),
                             _buildRoleCard('partner', 'Partner Investor', 'Sumusuporta sa farm sa pamamagitan ng puhunan', partnerSvg),
                             const SizedBox(height: 12),
-                            _buildRoleCard('cashier', 'Cashier / POS Staff', 'Namamahala sa pag-release ng supply at feeds', cashierSvg),
+                            _buildRoleCard('cashier', 'Cashier', 'Namamahala sa pag-release ng supply at feeds', cashierSvg),
                             SizedBox(height: screenHeight * 0.02),
                           ],
                         ),
@@ -287,9 +293,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // Bottom Navigation and Controls
             Padding(
-              padding: const EdgeInsets.symmetric(
+              padding: EdgeInsets.symmetric(
                 horizontal: 24.0,
-                vertical: 32.0,
+                vertical: screenHeight < 740 ? 12.0 : 24.0,
               ),
               child: Column(
                 children: [
@@ -301,79 +307,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       (index) => buildIndicator(index),
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  SizedBox(height: screenHeight < 740 ? 16.0 : 28.0),
 
-                  // Actions Buttons
+                  // Action Button
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     child: _currentPage == _slides.length - 1
-                        ? Column(
-                            key: const ValueKey('actions_start'),
-                            children: [
-                              // Sign Up Button (Primary)
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.pushNamed(
-                                      context, 
-                                      '/signup',
-                                      arguments: _selectedRole,
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF18314F),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    _selectedRole == 'hog_raiser'
-                                        ? 'Mag-Sign Up Bilang Raiser'
-                                        : _selectedRole == 'partner'
-                                            ? 'Mag-Sign Up Bilang Partner'
-                                            : 'Mag-Sign Up Bilang Cashier',
-                                    style: AppTextStyles.button(
-                                      Colors.white,
-                                    ).copyWith(fontSize: 16),
-                                  ),
+                        ? SizedBox(
+                            key: const ValueKey('actions_continue'),
+                            width: double.infinity,
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                Navigator.pushNamed(
+                                  context, 
+                                  '/signup',
+                                  arguments: _selectedRole,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF18314F),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              // Login Button (Secondary)
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pushNamed(
-                                      context, 
-                                      '/login',
-                                      arguments: _selectedRole,
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                      color: Color(0xFF18314F),
-                                      width: 1.5,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'May Account na? Mag-Login',
-                                    style: AppTextStyles.button(
-                                      const Color(0xFF18314F),
-                                    ).copyWith(fontSize: 16),
-                                  ),
-                                ),
+                              child: Text(
+                                'Magpatuloy',
+                                style: AppTextStyles.button(
+                                  Colors.white,
+                                ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
                               ),
-                            ],
+                            ),
                           )
                         : SizedBox(
                             key: const ValueKey('action_next'),
@@ -458,55 +425,64 @@ class OnboardingPageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Graphic Image Container with soft shadow and rounded borders
-          Container(
-            height: screenHeight * 0.35,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(20),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(data.imagePath, fit: BoxFit.contain),
-            ),
-          ),
-          SizedBox(height: screenHeight * 0.05),
+    final bool isSmallScreen = screenHeight < 740;
+    final double imageHeight = isSmallScreen ? (screenHeight * 0.28).clamp(160.0, 220.0) : (screenHeight * 0.35);
+    final double titleFontSize = isSmallScreen ? 20.0 : 24.0;
+    final double descriptionFontSize = isSmallScreen ? 13.5 : 15.0;
+    final double gapHeight = isSmallScreen ? 12.0 : 24.0;
 
-          // Slide Title
-          Text(
-            data.title,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.pageTitle(
-              PiggyTrunkTheme.ptText,
-            ).copyWith(fontSize: 24, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 16),
+    return Center(
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Graphic Image Container with soft shadow and rounded borders
+            Container(
+              height: imageHeight,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(data.imagePath, fit: BoxFit.contain),
+              ),
+            ),
+            SizedBox(height: gapHeight),
 
-          // Slide Description
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Text(
-              data.description,
+            // Slide Title
+            Text(
+              data.title,
               textAlign: TextAlign.center,
-              style: AppTextStyles.body(
-                PiggyTrunkTheme.ptMuted,
-              ).copyWith(fontSize: 15, height: 1.5),
+              style: AppTextStyles.pageTitle(
+                const Color(0xFF18314F),
+              ).copyWith(fontSize: titleFontSize, fontWeight: FontWeight.w800),
             ),
-          ),
-        ],
+            SizedBox(height: isSmallScreen ? 8.0 : 14.0),
+
+            // Slide Description
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Text(
+                data.description,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.body(
+                  const Color(0xFF475569),
+                ).copyWith(fontSize: descriptionFontSize, height: 1.45),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

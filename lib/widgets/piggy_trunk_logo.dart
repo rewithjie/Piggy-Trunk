@@ -40,10 +40,10 @@ class PiggyTrunkLogo extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius ?? size / 4),
-        color: surfaceColor.withOpacity(0.86),
+        color: surfaceColor.withValues(alpha: 0.86),
         boxShadow: [
           BoxShadow(
-            color: primaryColor.withOpacity(0.15),
+            color: primaryColor.withValues(alpha: 0.15),
             blurRadius: 40,
             offset: const Offset(0, 22),
           ),
@@ -89,7 +89,7 @@ class PiggyTrunkLogo extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [accentColor.withOpacity(0.8), accentColor.withOpacity(0.9)],
+          colors: [accentColor.withValues(alpha: 0.8), accentColor.withValues(alpha: 0.9)],
         ),
       ),
       child: Center(

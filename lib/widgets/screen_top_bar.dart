@@ -13,10 +13,10 @@ class ScreenTopBar extends ConsumerWidget {
   final bool showDivider;
 
   const ScreenTopBar({
-    Key? key,
+    super.key,
     this.notificationCount = 1,
     this.showDivider = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,12 +205,26 @@ class ScreenTopBar extends ConsumerWidget {
                         enabled: false,
                         child: Container(
                           width: 320,
-                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(vertical: 28),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Icon(Icons.notifications_none, size: 36, color: mutedColor),
-                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: mutedColor.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.notifications_off_outlined,
+                                  size: 32,
+                                  color: mutedColor,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
                               Text(
                                 'No new notifications',
                                 style: AppTextStyles.jakarta(
@@ -218,20 +232,27 @@ class ScreenTopBar extends ConsumerWidget {
                                   color: mutedColor,
                                   weight: FontWeight.w500,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
                         ),
                       )
-                    else
+                    else ...[
                       ...notifications.take(5).map((notif) {
                         return PopupMenuItem<void>(
                           onTap: () {
                             AdminNotificationService.markAsRead(notif.notificationId);
                             if (notif.type == 'new_raiser' || notif.type == 'hog_report') {
                               Navigator.of(context).pushNamed('/raisers');
-                            } else if (notif.type == 'stock_request') {
+                            } else if (notif.type == 'new_partner') {
+                              Navigator.of(context).pushNamed('/users', arguments: 'pending_partner');
+                            } else if (notif.type == 'new_cashier') {
+                              Navigator.of(context).pushNamed('/users', arguments: 'pending_cashier');
+                            } else if (notif.type == 'stock_request' || notif.type == 'inventory_restock') {
                               Navigator.of(context).pushNamed('/inventory', arguments: 'stock_request');
+                            } else {
+                              Navigator.of(context).pushNamed('/users', arguments: 'pending_partner');
                             }
                           },
                           child: Container(
@@ -295,16 +316,15 @@ class ScreenTopBar extends ConsumerWidget {
                           ),
                         );
                       }),
-                    const PopupMenuDivider(),
-                    // Footer Actions
-                    PopupMenuItem<void>(
-                      enabled: false,
-                      child: SizedBox(
-                        width: 320,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            if (notifications.isNotEmpty)
+                      const PopupMenuDivider(),
+                      // Footer Actions
+                      PopupMenuItem<void>(
+                        enabled: false,
+                        child: SizedBox(
+                          width: 320,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
                               TextButton(
                                 onPressed: () {
                                   Navigator.pop(context);
@@ -324,11 +344,11 @@ class ScreenTopBar extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                            const Spacer(),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ];
                 },
               ),

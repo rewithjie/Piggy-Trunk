@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:piggytrunk/theme/app_theme.dart';
-import 'package:piggytrunk/theme/app_text_styles.dart';
+import 'package:piggytrunk/services/notification_service.dart';
+import '../services/google_auth_service.dart';
+import '../utils/screen_fit_util.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,439 +12,902 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool _isLoading = false;
-  bool _isPasswordVisible = false;
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  bool _obscurePassword = true;
+  String? _errorMessage;
+
+  final GoogleAuthService _googleAuthService = GoogleAuthService();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
+  String _getFriendlyAuthErrorMessage(String rawMessage) {
+    final lower = rawMessage.toLowerCase();
+    if (lower.contains('invalid login credentials') ||
+        lower.contains('invalid_credentials')) {
+      return 'Maling Email o Password. Mangyaring suriin at subukang muli.';
+    } else if (lower.contains('user not found') ||
+        lower.contains('user_not_found')) {
+      return 'Hindi mahanap ang account na ito. Siguraduhing tama ang inilagay na email.';
+    } else if (lower.contains('network') ||
+        lower.contains('socketexception') ||
+        lower.contains('connection')) {
+      return 'Hindi makakonekta sa internet. Mangyaring suriin ang iyong koneksyon.';
+    }
+    return 'Maling Email o Password. Mangyaring subukang muli.';
+  }
 
-    if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Paki-fill up ang email at password.',
-            style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+  Future<void> _handlePasswordSignIn(String targetRole) async {
+    final String identifier = _usernameController.text.trim();
+    final String password = _passwordController.text;
+
+    if (identifier.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Mangyaring ilagay ang Username/Email at Password.';
+      });
       return;
     }
 
     setState(() {
+      _errorMessage = null;
       _isLoading = true;
     });
 
     try {
-      // 1. Sign in to Supabase
+      String emailToUse = identifier;
+      if (!identifier.contains('@')) {
+        try {
+          final res = await Supabase.instance.client
+              .from('app_users')
+              .select('email')
+              .eq('email', identifier)
+              .maybeSingle();
+
+          if (res != null && res['email'] != null) {
+            emailToUse = res['email'];
+          }
+        } catch (_) {
+          // Gracefully fallback if username column doesn't exist
+        }
+      }
+
       final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
+        email: emailToUse,
         password: password,
       );
 
-      if (response.user != null) {
-        // 2. Fetch user status from public.app_users
-        final userData = await Supabase.instance.client
-            .from('app_users')
-            .select('status, role')
-            .eq('supabase_user_id', response.user!.id)
-            .maybeSingle();
+      final user = response.user;
+      if (user == null) {
+        throw Exception('Maling account o password.');
+      }
 
-        if (userData == null) {
-          // Fallback if record not yet synced
-          await Supabase.instance.client.auth.signOut();
-          throw const AuthException('Hindi nahanap ang profile sa system. Kontakin ang Admin.');
-        }
+      final userData = await Supabase.instance.client
+          .from('app_users')
+          .select('role, status')
+          .or('auth_user_id.eq.${user.id},supabase_user_id.eq.${user.id},email.eq.${user.email}')
+          .maybeSingle();
 
-        final status = userData['status'] as String;
-        final role = userData['role'] as String;
+      final String rawStatus = (userData?['status'] ?? 'active').toString();
+      final String statusLower = rawStatus.toLowerCase();
+      final String role = userData?['role']?.toString() ?? targetRole;
 
-        // Verify role is appropriate for this app
-        final allowedRoles = ['hog_raiser', 'partner', 'cashier', 'admin'];
-        if (!allowedRoles.contains(role)) {
-          await Supabase.instance.client.auth.signOut();
-          throw const AuthException('Ang account na ito ay walang sapat na pahintulot.');
-        }
-
-        // 3. Handle Pending Status
-        if (status == 'Pending') {
-          // Sign out immediately
-          await Supabase.instance.client.auth.signOut();
-          
-          if (mounted) {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                title: const Text(
-                  'Nakabinbing Account',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF18314F)),
-                ),
-                content: const Text(
-                  'Ang iyong account ay kasalukuyang sumasailalim sa approval ng Admin. Mangyaring maghintay bago mag-login.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Sige po', style: TextStyle(color: Color(0xFF2366CC))),
-                  ),
-                ],
-              ),
-            );
-          }
-        } else if (status == 'active') {
-          // Proceed to dashboard on active status
-          if (mounted) {
-            switch (role) {
-              case 'hog_raiser':
-                Navigator.pushReplacementNamed(context, '/raiser_dashboard');
-                break;
-              case 'partner':
-                Navigator.pushReplacementNamed(context, '/partner_dashboard');
-                break;
-              case 'cashier':
-                Navigator.pushReplacementNamed(context, '/cashier_dashboard');
-                break;
-              case 'admin':
-                Navigator.pushReplacementNamed(context, '/admin_dashboard');
-                break;
-              default:
-                await Supabase.instance.client.auth.signOut();
-                throw const AuthException('Walang nahanap na angkop na dashboard para sa iyong role.');
-            }
-          }
-        } else {
-          // Block suspended or inactive accounts
-          await Supabase.instance.client.auth.signOut();
-          throw AuthException('Ang iyong account ay may status na: $status. Kontakin ang Admin.');
-        }
+      if (statusLower == 'pending') {
+        await Supabase.instance.client.auth.signOut();
+        if (mounted) _showPendingDialog();
+      } else {
+        if (mounted) _navigateToDashboard(role);
       }
     } on AuthException catch (e) {
-      String tagalogMessage = e.message;
-      final lowercaseMsg = e.message.toLowerCase();
-      if (lowercaseMsg.contains('invalid login credentials') || 
-          lowercaseMsg.contains('invalid credentials') || 
-          lowercaseMsg.contains('user not found')) {
-        tagalogMessage = 'Mali ang inyong email o password. Paki-check at subukan ulit.';
-      } else if (lowercaseMsg.contains('email not confirmed')) {
-        tagalogMessage = 'Hindi pa kumpirmado ang inyong email address. Paki-check ang inyong inbox.';
-      } else if (lowercaseMsg.contains('rate limit')) {
-        tagalogMessage = 'Masyadong maraming beses na sumubok. Mangyaring maghintay ng ilang sandali.';
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              tagalogMessage,
-              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      setState(() {
+        _errorMessage = _getFriendlyAuthErrorMessage(e.message);
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: ${e.toString()}',
-              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      setState(() {
+        _errorMessage = 'Maling Email o Password. Mangyaring subukang muli.';
+      });
     } finally {
-      if (mounted) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignIn(String targetRole) async {
+    setState(() {
+      _errorMessage = null;
+      _isGoogleLoading = true;
+    });
+
+    try {
+      final result = await _googleAuthService.signInWithGoogle(
+        targetRole: targetRole,
+      );
+
+      if (result['success'] == true) {
+        final String rawStatus = (result['status'] ?? 'pending').toString();
+        final String statusLower = rawStatus.toLowerCase();
+        final String role = (result['role'] ?? targetRole).toString();
+
+        if (statusLower == 'pending') {
+          await Supabase.instance.client.auth.signOut();
+          if (mounted) _showPendingDialog();
+        } else {
+          if (mounted) _navigateToDashboard(role);
+        }
+      } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.') {
         setState(() {
-          _isLoading = false;
+          _errorMessage = result['message'];
         });
       }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error sa Google Login: ${e.toString()}';
+      });
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
+  void _showPendingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline_rounded, color: Color(0xFFFF9F43), size: 26),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Naka-pending ang Account',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF18314F),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Naitala na ang iyong account! Kasalukuyan pa itong naghihintay ng pag-apruba mula sa Admin bago ka makapasok sa Dashboard.',
+          style: TextStyle(
+            fontSize: 14,
+            color: Color(0xFF334155),
+            height: 1.4,
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF18314F),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Naintindihan',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _navigateToDashboard(String role) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      await NotificationService().requestPermission();
+      NotificationService().startRoleRealtimeListener(role: role, userId: user.id);
+    }
+
+    if (!mounted) return;
+
+    switch (role) {
+      case 'hog_raiser':
+        Navigator.pushReplacementNamed(context, '/raiser_dashboard');
+        break;
+      case 'partner':
+        Navigator.pushReplacementNamed(context, '/partner_dashboard');
+        break;
+      case 'cashier':
+        Navigator.pushReplacementNamed(context, '/cashier_dashboard');
+        break;
+      case 'admin':
+        Navigator.pushReplacementNamed(context, '/admin_dashboard');
+        break;
+      default:
+        Supabase.instance.client.auth.signOut();
+        setState(() {
+          _errorMessage =
+              'Walang nahanap na angkop na dashboard para sa iyong role.';
+        });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final String role = (ModalRoute.of(context)?.settings.arguments as String?) ?? 'hog_raiser';
+    // Universal ScreenFit Auto-Scaling
+    final fit = ScreenFit(context);
+    final double logoHeight = fit.dp(84.0);
+    final double logoScale = 1.0;
+    final double titleFontSize = fit.sp(22.0);
+    final double subtitleFontSize = fit.sp(14.0);
+    final double fieldSpacing = fit.dp(8.0);
+    final double labelFontSize = fit.sp(14.0);
+    final double inputPaddingV = fit.dp(10.0);
+    final double inputFontSize = fit.sp(15.0);
+    final double cardPaddingH = fit.dp(18.0);
+    final double cardPaddingV = fit.dp(12.0);
+    final double buttonHeight = fit.dp(48.0);
+    final double textOffsetV = 0.0;
 
-    String subtitleText = 'Ilagay ang iyong detalye para magpatuloy sa iyong Hog Raiser dashboard.';
-    if (role == 'partner') {
-      subtitleText = 'Ilagay ang iyong detalye para magpatuloy sa iyong Partner Investor dashboard.';
-    } else if (role == 'cashier') {
-      subtitleText = 'Ilagay ang iyong detalye para magpatuloy sa iyong Cashier dashboard.';
-    }
+    final String role =
+        (ModalRoute.of(context)?.settings.arguments as String?) ?? 'hog_raiser';
+    final String displayRole = role == 'hog_raiser'
+        ? 'Hog Raiser'
+        : role == 'partner'
+        ? 'Partner Investor'
+        : role == 'cashier'
+        ? 'Cashier'
+        : 'Admin';
 
     return Scaffold(
-      backgroundColor: PiggyTrunkTheme.ptBg,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 30.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Back Button (aligned left)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: InkWell(
-                    onTap: () => Navigator.pop(context),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: PiggyTrunkTheme.ptSurface,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF4F7FB), Color(0xFFE8EEF5)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // FIXED TOP HEADER SECTION (Anchored at Top - Never Scrolls)
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: 20.0,
+                  top: 6.0,
+                  right: 20.0,
+                  bottom: 2.0,
+                ),
+                child: Column(
+                  children: [
+                    // Bumalik Button Top Left
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: InkWell(
+                        onTap: () {
+                          if (Navigator.canPop(context)) {
+                            Navigator.pop(context);
+                          } else {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/onboarding',
+                            );
+                          }
+                        },
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: PiggyTrunkTheme.ptBorder,
-                          width: 1,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFCBD5E1),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.arrow_back_rounded,
+                                size: 18,
+                                color: Color(0xFF18314F),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Bumalik',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF18314F),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            size: 13,
-                            color: Color(0xFF18314F),
+                    ),
+
+                    SizedBox(height: fieldSpacing * 0.4),
+
+                    // Prominent Piggy Trunk Logo (Fixed Position with MediaQuery Height)
+                    Transform.scale(
+                      scale: logoScale,
+                      child: Image.asset(
+                        'assets/piggytrunk_logo.png',
+                        height: logoHeight,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) => Container(
+                          width: logoHeight * 0.9,
+                          height: logoHeight * 0.9,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF18314F),
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          const SizedBox(width: 6),
+                          child: Icon(
+                            Icons.pets_rounded,
+                            color: Colors.white,
+                            size: logoHeight * 0.45,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Titles shifted UP closer to logo graphic
+                    Transform.translate(
+                      offset: Offset(0, textOffsetV),
+                      child: Column(
+                        children: [
+                          // Brand Name Text: "Piggy Trunk"
                           Text(
-                            'Bumalik',
-                            style: AppTextStyles.bodyStrong(const Color(0xFF18314F)).copyWith(
-                              fontSize: 13,
+                            'Piggy Trunk',
+                            style: TextStyle(
+                              fontSize: titleFontSize + 2,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF18314F),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+
+                          // Action Title "Mag-Sign In"
+                          Text(
+                            'Mag-Sign In',
+                            style: TextStyle(
+                              fontSize: titleFontSize - 1,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF18314F),
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+
+                          // Subtitle: Mag-login bilang Hog Raiser
+                          Text(
+                            'Mag-login bilang $displayRole',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: subtitleFontSize,
                               fontWeight: FontWeight.w600,
+                              color: const Color(0xFF6F8096),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 10),
+              ),
 
-                // PiggyTrunk Logo & Text Title (Centered)
-                Center(
-                  child: Column(
-                    children: [
-                      Image.asset(
-                        'assets/piggytrunk_logo.png',
-                        height: 140,
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Piggy Trunk',
-                        style: AppTextStyles.jakarta(
-                          size: 22,
-                          weight: FontWeight.w800,
-                          color: const Color(0xFF18314F),
-                          letterSpacing: -0.02,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Title & Subtitle (Centered)
-                Text(
-                  'Mag-Login',
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.pageTitle(const Color(0xFF18314F)).copyWith(
-                    fontSize: 28,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitleText,
-                  textAlign: TextAlign.center,
-                  style: AppTextStyles.body(PiggyTrunkTheme.ptMuted),
-                ),
-                const SizedBox(height: 32),
-
-                // Email Input
-                Text(
-                  'Email Address',
-                  style: AppTextStyles.cardTitle(const Color(0xFF18314F)),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _emailController,
-                  enabled: !_isLoading,
-                  keyboardType: TextInputType.emailAddress,
-                  style: AppTextStyles.body(const Color(0xFF18314F)).copyWith(
-                    fontSize: 15,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang iyong email',
-                    hintStyle: AppTextStyles.body(const Color(0xFFB0BBCA)),
-                    fillColor: const Color(0xFFE8EDF3),
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+              // SCROLLABLE FORM BODY (Below Fixed Header)
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: cardPaddingH,
+                      vertical: 4.0,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF18314F), width: 1.5),
-                    ),
-                    prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF5F6D81)),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Password Input
-                Text(
-                  'Password',
-                  style: AppTextStyles.cardTitle(const Color(0xFF18314F)),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _passwordController,
-                  enabled: !_isLoading,
-                  obscureText: !_isPasswordVisible,
-                  style: AppTextStyles.body(const Color(0xFF18314F)).copyWith(
-                    fontSize: 15,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang iyong password',
-                    hintStyle: AppTextStyles.body(const Color(0xFFB0BBCA)),
-                    fillColor: const Color(0xFFE8EDF3),
-                    filled: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF18314F), width: 1.5),
-                    ),
-                    prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF5F6D81)),
-                    suffixIcon: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
-                      child: Icon(
-                        _isPasswordVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                        color: const Color(0xFF5F6D81),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Forgot Password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      'Nakalimutan ang Password?',
-                      style: AppTextStyles.caption(const Color(0xFF2366CC)).copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Login Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF18314F),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            'Mag-Patuloy',
-                            style: AppTextStyles.button(Colors.white),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Signup Redirect
-                Builder(
-                  builder: (context) {
-                    final String? selectedRole = ModalRoute.of(context)?.settings.arguments as String?;
-                    String roleLabel = '';
-                    if (selectedRole == 'hog_raiser') {
-                      roleLabel = ' bilang Raiser';
-                    } else if (selectedRole == 'partner') {
-                      roleLabel = ' bilang Partner Investor';
-                    } else if (selectedRole == 'cashier') {
-                      roleLabel = ' bilang Cashier';
-                    }
-
-                    return Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          'Wala pang account? ',
-                          style: AppTextStyles.body(PiggyTrunkTheme.ptMuted),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacementNamed(
-                              context, 
-                              '/signup',
-                              arguments: selectedRole,
-                            );
-                          },
-                          child: Text(
-                            'Mag-Sign Up$roleLabel',
-                            style: AppTextStyles.bodyStrong(const Color(0xFF2366CC)),
+                        if (_errorMessage != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEBEE),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFE53935),
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: Color(0xFFE53935),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFC62828),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Main White Elevation Card Container
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: cardPaddingH,
+                            vertical: cardPaddingV,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24.0),
+                            border: Border.all(
+                              color: const Color(0xFFE2E8F0),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF18314F,
+                                ).withValues(alpha: 0.07),
+                                blurRadius: 24,
+                                spreadRadius: 0,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Username/Email Label
+                              Text(
+                                'Username o Email Address',
+                                style: TextStyle(
+                                  fontSize: labelFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF18314F),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+
+                              // Username Input Field
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  border: Border.all(
+                                    color: const Color(0xFFCBD5E1),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _usernameController,
+                                  style: TextStyle(
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF18314F),
+                                  ),
+                                  decoration: InputDecoration(
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: inputPaddingV,
+                                    ),
+                                    border: InputBorder.none,
+                                    hintText: 'hal. juan@gmail.com',
+                                    hintStyle: TextStyle(
+                                      color: const Color(0xFF94A3B8),
+                                      fontSize: labelFontSize,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.person_outline_rounded,
+                                      color: Color(0xFF64748B),
+                                      size: 19,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: fieldSpacing),
+
+                              // Password Label
+                              Text(
+                                'Password',
+                                style: TextStyle(
+                                  fontSize: labelFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF18314F),
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+
+                              // Password Input Field
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  border: Border.all(
+                                    color: const Color(0xFFCBD5E1),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  style: TextStyle(
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF18314F),
+                                  ),
+                                  decoration: InputDecoration(
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: inputPaddingV,
+                                    ),
+                                    border: InputBorder.none,
+                                    hintText: 'Ilagay ang iyong password',
+                                    hintStyle: TextStyle(
+                                      color: const Color(0xFF94A3B8),
+                                      fontSize: labelFontSize,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.lock_outline_rounded,
+                                      color: Color(0xFF64748B),
+                                      size: 19,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_off_rounded
+                                            : Icons.visibility_rounded,
+                                        color: const Color(0xFF64748B),
+                                        size: 19,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: fieldSpacing * 0.6),
+
+                              // Forgot Password Link
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Kontakin ang Admin para sa pag-reset ng password.',
+                                        ),
+                                        backgroundColor: Color(0xFF18314F),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    'Nakalimutan ang Password?',
+                                    style: TextStyle(
+                                      fontSize: labelFontSize - 0.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF2366CC),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: fieldSpacing * 1.2),
+
+                              // Sign In Button (Piggy Brand Navy Gradient without arrow icon)
+                              Container(
+                                width: double.infinity,
+                                height: buttonHeight,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16.0),
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF18314F),
+                                      Color(0xFF243B53),
+                                    ],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF18314F,
+                                      ).withValues(alpha: 0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () => _handlePasswordSignIn(role),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.zero,
+                                    alignment: Alignment.center,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16.0),
+                                    ),
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 22,
+                                          width: 22,
+                                          child: CircularProgressIndicator(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                            strokeWidth: 2.5,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Mag-Sign In Na',
+                                          style: TextStyle(
+                                            fontSize: 15.0,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                            height: 1.15,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Divider with "o kaya gamitin ang"
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12.0,
+                                    ),
+                                    child: Text(
+                                      'o kaya gamitin ang',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Sign in with Google Button (Official Google Sign-In Pill Style)
+                              Container(
+                                width: double.infinity,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(25.0),
+                                  border: Border.all(
+                                    color: const Color(0xFF747775),
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: _isGoogleLoading
+                                      ? null
+                                      : () => _handleGoogleSignIn(role),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: const Color(0xFF1F1F1F),
+                                    elevation: 0,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(25.0),
+                                    ),
+                                  ),
+                                  child: _isGoogleLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Color(0xFF18314F),
+                                                ),
+                                            strokeWidth: 2.2,
+                                          ),
+                                        )
+                                      : const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            OfficialGoogleLogo(size: 22),
+                                            SizedBox(width: 12),
+                                            Text(
+                                              'Mag-Sign in gamit ang Google',
+                                              style: TextStyle(
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF1F1F1F),
+                                                letterSpacing: 0.1,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // Create an account Link (Aligned color + Underline)
+                              Center(
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/signup',
+                                      arguments: role,
+                                    );
+                                  },
+                                  child: RichText(
+                                    text: const TextSpan(
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        color: Color(0xFF64748B),
+                                        fontFamily: 'Plus Jakarta Sans',
+                                      ),
+                                      children: [
+                                        TextSpan(
+                                          text: 'Wala ka pang account? ',
+                                        ),
+                                        TextSpan(
+                                          text: 'Gumawa ng Account',
+                                          style: TextStyle(
+                                            color: Color(0xFF18314F),
+                                            fontWeight: FontWeight.w700,
+                                            decoration:
+                                                TextDecoration.underline,
+                                            decorationColor: Color(0xFF18314F),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    );
-                  }
+                    ),
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+class OfficialGoogleLogo extends StatelessWidget {
+  final double size;
+  const OfficialGoogleLogo({super.key, this.size = 22});
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/512px-Google_%22G%22_logo.svg.png',
+      height: size,
+      width: size,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) =>
+          CustomPaint(size: Size(size, size), painter: _GoogleLogoPainter()),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = size.width / 2;
+    final Offset center = Offset(radius, radius);
+    final double strokeWidth = size.width * 0.22;
+    final Rect rect = Rect.fromCircle(
+      center: center,
+      radius: radius - (strokeWidth / 2),
+    );
+
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    // Red Arc
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, -0.785398, -1.8326, false, paint);
+
+    // Yellow Arc
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, -2.61799, -1.309, false, paint);
+
+    // Green Arc
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, -3.92699, -1.309, false, paint);
+
+    // Blue Arc
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, -5.23599, -1.1, false, paint);
+
+    // Blue Bar
+    final Paint fillPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+
+    final Rect barRect = Rect.fromLTRB(
+      center.dx,
+      center.dy - (strokeWidth / 2),
+      size.width,
+      center.dy + (strokeWidth / 2),
+    );
+    canvas.drawRect(barRect, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

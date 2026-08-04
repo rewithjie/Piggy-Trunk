@@ -4,7 +4,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 
 class RaisersScreen extends StatelessWidget {
-  const RaisersScreen({Key? key}) : super(key: key);
+  const RaisersScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -132,7 +132,7 @@ class _POSScreenState extends State<POSScreen> {
     _showThemedSnackBar('Order cleared.', backgroundColor: Colors.orange);
   }
 
-  void _completeTransaction() {
+  Future<void> _completeTransaction() async {
     if (currentOrder.items.isEmpty) {
       _showThemedSnackBar('No items in the order yet.', backgroundColor: Colors.red);
       return;
@@ -140,16 +140,76 @@ class _POSScreenState extends State<POSScreen> {
 
     final itemCount = currentOrder.totalItems;
     final total = currentOrder.total;
+    final itemsToDeduct = List<OrderItem>.from(currentOrder.items);
 
     setState(() {
-      currentOrder.clearOrder();
-      _orderItemCounter = 0;
+      _isLoading = true;
     });
 
-    _showThemedSnackBar(
-      'Transaction completed: $itemCount item(s), PHP ${total.toStringAsFixed(2)}',
-      backgroundColor: Colors.green,
-    );
+    try {
+      for (final item in itemsToDeduct) {
+        final product = _products.firstWhere(
+          (p) => p.id == item.productId,
+          orElse: () => POSProduct(
+            id: item.productId,
+            name: item.productName,
+            categoryId: '',
+            category: '',
+            description: '',
+            price: item.price,
+            units: 0,
+            sold: 0,
+          ),
+        );
+
+        final newUnits = (product.units - item.quantity).clamp(0, 999999);
+        final newSold = product.sold + item.quantity;
+
+        try {
+          await _supabase.from('inventory_products').update({
+            'units': newUnits,
+            'sold': newSold,
+          }).eq('id', product.id);
+        } catch (_) {
+          await _supabase.from('products').update({
+            'units': newUnits,
+            'sold': newSold,
+          }).eq('id', product.id);
+        }
+
+        try {
+          await _supabase.from('inventory_logs').insert({
+            'product_id': product.id,
+            'product_name': product.name,
+            'action': 'UPDATE',
+            'performed_by': _supabase.auth.currentUser?.email ?? 'Cashier Admin',
+            'price': product.price,
+            'units': newUnits,
+            'details': 'POS Sale: Sold ${item.quantity} unit(s). Remaining: $newUnits.',
+          });
+        } catch (_) {}
+      }
+
+      setState(() {
+        currentOrder.clearOrder();
+        _orderItemCounter = 0;
+      });
+
+      await _loadProductsFromInventory();
+
+      if (!mounted) return;
+      _showThemedSnackBar(
+        'Transaction completed! Deducted stock for $itemCount item(s). Total: PHP ${total.toStringAsFixed(2)}',
+        backgroundColor: PiggyTrunkTheme.ptSuccess,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showThemedSnackBar('Error completing transaction: $e', backgroundColor: Colors.red);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -264,37 +324,68 @@ class _POSScreenState extends State<POSScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              category,
-              style: AppTextStyles.jakarta(
-                size: 16,
-                weight: FontWeight.w800,
-                letterSpacing: -0.02,
-                color: _text,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  category,
+                  style: AppTextStyles.jakarta(
+                    size: 18,
+                    weight: FontWeight.w800,
+                    letterSpacing: -0.02,
+                    color: _text,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '(${products.length})',
+                  style: AppTextStyles.jakarta(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: _muted,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             if (products.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
                   'No available products.',
                   style: AppTextStyles.body(_muted),
                 ),
               )
             else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(products.length, (idx) {
-                    return Padding(
-                      padding: EdgeInsets.only(right: idx == products.length - 1 ? 0 : 16),
-                      child: _buildPOSProductCard(products[idx]),
-                    );
-                  }),
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 900;
+                  final crossAxisCount = isWide ? 2 : 1;
+                  final childAspectRatio = isWide ? 2.3 : 1.9;
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: childAspectRatio,
+                    ),
+                    itemCount: products.length,
+                    itemBuilder: (context, idx) => _buildPOSProductCard(products[idx]),
+                  );
+                },
               ),
-            if (index != categories.length - 1) const SizedBox(height: 48),
+            if (index != categories.length - 1) const SizedBox(height: 32),
           ],
         );
       }),
@@ -302,113 +393,188 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildPOSProductCard(POSProduct product) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _orderItemCounter++;
-            currentOrder.addItem(
-              OrderItem(
-                id: _orderItemCounter,
-                productId: product.id,
-                productName: product.name,
-                price: product.price,
-                quantity: 1,
-              ),
-            );
-          });
-          _showThemedSnackBar(
-            '${product.name} added to order',
-            backgroundColor: const Color(0xFF315C8F),
-            duration: const Duration(milliseconds: 800),
-          );
-        },
-        child: Container(
-        width: 180,
-        decoration: BoxDecoration(
-          color: _surface,
-          border: Border.all(color: _border, width: 1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              height: 120,
-              decoration: BoxDecoration(
-                color: _bg,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-              ),
-              child: product.image != null
-                  ? Image.network(product.image!, fit: BoxFit.cover)
-                  : Icon(
-                      Icons.image_not_supported_outlined,
-                      color: _muted,
-                      size: 48,
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'PRODUCT NAME: ${product.name}',
-                    style: AppTextStyles.jakarta(
-                      size: 11,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.4,
-                      color: _muted,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'DESCRIPTION: ${product.description.isEmpty ? 'No description available.' : product.description}',
-                    style: AppTextStyles.jakarta(size: 10, weight: FontWeight.w500, color: _muted),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'PRICE',
-                        style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                      ),
-                      Text(
-                        'PHP ${product.price.toStringAsFixed(2)}',
-                        style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Stock:',
-                        style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                      ),
-                      Text(
-                        '${product.units} units',
-                        style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    final isOutOfStock = product.units <= 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        border: Border.all(color: _border, width: 1),
+        borderRadius: BorderRadius.circular(16),
       ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left Column: Square Product Image (1:1 Ratio)
+          Container(
+            width: 135,
+            height: 135,
+            decoration: BoxDecoration(
+              color: _bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _border.withValues(alpha: 0.8)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(11),
+              child: product.image != null && product.image!.isNotEmpty
+                  ? Image.network(
+                      product.image!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Icon(Icons.broken_image_outlined, color: _muted, size: 32),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(Icons.image_outlined, color: _muted, size: 32),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Right Column: Product Details & Actions
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Top Row: Title + Stock Status Badge
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        product.name,
+                        style: AppTextStyles.jakarta(
+                          size: 14,
+                          weight: FontWeight.w800,
+                          color: _text,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isOutOfStock
+                            ? Colors.red.withValues(alpha: 0.18)
+                            : (product.units <= 5
+                                ? Colors.orange.withValues(alpha: 0.18)
+                                : const Color(0x3343CB89)),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isOutOfStock
+                            ? 'OUT OF STOCK'
+                            : (product.units <= 5 ? 'LOW STOCK' : 'IN STOCK'),
+                        style: AppTextStyles.jakarta(
+                          size: 10,
+                          weight: FontWeight.w800,
+                          color: isOutOfStock
+                              ? Colors.redAccent
+                              : (product.units <= 5 ? Colors.orangeAccent : const Color(0xFF43CB89)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Description
+                Text(
+                  product.description.isEmpty ? 'No description' : product.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.jakarta(
+                    size: 12,
+                    weight: FontWeight.w500,
+                    color: _muted,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Price & Stock Row
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _bg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'PRICE: ',
+                            style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                          ),
+                          Text(
+                            '₱${product.price.toStringAsFixed(2)}',
+                            style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w800, color: _text),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            'Stock: ',
+                            style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                          ),
+                          Text(
+                            '${product.units} units',
+                            style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Action Button: Add to Cart
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isOutOfStock
+                        ? null
+                        : () {
+                            setState(() {
+                              _orderItemCounter++;
+                              currentOrder.addItem(
+                                OrderItem(
+                                  id: _orderItemCounter,
+                                  productId: product.id,
+                                  productName: product.name,
+                                  price: product.price,
+                                  quantity: 1,
+                                ),
+                              );
+                            });
+                            _showThemedSnackBar(
+                              '${product.name} added to order',
+                              backgroundColor: const Color(0xFF315C8F),
+                              duration: const Duration(milliseconds: 800),
+                            );
+                          },
+                    icon: const Icon(Icons.add_shopping_cart, size: 14),
+                    label: Text(
+                      isOutOfStock ? 'Out of Stock' : '+ Add to Order',
+                      style: AppTextStyles.jakarta(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isOutOfStock ? Colors.grey : PiggyTrunkTheme.ptPrimary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

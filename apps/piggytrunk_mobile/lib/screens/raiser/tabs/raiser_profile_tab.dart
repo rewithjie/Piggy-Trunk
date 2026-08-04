@@ -27,8 +27,8 @@ class RaiserProfileTab extends StatelessWidget {
     final email = raiserData['email'] ?? 'N/A';
     final phone = raiserData['phone'] ?? 'N/A';
     final address = raiserData['address'] ?? 'N/A';
-    final type = raiserData['pig_type'] ?? 'Fattening';
-    final stage = raiserData['lifecycle_stage'] ?? 'Grower';
+    final type = raiserData['pig_type'] ?? 'N/A';
+    final stage = raiserData['lifecycle_stage'] ?? 'N/A';
     final avatarUrl = raiserData['avatar_url'] as String?;
 
     return SingleChildScrollView(

@@ -60,15 +60,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         final userData = await supabase
             .from('app_users')
             .select('status, role')
-            .eq('supabase_user_id', session.user.id)
+            .or('auth_user_id.eq.${session.user.id},supabase_user_id.eq.${session.user.id},email.eq.${session.user.email}')
             .maybeSingle();
 
         if (userData != null) {
-          final status = userData['status'] as String;
-          final role = userData['role'] as String;
+          final String rawStatus = (userData['status'] ?? 'active').toString();
+          final String statusLower = rawStatus.toLowerCase();
+          final String role = (userData['role'] ?? 'partner').toString();
 
           final allowedRoles = ['hog_raiser', 'partner', 'cashier', 'admin'];
-          if (allowedRoles.contains(role) && status == 'active') {
+          if (allowedRoles.contains(role) && statusLower != 'pending' && statusLower != 'blocked') {
             hasValidSession = true;
             switch (role) {
               case 'hog_raiser':
@@ -84,9 +85,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 targetRoute = '/admin_dashboard';
                 break;
               default:
-                targetRoute = '/onboarding';
+                targetRoute = '/partner_dashboard';
             }
           }
+        } else {
+          // Default valid session for Google Sign-In
+          hasValidSession = true;
+          targetRoute = '/partner_dashboard';
         }
       }
     } catch (e) {

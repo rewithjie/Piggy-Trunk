@@ -31,6 +31,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   BigInt? _selectedAssignmentId;
   bool _isSubmitting = false;
 
+  String? _assignmentError;
+  String? _quantityError;
+
   static const Color _brandColor = Color(0xFF18314F);
 
   @override
@@ -48,20 +51,25 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   }
 
   Future<void> _submitRequest() async {
+    setState(() {
+      _assignmentError = null;
+      _quantityError = null;
+    });
+
+    bool hasError = false;
+
     if (_selectedAssignmentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paki-pili ang assignment batch para sa request.')),
-      );
-      return;
+      _assignmentError = 'Paki-pili ang assignment batch para sa request.';
+      hasError = true;
     }
 
     if (_quantity <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Paki-lagay ang dami ng item na ire-request (dapat higit sa 0).'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _quantityError = 'Paki-lagay ang dami ng item na ire-request (dapat higit sa 0).';
+      hasError = true;
+    }
+
+    if (hasError) {
+      setState(() {});
       return;
     }
 
@@ -329,9 +337,29 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                             onChanged: (val) {
                               setState(() {
                                 _selectedAssignmentId = val;
+                                _assignmentError = null;
                               });
                             },
                           ),
+                    if (_assignmentError != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _assignmentError!,
+                              style: const TextStyle(
+                                color: Color(0xFFE53935),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     // Select Category Group
@@ -376,16 +404,19 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _brandColor,
+                        color: _quantityError != null ? const Color(0xFFE53935) : _brandColor,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: _quantityError != null ? const Color(0xFFFFEBEE) : Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                        border: Border.all(
+                          color: _quantityError != null ? const Color(0xFFE53935) : PiggyTrunkTheme.ptBorder,
+                          width: _quantityError != null ? 1.5 : 1,
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -393,7 +424,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           IconButton(
                             onPressed: () {
                               if (_quantity > 0) {
-                                setState(() => _quantity--);
+                                setState(() {
+                                  _quantity--;
+                                  _quantityError = null;
+                                });
                               }
                             },
                             icon: const Icon(Icons.remove, color: _brandColor),
@@ -412,7 +446,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ),
                           IconButton(
                             onPressed: () {
-                              setState(() => _quantity++);
+                              setState(() {
+                                _quantity++;
+                                _quantityError = null;
+                              });
                             },
                             icon: const Icon(Icons.add, color: _brandColor),
                             style: IconButton.styleFrom(
@@ -423,6 +460,25 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         ],
                       ),
                     ),
+                    if (_quantityError != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _quantityError!,
+                              style: const TextStyle(
+                                color: Color(0xFFE53935),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 24),
 
                     // Feeds Category Selection (only show if category is Feeds)

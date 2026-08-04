@@ -20,9 +20,7 @@ class InvestmentsScreen extends StatefulWidget {
 class _InvestmentsScreenState extends State<InvestmentsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Investment> investments = [];
-  List<Map<String, dynamic>> _raisers = [];
   bool _isLoading = true;
-  bool _isCreatingInvestment = false;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _panelStart => _isDark ? const Color(0xFF1A2940) : Colors.white;
@@ -40,24 +38,23 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _successDark => _isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
   Color get _inProgressDark => _isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
-  final TextEditingController _capitalCtrl = TextEditingController();
-  final TextEditingController _totalHogCtrl = TextEditingController();
-  DateTime _selectedDate = DateTime.now();
-  bool _showInlineCalendar = false;
-  String? _selectedRaiserId;
-  String _selectedRaiserName = '';
-  String _selectedHogType = '';
-  int _calendarViewSeed = 0;
 
-  void _shiftSelectedMonth(int delta) {
-    final current = _selectedDate;
-    final target = DateTime(current.year, current.month + delta, 1);
-    final lastDay = DateTime(target.year, target.month + 1, 0).day;
-    final clampedDay = current.day > lastDay ? lastDay : current.day;
-    setState(() {
-      _selectedDate = DateTime(target.year, target.month, clampedDay);
-      _calendarViewSeed++;
-    });
+  InputDecoration _createInputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
+      filled: true,
+      fillColor: _fieldBg,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: _fieldBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: _fieldFocus),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
   }
 
   @override
@@ -81,7 +78,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    await Future.wait([_loadInvestments(), _loadRaisers()]);
+    await _loadInvestments();
   }
 
   Future<void> _loadInvestments() async {
@@ -120,24 +117,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     }
   }
 
-  Future<void> _loadRaisers() async {
-    try {
-      final response = await _supabase
-          .from('hog_raisers')
-          .select('hog_raiser_id, name, pig_type')
-          .eq('status', 'Active')
-          .order('name', ascending: true);
-      if (!mounted) return;
-      final rows = (response as List).cast<Map<String, dynamic>>().map((r) {
-        return {
-          ...r,
-          'id': (r['id'] ?? r['hog_raiser_id'] ?? '').toString(),
-          'real_pk_col': r['id'] != null ? 'id' : 'hog_raiser_id',
-        };
-      }).toList();
-      setState(() => _raisers = rows);
-    } catch (_) {}
-  }
+
 
   String _formatDateForDisplay(String dateStr) {
     try {
@@ -162,546 +142,544 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     
     return '₱$formattedInteger.$decimalPart';
   }
+  bool _showForm = false;
+  Investment? _editingInvestment;
+  final TextEditingController _capitalCtrl = TextEditingController();
+  final TextEditingController _totalHogCtrl = TextEditingController();
+  List<String> _selectedHogTypes = ['Fattening'];
+  String? _selectedRaiserId = 'unassigned';
+  List<Map<String, dynamic>> _activeRaisers = [];
 
-  Future<void> _openInvestmentDialog({Investment? existing}) async {
-    final isEdit = existing != null;
-    List<Map<String, dynamic>> raisers = [];
-    String? selectedRaiserId;
-    String selectedHogType = 'Auto-populated';
+  Future<void> _openInlineForm({Investment? existing}) async {
+    _capitalCtrl.text = existing != null ? existing.initialCapital.toInt().toString() : '';
+    _totalHogCtrl.text = existing != null ? existing.totalHog.toString() : '';
 
-    final initialCapitalCtrl = TextEditingController(
-      text: existing != null ? existing.initialCapital.toInt().toString() : '',
-    );
+    if (existing != null && existing.hogType.isNotEmpty && existing.hogType != 'Auto-populated' && existing.hogType != 'N/A') {
+      _selectedHogTypes = existing.hogType.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
+    } else {
+      _selectedHogTypes = ['Fattening'];
+    }
 
-    final totalHogCtrl = TextEditingController(
-      text: existing?.totalHog.toString() ?? '',
-    );
+    _editingInvestment = existing;
 
-    final investmentDateCtrl = TextEditingController(
-      text: existing != null
-          ? '${existing.investmentDate.year.toString().padLeft(4, '0')}-${existing.investmentDate.month.toString().padLeft(2, '0')}-${existing.investmentDate.day.toString().padLeft(2, '0')}'
-          : DateTime.now().toIso8601String().split('T').first,
-    );
-
-    // Load authorized raisers
     try {
       final response = await _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, pig_type')
           .eq('status', 'Active')
           .order('name', ascending: true);
-      // Normalize: expose 'id' key so the dropdown value matching still works
-      raisers = (response as List).cast<Map<String, dynamic>>().map((r) {
+
+      final activeRows = (response as List).cast<Map<String, dynamic>>().map((r) {
         return {
           ...r,
           'id': (r['id'] ?? r['hog_raiser_id'] ?? '').toString(),
           'real_pk_col': r['id'] != null ? 'id' : 'hog_raiser_id',
         };
       }).toList();
-      if (raisers.isNotEmpty && existing == null) {
-        selectedRaiserId = raisers[0]['id'].toString();
-        selectedHogType = (raisers[0]['pig_type'] ?? 'Auto-populated').toString();
-      } else if (existing != null) {
-        selectedRaiserId = existing.hogRaiserId;
-        final selectedRow = raisers.where((r) => r['id'].toString() == selectedRaiserId).toList();
-        if (selectedRow.isNotEmpty) {
-          selectedHogType = (selectedRow.first['pig_type'] ?? 'Auto-populated').toString();
-        } else {
-          selectedHogType = existing.hogType;
-        }
+
+      _activeRaisers = [
+        {
+          'id': 'unassigned',
+          'name': 'Unassigned (Create Batch First)',
+        },
+        ...activeRows,
+      ];
+
+      if (existing == null) {
+        _selectedRaiserId = 'unassigned';
+      } else {
+        _selectedRaiserId = (existing.hogRaiserId.isEmpty || existing.hogRaiserId == 'unassigned' || existing.raiserName.toLowerCase() == 'unassigned')
+            ? 'unassigned'
+            : existing.hogRaiserId;
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load raisers: $e')),
-        );
-      }
+    } catch (_) {
+      _activeRaisers = [
+        {'id': 'unassigned', 'name': 'Unassigned (Create Batch First)'}
+      ];
+      _selectedRaiserId = 'unassigned';
     }
 
     if (!mounted) return;
+    setState(() {
+      _showForm = true;
+    });
+  }
 
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (statefulContext, setDialogState) {
-            return Dialog(
-              backgroundColor: _cardBg,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 600),
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title
-                        Text(
-                          isEdit ? 'Edit Investment' : 'Create Investment',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: _titleColor,
-                            letterSpacing: -0.5,
-                          ),
+  Widget _buildAddInvestmentView() {
+    final isEdit = _editingInvestment != null;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 1350),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_panelStart, _panelEnd],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            border: Border.all(color: _panelBorder, width: 1),
+            borderRadius: BorderRadius.circular(34),
+          ),
+          padding: const EdgeInsets.fromLTRB(30, 26, 30, 26),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 850),
+              decoration: BoxDecoration(
+                color: _isDark ? const Color(0xFF12213A) : Colors.white,
+                border: Border.all(color: _cardBorder, width: 1),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.fromLTRB(40, 34, 40, 34),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        isEdit ? 'Edit Investment' : 'Create Investment',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: _titleColor,
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.04,
                         ),
-                        const SizedBox(height: 28),
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => _showForm = false),
+                        icon: Icon(Icons.close_rounded, color: _headerText, size: 24),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 28),
 
-                        // HOG RAISER Section
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Icon(Icons.pets, size: 16, color: _headerText),
-                              const SizedBox(width: 6),
-                              Text(
-                                'HOG RAISER',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: _headerText,
-                                  letterSpacing: 0.5,
-                                ),
+                  // 1. HOG RAISER
+                  Text(
+                    'HOG RAISER',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _headerText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  (isEdit && _editingInvestment!.hogRaiserId.isNotEmpty && _editingInvestment!.hogRaiserId != 'unassigned' && _editingInvestment!.raiserName.toLowerCase() != 'unassigned')
+                      ? Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: _fieldBg.withValues(alpha: 0.5),
+                            border: Border.all(color: _fieldBorder.withValues(alpha: 0.5), width: 1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          child: Text(
+                            _editingInvestment!.raiserName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _fieldText,
+                            ),
+                          ),
+                        )
+                      : DropdownButtonFormField<String>(
+                          initialValue: _selectedRaiserId,
+                          decoration: _createInputDecoration('Select an authorized raiser'),
+                          isExpanded: true,
+                          menuMaxHeight: 260,
+                          borderRadius: BorderRadius.circular(12),
+                          dropdownColor: _fieldBg,
+                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
+                          style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
+                          items: _activeRaisers
+                              .map((raiser) => DropdownMenuItem<String>(
+                                    value: raiser['id'].toString(),
+                                    child: Text(
+                                      (raiser['name'] ?? '').toString(),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: _fieldText,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedRaiserId = value;
+                            });
+                          },
+                        ),
+                  const SizedBox(height: 24),
+
+                  // 2. INITIAL CAPITAL & TOTAL HOG (2-Column Row)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // INITIAL CAPITAL FIELD WITH ₱ PREFIX BOX
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'INITIAL CAPITAL (PHP)',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _headerText,
+                                letterSpacing: 0.5,
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        isEdit
-                            ? Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: _fieldBg.withValues(alpha: 0.5),
-                                  border: Border.all(color: _fieldBorder.withValues(alpha: 0.5), width: 1),
-                                  borderRadius: BorderRadius.circular(12),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _capitalCtrl,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _fieldText,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              decoration: _createInputDecoration('0.00').copyWith(
+                                prefixIcon: Container(
+                                  width: 48,
+                                  alignment: Alignment.center,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    color: PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.15),
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(10),
+                                      bottomLeft: Radius.circular(10),
+                                    ),
+                                    border: Border(
+                                      right: BorderSide(color: _fieldBorder),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '₱',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: PiggyTrunkTheme.ptPrimary,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                    ),
+                                  ),
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                child: Text(
-                                  existing.raiserName,
+                                prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+
+                      // TOTAL HOG FIELD WITH HEADS SUFFIX BADGE
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'TOTAL HOG (HEADS)',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _headerText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _totalHogCtrl,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _fieldText,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              decoration: _createInputDecoration('0').copyWith(
+                                suffixIcon: Container(
+                                  width: 72,
+                                  alignment: Alignment.center,
+                                  margin: const EdgeInsets.only(left: 12),
+                                  decoration: BoxDecoration(
+                                    color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                                    borderRadius: const BorderRadius.only(
+                                      topRight: Radius.circular(10),
+                                      bottomRight: Radius.circular(10),
+                                    ),
+                                    border: Border(
+                                      left: BorderSide(color: _fieldBorder),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Heads',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _fieldText,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // 3. HOG TYPE ASSIGNMENT (CHECKBOXES)
+                  Text(
+                    'HOG TYPE ASSIGNMENT',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: _headerText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (_selectedHogTypes.contains('Fattening')) {
+                                if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Fattening');
+                              } else {
+                                _selectedHogTypes.add('Fattening');
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: _fieldBg,
+                              border: Border.all(
+                                color: _selectedHogTypes.contains('Fattening') ? PiggyTrunkTheme.ptPrimary : _fieldBorder,
+                                width: _selectedHogTypes.contains('Fattening') ? 1.5 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _selectedHogTypes.contains('Fattening') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                  color: _selectedHogTypes.contains('Fattening') ? PiggyTrunkTheme.ptPrimary : _hintText,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Fattening',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: _selectedHogTypes.contains('Fattening') ? FontWeight.w700 : FontWeight.w500,
                                     color: _fieldText,
                                   ),
                                 ),
-                              )
-                            : DropdownButtonFormField<String>(
-                                initialValue: selectedRaiserId,
-                                decoration: _createInputDecoration('Select an authorized raiser'),
-                                isExpanded: true,
-                                menuMaxHeight: 260,
-                                borderRadius: BorderRadius.circular(12),
-                                dropdownColor: _fieldBg,
-                                icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
-                                style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
-                                items: raisers
-                                    .map((raiser) => DropdownMenuItem<String>(
-                                          value: raiser['id'].toString(),
-                                          child: Text(
-                                            (raiser['name'] ?? '').toString(),
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                              color: _fieldText,
-                                            ),
-                                          ),
-                                        ))
-                                    .toList(),
-                                onChanged: (value) {
-                                  final selectedRow = raisers.where((r) => r['id'].toString() == value).toList();
-                                  setDialogState(() {
-                                    selectedRaiserId = value;
-                                    if (selectedRow.isNotEmpty) {
-                                      selectedHogType = (selectedRow.first['pig_type'] ?? 'Auto-populated').toString();
-                                    }
-                                  });
-                                },
-                              ),
-                        const SizedBox(height: 24),
-
-                        // INITIAL CAPITAL & HOG TYPE Row
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.attach_money, size: 14, color: _headerText),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'INITIAL CAPITAL',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: _headerText,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: _fieldBg,
-                                      border: Border.all(color: _fieldBorder, width: 1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: TextField(
-                                      controller: initialCapitalCtrl,
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        color: _fieldText,
-                                      ),
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: '0',
-                                        hintStyle: GoogleFonts.plusJakartaSans(
-                                          fontSize: 14,
-                                          color: _hintText,
-                                        ),
-                                        prefixText: '₱ ',
-                                        prefixStyle: GoogleFonts.plusJakartaSans(
-                                          fontSize: 14,
-                                          color: _fieldText,
-                                        ),
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.info_outline, size: 14, color: _headerText),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'HOG TYPE',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: _headerText,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: _fieldBg.withValues(alpha: 0.5),
-                                      border: Border.all(color: _fieldBorder.withValues(alpha: 0.5), width: 1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                    child: Text(
-                                      selectedHogType,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: selectedHogType == 'Auto-populated' ? FontWeight.normal : FontWeight.w600,
-                                        color: selectedHogType == 'Auto-populated' ? _hintText : _fieldText,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 24),
-
-                        // TOTAL HOG & INVESTMENT DATE Row
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.calculate, size: 14, color: _headerText),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'TOTAL HOG',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: _headerText,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: _fieldBg,
-                                      border: Border.all(color: _fieldBorder, width: 1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: TextField(
-                                      controller: totalHogCtrl,
-                                      keyboardType: TextInputType.number,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        color: _fieldText,
-                                      ),
-                                      decoration: InputDecoration(
-                                        border: InputBorder.none,
-                                        hintText: 'Heads',
-                                        hintStyle: GoogleFonts.plusJakartaSans(
-                                          fontSize: 14,
-                                          color: _hintText,
-                                        ),
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              if (_selectedHogTypes.contains('Sow / Breeding')) {
+                                if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Sow / Breeding');
+                              } else {
+                                _selectedHogTypes.add('Sow / Breeding');
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: _fieldBg,
+                              border: Border.all(
+                                color: _selectedHogTypes.contains('Sow / Breeding') ? PiggyTrunkTheme.ptPrimary : _fieldBorder,
+                                width: _selectedHogTypes.contains('Sow / Breeding') ? 1.5 : 1,
                               ),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 8),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.calendar_today, size: 14, color: _headerText),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          'INVESTMENT DATE',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: _headerText,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: isEdit ? _fieldBg.withValues(alpha: 0.5) : _fieldBg,
-                                      border: Border.all(color: isEdit ? _fieldBorder.withValues(alpha: 0.5) : _fieldBorder, width: 1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          _formatDateForDisplay(investmentDateCtrl.text),
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 14,
-                                            color: isEdit ? _hintText : _fieldText,
-                                          ),
-                                        ),
-                                        isEdit
-                                            ? Icon(
-                                                Icons.calendar_today_outlined,
-                                                size: 18,
-                                                color: _fieldBorder.withValues(alpha: 0.5),
-                                              )
-                                            : MouseRegion(
-                                                cursor: SystemMouseCursors.click,
-                                                child: GestureDetector(
-                                                  onTap: () async {
-                                                    final picked = await showDatePicker(
-                                                      context: statefulContext,
-                                                      initialDate: DateTime.tryParse(investmentDateCtrl.text) ?? DateTime.now(),
-                                                      firstDate: DateTime(2020),
-                                                      lastDate: DateTime(2050),
-                                                    );
-                                                    if (picked != null) {
-                                                      setDialogState(() {
-                                                        investmentDateCtrl.text =
-                                                            '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-                                                      });
-                                                    }
-                                                  },
-                                                  child: Icon(
-                                                    Icons.calendar_today,
-                                                    size: 18,
-                                                    color: _fieldBorder,
-                                                  ),
-                                                ),
-                                              ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 32),
-
-                        // Action Buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final parsedCapital = int.tryParse(initialCapitalCtrl.text.trim());
-                                final parsedTotalHog = int.tryParse(totalHogCtrl.text.trim());
-                                final parsedDate = DateTime.tryParse(investmentDateCtrl.text.trim());
-
-                                if (selectedRaiserId == null ||
-                                    parsedCapital == null ||
-                                    parsedTotalHog == null ||
-                                    parsedDate == null) {
-                                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Please fill all fields correctly.',
-                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                final raiserName = raisers
-                                    .firstWhere(
-                                      (r) => r['id'].toString() == selectedRaiserId,
-                                      orElse: () => {'name': ''},
-                                    )['name'];
-
-                                final payload = {
-                                  'hog_raiser_id': selectedRaiserId,
-                                  'raiser_name': raiserName,
-                                  'initial_capital': parsedCapital,
-                                  'hog_type': selectedHogType,
-                                  'total_hog': parsedTotalHog,
-                                  'investment_date': parsedDate.toIso8601String(),
-                                  if (!isEdit) 'stage': 'active',
-                                };
-
-                                final raiserRow = raisers.firstWhere(
-                                  (r) => r['id'].toString() == selectedRaiserId,
-                                  orElse: () => {},
-                                );
-                                final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
-
-                                try {
-                                  if (isEdit) {
-                                    await _supabase.from('investment_records').update(payload).eq('id', existing.id);
-                                  } else {
-                                    await _supabase.from('investment_records').insert(payload);
-                                  }
-                                  await _supabase
-                                      .from('hog_raisers')
-                                      .update({'lifecycle_stage': 'Booster'})
-                                      .eq(pkCol, int.parse(selectedRaiserId!));
-
-                                  if (!dialogContext.mounted) return;
-                                  Navigator.pop(dialogContext);
-                                  await _loadInvestments();
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        isEdit ? 'Investment updated successfully.' : 'Investment added successfully.',
-                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                      ),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                } catch (e) {
-                                  if (!dialogContext.mounted) return;
-                                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Save failed: $e',
-                                        style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                                      ),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
-                              label: Text(
-                                isEdit ? 'Save Changes' : 'Create Investment',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _selectedHogTypes.contains('Sow / Breeding') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                  color: _selectedHogTypes.contains('Sow / Breeding') ? PiggyTrunkTheme.ptPrimary : _hintText,
+                                  size: 20,
                                 ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                                foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                                elevation: 0,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(dialogContext),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _isDark ? const Color(0xFF1E293B) : Colors.grey[200],
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                'Cancel',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isDark ? Colors.white70 : Colors.black87,
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Sow / Breeding',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: _selectedHogTypes.contains('Sow / Breeding') ? FontWeight.w700 : FontWeight.w500,
+                                    color: _fieldText,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 36),
+
+                  // 4. ACTION BUTTONS
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => setState(() => _showForm = false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                          side: BorderSide(color: _fieldBorder),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _fieldText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      ElevatedButton.icon(
+                        onPressed: _saveInlineInvestment,
+                        icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
+                        label: Text(
+                          isEdit ? 'Save Changes' : 'Create Investment',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: PiggyTrunkTheme.ptPrimary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          ),
+        ),
+      ),
     );
+  }
+
+  Future<void> _saveInlineInvestment() async {
+    final parsedCapital = int.tryParse(_capitalCtrl.text.trim());
+    final parsedTotalHog = int.tryParse(_totalHogCtrl.text.trim());
+
+    if (_selectedRaiserId == null ||
+        parsedCapital == null ||
+        parsedTotalHog == null ||
+        _selectedHogTypes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please fill all required fields correctly and select at least one Hog Type.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final isUnassigned = _selectedRaiserId == 'unassigned';
+    final raiserName = isUnassigned
+        ? 'Unassigned'
+        : (_activeRaisers.firstWhere(
+            (r) => r['id'].toString() == _selectedRaiserId,
+            orElse: () => {'name': ''},
+          )['name'] ?? 'Unassigned');
+
+    final hogTypeStr = _selectedHogTypes.join(', ');
+    final isEdit = _editingInvestment != null;
+
+    final payload = {
+      'hog_raiser_id': isUnassigned ? '' : _selectedRaiserId,
+      'raiser_name': raiserName,
+      'initial_capital': parsedCapital,
+      'hog_type': hogTypeStr,
+      'total_hog': parsedTotalHog,
+      'investment_date': isEdit ? _editingInvestment!.investmentDate.toIso8601String() : DateTime.now().toIso8601String(),
+      if (!isEdit) 'stage': 'active',
+    };
+
+    try {
+      if (isEdit) {
+        await _supabase.from('investment_records').update(payload).eq('id', _editingInvestment!.id);
+      } else {
+        await _supabase.from('investment_records').insert(payload);
+      }
+
+      if (!isUnassigned && int.tryParse(_selectedRaiserId!) != null) {
+        final raiserRow = _activeRaisers.firstWhere(
+          (r) => r['id'].toString() == _selectedRaiserId,
+          orElse: () => {},
+        );
+        final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
+        await _supabase
+            .from('hog_raisers')
+            .update({
+              'lifecycle_stage': 'Booster',
+              'pig_type': hogTypeStr,
+            })
+            .eq(pkCol, int.parse(_selectedRaiserId!));
+      }
+
+      setState(() {
+        _showForm = false;
+        _editingInvestment = null;
+      });
+
+      await _loadInvestments();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEdit ? 'Investment updated successfully.' : 'Investment batch added successfully.',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Save failed: $e',
+            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _deleteInvestment(Investment investment) async {
@@ -837,6 +815,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    if (_showForm) {
+      return _buildAddInvestmentView();
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       child: Center(
@@ -855,69 +837,66 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_isCreatingInvestment)
-                _buildCreateInvestmentForm()
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: _cardBg,
-                    border: Border.all(color: _cardBorder, width: 1),
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Investment',
+              Container(
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  border: Border.all(color: _cardBorder, width: 1),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Investment Management',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: _titleColor,
+                            letterSpacing: -0.04,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => _openInlineForm(),
+                          icon: const Icon(Icons.add_rounded, size: 20),
+                          label: Text(
+                            'Add Investment',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              color: _titleColor,
-                              letterSpacing: -0.04,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          ElevatedButton.icon(
-                            onPressed: () => setState(() => _isCreatingInvestment = true),
-                            icon: const Icon(Icons.add_rounded, size: 20),
-                            label: Text(
-                              'Add Investment',
+                          style: _primaryWhiteButtonStyle(minWidth: 180),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTableHeader(),
+                    if (investments.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              'No investments found.',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w600,
+                                color: _titleColor,
                               ),
                             ),
-                            style: _primaryWhiteButtonStyle(minWidth: 180),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTableHeader(),
-                      if (investments.isEmpty)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                'No investments found.',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w600,
-                                  color: _titleColor,
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton(
-                                onPressed: () => setState(() => _isCreatingInvestment = true),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () => _openInlineForm(),
                                 style: _primaryWhiteButtonStyle(minWidth: 240),
                                 child: Text(
                                   'Create First Investment',
@@ -955,450 +934,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 0,
     );
-  }
-
-  Widget _buildCreateInvestmentForm() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: _isDark ? const Color(0xFF12213A) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _cardBorder),
-      ),
-      padding: const EdgeInsets.fromLTRB(26, 24, 26, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Create Investment',
-            style: GoogleFonts.plusJakartaSans(fontSize: 30, fontWeight: FontWeight.w800, color: _titleColor),
-          ),
-          const SizedBox(height: 18),
-          _fieldLabel('HOG RAISER', Icons.person_outline),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedRaiserId,
-            decoration: _createInputDecoration('Select an authorized raiser'),
-            isExpanded: true,
-            menuMaxHeight: 260,
-            borderRadius: BorderRadius.circular(12),
-            icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
-            dropdownColor: _fieldBg,
-            style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
-            items: _raisers
-                .map((r) => DropdownMenuItem<String>(
-                      value: (r['id'] ?? '').toString(),
-                      child: Text(
-                        (r['name'] ?? '').toString(),
-                        style: GoogleFonts.plusJakartaSans(
-                          color: _fieldText,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ))
-                .toList(),
-            onChanged: (value) {
-              final row = _raisers.firstWhere(
-                (r) => (r['id'] ?? '').toString() == value,
-                orElse: () => {},
-              );
-              setState(() {
-                _selectedRaiserId = value;
-                _selectedRaiserName = (row['name'] ?? '').toString();
-                _selectedHogType = (row['pig_type'] ?? '').toString();
-              });
-            },
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('INITIAL CAPITAL', Icons.attach_money),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _capitalCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
-                      decoration: _createInputDecoration('0').copyWith(
-                        prefixIcon: Container(
-                          width: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            border: Border(
-                              right: BorderSide(color: _fieldBorder),
-                            ),
-                          ),
-                          child: Text(
-                            '₱',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _fieldText,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('HOG TYPE', Icons.category_outlined),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: TextEditingController(text: _selectedHogType),
-                      readOnly: true,
-                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
-                      decoration: _createInputDecoration('Auto-populated'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('TOTAL HOG', Icons.tag),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _totalHogCtrl,
-                      keyboardType: TextInputType.number,
-                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
-                      decoration: _createInputDecoration('Heads'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _fieldLabel('INVESTMENT DATE', Icons.calendar_today_outlined),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () => setState(() => _showInlineCalendar = !_showInlineCalendar),
-                      child: InputDecorator(
-                        decoration: _createInputDecoration('Investment Date').copyWith(
-                          suffixIcon: Icon(
-                            Icons.calendar_today_outlined,
-                            size: 18,
-                            color: _fieldText.withValues(alpha: 0.9),
-                          ),
-                        ),
-                        child: Text(
-                          '${_selectedDate.day} ${_monthName(_selectedDate.month)} ${_selectedDate.year}',
-                          style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (_showInlineCalendar) ...[
-            const SizedBox(height: 6),
-            _buildInlineDatePickerCard(),
-          ],
-          const SizedBox(height: 26),
-          Row(
-            children: [
-              ElevatedButton.icon(
-                onPressed: _submitCreateInvestment,
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(
-                  'Create Investment',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                  foregroundColor: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
-                  minimumSize: const Size(220, 52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: () => setState(() => _isCreatingInvestment = false),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(110, 52),
-                  side: BorderSide(
-                    color: _isDark ? const Color(0xFF7F94B2) : PiggyTrunkTheme.ptPrimary,
-                    width: 1,
-                  ),
-                  foregroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(
-                  'Cancel',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  InputDecoration _createInputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
-      filled: true,
-      fillColor: _fieldBg,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldBorder),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldFocus),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    );
-  }
-
-  Widget _fieldLabel(String text, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: _headerText),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: _titleColor,
-            letterSpacing: 0.3,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInlineDatePickerCard() {
-    final primary = _isDark ? const Color(0xFF8FB7E6) : const Color(0xFF1F5FAF);
-    final onPrimary = _isDark ? const Color(0xFF0B1A2B) : Colors.white;
-    final pickerBg = _fieldBg;
-    final pickerText = _fieldText;
-    final pickerBorder = _fieldBorder;
-    final pickerWeekday = _hintText;
-    final pickerShadow = Colors.black.withValues(alpha: _isDark ? 0.24 : 0.08);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: pickerBg,
-        border: Border.all(color: pickerBorder),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: pickerShadow,
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-                primary: primary,
-                onPrimary: onPrimary,
-                onSurface: pickerText,
-                surface: pickerBg,
-              ),
-          datePickerTheme: DatePickerThemeData(
-            backgroundColor: pickerBg,
-            surfaceTintColor: Colors.transparent,
-            dayStyle: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w600,
-              color: pickerText,
-              fontSize: 13,
-            ),
-            weekdayStyle: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w700,
-              color: pickerWeekday,
-              fontSize: 11,
-            ),
-            yearStyle: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w600,
-              color: pickerText,
-              fontSize: 13,
-            ),
-            headerForegroundColor: pickerText,
-            subHeaderForegroundColor: pickerWeekday,
-            dayForegroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return onPrimary;
-              return pickerText;
-            }),
-            dayBackgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return primary;
-              return null;
-            }),
-            yearForegroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return onPrimary;
-              return pickerText;
-            }),
-            yearBackgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return primary;
-              return null;
-            }),
-          ),
-        ),
-        child: Stack(
-          children: [
-            CalendarDatePicker(
-              key: ValueKey('calendar_${_selectedDate.year}_${_selectedDate.month}_$_calendarViewSeed'),
-              initialDate: _selectedDate,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2100),
-              initialCalendarMode: DatePickerMode.day,
-              onDateChanged: (picked) => setState(() {
-                _selectedDate = picked;
-                _showInlineCalendar = false;
-              }),
-            ),
-            Positioned(
-              left: 0,
-              top: 0,
-              right: 0,
-              height: 56,
-              child: Container(
-                color: pickerBg,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Row(
-                  children: [
-                    Text(
-                      '${_monthName(_selectedDate.month)} ${_selectedDate.year}',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: pickerText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => _shiftSelectedMonth(-1),
-                      icon: Icon(Icons.chevron_left_rounded, color: pickerText),
-                      splashRadius: 18,
-                      tooltip: 'Previous month',
-                    ),
-                    IconButton(
-                      onPressed: () => _shiftSelectedMonth(1),
-                      icon: Icon(Icons.chevron_right_rounded, color: pickerText),
-                      splashRadius: 18,
-                      tooltip: 'Next month',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return months[month - 1];
-  }
-
-  Future<void> _submitCreateInvestment() async {
-    final capital = int.tryParse(_capitalCtrl.text.trim());
-    final totalHog = int.tryParse(_totalHogCtrl.text.trim());
-    if (_selectedRaiserId == null || capital == null || totalHog == null || _selectedHogType.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please complete all required fields.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    try {
-      await _supabase.from('investment_records').insert({
-        'hog_raiser_id': _selectedRaiserId,
-        'raiser_name': _selectedRaiserName,
-        'initial_capital': capital,
-        'hog_type': _selectedHogType,
-        'total_hog': totalHog,
-        'investment_date': _selectedDate.toIso8601String(),
-        'stage': 'active',
-      });
-      final raiserRow = _raisers.firstWhere(
-        (r) => r['id'].toString() == _selectedRaiserId,
-        orElse: () => {},
-      );
-      final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
-      await _supabase
-          .from('hog_raisers')
-          .update({'lifecycle_stage': 'Booster'})
-          .eq(pkCol, int.parse(_selectedRaiserId!));
-      if (!mounted) return;
-      setState(() {
-        _isCreatingInvestment = false;
-        _capitalCtrl.clear();
-        _totalHogCtrl.clear();
-        _selectedRaiserId = null;
-        _selectedRaiserName = '';
-        _selectedHogType = '';
-        _selectedDate = DateTime.now();
-      });
-      await _loadInvestments();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Investment added.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Create failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   Widget _buildTableHeader() {
@@ -1443,22 +978,84 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
+  Widget _buildHogTypeTags(String hogType) {
+    if (hogType.isEmpty || hogType == 'Auto-populated' || hogType == 'N/A') {
+      return Text('N/A', textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _headerText));
+    }
+    final types = hogType.split(',').map((e) => e.trim()).toList();
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 4,
+      children: types.map((t) {
+        final isBreeding = t.toLowerCase().contains('breed') || t.toLowerCase().contains('sow');
+        final bg = isBreeding ? Colors.purple.withValues(alpha: 0.18) : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.18);
+        final fg = isBreeding ? Colors.purpleAccent : PiggyTrunkTheme.ptPrimary;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: fg.withValues(alpha: 0.4)),
+          ),
+          child: Text(
+            t,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildTableRow(BuildContext context, Investment investment, int index) {
+    final isUnassigned = investment.hogRaiserId.isEmpty ||
+        investment.hogRaiserId == 'unassigned' ||
+        investment.raiserName.toLowerCase() == 'unassigned';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              investment.raiserName,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: _titleColor,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    isUnassigned ? 'Unassigned' : investment.raiserName,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isUnassigned ? Colors.orangeAccent : _titleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isUnassigned) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+                    ),
+                    child: Text(
+                      'Unassigned',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.orangeAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           Expanded(
@@ -1473,15 +1070,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              investment.hogType,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _titleColor,
-              ),
-            ),
+            child: _buildHogTypeTags(investment.hogType),
           ),
           Expanded(
             child: Text(
@@ -1515,7 +1104,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  onPressed: () => _openInvestmentDialog(existing: investment),
+                  onPressed: () => _openInlineForm(existing: investment),
                   icon: Icon(Icons.edit_outlined, size: 24, color: _headerText),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -1523,7 +1112,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 const SizedBox(width: 16),
                 IconButton(
                   onPressed: () => _deleteInvestment(investment),
-                  icon: const Icon(Icons.delete_outline, size: 24, color: const Color(0xFFFF758C)),
+                  icon: const Icon(Icons.delete_outline, size: 24, color: Color(0xFFFF758C)),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                 ),
