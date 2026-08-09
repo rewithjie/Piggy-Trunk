@@ -1,0 +1,20 @@
+# Ignore Flutter SDK dependencies and native build outputs to stay well under Vercel's 100MB limit
+.git
+.dart_tool
+node_modules
+android
+ios
+linux
+macos
+windows
+apps
+deps.txt
+sql
+supabase
+
+# Ignore native platform builds inside build folder except web
+build/app
+build/windows
+build/linux
+build/macos
+build/ios

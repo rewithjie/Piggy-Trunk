@@ -64,12 +64,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             .maybeSingle();
 
         if (userData != null) {
-          final String rawStatus = (userData['status'] ?? 'active').toString();
+          final String rawStatus = (userData['status'] ?? 'Pending').toString();
           final String statusLower = rawStatus.toLowerCase();
           final String role = (userData['role'] ?? 'partner').toString();
 
           final allowedRoles = ['hog_raiser', 'partner', 'cashier', 'admin'];
-          if (allowedRoles.contains(role) && statusLower != 'pending' && statusLower != 'blocked') {
+          if (allowedRoles.contains(role) && statusLower == 'active') {
             hasValidSession = true;
             switch (role) {
               case 'hog_raiser':

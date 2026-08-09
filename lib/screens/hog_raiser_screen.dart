@@ -6,6 +6,7 @@ import '../main.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../utils/responsive.dart';
 
 class HogRaiserScreen extends StatefulWidget {
   const HogRaiserScreen({super.key});
@@ -59,10 +60,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       return;
     }
     _loadRaisers();
-    _subscribeToRaisers();
+    _setupRealtimeSubscription();
   }
 
-  void _subscribeToRaisers() {
+  void _setupRealtimeSubscription() {
     _raisersSubscription = _supabase
         .channel('public:hog_raisers')
         .onPostgresChanges(
@@ -70,7 +71,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           schema: 'public',
           table: 'hog_raisers',
           callback: (payload) {
-            _loadRaisers(keyword: _searchCtrl.text);
+            _loadRaisers(silent: true);
           },
         )
         .subscribe();
@@ -85,10 +86,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRaisers({String keyword = ''}) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadRaisers({String? keyword, bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _loadErrorMessage = null;
+      });
+    }
+
     try {
-      // Self-healing sync: Ensure all hog_raiser users in app_users have a matching hog_raisers record
       try {
         final pendingAppUsers = await _supabase
             .from('app_users')
@@ -126,7 +132,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       dynamic query = _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(email, supabase_user_id)');
-      if (keyword.trim().isNotEmpty) {
+      if (keyword != null && keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }
       final response = await query.order('name', ascending: true);
@@ -172,17 +178,30 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     return int.tryParse(rawId.toString());
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _cardBg,
+              child: AdminSidebar(
+                currentRoute: '/raisers',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
         children: [
-          AdminSidebar(
-            currentRoute: '/raisers',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/raisers',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
@@ -191,16 +210,19 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                          padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: Center(
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 1340),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
                                 border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 26,
+                                vertical: isMobile ? 16 : 26,
+                              ),
                               child: _buildListView(),
                             ),
                           ),
@@ -215,6 +237,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _buildListView() {
+    final isMobile = Responsive.isMobile(context);
     final activeCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'active').length;
     final pendingCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'pending').length;
 
@@ -236,10 +259,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           _buildErrorBanner(_loadErrorMessage!),
         ],
         const SizedBox(height: 20),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 10,
           children: [
             _buildTabButton(0, 'Active Raisers', activeCount),
-            const SizedBox(width: 12),
             _buildTabButton(1, 'Pending Approvals', pendingCount),
           ],
         ),
@@ -247,10 +271,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         Container(
           decoration: BoxDecoration(
             color: _cardBg,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
             border: Border.all(color: _cardBorder),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(isMobile ? 14 : 20),
           child: Column(
             children: [
               Row(
@@ -283,7 +307,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(100, 48),
+                      minimumSize: const Size(90, 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -295,20 +319,31 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              _tableHeader(),
-              const SizedBox(height: 8),
-              if (filteredRaisers.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: Text(
-                      _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
-                      style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
-                    ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 700),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _tableHeader(),
+                      const SizedBox(height: 8),
+                      if (filteredRaisers.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 50),
+                          child: Center(
+                            child: Text(
+                              _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
+                              style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+                            ),
+                          ),
+                        )
+                      else
+                        ...filteredRaisers.map(_tableRow),
+                    ],
                   ),
-                )
-              else
-                ...filteredRaisers.map(_tableRow),
+                ),
+              ),
             ],
           ),
         ),

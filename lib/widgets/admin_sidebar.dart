@@ -11,17 +11,20 @@ import '../screens/inventory_screen.dart';
 import '../screens/pos_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/user_approvals_screen.dart';
+import '../screens/mobile_app_distribution_screen.dart';
 
 final sidebarExpandedProvider = StateProvider<bool>((ref) => false);
 
 class AdminSidebar extends ConsumerStatefulWidget {
   final String currentRoute;
   final VoidCallback onLogout;
+  final bool isDrawer;
 
   const AdminSidebar({
     super.key,
     required this.currentRoute,
     required this.onLogout,
+    this.isDrawer = false,
   });
 
   @override
@@ -74,6 +77,12 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         fallbackIcon: Icons.point_of_sale_outlined,
         route: '/pos',
       ),
+      SidebarItem(
+        label: 'Mobile App',
+        iconAsset: '',
+        fallbackIcon: Icons.get_app_outlined,
+        route: '/mobile-app',
+      ),
     ];
 
     footerItems = [
@@ -107,8 +116,20 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
     }
 
     if (route == '/logout') {
+      if (widget.isDrawer) {
+        Navigator.of(context).pop();
+      }
       widget.onLogout();
     } else {
+      if (widget.currentRoute == route) {
+        if (widget.isDrawer) {
+          Navigator.of(context).pop();
+        }
+        return;
+      }
+      if (widget.isDrawer) {
+        Navigator.of(context).pop();
+      }
       final screen = _screenForRoute(route);
       final messenger = ScaffoldMessenger.maybeOf(context);
       messenger?.hideCurrentSnackBar();
@@ -130,8 +151,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
     final surfaceColor = isDark ? const Color(0xff151f2e) : PiggyTrunkTheme.ptSurface;
     final borderColor = isDark ? const Color(0xff28354a) : PiggyTrunkTheme.ptBorder;
     final textColor = isDark ? const Color(0xffecf2ff) : PiggyTrunkTheme.ptText;
-    final isExpanded = ref.watch(sidebarExpandedProvider);
-    final targetWidth = isExpanded ? 300.0 : 112.0;
+    final isExpanded = widget.isDrawer || ref.watch(sidebarExpandedProvider);
+    final targetWidth = widget.isDrawer ? null : (isExpanded ? 300.0 : 112.0);
     return Container(
       width: targetWidth,
       decoration: BoxDecoration(
@@ -145,7 +166,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final showExpandedContent = constraints.maxWidth >= 240;
+          final showExpandedContent = widget.isDrawer || constraints.maxWidth >= 240;
 
           Widget buildMainItems() {
             return Padding(
@@ -179,7 +200,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
 
           return Column(
             children: [
-          /// Sidebar Header with Hamburger Toggle
+          /// Sidebar Header with Hamburger / Close Toggle
           Container(
             constraints: const BoxConstraints(minHeight: 82),
             padding: EdgeInsets.symmetric(
@@ -206,15 +227,15 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: SizedBox(
-                        width: 72,
-                        height: 72,
+                        width: 56,
+                        height: 56,
                         child: Image.asset(
                           'assets/piggytrunk_logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
                     ),
-                    SizedBox(width: showExpandedContent ? 12 : 2),
+                    SizedBox(width: showExpandedContent ? 10 : 2),
                     if (showExpandedContent) ...[
                       Flexible(
                         child: Text(
@@ -225,7 +246,14 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                       ),
                       const SizedBox(width: 8),
                     ],
-                    _buildSidebarToggle(isExpanded),
+                    if (widget.isDrawer)
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: textColor),
+                        tooltip: 'Close menu',
+                        onPressed: () => Navigator.of(context).pop(),
+                      )
+                    else
+                      _buildSidebarToggle(isExpanded),
                   ],
                 ),
               ],
@@ -275,6 +303,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         return const SettingsScreen();
       case '/users':
         return const UserApprovalsScreen();
+      case '/mobile-app':
+        return const MobileAppDistributionScreen();
       default:
         return const DashboardScreen();
     }

@@ -12,6 +12,8 @@ import 'screens/pos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/user_approvals_screen.dart';
 
+import 'screens/mobile_app_distribution_screen.dart';
+
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
 
@@ -65,6 +67,7 @@ class MyApp extends ConsumerWidget {
         '/pos': (context) => const POSScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/users': (context) => const UserApprovalsScreen(),
+        '/mobile-app': (context) => const MobileAppDistributionScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

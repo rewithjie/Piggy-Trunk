@@ -6,6 +6,7 @@ import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../services/email_service.dart';
+import '../utils/responsive.dart';
 import '../main.dart';
 
 class UserApprovalsScreen extends StatefulWidget {
@@ -314,14 +315,28 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _cardBg,
+              child: AdminSidebar(
+                currentRoute: '/users',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
         children: [
-          AdminSidebar(
-            currentRoute: '/users',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/users',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
@@ -330,16 +345,19 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: const EdgeInsets.all(18),
+                          padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: Center(
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 1340),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
                                 border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 26,
+                                vertical: isMobile ? 16 : 26,
+                              ),
                               child: _buildListView(),
                             ),
                           ),
@@ -354,6 +372,8 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   }
 
   Widget _buildListView() {
+    final isMobile = Responsive.isMobile(context);
+
     // Counts for tabs
     final activePartnersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
@@ -421,10 +441,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         Container(
           decoration: BoxDecoration(
             color: _cardBg,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
             border: Border.all(color: _cardBorder),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(isMobile ? 14 : 20),
           child: Column(
             children: [
               // Search controls
@@ -458,7 +478,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(110, 48),
+                      minimumSize: const Size(90, 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -482,22 +502,33 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              _tableHeader(),
-              const SizedBox(height: 8),
-              if (filtered.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: Text(
-                      _currentTab == 0 || _currentTab == 2
-                          ? 'No active users found'
-                          : 'No pending approvals',
-                      style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
-                    ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 700),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _tableHeader(),
+                      const SizedBox(height: 8),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 50),
+                          child: Center(
+                            child: Text(
+                              _currentTab == 0 || _currentTab == 2
+                                  ? 'No active users found'
+                                  : 'No pending approvals',
+                              style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+                            ),
+                          ),
+                        )
+                      else
+                        ...filtered.map(_tableRow),
+                    ],
                   ),
-                )
-              else
-                ...filtered.map(_tableRow),
+                ),
+              ),
             ],
           ),
         ),

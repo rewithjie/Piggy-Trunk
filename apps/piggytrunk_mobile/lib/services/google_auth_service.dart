@@ -10,7 +10,10 @@ class GoogleAuthService {
   static const String androidClientId = '1011881228900-de0pk92lqv378o0t06kc6227arog3kh0.apps.googleusercontent.com';
 
   /// Sign in with Google Auth natively or fallback smoothly
-  Future<Map<String, dynamic>> signInWithGoogle({required String targetRole}) async {
+  Future<Map<String, dynamic>> signInWithGoogle({
+    required String targetRole,
+    bool isSignUpMode = false,
+  }) async {
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn(
         clientId: kIsWeb ? webClientId : androidClientId,
@@ -50,6 +53,7 @@ class GoogleAuthService {
                 email: email,
                 targetRole: targetRole,
                 fullName: fullName,
+                isSignUpMode: isSignUpMode,
               );
             }
           }
@@ -57,57 +61,43 @@ class GoogleAuthService {
           debugPrint('Supabase signInWithOAuth exception: $oauthEx');
         }
 
-        if (googleErr != null && (googleErr.contains('10:') || googleErr.contains('ApiException') || googleErr.contains('sign_in_failed'))) {
-          return {
-            'success': false,
-            'message': 'Hindi maikonekta ang Google Sign-In. Siguraduhing nakasetup ang Google OAuth Client ID o subukan ang email signup/login.',
-          };
-        }
         return {
           'success': false,
-          'message': 'Canceled Google sign-in.',
+          'message': googleErr != null
+              ? 'Kanselado ang Google Sign-In.'
+              : 'Hindi maikonekta ang Google Sign-In. Siguraduhing nakasetup ang Google OAuth Client ID o subukan ang email signup/login.',
         };
       }
 
-      // Native Google account selected on phone
-      final String email = googleUser.email;
-      final String fullName = (googleUser.displayName != null && googleUser.displayName!.isNotEmpty)
-          ? googleUser.displayName!
-          : email.split('@').first;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
 
-      // Authenticate with Supabase Auth via ID token
-      try {
-        final googleAuth = await googleUser.authentication;
-        if (googleAuth.idToken != null) {
+      if (idToken != null) {
+        try {
           await _supabase.auth.signInWithIdToken(
             provider: OAuthProvider.google,
-            idToken: googleAuth.idToken!,
-            accessToken: googleAuth.accessToken,
+            idToken: idToken,
+            accessToken: accessToken,
           );
-          await _supabase.auth.updateUser(
-            UserAttributes(
-              data: {
-                'role': targetRole,
-                'name': fullName,
-                'full_name': fullName,
-              },
-            ),
-          );
+        } catch (tokenErr) {
+          debugPrint('Supabase signInWithIdToken notice: $tokenErr');
         }
-      } catch (tokenErr) {
-        debugPrint('Supabase signInWithIdToken notice: $tokenErr');
       }
+
+      final String email = googleUser.email;
+      final String fullName = googleUser.displayName ?? email.split('@').first;
 
       return await registerGoogleUserWithEmail(
         email: email,
         targetRole: targetRole,
         fullName: fullName,
+        isSignUpMode: isSignUpMode,
       );
     } catch (e) {
-      final errStr = e.toString();
       return {
         'success': false,
-        'message': 'Error sa Google Sign-In: $errStr',
+        'message': 'Error sa Google Login: ${e.toString()}',
       };
     }
   }
@@ -127,6 +117,7 @@ class GoogleAuthService {
     required String email,
     required String targetRole,
     String? fullName,
+    bool isSignUpMode = false,
   }) async {
     try {
       final nameToUse = (fullName != null && fullName.isNotEmpty)
@@ -151,6 +142,14 @@ class GoogleAuthService {
       String status = 'Pending';
 
       if (existingUser == null) {
+        // If user clicked Google Sign-In on LOGIN screen (isSignUpMode = false) and has no account:
+        if (!isSignUpMode) {
+          await _supabase.auth.signOut();
+          return {
+            'success': false,
+            'message': 'Walang nakalaang account sa Google email na ito ($email). Mangyaring mag-Sign Up muna.',
+          };
+        }
         dynamic newUserId;
         try {
           final insertedUser = await _supabase.from('app_users').upsert({
@@ -212,27 +211,6 @@ class GoogleAuthService {
             }
           }
 
-          // Trigger Realtime Notification for Admin Web & Admin App
-          try {
-            final roleDisplay = (targetRole == 'hog_raiser' || targetRole == 'raiser')
-                ? 'Hog Raiser'
-                : (targetRole == 'partner' ? 'Partner Investor' : 'Cashier');
-            await _supabase.from('admin_notifications').insert({
-              'title': 'Bagong Rehistro ng User',
-              'message': 'Nag-register si $nameToUse ($email) bilang $roleDisplay at naghihintay ng approval.',
-              'type': 'user_registration',
-              'is_read': false,
-              'metadata': {
-                'role': targetRole,
-                'user_id': newUserId,
-                'name': nameToUse,
-                'email': email,
-              },
-            });
-          } catch (notifErr) {
-            debugPrint('Admin notification auto-create notice: $notifErr');
-          }
-
           // Trigger Registration Email via Resend
           try {
             EmailService().sendRegistrationEmail(
@@ -288,25 +266,6 @@ class GoogleAuthService {
               }
             } catch (_) {}
           }
-
-          // Trigger Realtime Notification for Admin
-          try {
-            final roleDisplay = (targetRole == 'hog_raiser' || targetRole == 'raiser')
-                ? 'Hog Raiser'
-                : (targetRole == 'partner' ? 'Partner Investor' : 'Cashier');
-            await _supabase.from('admin_notifications').insert({
-              'title': 'Bagong Rehistro ng User',
-              'message': 'Nag-register si $nameToUse ($email) bilang $roleDisplay at naghihintay ng approval.',
-              'type': 'user_registration',
-              'is_read': false,
-              'metadata': {
-                'role': targetRole,
-                'user_id': existingUserId,
-                'name': nameToUse,
-                'email': email,
-              },
-            });
-          } catch (_) {}
 
           // Trigger Registration Email via Resend
           try {
