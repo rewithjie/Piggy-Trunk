@@ -923,56 +923,61 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                         ],
                       ),
                     const SizedBox(height: 16),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 700),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildTableHeader(),
-                            if (investments.isEmpty)
-                              Container(
-                                width: 700,
-                                padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'No investments found.',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w600,
-                                        color: _titleColor,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: tableWidth,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildTableHeader(),
+                                if (investments.isEmpty)
+                                  Container(
+                                    width: tableWidth,
+                                    padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
                                       ),
                                     ),
-                                    const SizedBox(height: 20),
-                                    ElevatedButton(
-                                      onPressed: () => _openInlineForm(),
-                                      style: _primaryWhiteButtonStyle(minWidth: 240),
-                                      child: Text(
-                                        'Create First Investment',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'No investments found.',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w600,
+                                            color: _titleColor,
+                                          ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 20),
+                                        ElevatedButton(
+                                          onPressed: () => _openInlineForm(),
+                                          style: _primaryWhiteButtonStyle(minWidth: 240),
+                                          child: Text(
+                                            'Create First Investment',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                              )
-                            else
-                              ...List.generate(
-                                investments.length,
-                                (index) => _buildTableRow(context, investments[index], index),
-                              ),
-                          ],
-                        ),
-                      ),
+                                  )
+                                else
+                                  ...List.generate(
+                                    investments.length,
+                                    (index) => _buildTableRow(context, investments[index], index),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -997,43 +1002,123 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Widget _buildTableHeader() {
-    const headers = [
-      'HOG RAISER',
-      'INITIAL CAPITAL',
-      'HOG TYPE',
-      'TOTAL HOG',
-      'INVESTMENT DATE',
-      'STAGE',
-      'ACTIONS',
-    ];
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
       child: Row(
-        children: headers
-            .asMap()
-            .entries
-            .map(
-              (entry) {
-                final index = entry.key;
-                final h = entry.value;
-                final align = index == 0 ? TextAlign.left : TextAlign.center;
-                return Expanded(
-                  child: Text(
-                    h,
-                    textAlign: align,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.03,
-                      color: _headerText,
-                    ),
-                  ),
-                );
-              }
-            )
-            .toList(),
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'HOG RAISER',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'INITIAL CAPITAL',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'HOG TYPE',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'TOTAL HOG',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'INVESTMENT DATE',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'STAGE',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                'ACTIONS',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _headerText,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1077,106 +1162,137 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         investment.raiserName.toLowerCase() == 'unassigned';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isUnassigned ? 'Unassigned' : investment.raiserName,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: isUnassigned ? Colors.orangeAccent : _titleColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (isUnassigned) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                    ),
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(
+                children: [
+                  Expanded(
                     child: Text(
-                      'Unassigned',
+                      isUnassigned ? 'Unassigned' : investment.raiserName,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.orangeAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isUnassigned ? Colors.orangeAccent : _titleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isUnassigned) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
+                      ),
+                      child: Text(
+                        'Unassigned',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.orangeAccent,
+                        ),
                       ),
                     ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                _formatCurrency(investment.initialCapital),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _titleColor,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: _buildHogTypeTags(investment.hogType),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                '${investment.totalHog} heads',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _titleColor,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                _formatDateForDisplay(investment.investmentDate.toString()),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: _titleColor,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Center(
+                child: _buildStageBadge(investment.stage),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () => _openInlineForm(existing: investment),
+                    icon: Icon(Icons.edit_outlined, size: 22, color: _headerText),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Edit Investment',
+                  ),
+                  const SizedBox(width: 14),
+                  IconButton(
+                    onPressed: () => _deleteInvestment(investment),
+                    icon: const Icon(Icons.delete_outline, size: 22, color: Color(0xFFFF758C)),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Delete Investment',
                   ),
                 ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: Text(
-              _formatCurrency(investment.initialCapital),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _titleColor,
               ),
-            ),
-          ),
-          Expanded(
-            child: _buildHogTypeTags(investment.hogType),
-          ),
-          Expanded(
-            child: Text(
-              '${investment.totalHog} heads',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _titleColor,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              _formatDateForDisplay(investment.investmentDate.toString()),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: _titleColor,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: _buildStageBadge(investment.stage),
-            ),
-          ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: () => _openInlineForm(existing: investment),
-                  icon: Icon(Icons.edit_outlined, size: 24, color: _headerText),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  onPressed: () => _deleteInvestment(investment),
-                  icon: const Icon(Icons.delete_outline, size: 24, color: Color(0xFFFF758C)),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
             ),
           ),
         ],

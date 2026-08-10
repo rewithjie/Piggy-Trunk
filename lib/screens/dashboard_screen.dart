@@ -214,7 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: EdgeInsets.all(isMobile ? 12 : 16),
+                          padding: EdgeInsets.all(isMobile ? 14 : 16),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
                               final contentWidth = constraints.maxWidth > 1400
@@ -224,15 +224,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 alignment: Alignment.topCenter,
                                 child: Container(
                                   width: contentWidth,
-                                  decoration: BoxDecoration(
-                                    color: _surfaceDark.withValues(alpha: 0.5),
-                                    border: Border.all(
-                                      color: _borderDark,
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  padding: EdgeInsets.all(isMobile ? 16 : 32),
+                                  decoration: isMobile
+                                      ? null
+                                      : BoxDecoration(
+                                          color: _surfaceDark.withValues(alpha: 0.5),
+                                          border: Border.all(
+                                            color: _borderDark,
+                                            width: 1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                  padding: EdgeInsets.all(isMobile ? 0 : 32),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -243,7 +245,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           Text(
                                             'Dashboard',
                                             style: GoogleFonts.plusJakartaSans(
-                                              fontSize: isMobile ? 24 : 30,
+                                              fontSize: isMobile ? 22 : 30,
                                               fontWeight: FontWeight.w800,
                                               color: _textDark,
                                               letterSpacing: -0.04,
@@ -257,15 +259,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 24),
+                                      SizedBox(height: isMobile ? 14 : 24),
 
                                       /// KPI CARDS ROW
                                       _buildKpiCardsRow(),
-                                      const SizedBox(height: 32),
+                                      SizedBox(height: isMobile ? 20 : 32),
 
                                       /// INVESTMENT ALLOCATION SECTION
                                       _buildInvestmentAllocationSection(),
-                                      const SizedBox(height: 32),
+                                      SizedBox(height: isMobile ? 20 : 32),
 
                                       /// ACTIVE HOG RAISERS PROGRESS SECTION
                                       _buildActiveRaisersSection(),
@@ -287,6 +289,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// KPI CARDS ROW — now driven by live Supabase data
   Widget _buildKpiCardsRow() {
+    final isMobile = Responsive.isMobile(context);
     final kpiData = [
       {
         'label': 'NUMBER OF HOG BATCH',
@@ -298,53 +301,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 650;
-        if (isMobile) {
-          return Column(
-            children: kpiData
-                .map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: _buildKpiCard(
-                        label: item['label'] as String,
-                        value: item['value'] as String,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                label: kpiData[0]['label'] as String,
-                value: kpiData[0]['value'] as String,
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: _buildKpiCard(
-                label: kpiData[1]['label'] as String,
-                value: kpiData[1]['value'] as String,
-              ),
-            ),
-          ],
-        );
-      },
+    return Row(
+      children: [
+        Expanded(
+          child: _buildKpiCard(
+            label: kpiData[0]['label'] as String,
+            value: kpiData[0]['value'] as String,
+            isMobile: isMobile,
+          ),
+        ),
+        SizedBox(width: isMobile ? 12 : 20),
+        Expanded(
+          child: _buildKpiCard(
+            label: kpiData[1]['label'] as String,
+            value: kpiData[1]['value'] as String,
+            isMobile: isMobile,
+          ),
+        ),
+      ],
     );
   }
 
   /// Individual KPI Card
-  Widget _buildKpiCard({required String label, required String value}) {
+  Widget _buildKpiCard({
+    required String label,
+    required String value,
+    bool isMobile = false,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 14 : 20),
       decoration: BoxDecoration(
         color: _surfaceDark,
         border: Border.all(
@@ -359,21 +344,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Text(
             label,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
+              fontSize: isMobile ? 10 : 12,
               fontWeight: FontWeight.w600,
               color: _mutedDark,
-              letterSpacing: 0.5,
+              letterSpacing: 0.4,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: _textDark,
+          SizedBox(height: isMobile ? 8 : 16),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: isMobile ? 22 : 28,
+                fontWeight: FontWeight.bold,
+                color: _textDark,
+              ),
             ),
           ),
         ],
@@ -383,102 +372,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// INVESTMENT ALLOCATION SECTION — now driven by live Supabase data
   Widget _buildInvestmentAllocationSection() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 650;
-        final cardWidth = isMobile
-            ? double.infinity
-            : (constraints.maxWidth - 64 - 24) / 2;
+    final isMobile = Responsive.isMobile(context);
 
-        return Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(isMobile ? 16 : 32),
-          decoration: BoxDecoration(
-            color: _surfaceDark.withValues(alpha: 0.2),
-            border: Border.all(
-              color: _borderDark,
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 14 : 32),
+      decoration: BoxDecoration(
+        color: _surfaceDark.withValues(alpha: 0.2),
+        border: Border.all(
+          color: _borderDark,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                      'INVESTMENT ALLOCATION',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: isMobile ? 13 : 14,
-                        fontWeight: FontWeight.w700,
-                        color: _textDark,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
+              Flexible(
+                child: Text(
+                  'INVESTMENT ALLOCATION',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: isMobile ? 12 : 14,
+                    fontWeight: FontWeight.w700,
+                    color: _textDark,
+                    letterSpacing: 0.3,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Total: ${_formatCurrency(_totalCapital)}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: isMobile ? 12 : 13,
-                      fontWeight: FontWeight.w600,
-                      color: _mutedDark,
-                    ),
-                  ),
-                ],
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(width: 8),
               Text(
-                '$_activeRaisers active raiser${_activeRaisers == 1 ? '' : 's'}',
+                'Total: ${_formatCurrency(_totalCapital)}',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontSize: isMobile ? 11 : 13,
+                  fontWeight: FontWeight.w600,
                   color: _mutedDark,
                 ),
               ),
-              const SizedBox(height: 20),
-              if (isMobile)
-                Column(
-                  children: [
-                    _buildAllocationCard(
-                      title: 'FATTENING',
-                      amount: _formatCurrency(_fatteningCapital),
-                      width: double.infinity,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildAllocationCard(
-                      title: 'SOW',
-                      amount: _formatCurrency(_sowCapital),
-                      width: double.infinity,
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAllocationCard(
-                        title: 'FATTENING',
-                        amount: _formatCurrency(_fatteningCapital),
-                        width: cardWidth,
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: _buildAllocationCard(
-                        title: 'SOW',
-                        amount: _formatCurrency(_sowCapital),
-                        width: cardWidth,
-                      ),
-                    ),
-                  ],
-                ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 6),
+          Text(
+            '$_activeRaisers active raiser${_activeRaisers == 1 ? '' : 's'}',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: isMobile ? 11 : 12,
+              fontWeight: FontWeight.w500,
+              color: _mutedDark,
+            ),
+          ),
+          SizedBox(height: isMobile ? 14 : 20),
+          Row(
+            children: [
+              Expanded(
+                child: _buildAllocationCard(
+                  title: 'FATTENING',
+                  amount: _formatCurrency(_fatteningCapital),
+                  isMobile: isMobile,
+                ),
+              ),
+              SizedBox(width: isMobile ? 12 : 24),
+              Expanded(
+                child: _buildAllocationCard(
+                  title: 'SOW',
+                  amount: _formatCurrency(_sowCapital),
+                  isMobile: isMobile,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -486,7 +451,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildAllocationCard({
     required String title,
     required String amount,
-    required double width,
+    double? width,
+    bool isMobile = false,
   }) {
     return Container(
       width: width,
@@ -498,34 +464,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
           width: 1,
         ),
       ),
+      padding: EdgeInsets.all(isMobile ? 14 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// Card Content
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _mutedDark,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  amount,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: _textDark,
-                  ),
-                ),
-              ],
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: isMobile ? 11 : 14,
+              fontWeight: FontWeight.w700,
+              color: _mutedDark,
+              letterSpacing: 0.5,
+            ),
+          ),
+          SizedBox(height: isMobile ? 8 : 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              amount,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: isMobile ? 20 : 26,
+                fontWeight: FontWeight.bold,
+                color: _textDark,
+              ),
             ),
           ),
         ],

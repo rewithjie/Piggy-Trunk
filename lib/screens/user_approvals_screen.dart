@@ -502,32 +502,37 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 700),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _tableHeader(),
-                      const SizedBox(height: 8),
-                      if (filtered.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 50),
-                          child: Center(
-                            child: Text(
-                              _currentTab == 0 || _currentTab == 2
-                                  ? 'No active users found'
-                                  : 'No pending approvals',
-                              style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
-                            ),
-                          ),
-                        )
-                      else
-                        ...filtered.map(_tableRow),
-                    ],
-                  ),
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _tableHeader(),
+                          const SizedBox(height: 4),
+                          if (filtered.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 50),
+                              child: Center(
+                                child: Text(
+                                  _currentTab == 0 || _currentTab == 2
+                                      ? 'No active users found'
+                                      : 'No pending approvals',
+                                  style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+                                ),
+                              ),
+                            )
+                          else
+                            ...filtered.map(_tableRow),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -563,21 +568,54 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   }
 
   Widget _tableHeader() {
-    final headers = ['FULL NAME', 'EMAIL ADDRESS', 'ROLE TYPE', 'STATUS', 'ACTIONS'];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
       child: Row(
-        children: headers
-            .map(
-              (h) => Expanded(
-                child: Text(
-                  h,
-                  style: AppTextStyles.tableHeader(_hintText),
-                ),
-              ),
-            )
-            .toList(),
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text('FULL NAME', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('EMAIL ADDRESS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('ROLE TYPE', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('STATUS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text('ACTIONS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -594,56 +632,96 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final displayName = '$prefix$name';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(child: Text(displayName, style: AppTextStyles.body(_titleColor))),
-          Expanded(child: Text(email, style: AppTextStyles.body(_titleColor))),
-          Expanded(child: Text(role, style: AppTextStyles.body(_titleColor))),
           Expanded(
-            child: Row(
-              children: [
-                Container(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                displayName,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                email,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                role,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: status == 'ACTIVE' 
-                        ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1) 
-                        : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.1),
+                        ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15) 
+                        : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     status,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: status == 'ACTIVE' ? PiggyTrunkTheme.ptSuccess : PiggyTrunkTheme.ptAccent,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
           Expanded(
-            child: Row(
-              children: [
-                if (status == 'PENDING')
-                  IconButton(
-                    onPressed: () => _approveUser(userId, name),
-                    icon: const Icon(Icons.check_circle_outline, size: 24, color: Colors.green),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Approve User',
-                  )
-                else if (status == 'ACTIVE')
-                  IconButton(
-                    onPressed: () => _suspendUser(userId, name),
-                    icon: const Icon(Icons.block, size: 24, color: Colors.red),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Suspend User',
-                  ),
-              ],
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Row(
+                children: [
+                  if (status == 'PENDING')
+                    IconButton(
+                      onPressed: () => _approveUser(userId, name),
+                      icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Approve User',
+                    )
+                  else if (status == 'ACTIVE')
+                    IconButton(
+                      onPressed: () => _suspendUser(userId, name),
+                      icon: Icon(Icons.block_rounded, size: 22, color: PiggyTrunkTheme.ptAccent),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Suspend User',
+                    ),
+                ],
+              ),
             ),
           ),
         ],
