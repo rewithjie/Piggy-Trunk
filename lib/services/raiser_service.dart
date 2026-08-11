@@ -22,10 +22,8 @@ class RaiserService {
     required String lifecycleStage,
     required String status,
   }) async {
-    final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
-    if (supabaseUrl == null || supabaseUrl.isEmpty) {
-      throw Exception('SUPABASE_URL is not configured.');
-    }
+    final supabaseUrl =
+        dotenv.env['SUPABASE_URL']?.trim() ?? 'https://ywwwrshblzyqmxkbkxsp.supabase.co';
 
     final session = _supabase.auth.currentSession;
     String? accessToken = session?.accessToken;
