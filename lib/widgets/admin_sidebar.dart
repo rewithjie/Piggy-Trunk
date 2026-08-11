@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/auth_service.dart';
 import '../main.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
@@ -119,7 +121,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       if (widget.isDrawer) {
         Navigator.of(context).pop();
       }
-      widget.onLogout();
+      _handleLogout();
+      return;
     } else {
       if (widget.currentRoute == route) {
         if (widget.isDrawer) {
@@ -143,6 +146,18 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         ),
       );
     }
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+      await AuthService().logout();
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    }
+    widget.onLogout();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   @override
