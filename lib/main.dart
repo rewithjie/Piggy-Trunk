@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -17,33 +18,32 @@ import 'screens/mobile_app_distribution_screen.dart';
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
 
+const String _defaultSupabaseUrl = 'https://ywwwrshblzyqmxkbkxsp.supabase.co';
+const String _defaultSupabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d3dyc2hibHp5cW14a2JreHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MjU2MDMsImV4cCI6MjA5MzMwMTYwM30.ceKymQgbjU3IAbHxS2OUiOV9Mf5DxVxf9eBgzRuCHXo';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {
-    // Ignore missing env file during web deployment.
+  String supabaseUrl = _defaultSupabaseUrl;
+  String supabaseAnonKey = _defaultSupabaseAnonKey;
+
+  if (!kIsWeb) {
+    try {
+      await dotenv.load(fileName: '.env');
+      final envUrl = dotenv.env['SUPABASE_URL']?.trim();
+      final envKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+      if (envUrl != null && envUrl.isNotEmpty) supabaseUrl = envUrl;
+      if (envKey != null && envKey.isNotEmpty) supabaseAnonKey = envKey;
+    } catch (_) {
+      // Use defaults if .env is missing
+    }
   }
-
-  const defaultSupabaseUrl = 'https://ywwwrshblzyqmxkbkxsp.supabase.co';
-  const defaultSupabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d3dyc2hibHp5cW14a2JreHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MjU2MDMsImV4cCI6MjA5MzMwMTYwM30.ceKymQgbjU3IAbHxS2OUiOV9Mf5DxVxf9eBgzRuCHXo';
-
-  final envUrl = dotenv.env['SUPABASE_URL']?.trim();
-  final envKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
-
-  final supabaseUrl = (envUrl != null && envUrl.isNotEmpty)
-      ? envUrl
-      : const String.fromEnvironment('SUPABASE_URL', defaultValue: defaultSupabaseUrl);
-  final supabaseAnonKey = (envKey != null && envKey.isNotEmpty)
-      ? envKey
-      : const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: defaultSupabaseAnonKey);
 
   try {
     await Supabase.initialize(
-      url: supabaseUrl.isNotEmpty ? supabaseUrl : defaultSupabaseUrl,
-      anonKey: supabaseAnonKey.isNotEmpty ? supabaseAnonKey : defaultSupabaseAnonKey,
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
     );
   } catch (e) {
     debugPrint('Supabase init warning: $e');
