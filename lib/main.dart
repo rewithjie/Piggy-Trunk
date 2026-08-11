@@ -23,17 +23,30 @@ void main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (_) {
-    // Ignore missing env file during local development.
+    // Ignore missing env file during web deployment.
   }
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+  const defaultSupabaseUrl = 'https://ywwwrshblzyqmxkbkxsp.supabase.co';
+  const defaultSupabaseAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d3dyc2hibHp5cW14a2JreHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MjU2MDMsImV4cCI6MjA5MzMwMTYwM30.ceKymQgbjU3IAbHxS2OUiOV9Mf5DxVxf9eBgzRuCHXo';
 
-  if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseAnonKey != null && supabaseAnonKey.isNotEmpty) {
+  final envUrl = dotenv.env['SUPABASE_URL']?.trim();
+  final envKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
+
+  final supabaseUrl = (envUrl != null && envUrl.isNotEmpty)
+      ? envUrl
+      : const String.fromEnvironment('SUPABASE_URL', defaultValue: defaultSupabaseUrl);
+  final supabaseAnonKey = (envKey != null && envKey.isNotEmpty)
+      ? envKey
+      : const String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: defaultSupabaseAnonKey);
+
+  try {
     await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
+      url: supabaseUrl.isNotEmpty ? supabaseUrl : defaultSupabaseUrl,
+      anonKey: supabaseAnonKey.isNotEmpty ? supabaseAnonKey : defaultSupabaseAnonKey,
     );
+  } catch (e) {
+    debugPrint('Supabase init warning: $e');
   }
 
   runApp(
