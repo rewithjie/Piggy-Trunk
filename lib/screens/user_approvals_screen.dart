@@ -6,6 +6,7 @@ import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../services/email_service.dart';
+import '../utils/responsive.dart';
 import '../main.dart';
 
 class UserApprovalsScreen extends StatefulWidget {
@@ -314,14 +315,28 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _cardBg,
+              child: AdminSidebar(
+                currentRoute: '/users',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
         children: [
-          AdminSidebar(
-            currentRoute: '/users',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/users',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
@@ -330,16 +345,19 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: const EdgeInsets.all(18),
+                          padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: Center(
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 1340),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
                                 border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 26,
+                                vertical: isMobile ? 16 : 26,
+                              ),
                               child: _buildListView(),
                             ),
                           ),
@@ -354,6 +372,8 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   }
 
   Widget _buildListView() {
+    final isMobile = Responsive.isMobile(context);
+
     // Counts for tabs
     final activePartnersCount = _users.where((u) {
       final r = u['role']?.toString().toLowerCase() ?? '';
@@ -421,10 +441,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         Container(
           decoration: BoxDecoration(
             color: _cardBg,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
             border: Border.all(color: _cardBorder),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(isMobile ? 14 : 20),
           child: Column(
             children: [
               // Search controls
@@ -458,7 +478,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(110, 48),
+                      minimumSize: const Size(90, 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -482,22 +502,38 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              _tableHeader(),
-              const SizedBox(height: 8),
-              if (filtered.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: Text(
-                      _currentTab == 0 || _currentTab == 2
-                          ? 'No active users found'
-                          : 'No pending approvals',
-                      style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _tableHeader(),
+                          const SizedBox(height: 4),
+                          if (filtered.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 50),
+                              child: Center(
+                                child: Text(
+                                  _currentTab == 0 || _currentTab == 2
+                                      ? 'No active users found'
+                                      : 'No pending approvals',
+                                  style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+                                ),
+                              ),
+                            )
+                          else
+                            ...filtered.map(_tableRow),
+                        ],
+                      ),
                     ),
-                  ),
-                )
-              else
-                ...filtered.map(_tableRow),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -532,21 +568,54 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   }
 
   Widget _tableHeader() {
-    final headers = ['FULL NAME', 'EMAIL ADDRESS', 'ROLE TYPE', 'STATUS', 'ACTIONS'];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
       child: Row(
-        children: headers
-            .map(
-              (h) => Expanded(
-                child: Text(
-                  h,
-                  style: AppTextStyles.tableHeader(_hintText),
-                ),
-              ),
-            )
-            .toList(),
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text('FULL NAME', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('EMAIL ADDRESS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('ROLE TYPE', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('STATUS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text('ACTIONS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -563,56 +632,96 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final displayName = '$prefix$name';
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(child: Text(displayName, style: AppTextStyles.body(_titleColor))),
-          Expanded(child: Text(email, style: AppTextStyles.body(_titleColor))),
-          Expanded(child: Text(role, style: AppTextStyles.body(_titleColor))),
           Expanded(
-            child: Row(
-              children: [
-                Container(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                displayName,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                email,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                role,
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: status == 'ACTIVE' 
-                        ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1) 
-                        : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.1),
+                        ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15) 
+                        : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     status,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                       color: status == 'ACTIVE' ? PiggyTrunkTheme.ptSuccess : PiggyTrunkTheme.ptAccent,
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
           Expanded(
-            child: Row(
-              children: [
-                if (status == 'PENDING')
-                  IconButton(
-                    onPressed: () => _approveUser(userId, name),
-                    icon: const Icon(Icons.check_circle_outline, size: 24, color: Colors.green),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Approve User',
-                  )
-                else if (status == 'ACTIVE')
-                  IconButton(
-                    onPressed: () => _suspendUser(userId, name),
-                    icon: const Icon(Icons.block, size: 24, color: Colors.red),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Suspend User',
-                  ),
-              ],
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Row(
+                children: [
+                  if (status == 'PENDING')
+                    IconButton(
+                      onPressed: () => _approveUser(userId, name),
+                      icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Approve User',
+                    )
+                  else if (status == 'ACTIVE')
+                    IconButton(
+                      onPressed: () => _suspendUser(userId, name),
+                      icon: Icon(Icons.block_rounded, size: 22, color: PiggyTrunkTheme.ptAccent),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Suspend User',
+                    ),
+                ],
+              ),
             ),
           ),
         ],

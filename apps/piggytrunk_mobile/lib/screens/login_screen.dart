@@ -95,11 +95,11 @@ class _LoginScreenState extends State<LoginScreen> {
           .or('auth_user_id.eq.${user.id},supabase_user_id.eq.${user.id},email.eq.${user.email}')
           .maybeSingle();
 
-      final String rawStatus = (userData?['status'] ?? 'active').toString();
+      final String rawStatus = (userData?['status'] ?? 'Pending').toString();
       final String statusLower = rawStatus.toLowerCase();
       final String role = userData?['role']?.toString() ?? targetRole;
 
-      if (statusLower == 'pending') {
+      if (statusLower == 'pending' || statusLower == 'inactive') {
         await Supabase.instance.client.auth.signOut();
         if (mounted) _showPendingDialog();
       } else {
@@ -127,6 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final result = await _googleAuthService.signInWithGoogle(
         targetRole: targetRole,
+        isSignUpMode: false,
       );
 
       if (result['success'] == true) {

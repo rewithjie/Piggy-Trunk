@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../providers/admin_profile_provider.dart';
+import '../utils/responsive.dart';
 import '../main.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -169,31 +170,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Theme.of(context);
+    final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _surfaceDark,
+              child: AdminSidebar(
+                currentRoute: '/settings',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
-
         children: [
-          AdminSidebar(
-            currentRoute: '/settings',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/settings',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
                 const ScreenTopBar(),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                    padding: EdgeInsets.all(isMobile ? 12 : 20),
                     child: Center(
                       child: Container(
                         constraints: const BoxConstraints(maxWidth: 1400),
                         decoration: BoxDecoration(
                           color: _surfaceDark.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(isMobile ? 14 : 20),
                         ),
-                        padding: const EdgeInsets.all(26),
+                        padding: EdgeInsets.all(isMobile ? 14 : 26),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

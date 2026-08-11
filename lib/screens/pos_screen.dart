@@ -6,6 +6,7 @@ import '../models/pos_model.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/inventory_data_adapter.dart';
+import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../main.dart';
@@ -214,15 +215,27 @@ class _POSScreenState extends State<POSScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isSmall = Responsive.isSmallScreen(context);
+
     return Scaffold(
       backgroundColor: _bg,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _surface,
+              child: AdminSidebar(
+                currentRoute: '/pos',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
-
         children: [
-          AdminSidebar(
-            currentRoute: '/pos',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/pos',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [

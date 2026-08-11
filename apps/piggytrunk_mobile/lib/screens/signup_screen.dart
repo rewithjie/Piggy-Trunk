@@ -150,27 +150,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
             }
           }
 
-          // Trigger Realtime Notification for Admin Web & Admin App
-          try {
-            final roleDisplay = (targetRole == 'hog_raiser' || targetRole == 'raiser')
-                ? 'Hog Raiser'
-                : (targetRole == 'partner' ? 'Partner Investor' : 'Cashier');
-            await Supabase.instance.client.from('admin_notifications').insert({
-              'title': 'Bagong Rehistro ng User',
-              'message': 'Nag-register si $resolvedName ($email) bilang $roleDisplay at naghihintay ng approval.',
-              'type': 'user_registration',
-              'is_read': false,
-              'metadata': {
-                'role': targetRole,
-                'user_id': newUserId,
-                'name': resolvedName,
-                'email': email,
-              },
-            });
-          } catch (e) {
-            debugPrint('Admin notification insert notice: $e');
-          }
-
           // Send Welcome Registration Email to User via Resend
           try {
             EmailService().sendRegistrationEmail(
@@ -272,6 +251,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       final result = await _googleAuthService.signInWithGoogle(
         targetRole: targetRole,
+        isSignUpMode: true,
       );
 
       if (result['success'] == true) {

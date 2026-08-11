@@ -9,6 +9,7 @@ import '../models/product_model.dart';
 import '../models/product_log_model.dart';
 import '../theme/app_theme.dart';
 import '../utils/inventory_data_adapter.dart';
+import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../main.dart';
@@ -653,17 +654,28 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Theme.of(context);
+    final isSmall = Responsive.isSmallScreen(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _panelStart,
+              child: AdminSidebar(
+                currentRoute: '/inventory',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       endDrawer: _buildLogsDrawer(),
       body: Row(
-
         children: [
-          AdminSidebar(
-            currentRoute: '/inventory',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/inventory',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
@@ -678,6 +690,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildMainContent() {
+    final isMobile = Responsive.isMobile(context);
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -687,7 +701,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       child: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 1350),
@@ -698,45 +712,166 @@ class _InventoryScreenState extends State<InventoryScreen> {
               end: Alignment.centerRight,
             ),
             border: Border.all(color: _panelBorder, width: 1),
-            borderRadius: BorderRadius.circular(34),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
           ),
-          padding: const EdgeInsets.fromLTRB(34, 28, 34, 32),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 14 : 34,
+            vertical: isMobile ? 16 : 32,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Inventory',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: _titleColor,
-                      letterSpacing: -0.04,
+              if (isMobile)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Inventory',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: _titleColor,
+                        letterSpacing: -0.04,
+                      ),
                     ),
-                  ),
-                  if (_activeTab == 0)
-                    Row(
-                      children: [
-                        Builder(
-                          builder: (context) => OutlinedButton.icon(
-                            onPressed: () async {
-                              setState(() {
-                                _filterProductId = null;
-                                _filterProductName = null;
-                                _selectedLogFilter = null;
-                              });
-                              _loadLogs();
-                              Scaffold.of(context).openEndDrawer();
-                            },
+                    if (_activeTab == 0) ...[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Builder(
+                            builder: (context) => OutlinedButton.icon(
+                              onPressed: () async {
+                                setState(() {
+                                  _filterProductId = null;
+                                  _filterProductName = null;
+                                  _selectedLogFilter = null;
+                                });
+                                _loadLogs();
+                                Scaffold.of(context).openEndDrawer();
+                              },
+                              icon: Icon(
+                                Icons.history_toggle_off_rounded,
+                                size: 18,
+                                color: _titleColor,
+                              ),
+                              label: Text(
+                                'Activity Logs',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _titleColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: _fieldBg,
+                                side: BorderSide(color: _panelBorder),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _openRestockDialog,
                             icon: Icon(
-                              Icons.history_toggle_off_rounded,
+                              Icons.add_shopping_cart,
                               size: 18,
                               color: _titleColor,
                             ),
                             label: Text(
-                              'Activity Logs',
+                              'Restock',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _titleColor,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              backgroundColor: _fieldBg,
+                              side: BorderSide(color: _panelBorder),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () => setState(() => _showAddProductForm = true),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(
+                              'Add Product',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: _whiteButtonStyle(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Inventory',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        color: _titleColor,
+                        letterSpacing: -0.04,
+                      ),
+                    ),
+                    if (_activeTab == 0)
+                      Row(
+                        children: [
+                          Builder(
+                            builder: (context) => OutlinedButton.icon(
+                              onPressed: () async {
+                                setState(() {
+                                  _filterProductId = null;
+                                  _filterProductName = null;
+                                  _selectedLogFilter = null;
+                                });
+                                _loadLogs();
+                                Scaffold.of(context).openEndDrawer();
+                              },
+                              icon: Icon(
+                                Icons.history_toggle_off_rounded,
+                                size: 18,
+                                color: _titleColor,
+                              ),
+                              label: Text(
+                                'Activity Logs',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _titleColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: _fieldBg,
+                                side: BorderSide(
+                                  color: _panelBorder,
+                                ),
+                                minimumSize: const Size(160, 52),
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: _openRestockDialog,
+                            icon: Icon(
+                              Icons.add_shopping_cart,
+                              size: 18,
+                              color: _titleColor,
+                            ),
+                            label: Text(
+                              'Restock',
                               style: GoogleFonts.plusJakartaSans(
                                 color: _titleColor,
                                 fontWeight: FontWeight.w700,
@@ -748,70 +883,46 @@ class _InventoryScreenState extends State<InventoryScreen> {
                               side: BorderSide(
                                 color: _panelBorder,
                               ),
-                              minimumSize: const Size(160, 52),
+                              minimumSize: const Size(150, 52),
                               padding: const EdgeInsets.symmetric(horizontal: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          onPressed: _openRestockDialog,
-                          icon: Icon(
-                            Icons.add_shopping_cart,
-                            size: 18,
-                            color: _titleColor,
-                          ),
-                          label: Text(
-                            'Restock',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _titleColor,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: () => setState(() => _showAddProductForm = true),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(
+                              'Add Product',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
+                            style: _whiteButtonStyle(),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: _fieldBg,
-                            side: BorderSide(
-                              color: _panelBorder,
-                            ),
-                            minimumSize: const Size(150, 52),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: () => setState(() => _showAddProductForm = true),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            'Add Product',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: _whiteButtonStyle(),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
+                        ],
+                      ),
+                  ],
+                ),
               const SizedBox(height: 16),
               // Tab Toggle Container
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: _fieldBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _panelBorder),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildTabButton(0, 'Inventory Products', Icons.description_outlined),
-                    _buildTabButton(1, 'Raiser Stock Requests', Icons.assignment_outlined),
-                  ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: _fieldBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _panelBorder),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildTabButton(0, 'Inventory Products', Icons.description_outlined),
+                      _buildTabButton(1, 'Raiser Stock Requests', Icons.assignment_outlined),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

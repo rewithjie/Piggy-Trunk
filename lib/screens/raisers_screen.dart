@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../utils/responsive.dart';
 
 class RaisersScreen extends StatelessWidget {
   const RaisersScreen({super.key});
@@ -11,16 +12,27 @@ class RaisersScreen extends StatelessWidget {
     // Theme-aware color getters
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     Color bgDark = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
+    final isSmall = Responsive.isSmallScreen(context);
     
     return Scaffold(
       backgroundColor: bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: bgDark,
+              child: AdminSidebar(
+                currentRoute: '/raisers',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
-
         children: [
-          AdminSidebar(
-            currentRoute: '/raisers',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/raisers',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [

@@ -132,9 +132,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     final isMobile = MediaQuery.of(context).size.width < 1120;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
-        color: _loginBg,
+      backgroundColor: isMobile ? _brandPanelBg : _loginBg,
+      body: SafeArea(
         child: isMobile
             ? _buildMobileLayout()
             : _buildDesktopLayout(),
@@ -156,12 +155,114 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   Widget _buildMobileLayout() {
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          _buildFormPanel(),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    _brandPanelBg,
+                    Color(0xFFEDF2F7),
+                    Colors.white,
+                  ],
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Top Brand Header for Mobile
+                  PiggyTrunkLogo(
+                    size: LogoSize.large,
+                    withBorder: false,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Piggy Trunk',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: _brandColor,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: 50,
+                    height: 3.5,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(99),
+                      color: _actionColor,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Elevated White Login Card
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF18314F).withValues(alpha: 0.08),
+                          blurRadius: 28,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Admin Login',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _brandColor,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Enter your credentials to access the dashboard',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 22),
+                        if (_errorMessage != null) ...[
+                          _buildAlert(_errorMessage!, isError: true),
+                          const SizedBox(height: 18),
+                        ],
+                        if (_successMessage != null) ...[
+                          _buildAlert(_successMessage!, isError: false),
+                          const SizedBox(height: 18),
+                        ],
+                        _buildLoginForm(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

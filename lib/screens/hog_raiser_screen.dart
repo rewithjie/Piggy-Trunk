@@ -6,6 +6,7 @@ import '../main.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../utils/responsive.dart';
 
 class HogRaiserScreen extends StatefulWidget {
   const HogRaiserScreen({super.key});
@@ -59,10 +60,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       return;
     }
     _loadRaisers();
-    _subscribeToRaisers();
+    _setupRealtimeSubscription();
   }
 
-  void _subscribeToRaisers() {
+  void _setupRealtimeSubscription() {
     _raisersSubscription = _supabase
         .channel('public:hog_raisers')
         .onPostgresChanges(
@@ -70,7 +71,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           schema: 'public',
           table: 'hog_raisers',
           callback: (payload) {
-            _loadRaisers(keyword: _searchCtrl.text);
+            _loadRaisers(silent: true);
           },
         )
         .subscribe();
@@ -85,10 +86,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRaisers({String keyword = ''}) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadRaisers({String? keyword, bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _loadErrorMessage = null;
+      });
+    }
+
     try {
-      // Self-healing sync: Ensure all hog_raiser users in app_users have a matching hog_raisers record
       try {
         final pendingAppUsers = await _supabase
             .from('app_users')
@@ -126,7 +132,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       dynamic query = _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(email, supabase_user_id)');
-      if (keyword.trim().isNotEmpty) {
+      if (keyword != null && keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }
       final response = await query.order('name', ascending: true);
@@ -172,17 +178,30 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     return int.tryParse(rawId.toString());
   }
 
-
   @override
   Widget build(BuildContext context) {
+    final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Scaffold(
       backgroundColor: _bgDark,
+      drawer: isSmall
+          ? Drawer(
+              backgroundColor: _cardBg,
+              child: AdminSidebar(
+                currentRoute: '/raisers',
+                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                isDrawer: true,
+              ),
+            )
+          : null,
       body: Row(
         children: [
-          AdminSidebar(
-            currentRoute: '/raisers',
-            onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-          ),
+          if (!isSmall)
+            AdminSidebar(
+              currentRoute: '/raisers',
+              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+            ),
           Expanded(
             child: Column(
               children: [
@@ -191,16 +210,19 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                          padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: Center(
                             child: Container(
                               constraints: const BoxConstraints(maxWidth: 1340),
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
                                 border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(30),
+                                borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
                               ),
-                              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 26,
+                                vertical: isMobile ? 16 : 26,
+                              ),
                               child: _buildListView(),
                             ),
                           ),
@@ -215,6 +237,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _buildListView() {
+    final isMobile = Responsive.isMobile(context);
     final activeCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'active').length;
     final pendingCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'pending').length;
 
@@ -236,10 +259,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           _buildErrorBanner(_loadErrorMessage!),
         ],
         const SizedBox(height: 20),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 10,
           children: [
             _buildTabButton(0, 'Active Raisers', activeCount),
-            const SizedBox(width: 12),
             _buildTabButton(1, 'Pending Approvals', pendingCount),
           ],
         ),
@@ -247,10 +271,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         Container(
           decoration: BoxDecoration(
             color: _cardBg,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
             border: Border.all(color: _cardBorder),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(isMobile ? 14 : 20),
           child: Column(
             children: [
               Row(
@@ -283,7 +307,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(100, 48),
+                      minimumSize: const Size(90, 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -295,20 +319,36 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              _tableHeader(),
-              const SizedBox(height: 8),
-              if (filteredRaisers.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 50),
-                  child: Center(
-                    child: Text(
-                      _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
-                      style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _tableHeader(),
+                          const SizedBox(height: 4),
+                          if (filteredRaisers.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 50),
+                              child: Center(
+                                child: Text(
+                                  _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
+                                  style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
+                                ),
+                              ),
+                            )
+                          else
+                            ...filteredRaisers.map(_tableRow),
+                        ],
+                      ),
                     ),
-                  ),
-                )
-              else
-                ...filteredRaisers.map(_tableRow),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -343,88 +383,182 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _tableHeader() {
-    final headers = ['HOG RAISER', 'ADDRESS', 'PHONE NUMBER', 'STATUS', 'ACTIONS'];
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder))),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
       child: Row(
-        children: headers
-            .map(
-              (h) => Expanded(
-                child: Text(
-                  h,
-                  style: AppTextStyles.tableHeader(_hintText),
-                ),
-              ),
-            )
-            .toList(),
+        children: [
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text('HOG RAISER', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('ADDRESS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('PHONE NUMBER', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('STATUS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text('ACTIONS', style: AppTextStyles.tableHeader(_hintText)),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _tableRow(Map<String, dynamic> row) {
+    final isPending = (row['account_status'] ?? '').toString().toLowerCase() == 'pending';
+    final statusText = (row['account_status'] ?? '').toString().toUpperCase();
+    final statusColor = statusText == 'ACTIVE' || statusText == 'APPROVED'
+        ? PiggyTrunkTheme.ptSuccess
+        : (statusText == 'PENDING' ? const Color(0xFFFFAA00) : Colors.redAccent);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Expanded(child: Text('Raiser - ${(row['name'] ?? '')}', style: AppTextStyles.body(_titleColor))),
-              Expanded(child: Text((row['address'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
-              Expanded(child: Text((row['phone'] ?? '').toString(), style: AppTextStyles.body(_titleColor))),
-              Expanded(child: Text((row['account_status'] ?? '').toString().toUpperCase(), style: AppTextStyles.body(_titleColor))),
-              Expanded(
-                child: (row['account_status'] ?? '').toString().toLowerCase() == 'pending'
-                    ? Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => _approveRaiserDirectly(row),
-                            icon: const Icon(Icons.check_circle_outline, size: 24, color: Colors.green),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Approve Raiser',
-                          ),
-                          const SizedBox(width: 12),
-                          IconButton(
-                            onPressed: () => _deleteRaiser(row),
-                            icon: Icon(Icons.close_rounded, size: 24, color: _accentDark),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Reject',
-                          ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => _showRaiserDetailsDialog(row),
-                            icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'Tingnan ang Detalye',
-                          ),
-                          const SizedBox(width: 10),
-                          IconButton(
-                            onPressed: () => _showEditRaiserDialog(row),
-                            icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.amber),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'I-edit ang Raiser',
-                          ),
-                          const SizedBox(width: 10),
-                          IconButton(
-                            onPressed: () => _archiveRaiser(row),
-                            icon: const Icon(Icons.archive_outlined, size: 20, color: Colors.orangeAccent),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            tooltip: 'I-archive ang Raiser',
-                          ),
-                        ],
-                      ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                'Raiser - ${(row['name'] ?? '')}',
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                (row['address'] ?? '').toString(),
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                (row['phone'] ?? '').toString(),
+                style: AppTextStyles.body(_titleColor),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: AppTextStyles.jakarta(
+                      color: statusColor,
+                      size: 11,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: isPending
+                  ? Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => _approveRaiserDirectly(row),
+                          icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'Approve Raiser',
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton(
+                          onPressed: () => _deleteRaiser(row),
+                          icon: Icon(Icons.close_rounded, size: 22, color: _accentDark),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'Reject',
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => _showRaiserDetailsDialog(row),
+                          icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'Tingnan ang Detalye',
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _showEditRaiserDialog(row),
+                          icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.amber),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'I-edit ang Raiser',
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _archiveRaiser(row),
+                          icon: const Icon(Icons.archive_outlined, size: 20, color: Colors.orangeAccent),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          tooltip: 'I-archive ang Raiser',
+                        ),
+                      ],
+                    ),
+            ),
           ),
         ],
       ),

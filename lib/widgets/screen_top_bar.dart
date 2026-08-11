@@ -6,16 +6,19 @@ import '../theme/app_text_styles.dart';
 import '../providers/admin_profile_provider.dart';
 import '../providers/admin_notifications_provider.dart';
 import '../models/admin_notification_model.dart';
+import '../utils/responsive.dart';
 
 /// Reusable Top Bar Widget with Notification & Admin Profile (No Title)
 class ScreenTopBar extends ConsumerWidget {
   final int notificationCount;
   final bool showDivider;
+  final bool? showHamburger;
 
   const ScreenTopBar({
     super.key,
     this.notificationCount = 1,
     this.showDivider = true,
+    this.showHamburger,
   });
 
   @override
@@ -38,8 +41,8 @@ class ScreenTopBar extends ConsumerWidget {
     final resolvedRole = adminProfile.isHydrated
         ? adminProfile.role
         : (metadataRole.isNotEmpty ? metadataRole : 'System Administrator');
-    final resolvedPhoto = adminProfile.isHydrated
-        ? (adminProfile.profilePictureUrl ?? '')
+    final resolvedPhoto = adminProfile.profilePictureUrl != null && adminProfile.profilePictureUrl!.isNotEmpty
+        ? adminProfile.profilePictureUrl!
         : (metadataPhoto.isNotEmpty ? metadataPhoto : '');
 
     final shouldHydrateFromMetadata =
@@ -63,9 +66,15 @@ class ScreenTopBar extends ConsumerWidget {
     final mutedColor = isDark ? const Color(0xff9cb0c9) : PiggyTrunkTheme.ptMuted;
     final accentDark = isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
     final badgeTextColor = Colors.white;
+    final isSmall = showHamburger ?? Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
+
     return Container(
-      constraints: const BoxConstraints(minHeight: 82),
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+      constraints: const BoxConstraints(minHeight: 70),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 32,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: surfaceColor,
         border: showDivider
@@ -80,6 +89,18 @@ class ScreenTopBar extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          if (isSmall) ...[
+            Builder(
+              builder: (innerContext) => IconButton(
+                icon: Icon(Icons.menu_rounded, color: textColor, size: 28),
+                tooltip: 'Open navigation',
+                onPressed: () {
+                  Scaffold.of(innerContext).openDrawer();
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           const Spacer(),
           Flexible(
             child: Align(
@@ -241,20 +262,8 @@ class ScreenTopBar extends ConsumerWidget {
                     else ...[
                       ...notifications.take(5).map((notif) {
                         return PopupMenuItem<void>(
-                          onTap: () {
-                            AdminNotificationService.markAsRead(notif.notificationId);
-                            if (notif.type == 'new_raiser' || notif.type == 'hog_report') {
-                              Navigator.of(context).pushNamed('/raisers');
-                            } else if (notif.type == 'new_partner') {
-                              Navigator.of(context).pushNamed('/users', arguments: 'pending_partner');
-                            } else if (notif.type == 'new_cashier') {
-                              Navigator.of(context).pushNamed('/users', arguments: 'pending_cashier');
-                            } else if (notif.type == 'stock_request' || notif.type == 'inventory_restock') {
-                              Navigator.of(context).pushNamed('/inventory', arguments: 'stock_request');
-                            } else {
-                              Navigator.of(context).pushNamed('/users', arguments: 'pending_partner');
-                            }
-                          },
+                          enabled: true,
+                          onTap: null, // Disabled click navigation (Plain Informational Notification)
                           child: Container(
                             width: 320,
                             padding: const EdgeInsets.symmetric(vertical: 6),
@@ -362,9 +371,9 @@ class ScreenTopBar extends ConsumerWidget {
                     Navigator.of(context).pushNamed('/settings');
                   },
                   child: Container(
-                  constraints: const BoxConstraints(maxWidth: 260),
+                  constraints: BoxConstraints(maxWidth: isMobile ? 180 : 260),
                   height: 50,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14),
                   decoration: BoxDecoration(
                     border: Border.all(
                       color: borderColor,
