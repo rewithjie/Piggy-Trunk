@@ -33,7 +33,7 @@ class _AdminMobileFeedAllocationScreenState
   int _currentAvailableStock = 420;
   int _amountOfSacks = 15;
   int _kiloRequested = 1;
-  bool _isSubmitting = false;
+  final bool _isSubmitting = false;
 
   final int _selectedTabIndex = 2; // Investment / Allocation
 

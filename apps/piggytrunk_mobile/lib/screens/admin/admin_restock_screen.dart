@@ -34,7 +34,7 @@ class _AdminMobileRestockScreenState extends State<AdminMobileRestockScreen> {
   late double _currentPrice;
   late int _currentUnits;
 
-  int _selectedTabIndex = 1; // Default to Inventory tab
+  final int _selectedTabIndex = 1; // Default to Inventory tab
 
   @override
   void initState() {
