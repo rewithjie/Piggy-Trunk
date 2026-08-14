@@ -423,6 +423,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
         ? _products.firstWhere((p) => p.id == initialProduct.id)
         : _products.first;
 
+    final isSpecificProduct = initialProduct != null;
     final quantityCtrl = TextEditingController();
     bool isSubmittingRestock = false;
     String? restockError;
@@ -462,57 +463,118 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Text(
-                          'Restock Inventory',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: _titleColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                        Expanded(
+                          child: Text(
+                            isSpecificProduct ? 'Restock ${selectedProduct.name}' : 'Restock Inventory',
+                            style: GoogleFonts.plusJakartaSans(
+                              color: _titleColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    _formLabel('SELECT PRODUCT *'),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<Product>(
-                      initialValue: selectedProduct,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: _fieldBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _cardBorder),
+                    if (isSpecificProduct) ...[
+                      _formLabel('PRODUCT'),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: _fieldBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _cardBorder),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldFocus),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedProduct.name,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _titleColor,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Category: ${selectedProduct.category}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _mutedColor,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Current Stock: ${selectedProduct.units}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _titleColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      dropdownColor: _fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _fieldText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      items: _products.map((prod) {
-                        return DropdownMenuItem<Product>(
-                          value: prod,
-                          child: Text(
-                            '[${prod.category}] ${prod.name} (Stock: ${prod.units} units)',
-                            overflow: TextOverflow.ellipsis,
+                    ] else ...[
+                      _formLabel('SELECT PRODUCT *'),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<Product>(
+                        initialValue: selectedProduct,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: _fieldBg,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _cardBorder),
                           ),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => selectedProduct = val);
-                        }
-                      },
-                    ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: _fieldFocus),
+                          ),
+                        ),
+                        dropdownColor: _fieldBg,
+                        borderRadius: BorderRadius.circular(12),
+                        style: GoogleFonts.plusJakartaSans(
+                          color: _fieldText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        items: _products.map((prod) {
+                          return DropdownMenuItem<Product>(
+                            value: prod,
+                            child: Text(
+                              '[${prod.category}] ${prod.name} (Stock: ${prod.units} units)',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setDialogState(() => selectedProduct = val);
+                          }
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _formLabel('ADD QUANTITY (UNITS) *'),
                     const SizedBox(height: 8),
@@ -857,49 +919,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _openRestockDialog,
-                              icon: Icon(
-                                Icons.add_shopping_cart,
-                                size: 16,
-                                color: _titleColor,
-                              ),
+                            child: ElevatedButton.icon(
+                              onPressed: () => setState(() => _showAddProductForm = true),
+                              icon: const Icon(Icons.add, size: 18),
                               label: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  'Restock',
+                                  'Add Product',
                                   style: GoogleFonts.plusJakartaSans(
-                                    color: _titleColor,
-                                    fontWeight: FontWeight.w700,
                                     fontSize: 13,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: _fieldBg,
-                                side: BorderSide(color: _panelBorder),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
+                              style: _whiteButtonStyle(),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => setState(() => _showAddProductForm = true),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            'Add Product',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: _whiteButtonStyle(),
-                        ),
                       ),
                     ],
                   ],
@@ -953,32 +989,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: _openRestockDialog,
-                            icon: Icon(
-                              Icons.add_shopping_cart,
-                              size: 18,
-                              color: _titleColor,
-                            ),
-                            label: Text(
-                              'Restock',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: _titleColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: _fieldBg,
-                              side: BorderSide(
-                                color: _panelBorder,
-                              ),
-                              minimumSize: const Size(150, 52),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -1037,36 +1047,21 @@ class _InventoryScreenState extends State<InventoryScreen> {
     if (_products.isEmpty) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 80, horizontal: 24),
+        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
         decoration: BoxDecoration(
           color: _cardBg,
           border: Border.all(color: _cardBorder),
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Column(
-          children: [
-            Text(
-              _isArchiveMode ? 'No archived products found.' : 'No products found.',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: _titleColor,
-              ),
+        child: Center(
+          child: Text(
+            _isArchiveMode ? 'No archived products found.' : 'No products found.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: _titleColor,
             ),
-            const SizedBox(height: 20),
-            if (!_isArchiveMode)
-              ElevatedButton(
-                onPressed: () => setState(() => _showAddProductForm = true),
-                style: _whiteButtonStyle(minWidth: 220),
-                child: Text(
-                  'Create First Product',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       );
     }
@@ -2038,7 +2033,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         ),
                 ),
                 SizedBox(height: isMobile ? 8 : 10),
-                // Action Buttons Row (Wider & Taller Buttons)
+                // Action Buttons Row (Edit, Restock, Logs)
                 Row(
                   children: [
                     Expanded(

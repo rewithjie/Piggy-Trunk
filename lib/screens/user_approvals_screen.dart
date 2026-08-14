@@ -244,6 +244,81 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     }
   }
 
+  Future<void> _rejectUser(int userId, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _cardBg,
+        title: Text(
+          'Confirm Rejection',
+          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+        ),
+        content: Text(
+          'Are you sure you want to reject the registration for "$name"?',
+          style: AppTextStyles.body(_titleColor),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.button(_hintText),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Reject',
+              style: AppTextStyles.button(Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _supabase.from('app_users').delete().eq('user_id', userId);
+      try {
+        await _supabase.from('cashiers').delete().eq('user_id', userId);
+      } catch (_) {}
+      try {
+        await _supabase.from('partner_investors').delete().eq('user_id', userId);
+      } catch (_) {}
+      try {
+        await _supabase.from('hog_raisers').delete().eq('user_id', userId);
+      } catch (_) {}
+
+      await _loadUsers(keyword: _searchCtrl.text);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Registration for "$name" rejected successfully.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Rejection failed: $e', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _suspendUser(int userId, String name) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -622,14 +697,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
 
   Widget _tableRow(Map<String, dynamic> row) {
     final userId = int.tryParse(row['user_id'].toString()) ?? 0;
-    final name = row['name']?.toString() ?? '';
+    final name = (row['name']?.toString() ?? '').trim();
     final email = row['email']?.toString() ?? '';
     final role = row['role']?.toString().toUpperCase() ?? '';
     final status = row['status']?.toString().toUpperCase() ?? '';
-
-    final String roleLower = row['role']?.toString().toLowerCase() ?? '';
-    final String prefix = roleLower == 'partner' ? 'Partner Investor - ' : 'Cashier - ';
-    final displayName = '$prefix$name';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -644,7 +715,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Text(
-                displayName,
+                name.isEmpty ? 'User' : name,
                 style: AppTextStyles.body(_titleColor),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -704,15 +775,23 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               padding: const EdgeInsets.only(left: 8),
               child: Row(
                 children: [
-                  if (status == 'PENDING')
+                  if (status == 'PENDING') ...[
                     IconButton(
                       onPressed: () => _approveUser(userId, name),
                       icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Approve User',
-                    )
-                  else if (status == 'ACTIVE')
+                    ),
+                    const SizedBox(width: 10),
+                    IconButton(
+                      onPressed: () => _rejectUser(userId, name),
+                      icon: const Icon(Icons.cancel_outlined, size: 22, color: Colors.redAccent),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Reject Registration',
+                    ),
+                  ] else if (status == 'ACTIVE')
                     IconButton(
                       onPressed: () => _suspendUser(userId, name),
                       icon: Icon(Icons.block_rounded, size: 22, color: PiggyTrunkTheme.ptAccent),

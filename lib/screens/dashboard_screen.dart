@@ -586,7 +586,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            'Raiser - $name',
+                            name,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -635,59 +635,97 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final activeIndex = lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
     final normalizedIndex = activeIndex < 0 ? 0 : activeIndex;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 540),
-        child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 650;
+
+        Widget buildStepContent(int index) {
+          final stage = lifecycleStages[index];
+          final isDone = index < normalizedIndex;
+          final isCurrent = index == normalizedIndex;
+
+          Color bgColor;
+          Color fgColor;
+          IconData icon;
+          if (isDone) {
+            bgColor = const Color(0xFF10B981);
+            fgColor = Colors.white;
+            icon = Icons.check;
+          } else if (isCurrent) {
+            bgColor = _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
+            fgColor = Colors.white;
+            icon = Icons.priority_high_rounded;
+          } else {
+            bgColor = _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+            fgColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+            icon = Icons.radio_button_unchecked;
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  shape: BoxShape.circle,
+                  border: isCurrent
+                      ? Border.all(
+                          color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          width: 2,
+                        )
+                      : null,
+                ),
+                child: Center(
+                  child: Icon(icon, size: 20, color: fgColor),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                stage,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: isCurrent ? FontWeight.w800 : (isDone ? FontWeight.w700 : FontWeight.w600),
+                  color: isCurrent
+                      ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                      : (isDone ? _textDark : _mutedDark),
+                ),
+              ),
+            ],
+          );
+        }
+
+        if (isMobile) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(lifecycleStages.length, (index) {
+                return Padding(
+                  padding: EdgeInsets.only(right: index == lifecycleStages.length - 1 ? 0 : 20),
+                  child: SizedBox(
+                    width: 76,
+                    child: buildStepContent(index),
+                  ),
+                );
+              }),
+            ),
+          );
+        }
+
+        // On Desktop: Evenly spaced across the card with no connecting lines
+        return Row(
           children: List.generate(lifecycleStages.length, (index) {
-            final stage = lifecycleStages[index];
-            final isDone = index < normalizedIndex;
-            final isCurrent = index == normalizedIndex;
-
-            Color bgColor;
-            Color fgColor;
-            IconData icon;
-            if (isDone) {
-              bgColor = const Color(0xFF10B981);
-              fgColor = Colors.white;
-              icon = Icons.check;
-            } else if (isCurrent) {
-              bgColor = _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
-              fgColor = _isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
-              icon = Icons.priority_high_rounded;
-            } else {
-              bgColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
-              fgColor = Colors.white;
-              icon = Icons.radio_button_unchecked;
-            }
-
-            return SizedBox(
-              width: 90,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: bgColor,
-                    child: Icon(icon, size: 20, color: fgColor),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    stage,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: _textDark,
-                    ),
-                  ),
-                ],
+            return Expanded(
+              child: Center(
+                child: buildStepContent(index),
               ),
             );
           }),
-        ),
-      ),
+        );
+      },
     );
   }
 }

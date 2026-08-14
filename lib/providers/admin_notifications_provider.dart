@@ -9,10 +9,27 @@ final adminNotificationsProvider = StreamProvider<List<AdminNotification>>((ref)
       .from('admin_notifications')
       .stream(primaryKey: ['notification_id'])
       .map((rows) {
-        final list = rows.map((row) => AdminNotification.fromJson(row)).toList();
+        final rawList = rows.map((row) => AdminNotification.fromJson(row)).toList();
         // Sort descending by created_at so newest notifications are first
-        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return list;
+        rawList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+        // Deduplicate by notification_id and title+message signature to eliminate redundant notifications
+        final seenIds = <int>{};
+        final seenSignatures = <String>{};
+        final uniqueList = <AdminNotification>[];
+
+        for (final notif in rawList) {
+          if (seenIds.contains(notif.notificationId)) continue;
+
+          final sig = '${notif.title.trim().toLowerCase()}_${notif.message.trim().toLowerCase()}';
+          if (seenSignatures.contains(sig)) continue;
+
+          seenIds.add(notif.notificationId);
+          seenSignatures.add(sig);
+          uniqueList.add(notif);
+        }
+
+        return uniqueList;
       });
 });
 

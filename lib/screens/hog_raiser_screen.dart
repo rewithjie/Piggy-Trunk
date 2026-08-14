@@ -131,7 +131,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
       dynamic query = _supabase
           .from('hog_raisers')
-          .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(email, supabase_user_id)');
+          .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(name, email, supabase_user_id)');
       if (keyword != null && keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }
@@ -141,8 +141,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       setState(() {
         _raisers = (response as List).cast<Map<String, dynamic>>().map((r) {
           final appUsers = r['app_users'] as Map<String, dynamic>?;
+          final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
+          final raiserName = (r['name'] ?? '').toString().trim();
+          final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+              ? googleOrAppName
+              : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
+
           return {
             ...r,
+            'name': resolvedFullName,
             'email': appUsers?['email'] ?? '',
             'supabase_user_id': appUsers?['supabase_user_id'],
           };
@@ -413,7 +420,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: Text('HOG RAISER', style: AppTextStyles.tableHeader(_hintText)),
+              child: Text('NAME', style: AppTextStyles.tableHeader(_hintText)),
             ),
           ),
           Expanded(
@@ -469,7 +476,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Text(
-                'Raiser - ${(row['name'] ?? '')}',
+                (row['name'] ?? '').toString(),
                 style: AppTextStyles.body(_titleColor),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -540,11 +547,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                         const SizedBox(width: 8),
                         IconButton(
                           onPressed: () => _deleteRaiser(row),
-                          icon: Icon(Icons.close_rounded, size: 22, color: _accentDark),
+                          icon: const Icon(Icons.cancel_outlined, size: 22, color: Colors.redAccent),
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Reject',
+                          tooltip: 'Reject Registration',
                         ),
                       ],
                     )

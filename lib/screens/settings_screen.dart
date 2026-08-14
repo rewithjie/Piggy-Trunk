@@ -422,38 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 12),
           _textFieldLabel('Role'),
           _textField(_roleController),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: _surfaceDark.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _borderDark),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Access',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _textDark,
-                  ),
-                ),
-                Text(
-                  'ADMIN',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _textDark,
-                    letterSpacing: 0.08,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             children: [
               _solidButton(
@@ -794,24 +763,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 80,
-        maxHeight: 200,
-        maxWidth: 200,
+        imageQuality: 85,
+        maxHeight: 400,
+        maxWidth: 400,
       );
 
       if (pickedFile == null || !mounted) return;
 
       final bytes = await pickedFile.readAsBytes();
       
+      // Instant visual feedback
       setState(() {
+        _selectedImageBytes = bytes;
         _isUploadingImage = true;
       });
-
-      _showThemedSnackBar(
-        'Uploading profile picture to Supabase storage...',
-        backgroundColor: const Color(0xFF315C8F),
-        duration: const Duration(seconds: 2),
-      );
 
       final fileName = 'admin-profile-${DateTime.now().millisecondsSinceEpoch}.png';
       final filePath = 'admin_profiles/$fileName';
@@ -840,6 +805,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         await _supabase.auth.updateUser(
           UserAttributes(data: existingMetadata),
         );
+
+        try {
+          await _supabase.from('app_users').update({
+            'profile_picture_url': displayUrl,
+          }).eq('email', user.email!);
+        } catch (_) {}
       }
 
       if (mounted) {
@@ -850,17 +821,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _isUploadingImage = false;
         });
 
-        // Update provider immediately so it syncs across top bars
+        // Update provider immediately so it syncs across top bars in real-time
         ref.read(adminProfileProvider.notifier).updateProfile(
               adminName: _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
               email: _emailController.text,
               role: _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
               profilePictureUrl: displayUrl,
+              clearProfilePicture: false,
+              isHydrated: true,
             );
 
         _showThemedSnackBar(
           'Profile picture updated successfully!',
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
@@ -949,14 +923,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _resetForm() async {
     _adminNameController.text = 'Admin';
     _roleController.text = 'System Administrator';
-    ref.read(adminProfileProvider.notifier).updateProfile(
-          adminName: 'Admin',
-          role: 'System Administrator',
-          email: _emailController.text.trim(),
-          profilePictureUrl: null,
-          clearProfilePicture: true,
-          isHydrated: true,
-        );
+
+    // Instant local state reset
     setState(() {
       _selectedImageBytes = null;
       _profilePictureUrl = null;
@@ -972,6 +940,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _obscureNewPassword = true;
       _obscureConfirmPassword = true;
     });
+
+    // Instant provider update for top bar sync
+    ref.read(adminProfileProvider.notifier).updateProfile(
+          adminName: 'Admin',
+          role: 'System Administrator',
+          email: _emailController.text.trim(),
+          profilePictureUrl: null,
+          clearProfilePicture: true,
+          isHydrated: true,
+        );
 
     try {
       final user = _supabase.auth.currentUser;
@@ -1001,6 +979,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _showThemedSnackBar(
       'Form reset to default admin values.',
       backgroundColor: Colors.orange,
+      duration: const Duration(seconds: 2),
     );
   }
 

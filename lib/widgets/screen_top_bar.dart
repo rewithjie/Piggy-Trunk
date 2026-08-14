@@ -41,8 +41,8 @@ class ScreenTopBar extends ConsumerWidget {
     final resolvedRole = adminProfile.isHydrated
         ? adminProfile.role
         : (metadataRole.isNotEmpty ? metadataRole : 'System Administrator');
-    final resolvedPhoto = adminProfile.profilePictureUrl != null && adminProfile.profilePictureUrl!.isNotEmpty
-        ? adminProfile.profilePictureUrl!
+    final resolvedPhoto = adminProfile.isHydrated
+        ? (adminProfile.profilePictureUrl ?? '')
         : (metadataPhoto.isNotEmpty ? metadataPhoto : '');
 
     final shouldHydrateFromMetadata =

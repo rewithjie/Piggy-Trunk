@@ -1266,35 +1266,21 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                 if (investments.isEmpty)
                                   Container(
                                     width: tableWidth,
-                                    padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 20),
+                                    padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
                                     decoration: BoxDecoration(
                                       border: Border(
                                         bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
                                       ),
                                     ),
-                                    child: Column(
-                                      children: [
-                                        Text(
-                                          'No investments found.',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.w600,
-                                            color: _titleColor,
-                                          ),
+                                    child: Center(
+                                      child: Text(
+                                        'No investments found.',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: _titleColor,
                                         ),
-                                        const SizedBox(height: 20),
-                                        ElevatedButton(
-                                          onPressed: () => _openInlineForm(),
-                                          style: _primaryWhiteButtonStyle(minWidth: 240),
-                                          child: Text(
-                                            'Create First Investment',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                      ),
                                     ),
                                   )
                                 else
