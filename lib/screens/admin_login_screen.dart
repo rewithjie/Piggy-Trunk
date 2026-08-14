@@ -28,6 +28,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
+  String? _emailError;
+  String? _passwordError;
 
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
@@ -74,16 +76,42 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   void _clearMessages() {
-    setState(() {
-      _errorMessage = null;
-      _successMessage = null;
-    });
+    if (_errorMessage != null || _successMessage != null || _emailError != null || _passwordError != null) {
+      setState(() {
+        _errorMessage = null;
+        _successMessage = null;
+        _emailError = null;
+        _passwordError = null;
+      });
+    }
   }
 
   Future<void> _handleLogin() async {
     _clearMessages();
 
-    if (!_formKey.currentState!.validate()) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    String? emailErr;
+    String? passwordErr;
+
+    if (email.isEmpty) {
+      emailErr = 'Please enter your email address.';
+    } else if (!email.contains('@') || !email.contains('.')) {
+      emailErr = 'Please enter a valid email address.';
+    }
+
+    if (password.isEmpty) {
+      passwordErr = 'Please enter your password.';
+    } else if (password.length < 6) {
+      passwordErr = 'Password must be at least 6 characters.';
+    }
+
+    if (emailErr != null || passwordErr != null) {
+      setState(() {
+        _emailError = emailErr;
+        _passwordError = passwordErr;
+      });
       return;
     }
 
@@ -93,8 +121,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
     try {
       final result = await _authService.login(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
         rememberMe: _rememberMe,
       );
 
@@ -110,13 +138,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           }
         });
       } else {
+        final msg = (result['message'] ?? 'Invalid email or password. Please check your credentials.').toString();
         setState(() {
-          _errorMessage = result['message'] ?? 'Login failed. Please try again.';
+          _passwordError = msg;
         });
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'An error occurred: ${e.toString()}';
+        _passwordError = 'Invalid email or password. Please check your credentials.';
       });
     } finally {
       if (mounted) {
@@ -208,7 +237,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   // Elevated White Login Card
                   Container(
                     constraints: const BoxConstraints(maxWidth: 440),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
@@ -244,10 +273,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 22),
-                        if (_errorMessage != null) ...[
-                          _buildAlert(_errorMessage!, isError: true),
-                          const SizedBox(height: 18),
-                        ],
                         if (_successMessage != null) ...[
                           _buildAlert(_successMessage!, isError: false),
                           const SizedBox(height: 18),
@@ -279,10 +304,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               children: [
                 _buildTitle(),
                 const SizedBox(height: 24),
-                if (_errorMessage != null) ...[
-                  _buildAlert(_errorMessage!, isError: true),
-                  const SizedBox(height: 24),
-                ],
                 if (_successMessage != null) ...[
                   _buildAlert(_successMessage!, isError: false),
                   const SizedBox(height: 24),
@@ -326,7 +347,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       child: Column(
         children: [
           _buildEmailField(),
-          const SizedBox(height: 23),
+          const SizedBox(height: 20),
           _buildPasswordField(),
           const SizedBox(height: 18),
           _buildFormMeta(),
@@ -357,25 +378,21 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             fontWeight: FontWeight.w500,
           ),
           decoration: LoginStyles.emailFieldDecoration(
-            hintText: 'admin@piggytrunk',
+            hintText: 'admin@piggytrunk.com',
+            hasError: _emailError != null,
             prefixIcon: const Icon(
               Icons.mail_outline_rounded,
               size: 20,
               color: LoginStyles.fieldIconColor,
             ),
           ),
-          validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Email is required';
+          onChanged: (_) {
+            if (_emailError != null || _passwordError != null) {
+              _clearMessages();
             }
-            // Simple email validation - just check for @ symbol
-            if (!value!.contains('@')) {
-              return 'Please enter a valid email';
-            }
-            return null;
           },
-          onChanged: (_) => _clearMessages(),
         ),
+        if (_emailError != null) LoginStyles.buildInlineError(_emailError!),
       ],
     );
   }
@@ -401,6 +418,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           ),
           decoration: LoginStyles.passwordFieldDecoration(
             hintText: 'Enter your password',
+            hasError: _passwordError != null,
             suffixIcon: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
@@ -422,74 +440,67 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               ),
             ),
           ),
-          validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Password is required';
+          onChanged: (_) {
+            if (_emailError != null || _passwordError != null) {
+              _clearMessages();
             }
-            if (value!.length < 6) {
-              return 'Password must be at least 6 characters';
-            }
-            return null;
           },
-          onChanged: (_) => _clearMessages(),
         ),
+        if (_passwordError != null) LoginStyles.buildInlineError(_passwordError!),
       ],
     );
   }
 
   Widget _buildFormMeta() {
-    final isMobile = MediaQuery.of(context).size.width < 640;
-
-    return isMobile
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildRememberCheckbox(),
-              const SizedBox(height: 12),
-              _buildForgotPasswordLink(),
-            ],
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildRememberCheckbox(),
-              _buildForgotPasswordLink(),
-            ],
-          );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildRememberCheckbox(),
+        _buildForgotPasswordLink(),
+      ],
+    );
   }
 
   Widget _buildRememberCheckbox() {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Checkbox(
-          value: _rememberMe,
-          onChanged: (value) {
-            setState(() {
-              _rememberMe = value ?? false;
-            });
-          },
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          side: const BorderSide(
-            color: LoginStyles.checkboxColor,
-            width: 1.4,
-          ),
-          fillColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.selected)) {
-              return _actionColor;
-            }
-            return Colors.white;
-          }),
-          checkColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+        SizedBox(
+          width: 20,
+          height: 20,
+          child: Checkbox(
+            value: _rememberMe,
+            onChanged: (value) {
+              setState(() {
+                _rememberMe = value ?? false;
+              });
+            },
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            side: const BorderSide(
+              color: LoginStyles.checkboxColor,
+              width: 1.4,
+            ),
+            fillColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) {
+                return _actionColor;
+              }
+              return Colors.white;
+            }),
+            checkColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
           ),
         ),
+        const SizedBox(width: 6),
         Text(
-         'Remember this device',
+          'Remember this device',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 12,
             color: LoginStyles.labelText,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
@@ -507,10 +518,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         child: Text(
           'FORGOT PASSWORD?',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w700,
             color: LoginStyles.labelText,
-            letterSpacing: 0.08,
+            letterSpacing: 0,
             decoration: TextDecoration.underline,
           ),
         ),

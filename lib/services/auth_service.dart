@@ -59,9 +59,26 @@ class AuthService {
         },
       };
     } catch (e) {
+      String errorMessage = 'An unexpected error occurred. Please try again.';
+      if (e is AuthException) {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        } else if (msg.contains('email not confirmed')) {
+          errorMessage = 'Email address has not been confirmed.';
+        } else {
+          errorMessage = e.message;
+        }
+      } else {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('invalid login credentials') || errStr.contains('invalid_credentials')) {
+          errorMessage = 'Invalid email or password. Please check your credentials.';
+        }
+      }
+
       return {
         'success': false,
-        'message': 'Error: ${e.toString()}',
+        'message': errorMessage,
       };
     }
   }

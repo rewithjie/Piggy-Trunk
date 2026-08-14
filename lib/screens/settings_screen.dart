@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:io';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
@@ -23,7 +22,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final ImagePicker _imagePicker = ImagePicker();
   
-  File? _selectedImage;
   Uint8List? _selectedImageBytes;
   String? _profilePictureUrl;
   String? _profilePicturePath;
@@ -32,6 +30,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  String? _adminNameError;
+  String? _currentPasswordError;
+  String? _newPasswordError;
+  String? _confirmPasswordError;
 
   // Theme-aware color getters
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -41,6 +43,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Color get _textDark => _isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
   Color get _primaryDark => _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
+
+  Widget _buildInlineError(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 2, bottom: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1.5),
+            child: Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFE53E3E),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   final TextEditingController _adminNameController =
       TextEditingController(text: 'Admin');
@@ -380,7 +408,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 20),
           _textFieldLabel('Admin Name'),
-          _textField(_adminNameController),
+          _textField(
+            _adminNameController,
+            hasError: _adminNameError != null,
+            onChanged: (_) {
+              if (_adminNameError != null) setState(() => _adminNameError = null);
+            },
+          ),
+          if (_adminNameError != null) _buildInlineError(_adminNameError!),
           const SizedBox(height: 12),
           _textFieldLabel('Email'),
           _readOnlyTextField(_emailController),
@@ -478,7 +513,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             hint: 'Enter current password',
             obscure: _obscureCurrentPassword,
             onToggle: () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword),
+            hasError: _currentPasswordError != null,
+            onChanged: (_) {
+              if (_currentPasswordError != null) setState(() => _currentPasswordError = null);
+            },
           ),
+          if (_currentPasswordError != null) _buildInlineError(_currentPasswordError!),
           const SizedBox(height: 12),
           _textFieldLabel('New Password'),
           _passwordField(
@@ -486,7 +526,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             hint: 'Enter new password',
             obscure: _obscureNewPassword,
             onToggle: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+            hasError: _newPasswordError != null,
+            onChanged: (_) {
+              if (_newPasswordError != null) setState(() => _newPasswordError = null);
+            },
           ),
+          if (_newPasswordError != null) _buildInlineError(_newPasswordError!),
           const SizedBox(height: 12),
           _textFieldLabel('Confirm New Password'),
           _passwordField(
@@ -494,7 +539,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             hint: 'Confirm new password',
             obscure: _obscureConfirmPassword,
             onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+            hasError: _confirmPasswordError != null,
+            onChanged: (_) {
+              if (_confirmPasswordError != null) setState(() => _confirmPasswordError = null);
+            },
           ),
+          if (_confirmPasswordError != null) _buildInlineError(_confirmPasswordError!),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -532,9 +582,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _textField(TextEditingController controller) {
+  Widget _textField(
+    TextEditingController controller, {
+    bool hasError = false,
+    ValueChanged<String>? onChanged,
+  }) {
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       style: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         color: _textDark,
@@ -547,15 +602,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _borderDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _borderDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _primaryDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _primaryDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
       ),
     );
@@ -596,10 +660,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required String hint,
     required bool obscure,
     required VoidCallback onToggle,
+    bool hasError = false,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      onChanged: onChanged,
       style: GoogleFonts.plusJakartaSans(
         fontSize: 14,
         color: _textDark,
@@ -626,15 +693,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _borderDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _borderDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _primaryDark),
+          borderSide: BorderSide(
+            color: hasError ? const Color(0xFFE53E3E) : _primaryDark,
+            width: hasError ? 1.5 : 1,
+          ),
         ),
       ),
     );
@@ -647,15 +723,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return;
     }
 
-    if (_newPasswordController.text.trim().isEmpty || _confirmPasswordController.text.trim().isEmpty) {
-      _showThemedSnackBar('Please enter and confirm the new password.', backgroundColor: Colors.red);
+    String? currentErr;
+    String? newErr;
+    String? confirmErr;
+
+    if (_currentPasswordController.text.trim().isEmpty) {
+      currentErr = 'Current password is required.';
+    }
+
+    if (_newPasswordController.text.trim().isEmpty) {
+      newErr = 'New password is required.';
+    } else if (_newPasswordController.text.length < 6) {
+      newErr = 'Password must be at least 6 characters.';
+    }
+
+    if (_confirmPasswordController.text.trim().isEmpty) {
+      confirmErr = 'Please confirm your new password.';
+    } else if (_newPasswordController.text != _confirmPasswordController.text) {
+      confirmErr = 'New password and confirmation do not match.';
+    }
+
+    if (currentErr != null || newErr != null || confirmErr != null) {
+      setState(() {
+        _currentPasswordError = currentErr;
+        _newPasswordError = newErr;
+        _confirmPasswordError = confirmErr;
+      });
       return;
     }
 
-    if (_newPasswordController.text != _confirmPasswordController.text) {
-      _showThemedSnackBar('New password and confirmation do not match.', backgroundColor: Colors.red);
-      return;
-    }
+    setState(() {
+      _currentPasswordError = null;
+      _newPasswordError = null;
+      _confirmPasswordError = null;
+    });
 
     _showThemedSnackBar(
       'Password update is connected and ready, but not enabled yet. Coming soon.',
@@ -715,19 +816,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final fileName = 'admin-profile-${DateTime.now().millisecondsSinceEpoch}.png';
       final filePath = 'admin_profiles/$fileName';
 
-      if (kIsWeb) {
-        await _supabase.storage.from('profile_pictures').uploadBinary(
-          filePath,
-          bytes,
-          fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
-        );
-      } else {
-        await _supabase.storage.from('profile_pictures').upload(
-          filePath,
-          File(pickedFile.path),
-          fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
-        );
-      }
+      await _supabase.storage.from('profile_pictures').uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+      );
 
       final publicUrl = _supabase.storage.from('profile_pictures').getPublicUrl(filePath);
       String displayUrl = publicUrl;
@@ -754,7 +847,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _profilePicturePath = filePath;
           _profilePictureUrl = displayUrl;
           _selectedImageBytes = null;
-          _selectedImage = null;
           _isUploadingImage = false;
         });
 
@@ -784,16 +876,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _uploadProfileImage() async {
-    // Deprecated: Upload is now done automatically upon image selection in _pickProfileImage.
-  }
-
   Future<void> _saveAdminProfile() async {
-    if (_selectedImage != null || _selectedImageBytes != null) {
-      await _uploadProfileImage();
+    final name = _adminNameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _adminNameError = 'Admin name is required.');
+      return;
     }
 
-    setState(() => _isSavingProfile = true);
+    setState(() {
+      _adminNameError = null;
+      _isSavingProfile = true;
+    });
     try {
       final user = _supabase.auth.currentUser;
       final Map<String, dynamic> metadataPayload = {
@@ -836,7 +929,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           duration: const Duration(seconds: 2),
         );
         setState(() {
-          _selectedImage = null; // Clear selected image after save
           _selectedImageBytes = null;
         });
       }
@@ -866,10 +958,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           isHydrated: true,
         );
     setState(() {
-      _selectedImage = null;
       _selectedImageBytes = null;
       _profilePictureUrl = null;
       _profilePicturePath = null;
+      _adminNameError = null;
+      _currentPasswordError = null;
+      _newPasswordError = null;
+      _confirmPasswordError = null;
       _currentPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();

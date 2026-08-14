@@ -63,9 +63,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .from('investment_records')
           .select('hog_raiser_id, id');
       final realBatchCount = (invRecordsRes as List).length;
-      final activeRaiserIdsWithInvestments = invRecordsRes
-          .map((inv) => inv['hog_raiser_id'].toString())
-          .toSet();
 
       if (response != null) {
         setState(() {
@@ -80,18 +77,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final raisersRes = await _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
-          .eq('account_status', 'active')
+          .or('account_status.ilike.active,account_status.ilike.approved')
           .order('name', ascending: true);
 
       if (mounted) {
+        final list = (raisersRes as List).cast<Map<String, dynamic>>();
         setState(() {
-          _activeRaisersList = (raisersRes as List)
-              .cast<Map<String, dynamic>>()
-              .where((r) {
-                final rId = (r['id'] ?? r['hog_raiser_id'] ?? '').toString();
-                return activeRaiserIdsWithInvestments.contains(rId);
-              })
-              .toList();
+          _activeRaisersList = list;
+          if (_activeRaisers == 0 && list.isNotEmpty) {
+            _activeRaisers = list.length;
+          }
         });
       }
     } catch (e) {
@@ -111,14 +106,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _supabase
             .from('hog_raisers')
             .select('hog_raiser_id')
-            .eq('account_status', 'active'),
+            .or('account_status.ilike.active,account_status.ilike.approved'),
         _supabase.from('investment_records').select('id'),
         _supabase.from('investment_records').select('hog_raiser_id, investment_date, initial_capital, hog_type'),
         _supabase.from('hogs').select('hog_id').eq('status', 'dead'),
         _supabase
             .from('hog_raisers')
             .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
-            .eq('account_status', 'active')
+            .or('account_status.ilike.active,account_status.ilike.approved')
             .order('name', ascending: true),
       ]);
 
@@ -127,12 +122,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final raisers = results[0] as List;
       final batches = results[1] as List;
       final investmentRows = results[2] as List;
-      final activeRaisers = results[4] as List;
+      final activeRaisers = (results[4] as List).cast<Map<String, dynamic>>();
 
       double totalCapital = 0;
       double fatteningCapital = 0;
       double sowCapital = 0;
-      DateTime? earliest;
 
       for (final row in investmentRows) {
         final amt = (row['initial_capital'] as num?)?.toDouble() ?? 0;
@@ -140,23 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final ht = (row['hog_type'] ?? '').toString().toLowerCase();
         if (ht == 'fattening') fatteningCapital += amt;
         if (ht == 'sow') sowCapital += amt;
-        final rawDate = row['investment_date'];
-        if (rawDate != null) {
-          final d = DateTime.tryParse(rawDate.toString());
-          if (d != null && (earliest == null || d.isBefore(earliest))) {
-            earliest = d;
-          }
-        }
       }
-
-      final activeRaiserIdsWithInvestments = investmentRows
-          .map((inv) => inv['hog_raiser_id']?.toString() ?? '')
-          .toSet();
-
-      final filteredActiveRaisers = activeRaisers.where((r) {
-        final rId = (r['id'] ?? r['hog_raiser_id'] ?? '').toString();
-        return activeRaiserIdsWithInvestments.contains(rId);
-      }).toList();
 
       setState(() {
         _activeRaisers = raisers.length;
@@ -164,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _totalCapital = totalCapital;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;
-        _activeRaisersList = filteredActiveRaisers.cast<Map<String, dynamic>>();
+        _activeRaisersList = activeRaisers;
       });
     } catch (_) {
       // Leave defaults at 0 if fallback also fails
@@ -301,6 +279,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
     ];
 
+    final isVeryNarrow = MediaQuery.of(context).size.width < 500;
+
+    if (isVeryNarrow) {
+      return Column(
+        children: [
+          _buildKpiCard(
+            label: kpiData[0]['label'] as String,
+            value: kpiData[0]['value'] as String,
+            isMobile: isMobile,
+          ),
+          const SizedBox(height: 12),
+          _buildKpiCard(
+            label: kpiData[1]['label'] as String,
+            value: kpiData[1]['value'] as String,
+            isMobile: isMobile,
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
@@ -329,6 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool isMobile = false,
   }) {
     return Container(
+      width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 14 : 20),
       decoration: BoxDecoration(
         color: _surfaceDark,
@@ -373,6 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// INVESTMENT ALLOCATION SECTION — now driven by live Supabase data
   Widget _buildInvestmentAllocationSection() {
     final isMobile = Responsive.isMobile(context);
+    final isVeryNarrow = MediaQuery.of(context).size.width < 500;
 
     return Container(
       width: double.infinity,
@@ -423,25 +423,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           SizedBox(height: isMobile ? 14 : 20),
-          Row(
-            children: [
-              Expanded(
-                child: _buildAllocationCard(
+          if (isVeryNarrow)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildAllocationCard(
                   title: 'FATTENING',
                   amount: _formatCurrency(_fatteningCapital),
                   isMobile: isMobile,
                 ),
-              ),
-              SizedBox(width: isMobile ? 12 : 24),
-              Expanded(
-                child: _buildAllocationCard(
+                const SizedBox(height: 12),
+                _buildAllocationCard(
                   title: 'SOW',
                   amount: _formatCurrency(_sowCapital),
                   isMobile: isMobile,
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _buildAllocationCard(
+                    title: 'FATTENING',
+                    amount: _formatCurrency(_fatteningCapital),
+                    isMobile: isMobile,
+                  ),
+                ),
+                SizedBox(width: isMobile ? 12 : 24),
+                Expanded(
+                  child: _buildAllocationCard(
+                    title: 'SOW',
+                    amount: _formatCurrency(_sowCapital),
+                    isMobile: isMobile,
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -455,7 +473,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool isMobile = false,
   }) {
     return Container(
-      width: width,
+      width: width ?? double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: _surfaceDark,
@@ -644,7 +662,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon = Icons.radio_button_unchecked;
             }
 
-            return Expanded(
+            return SizedBox(
+              width: 90,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

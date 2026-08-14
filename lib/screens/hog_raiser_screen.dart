@@ -259,14 +259,22 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           _buildErrorBanner(_loadErrorMessage!),
         ],
         const SizedBox(height: 20),
-        Wrap(
-          spacing: 12,
-          runSpacing: 10,
-          children: [
-            _buildTabButton(0, 'Active Raisers', activeCount),
-            _buildTabButton(1, 'Pending Approvals', pendingCount),
-          ],
-        ),
+        isMobile
+            ? Row(
+                children: [
+                  Expanded(child: _buildTabButton(0, 'Active Raisers', activeCount, isMobile: true)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildTabButton(1, 'Pending Approvals', pendingCount, isMobile: true)),
+                ],
+              )
+            : Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                children: [
+                  _buildTabButton(0, 'Active Raisers', activeCount),
+                  _buildTabButton(1, 'Pending Approvals', pendingCount),
+                ],
+              ),
         const SizedBox(height: 20),
         Container(
           decoration: BoxDecoration(
@@ -289,6 +297,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                         prefixIcon: Icon(Icons.search, color: _hintText),
                         filled: true,
                         fillColor: _fieldBg,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide(color: _fieldBorder),
@@ -307,7 +317,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      minimumSize: const Size(90, 48),
+                      minimumSize: Size(isMobile ? 76 : 90, isMobile ? 44 : 48),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -321,7 +331,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               const SizedBox(height: 18),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
+                  final tableWidth = constraints.maxWidth > 800 ? constraints.maxWidth : 800.0;
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
@@ -356,10 +366,10 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     );
   }
 
-  Widget _buildTabButton(int index, String label, int count) {
+  Widget _buildTabButton(int index, String label, int count, {bool isMobile = false}) {
     final isSelected = _currentTab == index;
     final textStyle = AppTextStyles.jakarta(
-      size: 14,
+      size: isMobile ? 12 : 14,
       weight: isSelected ? FontWeight.w800 : FontWeight.w600,
       color: isSelected 
           ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white) 
@@ -375,10 +385,14 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white) 
             : _titleColor,
         elevation: 0,
+        padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 16, vertical: 0),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        minimumSize: const Size(180, 48),
+        minimumSize: Size(isMobile ? 0 : 180, isMobile ? 44 : 48),
       ),
-      child: Text('$label ($count)', style: textStyle),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text('$label ($count)', style: textStyle),
+      ),
     );
   }
 
@@ -424,7 +438,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Text('ACTIONS', style: AppTextStyles.tableHeader(_hintText)),
@@ -508,52 +522,59 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
               child: isPending
                   ? Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
                           onPressed: () => _approveRaiserDirectly(row),
                           icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
                           tooltip: 'Approve Raiser',
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         IconButton(
                           onPressed: () => _deleteRaiser(row),
                           icon: Icon(Icons.close_rounded, size: 22, color: _accentDark),
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
                           tooltip: 'Reject',
                         ),
                       ],
                     )
                   : Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
                           onPressed: () => _showRaiserDetailsDialog(row),
                           icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
                           tooltip: 'Tingnan ang Detalye',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         IconButton(
                           onPressed: () => _showEditRaiserDialog(row),
                           icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.amber),
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
                           tooltip: 'I-edit ang Raiser',
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         IconButton(
                           onPressed: () => _archiveRaiser(row),
                           icon: const Icon(Icons.archive_outlined, size: 20, color: Colors.orangeAccent),
-                          padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
                           tooltip: 'I-archive ang Raiser',
                         ),
                       ],
@@ -564,12 +585,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       ),
     );
   }
-
-
-
-
-
-
 
   Widget _buildErrorBanner(String message) {
     return Container(

@@ -63,7 +63,15 @@ class LoginStyles {
   static InputDecoration emailFieldDecoration({
     required String hintText,
     required Widget prefixIcon,
+    bool hasError = false,
   }) {
+    final borderSide = hasError
+        ? const BorderSide(color: Color(0xFFE53E3E), width: 1.5)
+        : BorderSide.none;
+    final focusedBorderSide = hasError
+        ? const BorderSide(color: Color(0xFFE53E3E), width: 1.5)
+        : const BorderSide(color: fieldBorder, width: 1);
+
     return InputDecoration(
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(
@@ -80,33 +88,36 @@ class LoginStyles {
       fillColor: fieldBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: BorderSide.none,
+        borderSide: borderSide,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldBorderRadius),
+        borderSide: borderSide,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: const BorderSide(
-          color: fieldBorder,
-          width: 1,
-        ),
+        borderSide: focusedBorderSide,
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: fieldPaddingHorizontal,
         vertical: fieldPaddingVertical,
       ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: const BorderSide(
-          color: errorText,
-          width: 1,
-        ),
-      ),
+      errorStyle: const TextStyle(height: 0, fontSize: 0),
     );
   }
 
   static InputDecoration passwordFieldDecoration({
     required String hintText,
     required Widget suffixIcon,
+    bool hasError = false,
   }) {
+    final borderSide = hasError
+        ? const BorderSide(color: Color(0xFFE53E3E), width: 1.5)
+        : BorderSide.none;
+    final focusedBorderSide = hasError
+        ? const BorderSide(color: Color(0xFFE53E3E), width: 1.5)
+        : const BorderSide(color: fieldBorder, width: 1);
+
     return InputDecoration(
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(
@@ -118,14 +129,15 @@ class LoginStyles {
       fillColor: fieldBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: BorderSide.none,
+        borderSide: borderSide,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(fieldBorderRadius),
+        borderSide: borderSide,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: const BorderSide(
-          color: fieldBorder,
-          width: 1,
-        ),
+        borderSide: focusedBorderSide,
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: fieldPaddingHorizontal,
@@ -135,12 +147,32 @@ class LoginStyles {
         padding: const EdgeInsets.only(right: 8),
         child: suffixIcon,
       ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(fieldBorderRadius),
-        borderSide: const BorderSide(
-          color: errorText,
-          width: 1,
-        ),
+      errorStyle: const TextStyle(height: 0, fontSize: 0),
+    );
+  }
+
+  static Widget buildInlineError(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1.5),
+            child: Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFE53E3E),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

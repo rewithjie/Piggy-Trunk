@@ -102,268 +102,277 @@ class ScreenTopBar extends ConsumerWidget {
             const SizedBox(width: 6),
           ],
           const Spacer(),
-          Flexible(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-          /// NOTIFICATION BELL WITH BADGE & REAL-TIME POPUP
-          Container(
-            width: 50,
-            height: 50,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: borderColor,
-                width: 1,
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                hoverColor: Colors.transparent,
-                splashColor: Colors.transparent,
-              ),
-              child: PopupMenuButton<void>(
-                offset: const Offset(0, 56),
-                elevation: 8,
-                tooltip: 'Notifications',
-                color: surfaceColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: borderColor, width: 1),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              /// NOTIFICATION BELL WITH BADGE & REAL-TIME POPUP
+              Container(
+                width: 48,
+                height: 48,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: borderColor,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 50,
-                  minHeight: 50,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_outlined,
-                      size: 22,
-                      color: textColor,
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    hoverColor: Colors.transparent,
+                    splashColor: Colors.transparent,
+                  ),
+                  child: PopupMenuButton<void>(
+                    offset: const Offset(0, 54),
+                    elevation: 8,
+                    tooltip: 'Notifications',
+                    color: surfaceColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: borderColor, width: 1),
                     ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: accentDark,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              unreadCount.toString(),
-                              style: AppTextStyles.jakarta(
-                                size: 11,
-                                weight: FontWeight.w700,
-                                color: badgeTextColor,
-                              ),
-                            ),
-                          ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(
+                          Icons.notifications_outlined,
+                          size: 22,
+                          color: textColor,
                         ),
-                      ),
-                  ],
-                ),
-                itemBuilder: (context) {
-                  return [
-                    // Header
-                    PopupMenuItem<void>(
-                      enabled: false,
-                      child: Container(
-                        width: 320,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Notifications',
-                              style: AppTextStyles.jakarta(
-                                size: 15,
-                                weight: FontWeight.w700,
-                                color: textColor,
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: accentDark,
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                            ),
-                            if (unreadCount > 0)
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  AdminNotificationService.markAllAsRead();
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
+                              child: Center(
                                 child: Text(
-                                  'Mark all read',
+                                  unreadCount.toString(),
                                   style: AppTextStyles.jakarta(
-                                    size: 12,
-                                    weight: FontWeight.w600,
-                                    color: accentDark,
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: badgeTextColor,
                                   ),
                                 ),
                               ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const PopupMenuDivider(),
-                    // Notification Items
-                    if (notifications.isEmpty)
-                      PopupMenuItem<void>(
-                        enabled: false,
-                        child: Container(
-                          width: 320,
-                          alignment: Alignment.center,
-                          padding: const EdgeInsets.symmetric(vertical: 28),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: mutedColor.withAlpha(20),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.notifications_off_outlined,
-                                  size: 32,
-                                  color: mutedColor,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'No new notifications',
-                                style: AppTextStyles.jakarta(
-                                  size: 13,
-                                  color: mutedColor,
-                                  weight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      )
-                    else ...[
-                      ...notifications.take(5).map((notif) {
-                        return PopupMenuItem<void>(
-                          enabled: true,
-                          onTap: null, // Disabled click navigation (Plain Informational Notification)
+                      ],
+                    ),
+                    itemBuilder: (context) {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final popupWidth = isMobile ? (screenWidth - 48).clamp(240.0, 285.0) : 320.0;
+
+                      return [
+                        // Header
+                        PopupMenuItem<void>(
+                          enabled: false,
                           child: Container(
-                            width: 320,
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            width: popupWidth,
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (!notif.isRead)
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        margin: const EdgeInsets.only(top: 4, right: 8),
-                                        decoration: const BoxDecoration(
-                                          color: Colors.blue,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      )
-                                    else
-                                      const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        notif.title,
-                                        style: AppTextStyles.jakarta(
-                                          size: 13,
-                                          weight: notif.isRead ? FontWeight.w500 : FontWeight.w700,
-                                          color: textColor,
-                                        ),
+                                Text(
+                                  'Notifications',
+                                  style: AppTextStyles.jakarta(
+                                    size: isMobile ? 14 : 15,
+                                    weight: FontWeight.w700,
+                                    color: textColor,
+                                  ),
+                                ),
+                                if (unreadCount > 0)
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                      AdminNotificationService.markAllAsRead();
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: Text(
+                                      'Mark all read',
+                                      style: AppTextStyles.jakarta(
+                                        size: isMobile ? 11 : 12,
+                                        weight: FontWeight.w600,
+                                        color: accentDark,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      _formatTimeAgo(notif.createdAt),
-                                      style: AppTextStyles.jakarta(
-                                        size: 10,
-                                        weight: FontWeight.w500,
-                                        color: mutedColor,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        // Notification Items
+                        if (notifications.isEmpty)
+                          PopupMenuItem<void>(
+                            enabled: false,
+                            child: Container(
+                              width: popupWidth,
+                              alignment: Alignment.center,
+                              padding: EdgeInsets.symmetric(vertical: isMobile ? 16 : 24, horizontal: 4),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(isMobile ? 8 : 10),
+                                    decoration: BoxDecoration(
+                                      color: mutedColor.withAlpha(20),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.notifications_off_outlined,
+                                      size: isMobile ? 24 : 32,
+                                      color: mutedColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'No new notifications',
+                                    style: AppTextStyles.jakarta(
+                                      size: isMobile ? 13 : 14,
+                                      weight: FontWeight.w600,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'When system updates or hog reports arrive, they will appear here.',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.jakarta(
+                                      size: isMobile ? 11 : 12,
+                                      weight: FontWeight.w400,
+                                      color: mutedColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ...notifications.take(6).map((notif) {
+                            return PopupMenuItem<void>(
+                              onTap: () {
+                                if (!notif.isRead) {
+                                  AdminNotificationService.markAsRead(notif.notificationId);
+                                }
+                              },
+                              child: Container(
+                                width: popupWidth,
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            if (!notif.isRead)
+                                              Container(
+                                                width: 8,
+                                                height: 8,
+                                                margin: const EdgeInsets.only(right: 8),
+                                                decoration: BoxDecoration(
+                                                  color: accentDark,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                            Text(
+                                              notif.title,
+                                              style: AppTextStyles.jakarta(
+                                                size: isMobile ? 12 : 13,
+                                                weight: notif.isRead ? FontWeight.w600 : FontWeight.w700,
+                                                color: textColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          _formatTimeAgo(notif.createdAt),
+                                          style: AppTextStyles.jakarta(
+                                            size: 10,
+                                            weight: FontWeight.w500,
+                                            color: mutedColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 16),
+                                      child: Text(
+                                        notif.message,
+                                        style: AppTextStyles.jakarta(
+                                          size: isMobile ? 11 : 12,
+                                          weight: FontWeight.w500,
+                                          color: mutedColor,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 16),
+                              ),
+                            );
+                          }),
+                        const PopupMenuDivider(),
+                        // Footer Actions
+                        PopupMenuItem<void>(
+                          enabled: false,
+                          child: SizedBox(
+                            width: popupWidth,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    AdminNotificationService.clearAll();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
                                   child: Text(
-                                    notif.message,
+                                    'Clear all',
                                     style: AppTextStyles.jakarta(
-                                      size: 12,
-                                      weight: FontWeight.w500,
-                                      color: mutedColor,
+                                      size: isMobile ? 11 : 12,
+                                      weight: FontWeight.w600,
+                                      color: Colors.redAccent,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      }),
-                      const PopupMenuDivider(),
-                      // Footer Actions
-                      PopupMenuItem<void>(
-                        enabled: false,
-                        child: SizedBox(
-                          width: 320,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                  AdminNotificationService.clearAll();
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: Text(
-                                  'Clear all',
-                                  style: AppTextStyles.jakarta(
-                                    size: 12,
-                                    weight: FontWeight.w600,
-                                    color: Colors.redAccent,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
-                      ),
-                    ],
-                  ];
-                },
+                      ];
+                    },
+                  ),
+                ),
               ),
-            ),
-          ),
-          /// ADMIN PROFILE (CLICKABLE)
+
+              /// ADMIN PROFILE (CLICKABLE)
               MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
@@ -371,59 +380,58 @@ class ScreenTopBar extends ConsumerWidget {
                     Navigator.of(context).pushNamed('/settings');
                   },
                   child: Container(
-                  constraints: BoxConstraints(maxWidth: isMobile ? 180 : 260),
-                  height: 50,
-                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: borderColor,
-                      width: 1,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                  /// PROFILE PICTURE OR ICON
-                  Container(
-                    width: 32,
-                    height: 32,
+                    height: 48,
+                    padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
                       border: Border.all(
-                        color: isDark ? textColor.withValues(alpha: 0.75) : const Color(0xFF2F4A6A),
-                        width: 1.6,
+                        color: borderColor,
+                        width: 1,
                       ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: resolvedPhoto.isNotEmpty
-                        ? ClipOval(
-                            child: Image.network(
-                              resolvedPhoto,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return ClipOval(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        /// PROFILE PICTURE OR ICON
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isDark ? textColor.withValues(alpha: 0.75) : const Color(0xFF2F4A6A),
+                              width: 1.6,
+                            ),
+                          ),
+                          child: resolvedPhoto.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.network(
+                                    resolvedPhoto,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return ClipOval(
+                                        child: Image.asset(
+                                          'assets/piggytrunk_logo.png',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              : ClipOval(
                                   child: Image.asset(
                                     'assets/piggytrunk_logo.png',
                                     fit: BoxFit.contain,
                                   ),
-                                );
-                              },
-                            ),
-                          )
-                        : ClipOval(
-                            child: Image.asset(
-                              'assets/piggytrunk_logo.png',
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 8),
+                                ),
+                        ),
+                        const SizedBox(width: 8),
 
-                  /// ADMIN INFO
-                      Flexible(
-                        child: Column(
+                        /// ADMIN INFO
+                        Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
@@ -434,33 +442,32 @@ class ScreenTopBar extends ConsumerWidget {
                                 size: 13,
                                 weight: FontWeight.w700,
                                 color: textColor,
-                                height: 1.2,
+                                height: 1.1,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
-                              resolvedRole.toUpperCase(),
+                              isMobile
+                                  ? (resolvedRole.toLowerCase().contains('admin') ? 'ADMIN' : resolvedRole.toUpperCase())
+                                  : resolvedRole.toUpperCase(),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.jakarta(
-                                size: 11,
+                                size: 10,
                                 weight: FontWeight.w600,
                                 color: mutedColor,
-                                height: 1.2,
-                                letterSpacing: 0.5,
+                                height: 1.1,
+                                letterSpacing: 0.4,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-              ),
-                ],
-                ),
-              ),
-            ),
+            ],
           ),
         ],
       ),

@@ -39,7 +39,7 @@ List<Map<String, dynamic>> normalizeInventoryRows(
 }) {
   final adapter = InventoryRowAdapter();
   return rows
-      .whereType<Map<String, dynamic>>()
-      .map((row) => adapter.normalize(row, sourceTable: sourceTable))
+      .whereType<Map>()
+      .map((row) => adapter.normalize(Map<String, dynamic>.from(row), sourceTable: sourceTable))
       .toList();
 }

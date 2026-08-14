@@ -102,14 +102,19 @@ class _POSScreenState extends State<POSScreen> {
       final response = await _supabase
           .from('inventory_products')
           .select()
-          .eq('is_archived', false)
           .order('created_at', ascending: false);
 
-      final rows = response as List;
+      final rows = (response as List).where((row) {
+        final isArchived = row['is_archived'] == true;
+        return !isArchived;
+      }).toList();
       return normalizeInventoryRows(rows, sourceTable: 'inventory_products');
     } catch (e) {
       final fallbackResponse = await _supabase.from('products').select();
-      final fallbackRows = fallbackResponse as List;
+      final fallbackRows = (fallbackResponse as List).where((row) {
+        final isArchived = row['is_archived'] == true;
+        return !isArchived;
+      }).toList();
       return normalizeInventoryRows(fallbackRows, sourceTable: 'products');
     }
   }
@@ -250,11 +255,10 @@ class _POSScreenState extends State<POSScreen> {
                             if (isNarrow) {
                               return SingleChildScrollView(
                                 child: Column(
-
                                   children: [
-                                    _buildProductsPanel(const EdgeInsets.fromLTRB(16, 16, 16, 12)),
-                                    SizedBox(
-                                      height: 500,
+                                    _buildProductsPanel(EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16)),
+                                    Container(
+                                      constraints: const BoxConstraints(minHeight: 480),
                                       child: _buildCurrentOrderPanel(context, stacked: true),
                                     ),
                                   ],
@@ -285,7 +289,8 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildProductsPanel(EdgeInsets padding) {
-    return SingleChildScrollView(
+    final isMobile = Responsive.isMobile(context);
+    return Padding(
       padding: padding,
       child: Container(
         width: double.infinity,
@@ -295,9 +300,9 @@ class _POSScreenState extends State<POSScreen> {
             color: _border,
             width: 1,
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(isMobile ? 14 : 20),
         ),
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isMobile ? 12 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -381,8 +386,19 @@ class _POSScreenState extends State<POSScreen> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth > 900;
+                  final isNarrow = constraints.maxWidth <= 700;
                   final crossAxisCount = isWide ? 2 : 1;
-                  final childAspectRatio = isWide ? 2.3 : 1.9;
+                  final childAspectRatio = isWide ? 2.3 : 2.0;
+
+                  if (isNarrow) {
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: products.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 14),
+                      itemBuilder: (context, idx) => _buildPOSProductCard(products[idx]),
+                    );
+                  }
 
                   return GridView.builder(
                     shrinkWrap: true,
@@ -407,6 +423,8 @@ class _POSScreenState extends State<POSScreen> {
 
   Widget _buildPOSProductCard(POSProduct product) {
     final isOutOfStock = product.units <= 0;
+    final isMobile = Responsive.isMobile(context);
+    final double imgSize = isMobile ? 95.0 : 135.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -414,14 +432,14 @@ class _POSScreenState extends State<POSScreen> {
         border: Border.all(color: _border, width: 1),
         borderRadius: BorderRadius.circular(16),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isMobile ? 10 : 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Left Column: Square Product Image (1:1 Ratio)
           Container(
-            width: 135,
-            height: 135,
+            width: imgSize,
+            height: imgSize,
             decoration: BoxDecoration(
               color: _bg,
               borderRadius: BorderRadius.circular(12),
@@ -434,15 +452,15 @@ class _POSScreenState extends State<POSScreen> {
                       product.image!,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Center(
-                        child: Icon(Icons.broken_image_outlined, color: _muted, size: 32),
+                        child: Icon(Icons.broken_image_outlined, color: _muted, size: 28),
                       ),
                     )
                   : Center(
-                      child: Icon(Icons.image_outlined, color: _muted, size: 32),
+                      child: Icon(Icons.image_outlined, color: _muted, size: 28),
                     ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: isMobile ? 10 : 12),
           // Right Column: Product Details & Actions
           Expanded(
             child: Column(
@@ -457,16 +475,17 @@ class _POSScreenState extends State<POSScreen> {
                       child: Text(
                         product.name,
                         style: AppTextStyles.jakarta(
-                          size: 14,
+                          size: isMobile ? 13 : 14,
                           weight: FontWeight.w800,
                           color: _text,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: isMobile ? 3 : 4),
                       decoration: BoxDecoration(
                         color: isOutOfStock
                             ? Colors.red.withValues(alpha: 0.18)
@@ -480,7 +499,7 @@ class _POSScreenState extends State<POSScreen> {
                             ? 'OUT OF STOCK'
                             : (product.units <= 5 ? 'LOW STOCK' : 'IN STOCK'),
                         style: AppTextStyles.jakarta(
-                          size: 10,
+                          size: isMobile ? 9 : 10,
                           weight: FontWeight.w800,
                           color: isOutOfStock
                               ? Colors.redAccent
@@ -490,57 +509,77 @@ class _POSScreenState extends State<POSScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 // Description
                 Text(
                   product.description.isEmpty ? 'No description' : product.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.jakarta(
-                    size: 12,
+                    size: isMobile ? 11 : 12,
                     weight: FontWeight.w500,
                     color: _muted,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: isMobile ? 5 : 6),
                 // Price & Stock Row
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 5 : 6),
                   decoration: BoxDecoration(
                     color: _bg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'PRICE: ',
-                            style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                          ),
-                          Text(
-                            '₱${product.price.toStringAsFixed(2)}',
-                            style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w800, color: _text),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            'Stock: ',
-                            style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                          ),
-                          Text(
-                            '${product.units} units',
-                            style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: isMobile
+                      ? Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('PRICE:', style: AppTextStyles.jakarta(size: 10, weight: FontWeight.w700, color: _muted)),
+                                Text('₱${product.price.toStringAsFixed(2)}', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w800, color: _text)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('Stock:', style: AppTextStyles.jakarta(size: 10, weight: FontWeight.w700, color: _muted)),
+                                Text('${product.units} units', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text)),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'PRICE: ',
+                                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                                ),
+                                Text(
+                                  '₱${product.price.toStringAsFixed(2)}',
+                                  style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w800, color: _text),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  'Stock: ',
+                                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                                ),
+                                Text(
+                                  '${product.units} units',
+                                  style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isMobile ? 6 : 8),
                 // Action Button: Add to Cart
                 SizedBox(
                   width: double.infinity,
@@ -578,7 +617,7 @@ class _POSScreenState extends State<POSScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isOutOfStock ? Colors.grey : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 10),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
@@ -593,16 +632,43 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildCurrentOrderPanel(BuildContext context, {bool stacked = false}) {
+    final isMobile = Responsive.isMobile(context);
+
+    Widget orderItemsContent;
+    if (currentOrder.items.isEmpty) {
+      orderItemsContent = Padding(
+        padding: EdgeInsets.symmetric(vertical: stacked ? 32 : 60, horizontal: 16),
+        child: Center(
+          child: Text(
+            'No products added yet.',
+            style: AppTextStyles.caption(PiggyTrunkTheme.ptMutedDark),
+          ),
+        ),
+      );
+    } else {
+      orderItemsContent = Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 24),
+        child: Column(
+          children: List.generate(
+            currentOrder.items.length,
+            (index) => _buildOrderItemRow(currentOrder.items[index], index),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
+        color: _surface,
         border: stacked
             ? Border(top: BorderSide(color: _border, width: 1))
             : Border(left: BorderSide(color: _border, width: 1)),
       ),
       child: Column(
+        mainAxisSize: stacked ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: _border, width: 1)),
             ),
@@ -632,24 +698,14 @@ class _POSScreenState extends State<POSScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: currentOrder.items.isEmpty
-                ? Center(
-                    child: Text(
-                      'No products added yet.',
-                      style: AppTextStyles.caption(PiggyTrunkTheme.ptMutedDark),
-                    ),
-                  )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: List.generate(
-                        currentOrder.items.length,
-                        (index) => _buildOrderItemRow(currentOrder.items[index], index),
-                      ),
-                    ),
-                  ),
-          ),
+          if (stacked)
+            orderItemsContent
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                child: orderItemsContent,
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(

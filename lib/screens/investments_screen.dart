@@ -40,7 +40,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _inProgressDark => _isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
 
-  InputDecoration _createInputDecoration(String hint) {
+  InputDecoration _createInputDecoration(String hint, {bool hasError = false}) {
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
@@ -48,13 +48,45 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       fillColor: _fieldBg,
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldBorder),
+        borderSide: BorderSide(
+          color: hasError ? const Color(0xFFE53E3E) : _fieldBorder,
+          width: hasError ? 1.5 : 1,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: _fieldFocus),
+        borderSide: BorderSide(
+          color: hasError ? const Color(0xFFE53E3E) : _fieldFocus,
+          width: hasError ? 1.5 : 1,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
+
+  Widget _buildInlineError(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 2, bottom: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1.5),
+            child: Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFFE53E3E),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -150,10 +182,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   List<String> _selectedHogTypes = ['Fattening'];
   String? _selectedRaiserId = 'unassigned';
   List<Map<String, dynamic>> _activeRaisers = [];
+  String? _capitalError;
+  String? _totalHogError;
+  String? _hogTypeError;
 
   Future<void> _openInlineForm({Investment? existing}) async {
     _capitalCtrl.text = existing != null ? existing.initialCapital.toInt().toString() : '';
     _totalHogCtrl.text = existing != null ? existing.totalHog.toString() : '';
+    _capitalError = null;
+    _totalHogError = null;
+    _hogTypeError = null;
 
     if (existing != null && existing.hogType.isNotEmpty && existing.hogType != 'Auto-populated' && existing.hogType != 'N/A') {
       _selectedHogTypes = existing.hogType.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
@@ -209,9 +247,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
   Widget _buildAddInvestmentView() {
     final isEdit = _editingInvestment != null;
+    final isMobile = Responsive.isMobile(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       child: Center(
         child: Container(
           constraints: const BoxConstraints(maxWidth: 1350),
@@ -222,18 +261,18 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               end: Alignment.centerRight,
             ),
             border: Border.all(color: _panelBorder, width: 1),
-            borderRadius: BorderRadius.circular(34),
+            borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
           ),
-          padding: const EdgeInsets.fromLTRB(30, 26, 30, 26),
+          padding: EdgeInsets.all(isMobile ? 14 : 28),
           child: Center(
             child: Container(
               constraints: const BoxConstraints(maxWidth: 850),
               decoration: BoxDecoration(
                 color: _isDark ? const Color(0xFF12213A) : Colors.white,
                 border: Border.all(color: _cardBorder, width: 1),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
               ),
-              padding: const EdgeInsets.fromLTRB(40, 34, 40, 34),
+              padding: EdgeInsets.all(isMobile ? 16 : 34),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -244,7 +283,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                         isEdit ? 'Edit Investment' : 'Create Investment',
                         style: GoogleFonts.plusJakartaSans(
                           color: _titleColor,
-                          fontSize: 30,
+                          fontSize: isMobile ? 22 : 30,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.04,
                         ),
@@ -316,122 +355,244 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                         ),
                   const SizedBox(height: 24),
 
-                  // 2. INITIAL CAPITAL & TOTAL HOG (2-Column Row)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // INITIAL CAPITAL FIELD WITH ₱ PREFIX BOX
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'INITIAL CAPITAL (PHP)',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: _headerText,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _capitalCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              style: GoogleFonts.plusJakartaSans(
-                                color: _fieldText,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              decoration: _createInputDecoration('0.00').copyWith(
-                                prefixIcon: Container(
-                                  width: 48,
-                                  alignment: Alignment.center,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  decoration: BoxDecoration(
-                                    color: PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.15),
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(10),
-                                      bottomLeft: Radius.circular(10),
-                                    ),
-                                    border: Border(
-                                      right: BorderSide(color: _fieldBorder),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '₱',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: PiggyTrunkTheme.ptPrimary,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                                prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                              ),
-                            ),
-                          ],
+                  // 2. INITIAL CAPITAL & TOTAL HOG (2-Column Row or Mobile Stack)
+                  if (isMobile) ...[
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'INITIAL CAPITAL (PHP)',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: _headerText,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 20),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _capitalCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (_) {
+                            if (_capitalError != null) setState(() => _capitalError = null);
+                          },
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _fieldText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: _createInputDecoration('0.00', hasError: _capitalError != null).copyWith(
+                            prefixIcon: Container(
+                              width: 48,
+                              alignment: Alignment.center,
+                              margin: const EdgeInsets.only(right: 12),
+                              decoration: BoxDecoration(
+                                color: PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.15),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(10),
+                                  bottomLeft: Radius.circular(10),
+                                ),
+                                border: Border(
+                                  right: BorderSide(color: _fieldBorder),
+                                ),
+                              ),
+                              child: Text(
+                                '₱',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: PiggyTrunkTheme.ptPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                          ),
+                        ),
+                        if (_capitalError != null) _buildInlineError(_capitalError!),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TOTAL HOG (HEADS)',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: _headerText,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _totalHogCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (_) {
+                            if (_totalHogError != null) setState(() => _totalHogError = null);
+                          },
+                          style: GoogleFonts.plusJakartaSans(
+                            color: _fieldText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          decoration: _createInputDecoration('0', hasError: _totalHogError != null).copyWith(
+                            suffixIcon: Container(
+                              width: 72,
+                              alignment: Alignment.center,
+                              margin: const EdgeInsets.only(left: 12),
+                              decoration: BoxDecoration(
+                                color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                                borderRadius: const BorderRadius.only(
+                                  topRight: Radius.circular(10),
+                                  bottomRight: Radius.circular(10),
+                                ),
+                                border: Border(
+                                  left: BorderSide(color: _fieldBorder),
+                                ),
+                              ),
+                              child: Text(
+                                'Heads',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _fieldText,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
+                          ),
+                        ),
+                        if (_totalHogError != null) _buildInlineError(_totalHogError!),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // INITIAL CAPITAL FIELD WITH ₱ PREFIX BOX
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'INITIAL CAPITAL (PHP)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: _headerText,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _capitalCtrl,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                onChanged: (_) {
+                                  if (_capitalError != null) setState(() => _capitalError = null);
+                                },
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _fieldText,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                decoration: _createInputDecoration('0.00', hasError: _capitalError != null).copyWith(
+                                  prefixIcon: Container(
+                                    width: 48,
+                                    alignment: Alignment.center,
+                                    margin: const EdgeInsets.only(right: 12),
+                                    decoration: BoxDecoration(
+                                      color: PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.15),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(10),
+                                        bottomLeft: Radius.circular(10),
+                                      ),
+                                      border: Border(
+                                        right: BorderSide(color: _fieldBorder),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '₱',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: PiggyTrunkTheme.ptPrimary,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                                ),
+                              ),
+                              if (_capitalError != null) _buildInlineError(_capitalError!),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 20),
 
-                      // TOTAL HOG FIELD WITH HEADS SUFFIX BADGE
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TOTAL HOG (HEADS)',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: _headerText,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _totalHogCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                              style: GoogleFonts.plusJakartaSans(
-                                color: _fieldText,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              decoration: _createInputDecoration('0').copyWith(
-                                suffixIcon: Container(
-                                  width: 72,
-                                  alignment: Alignment.center,
-                                  margin: const EdgeInsets.only(left: 12),
-                                  decoration: BoxDecoration(
-                                    color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
-                                    borderRadius: const BorderRadius.only(
-                                      topRight: Radius.circular(10),
-                                      bottomRight: Radius.circular(10),
-                                    ),
-                                    border: Border(
-                                      left: BorderSide(color: _fieldBorder),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Heads',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: _fieldText,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
+                        // TOTAL HOG FIELD WITH HEADS SUFFIX BADGE
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TOTAL HOG (HEADS)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: _headerText,
+                                  letterSpacing: 0.5,
                                 ),
-                                suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _totalHogCtrl,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                onChanged: (_) {
+                                  if (_totalHogError != null) setState(() => _totalHogError = null);
+                                },
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _fieldText,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                decoration: _createInputDecoration('0', hasError: _totalHogError != null).copyWith(
+                                  suffixIcon: Container(
+                                    width: 72,
+                                    alignment: Alignment.center,
+                                    margin: const EdgeInsets.only(left: 12),
+                                    decoration: BoxDecoration(
+                                      color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                                      borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(10),
+                                        bottomRight: Radius.circular(10),
+                                      ),
+                                      border: Border(
+                                        left: BorderSide(color: _fieldBorder),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Heads',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: _fieldText,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
+                                ),
+                              ),
+                              if (_totalHogError != null) _buildInlineError(_totalHogError!),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 24),
 
                   // 3. HOG TYPE ASSIGNMENT (CHECKBOXES)
@@ -445,12 +606,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
+                  if (_hogTypeError != null) ...[
+                    _buildInlineError(_hogTypeError!),
+                    const SizedBox(height: 6),
+                  ],
+                  if (isMobile) ...[
+                    Column(
+                      children: [
+                        InkWell(
                           onTap: () {
                             setState(() {
+                              _hogTypeError = null;
                               if (_selectedHogTypes.contains('Fattening')) {
                                 if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Fattening');
                               } else {
@@ -460,6 +626,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           },
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
                               color: _fieldBg,
@@ -489,10 +656,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: InkWell(
+                        const SizedBox(height: 12),
+                        InkWell(
                           onTap: () {
                             setState(() {
                               if (_selectedHogTypes.contains('Sow / Breeding')) {
@@ -504,6 +669,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           },
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
                               color: _fieldBg,
@@ -533,53 +699,197 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (_selectedHogTypes.contains('Fattening')) {
+                                  if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Fattening');
+                                } else {
+                                  _selectedHogTypes.add('Fattening');
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: _fieldBg,
+                                border: Border.all(
+                                  color: _selectedHogTypes.contains('Fattening') ? PiggyTrunkTheme.ptPrimary : _fieldBorder,
+                                  width: _selectedHogTypes.contains('Fattening') ? 1.5 : 1,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _selectedHogTypes.contains('Fattening') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                    color: _selectedHogTypes.contains('Fattening') ? PiggyTrunkTheme.ptPrimary : _hintText,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Fattening',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: _selectedHogTypes.contains('Fattening') ? FontWeight.w700 : FontWeight.w500,
+                                      color: _fieldText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (_selectedHogTypes.contains('Sow / Breeding')) {
+                                  if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Sow / Breeding');
+                                } else {
+                                  _selectedHogTypes.add('Sow / Breeding');
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: _fieldBg,
+                                border: Border.all(
+                                  color: _selectedHogTypes.contains('Sow / Breeding') ? PiggyTrunkTheme.ptPrimary : _fieldBorder,
+                                  width: _selectedHogTypes.contains('Sow / Breeding') ? 1.5 : 1,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _selectedHogTypes.contains('Sow / Breeding') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                    color: _selectedHogTypes.contains('Sow / Breeding') ? PiggyTrunkTheme.ptPrimary : _hintText,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Sow / Breeding',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: _selectedHogTypes.contains('Sow / Breeding') ? FontWeight.w700 : FontWeight.w500,
+                                      color: _fieldText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 36),
 
                   // 4. ACTION BUTTONS
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => setState(() => _showForm = false),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-                          side: BorderSide(color: _fieldBorder),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  isMobile
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => setState(() => _showForm = false),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: BorderSide(color: _fieldBorder),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'Cancel',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _fieldText,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: _saveInlineInvestment,
+                                icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
+                                label: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    isEdit ? 'Save Changes' : 'Create Investment',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: PiggyTrunkTheme.ptPrimary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton(
+                              onPressed: () => setState(() => _showForm = false),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                                side: BorderSide(color: _fieldBorder),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _fieldText,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            ElevatedButton.icon(
+                              onPressed: _saveInlineInvestment,
+                              icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
+                              label: Text(
+                                isEdit ? 'Save Changes' : 'Create Investment',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: PiggyTrunkTheme.ptPrimary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: _fieldText,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      ElevatedButton.icon(
-                        onPressed: _saveInlineInvestment,
-                        icon: Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
-                        label: Text(
-                          isEdit ? 'Save Changes' : 'Create Investment',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: PiggyTrunkTheme.ptPrimary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -593,21 +903,40 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     final parsedCapital = int.tryParse(_capitalCtrl.text.trim());
     final parsedTotalHog = int.tryParse(_totalHogCtrl.text.trim());
 
-    if (_selectedRaiserId == null ||
-        parsedCapital == null ||
-        parsedTotalHog == null ||
-        _selectedHogTypes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please fill all required fields correctly and select at least one Hog Type.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+    String? capitalErr;
+    String? totalHogErr;
+    String? hogTypeErr;
+
+    if (parsedCapital == null) {
+      capitalErr = 'Please enter a valid initial capital.';
+    } else if (parsedCapital <= 0) {
+      capitalErr = 'Capital must be greater than ₱0.';
+    }
+
+    if (parsedTotalHog == null) {
+      totalHogErr = 'Please enter total number of heads.';
+    } else if (parsedTotalHog <= 0) {
+      totalHogErr = 'Total heads must be at least 1.';
+    }
+
+    if (_selectedHogTypes.isEmpty) {
+      hogTypeErr = 'Please select at least one Hog Type.';
+    }
+
+    if (capitalErr != null || totalHogErr != null || hogTypeErr != null) {
+      setState(() {
+        _capitalError = capitalErr;
+        _totalHogError = totalHogErr;
+        _hogTypeError = hogTypeErr;
+      });
       return;
     }
+
+    setState(() {
+      _capitalError = null;
+      _totalHogError = null;
+      _hogTypeError = null;
+    });
 
     final isUnassigned = _selectedRaiserId == 'unassigned';
     final raiserName = isUnassigned
