@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
@@ -31,6 +32,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
   BigInt? _selectedAssignmentId;
   String? _errorMessage;
+  DateTime? _lastBackPressTime;
 
   static const Color _brandColor = Color(0xFF18314F);
 
@@ -58,14 +60,14 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       // 1. Fetch user profile from app_users
       var appUser = await Supabase.instance.client
           .from('app_users')
-          .select('user_id, name')
+          .select('user_id, name, email')
           .eq('supabase_user_id', user.id)
           .maybeSingle();
 
       if (appUser == null) {
         final appUserByEmail = await Supabase.instance.client
             .from('app_users')
-            .select('user_id, name, supabase_user_id')
+            .select('user_id, name, email, supabase_user_id')
             .eq('email', user.email!)
             .maybeSingle();
 
@@ -75,16 +77,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               .update({'supabase_user_id': user.id})
               .eq('user_id', appUserByEmail['user_id']);
 
-          appUser = {
-            'user_id': appUserByEmail['user_id'],
-            'name': appUserByEmail['name'],
-          };
+          appUser = appUserByEmail;
         } else {
           if (mounted) {
             setState(() {
               _raiserData = {
                 'name': 'Account Not Found',
-                'email': user.email,
+                'email': user.email ?? 'N/A',
                 'phone': 'N/A',
                 'address': 'N/A',
                 'pig_type': 'None',
@@ -99,7 +98,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       }
 
       final userId = appUser['user_id'];
-      final fallbackName = appUser['name'] as String;
+      final fallbackName = (appUser['name'] ?? user.email ?? 'Hog Raiser') as String;
 
       // 2. Fetch raiser profile
       var raiser = await Supabase.instance.client
@@ -131,7 +130,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             setState(() {
               _raiserData = {
                 'name': fallbackName,
-                'email': user.email,
+                'email': user.email ?? 'N/A',
                 'phone': 'N/A',
                 'address': 'N/A',
                 'pig_type': 'None',
@@ -211,9 +210,53 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .order('created_at', ascending: false);
       final notifications = List<Map<String, dynamic>>.from(notifRes);
 
+      // Resolve email, pig type, lifecycle stage and avatar with fallbacks
+      final resolvedEmail = (raiser['email'] != null &&
+              raiser['email'].toString().trim().isNotEmpty &&
+              raiser['email'] != 'N/A')
+          ? raiser['email'].toString().trim()
+          : ((appUser['email'] != null && appUser['email'].toString().trim().isNotEmpty)
+              ? appUser['email'].toString().trim()
+              : (user.email ?? 'N/A'));
+
+      final resolvedAvatar = raiser['avatar_url'] ??
+          user.userMetadata?['avatar_url'] ??
+          user.userMetadata?['picture'];
+
+      String resolvedPigType = (raiser['pig_type'] != null &&
+              raiser['pig_type'].toString().trim().isNotEmpty &&
+              raiser['pig_type'] != 'N/A')
+          ? raiser['pig_type'].toString().trim()
+          : 'N/A';
+
+      String resolvedStage = (raiser['lifecycle_stage'] != null &&
+              raiser['lifecycle_stage'].toString().trim().isNotEmpty &&
+              raiser['lifecycle_stage'] != 'N/A')
+          ? raiser['lifecycle_stage'].toString().trim()
+          : 'N/A';
+
+      if (assignments.isNotEmpty) {
+        if (resolvedPigType == 'N/A') {
+          resolvedPigType = assignments[0]['hog_types']?['type_name']?.toString() ??
+              assignments[0]['pig_type']?.toString() ??
+              'N/A';
+        }
+        if (resolvedStage == 'N/A') {
+          resolvedStage = assignments[0]['lifecycle_stage']?.toString() ??
+              assignments[0]['current_stage']?.toString() ??
+              'N/A';
+        }
+      }
+
+      final Map<String, dynamic> combinedRaiserData = Map<String, dynamic>.from(raiser);
+      combinedRaiserData['email'] = resolvedEmail;
+      if (resolvedAvatar != null) combinedRaiserData['avatar_url'] = resolvedAvatar;
+      combinedRaiserData['pig_type'] = resolvedPigType;
+      combinedRaiserData['lifecycle_stage'] = resolvedStage;
+
       if (mounted) {
         setState(() {
-          _raiserData = raiser!;
+          _raiserData = combinedRaiserData;
           _investedAmount = totalCapital;
           _activeAssignments = assignments;
           _hogsList = hogs;
@@ -399,11 +442,28 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
       final publicUrl = Supabase.instance.client.storage.from('profile_pictures').getPublicUrl(filePath);
 
-      await Supabase.instance.client.from('hog_raisers').update({
-        'avatar_url': publicUrl,
-      }).eq('hog_raiser_id', raiserId);
+      // 1. Update Supabase Auth user metadata (always supported)
+      try {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(data: {'avatar_url': publicUrl, 'picture': publicUrl}),
+        );
+      } catch (authErr) {
+        debugPrint('Auth metadata update notice: $authErr');
+      }
+
+      // 2. Update hog_raisers table if column exists
+      try {
+        await Supabase.instance.client.from('hog_raisers').update({
+          'avatar_url': publicUrl,
+        }).eq('hog_raiser_id', raiserId);
+      } catch (dbErr) {
+        debugPrint('DB column update notice: $dbErr');
+      }
 
       if (mounted) {
+        setState(() {
+          _raiserData['avatar_url'] = publicUrl;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Matagumpay na na-update ang inyong profile picture!'),
@@ -436,11 +496,22 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await Supabase.instance.client.from('hog_raisers').update({
-        'avatar_url': null,
-      }).eq('hog_raiser_id', raiserId);
+      try {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(data: {'avatar_url': null, 'picture': null}),
+        );
+      } catch (_) {}
+
+      try {
+        await Supabase.instance.client.from('hog_raisers').update({
+          'avatar_url': null,
+        }).eq('hog_raiser_id', raiserId);
+      } catch (_) {}
 
       if (mounted) {
+        setState(() {
+          _raiserData.remove('avatar_url');
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Nabalik sa default ang inyong profile picture!'),
@@ -467,125 +538,287 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   }
 
   void _showEditProfileDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentName = _raiserData['name'] ?? '';
     final currentPhone = _raiserData['phone'] ?? '';
     final currentAddress = _raiserData['address'] ?? '';
 
-    final nameController = TextEditingController(text: currentName);
-    final phoneController = TextEditingController(text: currentPhone);
-    final addressController = TextEditingController(text: currentAddress);
+    final nameController = TextEditingController(text: currentName == 'N/A' ? '' : currentName);
+    final phoneController = TextEditingController(text: currentPhone == 'N/A' ? '' : currentPhone);
+    final addressController = TextEditingController(text: currentAddress == 'N/A' ? '' : currentAddress);
 
-    showDialog(
+    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
+    final inputBg = isDark ? const Color(0xFF1B2A3F) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF2A3C55) : const Color(0xFFE2E8F0);
+    final hintColor = isDark ? const Color(0xFF8A9FB8) : PiggyTrunkTheme.ptMuted;
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'I-edit ang Profile',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: _brandColor,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Drag Handle Pill
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.person_outline_rounded,
+                              color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'I-edit ang Profile',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: borderColor, height: 1),
+                  const SizedBox(height: 18),
+
+                  // 1. Pangalan
+                  Text(
+                    'Buong Pangalan',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameController,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'Ilagay ang inyong buong pangalan',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 2. Phone Number (Numerical Only!)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Telepono / Phone Number',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      Text(
+                        'Numbers only (11 digits)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: '09XXXXXXXXX',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 3. Address
+                  Text(
+                    'Address',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: addressController,
+                    maxLines: 2,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'Ilagay ang inyong kumpletong address',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
+                      ),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: borderColor, width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'Kanselahin',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              color: hintColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await _updateProfile(
+                              nameController.text.trim(),
+                              phoneController.text.trim(),
+                              addressController.text.trim(),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : _brandColor,
+                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'I-save ang Pagbabago',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pangalan',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandColor),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong pangalan',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Telepono / Phone Number',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandColor),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: phoneController,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong numero',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Address',
-                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandColor),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: addressController,
-                  maxLines: 2,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong address',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              child: Text(
-                'Kanselahin',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _updateProfile(
-                  nameController.text.trim(),
-                  phoneController.text.trim(),
-                  addressController.text.trim(),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'I-save',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -639,103 +872,132 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: PiggyTrunkTheme.ptBg,
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(_brandColor),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        // If on a sub-tab (Requests, Hogs, Profile), switch to Home tab
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return;
+        }
+
+        // If on Home tab, require double-tap within 2 seconds to exit app safely
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
+              duration: Duration(seconds: 2),
+              backgroundColor: _brandColor,
+            ),
+          );
+          return;
+        }
+
+        // Close the application directly without popping back to login
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: PiggyTrunkTheme.ptBg,
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(_brandColor),
+                ),
+              )
+            : SafeArea(
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: [
+                    RaiserHomeTab(
+                      raiserData: _raiserData,
+                      investedAmount: _investedAmount,
+                      requestsList: _requestsList,
+                      notificationsList: _notificationsList,
+                      errorMessage: _errorMessage,
+                      onRefresh: _fetchRaiserData,
+                      onNavigateToTab: (index) => setState(() => _currentIndex = index),
+                      onMarkNotificationAsRead: _markNotificationAsRead,
+                      onMarkAllRead: _markAllRead,
+                      onUpdateLifecycleStage: _updateLifecycleStage,
+                    ),
+                    RaiserRequestTab(
+                      activeAssignments: _activeAssignments,
+                      raiserData: _raiserData,
+                      requestsList: _requestsList,
+                      onRefresh: _fetchRaiserData,
+                    ),
+                    RaiserHogsTab(
+                      raiserData: _raiserData,
+                      hogsList: _hogsList,
+                      reportsList: _reportsList,
+                      notificationsList: _notificationsList,
+                      selectedAssignmentId: _selectedAssignmentId,
+                      onRefresh: _fetchRaiserData,
+                      onMarkNotificationAsRead: _markNotificationAsRead,
+                      onMarkAllRead: _markAllRead,
+                      onSubmitHogReport: _submitHogReport,
+                    ),
+                    RaiserProfileTab(
+                      raiserData: _raiserData,
+                      onPickAndUploadAvatar: _pickAndUploadAvatar,
+                      onRestoreDefaultAvatar: _restoreDefaultAvatar,
+                      onShowEditProfileDialog: _showEditProfileDialog,
+                      onHandleSignOut: _handleSignOut,
+                    ),
+                  ],
+                ),
               ),
-            )
-          : SafeArea(
-              child: IndexedStack(
-                index: _currentIndex,
-                children: [
-                  RaiserHomeTab(
-                    raiserData: _raiserData,
-                    investedAmount: _investedAmount,
-                    requestsList: _requestsList,
-                    notificationsList: _notificationsList,
-                    errorMessage: _errorMessage,
-                    onRefresh: _fetchRaiserData,
-                    onNavigateToTab: (index) => setState(() => _currentIndex = index),
-                    onMarkNotificationAsRead: _markNotificationAsRead,
-                    onMarkAllRead: _markAllRead,
-                    onUpdateLifecycleStage: _updateLifecycleStage,
-                  ),
-                  RaiserRequestTab(
-                    activeAssignments: _activeAssignments,
-                    raiserData: _raiserData,
-                    requestsList: _requestsList,
-                    onRefresh: _fetchRaiserData,
-                  ),
-                  RaiserHogsTab(
-                    raiserData: _raiserData,
-                    hogsList: _hogsList,
-                    reportsList: _reportsList,
-                    notificationsList: _notificationsList,
-                    selectedAssignmentId: _selectedAssignmentId,
-                    onRefresh: _fetchRaiserData,
-                    onMarkNotificationAsRead: _markNotificationAsRead,
-                    onMarkAllRead: _markAllRead,
-                    onSubmitHogReport: _submitHogReport,
-                  ),
-                  RaiserProfileTab(
-                    raiserData: _raiserData,
-                    onPickAndUploadAvatar: _pickAndUploadAvatar,
-                    onRestoreDefaultAvatar: _restoreDefaultAvatar,
-                    onShowEditProfileDialog: _showEditProfileDialog,
-                    onHandleSignOut: _handleSignOut,
-                  ),
-                ],
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: _brandColor,
+          unselectedItemColor: const Color(0xffa0aec0),
+          selectedLabelStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+          unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+          items: [
+            BottomNavigationBarItem(
+              icon: SvgPicture.asset(
+                'assets/icons/sidebar/dashboard.svg',
+                width: 22,
+                height: 22,
+                colorFilter: const ColorFilter.mode(Color(0xffa0aec0), BlendMode.srcIn),
               ),
+              activeIcon: SvgPicture.asset(
+                'assets/icons/sidebar/dashboard.svg',
+                width: 22,
+                height: 22,
+                colorFilter: const ColorFilter.mode(_brandColor, BlendMode.srcIn),
+              ),
+              label: 'DASHBOARD',
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: _brandColor,
-        unselectedItemColor: const Color(0xffa0aec0),
-        selectedLabelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.description_outlined),
+              label: 'REQUEST',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.pets),
+              label: 'HOGS',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline_rounded),
+              label: 'PROFILE',
+            ),
+          ],
         ),
-        unselectedLabelStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-        items: [
-          BottomNavigationBarItem(
-            icon: SvgPicture.asset(
-              'assets/icons/sidebar/dashboard.svg',
-              width: 22,
-              height: 22,
-              colorFilter: const ColorFilter.mode(Color(0xffa0aec0), BlendMode.srcIn),
-            ),
-            activeIcon: SvgPicture.asset(
-              'assets/icons/sidebar/dashboard.svg',
-              width: 22,
-              height: 22,
-              colorFilter: const ColorFilter.mode(_brandColor, BlendMode.srcIn),
-            ),
-            label: 'DASHBOARD',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.description_outlined),
-            label: 'REQUEST',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.pets),
-            label: 'HOGS',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            label: 'PROFILE',
-          ),
-        ],
       ),
     );
   }

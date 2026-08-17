@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_text_styles.dart';
+import '../theme/app_theme.dart';
 import '../models/admin_notification_model.dart';
 import '../providers/admin_notifications_provider.dart';
 import 'slide_over_confirmation_drawer.dart';
@@ -233,14 +234,15 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                _buildFilterPill('all', 'All (${allNotifications.length})'),
+                                _buildFilterPill('all', 'All (${allNotifications.length})', isDark: isDark),
                                 const SizedBox(width: 6),
                                 _buildFilterPill(
                                   'registrations',
                                   'Users (${allNotifications.where((n) => n.type == 'user_registration').length})',
+                                  isDark: isDark,
                                 ),
                                 const SizedBox(width: 6),
-                                _buildFilterPill('unread', 'Unread ($unreadCount)'),
+                                _buildFilterPill('unread', 'Unread ($unreadCount)', isDark: isDark),
                               ],
                             ),
                           ),
@@ -390,8 +392,18 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
     );
   }
 
-  Widget _buildFilterPill(String filterKey, String label) {
+  Widget _buildFilterPill(String filterKey, String label, {required bool isDark}) {
     final isSelected = _selectedFilter == filterKey;
+    final bg = isSelected
+        ? (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+        : (isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD));
+    final fg = isSelected
+        ? (isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
+        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF5D7391));
+    final border = isSelected
+        ? Colors.transparent
+        : (isDark ? const Color(0xFF28405D) : const Color(0xFFB4C9E6));
+
     return InkWell(
       onTap: () {
         setState(() {
@@ -400,17 +412,18 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF18314F) : const Color(0xFFF1F5F9),
+          color: bg,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border),
         ),
         child: Text(
           label,
           style: AppTextStyles.jakarta(
-            size: 11,
-            weight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : const Color(0xFF475569),
+            size: 11.5,
+            weight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: fg,
           ),
         ),
       ),

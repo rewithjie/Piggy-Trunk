@@ -48,7 +48,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _initializeApp() async {
     final startTime = DateTime.now();
-    bool hasValidSession = false;
     String targetRoute = '/onboarding';
 
     try {
@@ -56,26 +55,58 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       final session = supabase.auth.currentSession;
 
       if (session != null) {
-        // Fetch profile status and role to verify eligibility
-        final userData = await supabase
-            .from('app_users')
-            .select('status, role')
-            .or('auth_user_id.eq.${session.user.id},supabase_user_id.eq.${session.user.id},email.eq.${session.user.email}')
-            .maybeSingle();
+        final user = session.user;
+        Map<String, dynamic>? userData;
+
+        try {
+          final userEmail = user.email;
+          if (userEmail != null && userEmail.isNotEmpty) {
+            userData = await supabase
+                .from('app_users')
+                .select('status, role, user_id')
+                .or('supabase_user_id.eq.${user.id},email.eq.$userEmail')
+                .maybeSingle();
+          } else {
+            userData = await supabase
+                .from('app_users')
+                .select('status, role, user_id')
+                .eq('supabase_user_id', user.id)
+                .maybeSingle();
+          }
+        } catch (dbErr) {
+          debugPrint('Notice during app_users check: $dbErr');
+        }
+
+        // Fallback: check specific role tables if app_users not found
+        if (userData == null && user.email != null) {
+          try {
+            final raiser = await supabase
+                .from('hog_raisers')
+                .select('account_status, status')
+                .eq('email', user.email!)
+                .maybeSingle();
+            if (raiser != null) {
+              userData = {
+                'role': 'hog_raiser',
+                'status': raiser['account_status'] ?? raiser['status'] ?? 'Active',
+              };
+            }
+          } catch (_) {}
+        }
 
         if (userData != null) {
-          final String rawStatus = (userData['status'] ?? 'Pending').toString();
+          final String rawStatus = (userData['status'] ?? 'Active').toString();
           final String statusLower = rawStatus.toLowerCase();
-          final String role = (userData['role'] ?? 'partner').toString();
+          final String role = (userData['role'] ?? 'hog_raiser').toString();
 
-          final allowedRoles = ['hog_raiser', 'partner', 'cashier', 'admin'];
-          if (allowedRoles.contains(role) && statusLower == 'active') {
-            hasValidSession = true;
+          if (statusLower == 'active') {
             switch (role) {
               case 'hog_raiser':
+              case 'raiser':
                 targetRoute = '/raiser_dashboard';
                 break;
               case 'partner':
+              case 'investor':
                 targetRoute = '/partner_dashboard';
                 break;
               case 'cashier':
@@ -85,33 +116,38 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 targetRoute = '/admin_dashboard';
                 break;
               default:
-                targetRoute = '/partner_dashboard';
+                targetRoute = '/raiser_dashboard';
             }
+          } else if (statusLower == 'pending') {
+            // Still pending approval
+            targetRoute = '/onboarding';
           }
         } else {
-          // Default valid session for Google Sign-In
-          hasValidSession = true;
-          targetRoute = '/partner_dashboard';
+          // If session exists and user metadata has role, route directly
+          final userMetaRole = user.userMetadata?['role']?.toString().toLowerCase() ?? 'hog_raiser';
+          if (userMetaRole.contains('partner')) {
+            targetRoute = '/partner_dashboard';
+          } else if (userMetaRole.contains('cashier')) {
+            targetRoute = '/cashier_dashboard';
+          } else if (userMetaRole.contains('admin')) {
+            targetRoute = '/admin_dashboard';
+          } else {
+            targetRoute = '/raiser_dashboard';
+          }
         }
       }
     } catch (e) {
       debugPrint('Error checking session: $e');
     }
 
-    if (!hasValidSession) {
-      try {
-        await Supabase.instance.client.auth.signOut();
-      } catch (_) {}
-    }
-
     final elapsedTime = DateTime.now().difference(startTime);
-    const minDuration = Duration(seconds: 2);
+    const minDuration = Duration(milliseconds: 1200);
     if (elapsedTime < minDuration) {
       await Future<void>.delayed(minDuration - elapsedTime);
     }
 
     if (mounted) {
-      Navigator.pushReplacementNamed(context, targetRoute);
+      Navigator.of(context).pushNamedAndRemoveUntil(targetRoute, (route) => false);
     }
   }
 

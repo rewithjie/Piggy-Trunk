@@ -12,7 +12,7 @@ import 'screens/inventory_screen.dart';
 import 'screens/pos_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/user_approvals_screen.dart';
-
+import 'screens/batch_management_screen.dart';
 import 'screens/mobile_app_distribution_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
@@ -80,6 +80,7 @@ class MyApp extends ConsumerWidget {
         '/pos': (context) => const POSScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/users': (context) => const UserApprovalsScreen(),
+        '/batches': (context) => const BatchManagementScreen(),
         '/mobile-app': (context) => const MobileAppDistributionScreen(),
       },
       debugShowCheckedModeBanner: false,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_inventory_screen.dart';
@@ -31,6 +32,7 @@ class _AdminMobileDashboardScreenState
   double _totalInvested = 0.00;
   double _totalInventoryValue = 0.00;
   List<Map<String, dynamic>> _stockAlerts = [];
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -326,9 +328,34 @@ class _AdminMobileDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (_selectedTabIndex != 0) {
+          setState(() => _selectedTabIndex = 0);
+          return;
+        }
+
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
+              duration: Duration(seconds: 2),
+              backgroundColor: _brandNavy,
+            ),
+          );
+          return;
+        }
+
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: SafeArea(
         child: RefreshIndicator(
           color: _brandNavy,
           onRefresh: _fetchAdminData,
@@ -352,7 +379,8 @@ class _AdminMobileDashboardScreenState
                           : _buildPlaceholderTab(_selectedTabIndex),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      ),
     );
   }
 

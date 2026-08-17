@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
@@ -38,6 +39,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   String _cashierAddress = "N/A";
   String? _cashierAvatarUrl;
   static const Color _brandColor = Color(0xFF18314F);
+  DateTime? _lastBackPressTime;
 
   // Real Database Data
   List<POSProduct> _allProducts = [];
@@ -300,9 +302,23 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
       final publicUrl = _supabase.storage.from('profile_pictures').getPublicUrl(filePath);
 
-      await _supabase.from('app_users').update({
-        'avatar_url': publicUrl,
-      }).eq('supabase_user_id', user.id);
+      try {
+        await _supabase.auth.updateUser(
+          UserAttributes(data: {'avatar_url': publicUrl, 'picture': publicUrl}),
+        );
+      } catch (_) {}
+
+      try {
+        await _supabase.from('app_users').update({
+          'avatar_url': publicUrl,
+        }).eq('supabase_user_id', user.id);
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _cashierAvatarUrl = publicUrl;
+        });
+      }
 
       _showSnackBar('Matagumpay na na-update ang inyong profile picture!', backgroundColor: PiggyTrunkTheme.ptSuccess);
       await _fetchProfile();
@@ -323,9 +339,23 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _supabase.from('app_users').update({
-        'avatar_url': null,
-      }).eq('supabase_user_id', user.id);
+      try {
+        await _supabase.auth.updateUser(
+          UserAttributes(data: {'avatar_url': null, 'picture': null}),
+        );
+      } catch (_) {}
+
+      try {
+        await _supabase.from('app_users').update({
+          'avatar_url': null,
+        }).eq('supabase_user_id', user.id);
+      } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _cashierAvatarUrl = null;
+        });
+      }
 
       _showSnackBar('Nabalik sa default ang inyong profile picture!', backgroundColor: PiggyTrunkTheme.ptSuccess);
       await _fetchProfile();
@@ -340,143 +370,283 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   }
 
   void _showEditProfileDialog() {
-    final nameController = TextEditingController(text: _cashierName);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameController = TextEditingController(text: _cashierName == 'N/A' ? '' : _cashierName);
     final phoneController = TextEditingController(text: _cashierPhone == 'N/A' ? '' : _cashierPhone);
     final addressController = TextEditingController(text: _cashierAddress == 'N/A' ? '' : _cashierAddress);
 
-    showDialog(
+    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
+    final inputBg = isDark ? const Color(0xFF1B2A3F) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF2A3C55) : const Color(0xFFE2E8F0);
+    final hintColor = isDark ? const Color(0xFF8A9FB8) : PiggyTrunkTheme.ptMuted;
+
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'I-edit ang Profile',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.bold,
-              color: _brandColor,
-              fontSize: 18,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Drag Handle Pill
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.person_outline_rounded,
+                              color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'I-edit ang Profile',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: borderColor, height: 1),
+                  const SizedBox(height: 18),
+
+                  // 1. Pangalan
+                  Text(
+                    'Buong Pangalan',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameController,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'Ilagay ang inyong buong pangalan',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 2. Phone Number (Numerical Only!)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Telepono / Phone Number',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      Text(
+                        'Numbers only (11 digits)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: '09XXXXXXXXX',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 3. Address / Branch
+                  Text(
+                    'Address / Branch',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: addressController,
+                    maxLines: 2,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'Ilagay ang inyong address o branch',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
+                      ),
+                      filled: true,
+                      fillColor: inputBg,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Action Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: borderColor, width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'Kanselahin',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              color: hintColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await _updateProfile(
+                              nameController.text.trim(),
+                              phoneController.text.trim(),
+                              addressController.text.trim(),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : _brandColor,
+                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'I-save ang Pagbabago',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pangalan',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _brandColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: nameController,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong pangalan',
-                    hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: PiggyTrunkTheme.ptMuted),
-                    fillColor: const Color(0xfff7f8fb),
-                    filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Telepono / Phone Number',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _brandColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong numero',
-                    hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: PiggyTrunkTheme.ptMuted),
-                    fillColor: const Color(0xfff7f8fb),
-                    filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Address / Branch',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _brandColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: addressController,
-                  maxLines: 2,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
-                  decoration: InputDecoration(
-                    hintText: 'Ilagay ang inyong address o branch',
-                    hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: PiggyTrunkTheme.ptMuted),
-                    fillColor: const Color(0xfff7f8fb),
-                    filled: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              child: Text(
-                'Kanselahin',
-                style: GoogleFonts.plusJakartaSans(
-                  color: PiggyTrunkTheme.ptMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _updateProfile(
-                  nameController.text.trim(),
-                  phoneController.text.trim(),
-                  addressController.text.trim(),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                'I-save',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -930,9 +1100,34 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: PiggyTrunkTheme.ptBg,
-      appBar: _currentIndex == 0
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return;
+        }
+
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Color(0xFF18314F),
+            ),
+          );
+          return;
+        }
+
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: PiggyTrunkTheme.ptBg,
+        appBar: _currentIndex == 0
           ? null
           : AppBar(
               automaticallyImplyLeading: false,
@@ -1070,6 +1265,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

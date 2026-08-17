@@ -283,32 +283,43 @@ class GoogleAuthService {
         }
       }
 
-      // Explicitly ensure admin_notifications matches the registered role
-      try {
-        final String roleDisplay = targetRole == 'hog_raiser' || targetRole == 'raiser'
-            ? 'Hog Raiser'
-            : targetRole == 'partner'
-                ? 'Partner Investor'
-                : targetRole == 'cashier'
-                    ? 'Cashier'
-                    : 'User';
-        await _supabase
-            .from('admin_notifications')
-            .delete()
-            .eq('metadata->>email', email)
-            .eq('type', 'user_registration');
-        await _supabase.from('admin_notifications').insert({
-          'title': 'New User Registration',
-          'message': '$nameToUse ($email) registered as $roleDisplay and is pending approval.',
-          'type': 'user_registration',
-          'is_read': false,
-          'metadata': {
-            'name': nameToUse,
-            'email': email,
-            'role': targetRole,
-          },
-        });
-      } catch (_) {}
+      // Only insert admin notification IF this is a brand new / pending registration
+      if (status.toLowerCase() == 'pending') {
+        try {
+          final String roleDisplay = targetRole == 'hog_raiser' || targetRole == 'raiser'
+              ? 'Hog Raiser'
+              : targetRole == 'partner'
+                  ? 'Partner Investor'
+                  : targetRole == 'cashier'
+                      ? 'Cashier'
+                      : 'User';
+          await _supabase
+              .from('admin_notifications')
+              .delete()
+              .eq('metadata->>email', email)
+              .eq('type', 'user_registration');
+          await _supabase.from('admin_notifications').insert({
+            'title': 'New User Registration',
+            'message': '$nameToUse ($email) registered as $roleDisplay and is pending approval.',
+            'type': 'user_registration',
+            'is_read': false,
+            'metadata': {
+              'name': nameToUse,
+              'email': email,
+              'role': targetRole,
+            },
+          });
+        } catch (_) {}
+      } else if (status.toLowerCase() == 'active') {
+        // If user is already approved and active, remove any leftover pending registration notifications
+        try {
+          await _supabase
+              .from('admin_notifications')
+              .delete()
+              .eq('metadata->>email', email)
+              .eq('type', 'user_registration');
+        } catch (_) {}
+      }
 
       return {
         'success': true,

@@ -144,6 +144,22 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         debugPrint('Notice during raiser sync: $syncErr');
       }
 
+      final Map<String, String> avatarMap = {};
+      try {
+        final storageFiles = await _supabase.storage.from('profile_pictures').list(path: 'avatars');
+        for (final file in storageFiles) {
+          final fname = file.name;
+          final match = RegExp(r'^avatar-(\d+)-').firstMatch(fname);
+          if (match != null) {
+            final id = match.group(1)!;
+            final existing = avatarMap[id];
+            if (existing == null || fname.compareTo(existing) > 0) {
+              avatarMap[id] = fname;
+            }
+          }
+        }
+      } catch (_) {}
+
       dynamic query = _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(name, email, supabase_user_id)');
@@ -162,11 +178,21 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               ? googleOrAppName
               : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
 
+          final raiserIdStr = (r['hog_raiser_id'] ?? r['id'] ?? '').toString();
+          final userIdStr = (r['user_id'] ?? '').toString();
+          String? resolvedAvatarUrl;
+
+          final matchedFile = avatarMap[raiserIdStr] ?? avatarMap[userIdStr];
+          if (matchedFile != null) {
+            resolvedAvatarUrl = _supabase.storage.from('profile_pictures').getPublicUrl('avatars/$matchedFile');
+          }
+
           return {
             ...r,
             'name': resolvedFullName,
             'email': appUsers?['email'] ?? '',
             'supabase_user_id': appUsers?['supabase_user_id'],
+            'avatar_url': resolvedAvatarUrl ?? r['avatar_url'],
           };
         }).where((r) => r['supabase_user_id'] != null).toList();
 
@@ -260,13 +286,37 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
   Widget _buildListView() {
     final isMobile = Responsive.isMobile(context);
-    final activeCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'active').length;
-    final pendingCount = _raisers.where((r) => (r['account_status'] ?? '').toString().toLowerCase() == 'pending').length;
+    final activeCount = _raisers.where((r) {
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+      if (status == 'archived' || accStatus == 'archived') return false;
+      if (status == 'pending' || accStatus == 'pending') return false;
+      return status == 'active' || accStatus == 'active' || accStatus == 'approved';
+    }).length;
+
+    final pendingCount = _raisers.where((r) {
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+      if (status == 'archived' || accStatus == 'archived') return false;
+      return status == 'pending' || accStatus == 'pending';
+    }).length;
+
+    final archivedCount = _raisers.where((r) {
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+      return status == 'archived' || accStatus == 'archived';
+    }).length;
 
     final filteredRaisers = _raisers.where((r) {
-      final status = (r['account_status'] ?? '').toString().toLowerCase();
-      final tabStatus = _currentTab == 0 ? 'active' : 'pending';
-      return status == tabStatus;
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+      final isArchived = status == 'archived' || accStatus == 'archived';
+      final isPending = !isArchived && (status == 'pending' || accStatus == 'pending');
+      final isActive = !isArchived && !isPending && (status == 'active' || accStatus == 'active' || accStatus == 'approved');
+
+      if (_currentTab == 0) return isActive;
+      if (_currentTab == 1) return isPending;
+      return isArchived;
     }).toList();
 
     return Column(
@@ -282,12 +332,17 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         ],
         const SizedBox(height: 20),
         isMobile
-            ? Row(
-                children: [
-                  Expanded(child: _buildTabButton(0, 'Active Raisers', activeCount, isMobile: true)),
-                  const SizedBox(width: 8),
-                  Expanded(child: _buildTabButton(1, 'Pending Approvals', pendingCount, isMobile: true)),
-                ],
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildTabButton(0, 'Active Raisers', activeCount, isMobile: true),
+                    const SizedBox(width: 8),
+                    _buildTabButton(1, 'Pending Approvals', pendingCount, isMobile: true),
+                    const SizedBox(width: 8),
+                    _buildTabButton(2, 'Archived', archivedCount, isMobile: true),
+                  ],
+                ),
               )
             : Wrap(
                 spacing: 12,
@@ -295,6 +350,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                 children: [
                   _buildTabButton(0, 'Active Raisers', activeCount),
                   _buildTabButton(1, 'Pending Approvals', pendingCount),
+                  _buildTabButton(2, 'Archived', archivedCount),
                 ],
               ),
         const SizedBox(height: 20),
@@ -368,7 +424,9 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 50),
                               child: Center(
                                 child: Text(
-                                  _currentTab == 0 ? 'No active raisers found' : 'No pending approvals',
+                                  _currentTab == 0
+                                      ? 'No active raisers found'
+                                      : (_currentTab == 1 ? 'No pending approvals' : 'No archived raisers found'),
                                   style: AppTextStyles.jakarta(size: 20, weight: FontWeight.w700, color: _titleColor),
                                 ),
                               ),
@@ -472,11 +530,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   }
 
   Widget _tableRow(Map<String, dynamic> row) {
-    final isPending = (row['account_status'] ?? '').toString().toLowerCase() == 'pending';
-    final statusText = (row['account_status'] ?? '').toString().toUpperCase();
-    final statusColor = statusText == 'ACTIVE' || statusText == 'APPROVED'
-        ? PiggyTrunkTheme.ptSuccess
-        : (statusText == 'PENDING' ? const Color(0xFFFFAA00) : Colors.redAccent);
+    final statusVal = (row['status'] ?? '').toString().toLowerCase();
+    final accStatusVal = (row['account_status'] ?? '').toString().toLowerCase();
+    final isArchived = statusVal == 'archived' || accStatusVal == 'archived';
+    final isPending = !isArchived && (statusVal == 'pending' || accStatusVal == 'pending');
+    
+    final String statusText = isArchived ? 'ARCHIVED' : (isPending ? 'PENDING' : 'ACTIVE');
+    final Color statusColor = isArchived
+        ? const Color(0xFF94A3B8)
+        : (isPending ? const Color(0xFFFFAA00) : PiggyTrunkTheme.ptSuccess);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -511,7 +573,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: Text(
                 (row['phone'] ?? '').toString(),
                 style: AppTextStyles.body(_titleColor),
@@ -522,7 +584,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
@@ -553,16 +615,16 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                       children: [
                         IconButton(
                           onPressed: () => _showRaiserDetails(row),
-                          icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
+                          icon: Icon(Icons.visibility_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
                           tooltip: 'View Details',
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         IconButton(
                           onPressed: () => _approveRaiserDirectly(row),
-                          icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
+                          icon: const Icon(Icons.check_circle_outline_rounded, size: 21, color: PiggyTrunkTheme.ptSuccess),
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
@@ -571,7 +633,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                         const SizedBox(width: 8),
                         IconButton(
                           onPressed: () => _deleteRaiser(row),
-                          icon: const Icon(Icons.cancel_outlined, size: 22, color: Colors.redAccent),
+                          icon: const Icon(Icons.cancel_outlined, size: 21, color: Color(0xFFFF758C)),
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
@@ -579,37 +641,69 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                         ),
                       ],
                     )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () => _showRaiserDetails(row),
-                          icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
-                          padding: const EdgeInsets.all(4),
-                          constraints: const BoxConstraints(),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'View Details',
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          onPressed: () => _showEditRaiserDialog(row),
-                          icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.amber),
-                          padding: const EdgeInsets.all(4),
-                          constraints: const BoxConstraints(),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Edit Raiser',
-                        ),
-                        const SizedBox(width: 6),
-                        IconButton(
-                          onPressed: () => _archiveRaiser(row),
-                          icon: const Icon(Icons.archive_outlined, size: 20, color: Colors.orangeAccent),
-                          padding: const EdgeInsets.all(4),
-                          constraints: const BoxConstraints(),
-                          visualDensity: VisualDensity.compact,
-                          tooltip: 'Archive Raiser',
-                        ),
-                      ],
-                    ),
+                  : (isArchived
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () => _showRaiserDetails(row),
+                              icon: Icon(Icons.visibility_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'View Details',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () => _restoreRaiser(row),
+                              icon: const Icon(Icons.unarchive_outlined, size: 20, color: PiggyTrunkTheme.ptSuccess),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Restore Raiser',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () => _deleteRaiser(row),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFFFF758C)),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Delete Permanently',
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () => _showRaiserDetails(row),
+                              icon: Icon(Icons.visibility_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'View Details',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () => _showEditRaiserDialog(row),
+                              icon: Icon(Icons.edit_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Edit Raiser',
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () => _archiveRaiser(row),
+                              icon: const Icon(Icons.archive_outlined, size: 20, color: Color(0xFFFF758C)),
+                              padding: const EdgeInsets.all(4),
+                              constraints: const BoxConstraints(),
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Archive Raiser',
+                            ),
+                          ],
+                        )),
             ),
           ),
         ],
@@ -777,6 +871,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       final List<Future> updates = [
         _supabase.from('hog_raisers').update({
           'status': 'Archived',
+          'account_status': 'Archived',
         }).eq(pkCol, id),
       ];
 
@@ -802,6 +897,52 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Archive failed: $e', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _restoreRaiser(Map<String, dynamic> row) async {
+    final id = _parseId(row['id'] ?? row['hog_raiser_id']);
+    final userId = _parseId(row['user_id']);
+    if (id == null) return;
+    final name = (row['name'] ?? '').toString();
+
+    setState(() => _isLoading = true);
+    try {
+      final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+      final List<Future> updates = [
+        _supabase.from('hog_raisers').update({
+          'status': 'Active',
+          'account_status': 'Approved',
+        }).eq(pkCol, id),
+      ];
+
+      if (userId != null) {
+        updates.add(
+          _supabase.from('app_users').update({
+            'status': 'approved',
+          }).eq('user_id', userId),
+        );
+      }
+
+      await Future.wait(updates);
+      await _loadRaisers(keyword: _searchCtrl.text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Raiser "$name" restored successfully.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Restore failed: $e', style: AppTextStyles.body(Colors.white)),
           backgroundColor: Colors.red,
         ),
       );

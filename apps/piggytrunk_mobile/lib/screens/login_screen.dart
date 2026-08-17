@@ -137,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final userData = await Supabase.instance.client
           .from('app_users')
           .select('role, status')
-          .or('auth_user_id.eq.${user.id},supabase_user_id.eq.${user.id},email.eq.${user.email}')
+          .or('supabase_user_id.eq.${user.id},email.eq.${user.email}')
           .maybeSingle();
 
       final String rawStatus = (userData?['status'] ?? 'Pending').toString();
@@ -298,16 +298,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
     switch (role) {
       case 'hog_raiser':
-        Navigator.pushReplacementNamed(context, '/raiser_dashboard');
+      case 'raiser':
+        Navigator.of(context).pushNamedAndRemoveUntil('/raiser_dashboard', (route) => false);
         break;
       case 'partner':
-        Navigator.pushReplacementNamed(context, '/partner_dashboard');
+      case 'investor':
+        Navigator.of(context).pushNamedAndRemoveUntil('/partner_dashboard', (route) => false);
         break;
       case 'cashier':
-        Navigator.pushReplacementNamed(context, '/cashier_dashboard');
+        Navigator.of(context).pushNamedAndRemoveUntil('/cashier_dashboard', (route) => false);
         break;
       case 'admin':
-        Navigator.pushReplacementNamed(context, '/admin_dashboard');
+        Navigator.of(context).pushNamedAndRemoveUntil('/admin_dashboard', (route) => false);
         break;
       default:
         Supabase.instance.client.auth.signOut();

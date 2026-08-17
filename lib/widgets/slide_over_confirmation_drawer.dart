@@ -261,6 +261,7 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                               Container(
                                 width: 48,
                                 height: 48,
+                                clipBehavior: Clip.antiAlias,
                                 decoration: BoxDecoration(
                                   color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                   shape: BoxShape.circle,
@@ -276,16 +277,31 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    initials,
-                                    style: AppTextStyles.jakarta(
-                                      size: 16,
-                                      weight: FontWeight.w800,
-                                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                                    ),
-                                  ),
-                                ),
+                                child: (avatarUrl != null && avatarUrl!.isNotEmpty)
+                                    ? Image.network(
+                                        avatarUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Center(
+                                          child: Text(
+                                            initials,
+                                            style: AppTextStyles.jakarta(
+                                              size: 16,
+                                              weight: FontWeight.w800,
+                                              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          initials,
+                                          style: AppTextStyles.jakarta(
+                                            size: 16,
+                                            weight: FontWeight.w800,
+                                            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                          ),
+                                        ),
+                                      ),
                               ),
                               const SizedBox(width: 14),
                               Expanded(

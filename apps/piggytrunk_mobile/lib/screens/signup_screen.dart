@@ -450,12 +450,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
           }
         } else if (statusLower == 'active') {
           if (mounted) {
-            if (role == 'hog_raiser') {
-              Navigator.pushReplacementNamed(context, '/raiser_dashboard');
+            if (role == 'hog_raiser' || role == 'raiser') {
+              Navigator.of(context).pushNamedAndRemoveUntil('/raiser_dashboard', (route) => false);
             } else if (role == 'cashier') {
-              Navigator.pushReplacementNamed(context, '/cashier_dashboard');
-            } else if (role == 'partner') {
-              Navigator.pushReplacementNamed(context, '/partner_dashboard');
+              Navigator.of(context).pushNamedAndRemoveUntil('/cashier_dashboard', (route) => false);
+            } else if (role == 'partner' || role == 'investor') {
+              Navigator.of(context).pushNamedAndRemoveUntil('/partner_dashboard', (route) => false);
+            } else if (role == 'admin') {
+              Navigator.of(context).pushNamedAndRemoveUntil('/admin_dashboard', (route) => false);
             }
           }
         }

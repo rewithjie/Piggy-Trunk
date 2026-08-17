@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -35,6 +36,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   final List<Map<String, dynamic>> _projectsList = [];
   final List<Map<String, dynamic>> _activitiesList = [];
   List<Map<String, dynamic>> _notificationsList = [];
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
@@ -72,9 +74,17 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
         final publicUrl = Supabase.instance.client.storage.from('profile_pictures').getPublicUrl(filePath);
 
-        await Supabase.instance.client.from('app_users').update({
-          'avatar_url': publicUrl,
-        }).eq('supabase_user_id', user.id);
+        try {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(data: {'avatar_url': publicUrl, 'picture': publicUrl}),
+          );
+        } catch (_) {}
+
+        try {
+          await Supabase.instance.client.from('app_users').update({
+            'avatar_url': publicUrl,
+          }).eq('supabase_user_id', user.id);
+        } catch (_) {}
 
         if (mounted) {
           setState(() {
@@ -107,6 +117,12 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(data: {'avatar_url': null, 'picture': null}),
+        );
+      } catch (_) {}
+
+      try {
         await Supabase.instance.client.from('app_users').update({
           'avatar_url': null,
         }).eq('supabase_user_id', user.id);
@@ -131,116 +147,203 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
   void _showEditProfileDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final nameCtrl = TextEditingController(text: _partnerName);
+    final nameCtrl = TextEditingController(text: _partnerName == 'N/A' ? '' : _partnerName);
     final phoneCtrl = TextEditingController(text: _partnerPhone == 'N/A' ? '' : _partnerPhone);
     final addrCtrl = TextEditingController(text: _partnerAddress == 'N/A' ? '' : _partnerAddress);
 
-    showDialog(
+    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
+    final borderColor = isDark ? const Color(0xFF28354A) : const Color(0xFFE6EBF2);
+    final hintColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF151F2E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'I-edit ang Profile',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F),
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDialogInputField(
-                context,
-                controller: nameCtrl,
-                label: 'Pangalan',
-                icon: Icons.person_outline_rounded,
-              ),
-              const SizedBox(height: 12),
-              _buildDialogInputField(
-                context,
-                controller: phoneCtrl,
-                label: 'Phone Number',
-                icon: Icons.phone_outlined,
-              ),
-              const SizedBox(height: 12),
-              _buildDialogInputField(
-                context,
-                controller: addrCtrl,
-                label: 'Address',
-                icon: Icons.location_on_outlined,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
               ),
             ],
           ),
-        ),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Kanselahin',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newName = nameCtrl.text.trim();
-              final newPhone = phoneCtrl.text.trim();
-              final newAddr = addrCtrl.text.trim();
-
-              setState(() {
-                if (newName.isNotEmpty) _partnerName = newName;
-                _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
-                _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
-              });
-
-              Navigator.pop(ctx);
-
-              // Update in DB asynchronously
-              try {
-                final user = Supabase.instance.client.auth.currentUser;
-                if (user != null && newName.isNotEmpty) {
-                  await Supabase.instance.client
-                      .from('app_users')
-                      .update({'name': newName})
-                      .eq('supabase_user_id', user.id);
-                }
-              } catch (e) {
-                debugPrint('Error updating user name in DB: $e');
-              }
-
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Successfully updated profile information!'),
-                    backgroundColor: Color(0xFF2FB36F),
-                    behavior: SnackBarBehavior.floating,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Drag Handle Pill
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF18314F),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text(
-              'I-save',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                fontSize: 13,
+                  const SizedBox(height: 16),
+
+                  // Header Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.person_outline_rounded,
+                              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'I-edit ang Profile',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: borderColor, height: 1),
+                  const SizedBox(height: 18),
+
+                  _buildDialogInputField(
+                    context,
+                    controller: nameCtrl,
+                    label: 'Buong Pangalan',
+                    icon: Icons.person_outline_rounded,
+                  ),
+                  const SizedBox(height: 14),
+                  _buildDialogInputField(
+                    context,
+                    controller: phoneCtrl,
+                    label: 'Phone Number (11 digits)',
+                    icon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(11),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _buildDialogInputField(
+                    context,
+                    controller: addrCtrl,
+                    label: 'Address',
+                    icon: Icons.location_on_outlined,
+                  ),
+                  const SizedBox(height: 24),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: borderColor, width: 1.2),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'Kanselahin',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              color: hintColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final newName = nameCtrl.text.trim();
+                            final newPhone = phoneCtrl.text.trim();
+                            final newAddr = addrCtrl.text.trim();
+
+                            setState(() {
+                              if (newName.isNotEmpty) _partnerName = newName;
+                              _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
+                              _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
+                            });
+
+                            Navigator.pop(ctx);
+
+                            try {
+                              final user = Supabase.instance.client.auth.currentUser;
+                              if (user != null && newName.isNotEmpty) {
+                                await Supabase.instance.client
+                                    .from('app_users')
+                                    .update({'name': newName})
+                                    .eq('supabase_user_id', user.id);
+                              }
+                            } catch (e) {
+                              debugPrint('Error updating user name in DB: $e');
+                            }
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Successfully updated profile information!'),
+                                  backgroundColor: Color(0xFF2FB36F),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? Colors.white : const Color(0xFF18314F),
+                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(
+                            'I-save ang Pagbabago',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -250,10 +353,14 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: controller,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       style: GoogleFonts.plusJakartaSans(
         color: isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F),
         fontWeight: FontWeight.w600,
@@ -266,7 +373,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           fontWeight: FontWeight.w600,
           fontSize: 13,
         ),
-        prefixIcon: Icon(icon, size: 20, color: const Color(0xFF18314F)),
+        prefixIcon: Icon(icon, size: 20, color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F)),
         filled: true,
         fillColor: isDark ? const Color(0xFF1B2638) : const Color(0xFFF8FAFC),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -276,7 +383,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF18314F), width: 1.5),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF18314F), width: 1.5),
         ),
       ),
     );
@@ -488,10 +595,35 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: scaffoldBg,
-      body: SafeArea(
-        child: _isLoading
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          return;
+        }
+
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Color(0xFF18314F),
+            ),
+          );
+          return;
+        }
+
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        backgroundColor: scaffoldBg,
+        body: SafeArea(
+          child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(
                   color: Color(0xFF18314F),
@@ -560,6 +692,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

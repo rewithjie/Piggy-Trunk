@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../models/investment_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
@@ -11,17 +10,36 @@ import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
 import '../main.dart';
 
-class InvestmentsScreen extends StatefulWidget {
-  const InvestmentsScreen({super.key});
+class BatchManagementScreen extends StatefulWidget {
+  const BatchManagementScreen({super.key});
 
   @override
-  State<InvestmentsScreen> createState() => _InvestmentsScreenState();
+  State<BatchManagementScreen> createState() => _BatchManagementScreenState();
 }
 
-class _InvestmentsScreenState extends State<InvestmentsScreen> {
+class _BatchManagementScreenState extends State<BatchManagementScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  List<Investment> investments = [];
+
+  List<Map<String, dynamic>> _batchesList = [];
+  List<Map<String, dynamic>> _activeRaisers = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  String _selectedStatusFilter = 'ALL';
+
+  // Form State
+  final TextEditingController _batchNameCtrl = TextEditingController();
+  final TextEditingController _totalHogCtrl = TextEditingController();
+  final TextEditingController _capitalCtrl = TextEditingController();
+  String? _selectedRaiserId = 'unassigned';
+  List<String> _selectedHogTypes = ['Fattening'];
+  String? _batchNameError;
+  String? _totalHogError;
+  String? _capitalError;
+  String? _hogTypeError;
+  bool _isDrawerSaving = false;
+  Map<String, dynamic>? _editingBatch;
+
+  // Theme Helpers
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _panelStart => _isDark ? const Color(0xFF1A2940) : Colors.white;
@@ -30,7 +48,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _cardBg => _isDark ? const Color(0xFF132238) : Colors.white;
   Color get _cardBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
   Color get _titleColor => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _headerText => _isDark ? const Color(0xFF9EC0E8) : const Color(0xFF4B6281);
+  Color get _headerText => _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281);
   Color get _fieldBg => _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
   Color get _fieldBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC);
   Color get _fieldFocus => _isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
@@ -38,57 +56,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _hintText => _isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
   Color get _successDark => _isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
   Color get _inProgressDark => _isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
-  Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
-
-  InputDecoration _createInputDecoration(String hint, {bool hasError = false}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
-      filled: true,
-      fillColor: _fieldBg,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(
-          color: hasError ? const Color(0xFFE53E3E) : _fieldBorder,
-          width: hasError ? 1.5 : 1,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(
-          color: hasError ? const Color(0xFFE53E3E) : _fieldFocus,
-          width: hasError ? 1.5 : 1,
-        ),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    );
-  }
-
-  Widget _buildInlineError(String message) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, left: 2, bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1.5),
-            child: Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFFE53E3E),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -107,119 +74,82 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       });
       return;
     }
-    _loadInitialData();
+    _loadData();
   }
 
-  Future<void> _loadInitialData() async {
-    await _loadInvestments();
+  @override
+  void dispose() {
+    _batchNameCtrl.dispose();
+    _totalHogCtrl.dispose();
+    _capitalCtrl.dispose();
+    super.dispose();
   }
 
-  Future<void> _loadInvestments() async {
+  Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      // Auto-migrate: convert any old pending investments to active in the database
-      try {
-        await _supabase
-            .from('investment_records')
-            .update({'stage': 'active'})
-            .eq('stage', 'pending');
-      } catch (_) {
-        // Ignore silent migration failures (e.g. offline/network)
+      // 1. Fetch all batches with their assignments, raiser, and hogs
+      final batchesRes = await _supabase
+          .from('batches')
+          .select('*, assignments(*, hog_raisers(*), hogs(*))')
+          .order('date_created', ascending: false);
+
+      final List<Map<String, dynamic>> parsedBatches = [];
+      for (var b in batchesRes as List) {
+        final bMap = Map<String, dynamic>.from(b as Map);
+        final assignments = (bMap['assignments'] as List?) ?? [];
+        Map<String, dynamic>? activeAssign;
+        if (assignments.isNotEmpty) {
+          activeAssign = assignments.firstWhere(
+            (a) => (a['status'] ?? '').toString().toLowerCase() == 'active',
+            orElse: () => assignments.first,
+          );
+        }
+
+        final raiser = activeAssign != null ? (activeAssign['hog_raisers'] as Map<String, dynamic>?) : null;
+        final hogs = activeAssign != null ? ((activeAssign['hogs'] as List?) ?? []) : [];
+
+        bMap['active_assignment'] = activeAssign;
+        bMap['raiser_name'] = raiser != null ? (raiser['name'] ?? 'Unassigned') : 'Unassigned';
+        bMap['raiser_id'] = raiser != null ? (raiser['hog_raiser_id'] ?? raiser['id']) : null;
+        bMap['pig_type'] = raiser != null ? (raiser['pig_type'] ?? 'Fattening') : 'Fattening';
+        bMap['hog_count'] = hogs.isNotEmpty ? hogs.length : (activeAssign != null ? (activeAssign['total_hogs'] ?? 0) : 0);
+        bMap['status'] = activeAssign != null ? (activeAssign['status'] ?? 'Active') : 'Unassigned';
+
+        parsedBatches.add(bMap);
       }
 
-      final response = await _supabase
-          .from('investment_records')
-          .select()
-          .order('investment_date', ascending: false);
-
-      final rows = (response as List)
-          .map((row) => Investment.fromJson(row as Map<String, dynamic>))
-          .toList();
+      // 2. Fetch active authorized hog raisers for dropdown
+      await _fetchActiveRaisers();
 
       if (!mounted) return;
-      setState(() => investments = rows);
+      setState(() {
+        _batchesList = parsedBatches;
+      });
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load investments: $e')),
-      );
+      debugPrint('Error loading batch data: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-
-
-  String _formatDateForDisplay(String dateStr) {
+  Future<void> _fetchActiveRaisers() async {
     try {
-      final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
-    } catch (e) {
-      return 'Select date';
-    }
-  }
-
-  String _formatCurrency(double amount) {
-    final String fixed = amount.toStringAsFixed(2);
-    final List<String> parts = fixed.split('.');
-    final String integerPart = parts[0];
-    final String decimalPart = parts[1];
-    
-    final String formattedInteger = integerPart.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
-    
-    return '₱$formattedInteger.$decimalPart';
-  }
-  Investment? _editingInvestment;
-  bool _isDrawerSaving = false;
-  final TextEditingController _capitalCtrl = TextEditingController();
-  final TextEditingController _totalHogCtrl = TextEditingController();
-  List<String> _selectedHogTypes = ['Fattening'];
-  String? _selectedRaiserId = 'unassigned';
-  List<Map<String, dynamic>> _activeRaisers = [];
-  List<Map<String, dynamic>> _activeBatches = [];
-  String? _selectedBatchId = 'unassigned';
-  String? _capitalError;
-  String? _totalHogError;
-  String? _hogTypeError;
-
-  Future<void> _openInvestmentDrawer({Investment? existing}) async {
-    _capitalCtrl.text = existing != null ? existing.initialCapital.toInt().toString() : '';
-    _totalHogCtrl.text = existing != null ? existing.totalHog.toString() : '';
-    _capitalError = null;
-    _totalHogError = null;
-    _hogTypeError = null;
-
-    if (existing != null && existing.hogType.isNotEmpty && existing.hogType != 'Auto-populated' && existing.hogType != 'N/A') {
-      _selectedHogTypes = existing.hogType.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
-    } else {
-      _selectedHogTypes = ['Fattening'];
-    }
-
-    _editingInvestment = existing;
-
-    try {
-      dynamic response;
+      dynamic res;
       try {
-        response = await _supabase
+        res = await _supabase
             .from('hog_raisers')
             .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
             .order('name', ascending: true);
       } catch (_) {
-        response = await _supabase
+        res = await _supabase
             .from('hog_raisers')
             .select('hog_raiser_id, name, pig_type, status, account_status')
             .order('name', ascending: true);
       }
 
       final List<Map<String, dynamic>> activeRows = [];
-      for (var r in (response as List)) {
+      for (var r in (res as List)) {
         final rMap = Map<String, dynamic>.from(r as Map);
         final accStatus = (rMap['account_status'] ?? '').toString().toLowerCase();
         if (accStatus == 'rejected' || accStatus == 'pending') continue;
@@ -243,140 +173,100 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       }
 
       _activeRaisers = [
-        {
-          'id': 'unassigned',
-          'name': 'Unassigned (General Pool)',
-        },
+        {'id': 'unassigned', 'name': 'Unassigned (Pool Batch)'},
         ...activeRows,
       ];
+    } catch (e) {
+      debugPrint('Error fetching raisers: $e');
+      _activeRaisers = [
+        {'id': 'unassigned', 'name': 'Unassigned (Pool Batch)'}
+      ];
+    }
+  }
 
-      // Also fetch batches for direct batch funding
-      try {
-        final batchesRes = await _supabase
-            .from('batches')
-            .select('batch_id, batch_name, date_created, assignments(assignment_id, hog_raiser_id, status, hog_raisers(name, pig_type, hog_raiser_id, app_users!hog_raisers_user_id_fkey(name)), hogs(hog_id))')
-            .order('date_created', ascending: false);
+  // Filtered Batches
+  List<Map<String, dynamic>> get _filteredBatches {
+    return _batchesList.where((b) {
+      final name = (b['batch_name'] ?? '').toString().toLowerCase();
+      final raiser = (b['raiser_name'] ?? '').toString().toLowerCase();
+      final q = _searchQuery.toLowerCase().trim();
 
-        final List<Map<String, dynamic>> parsedBatches = [];
-        for (var b in (batchesRes as List)) {
-          final bMap = Map<String, dynamic>.from(b as Map);
-          final bId = bMap['batch_id']?.toString() ?? '';
-          final bName = bMap['batch_name']?.toString() ?? 'Batch $bId';
+      final matchesQuery = q.isEmpty || name.contains(q) || raiser.contains(q);
+      if (!matchesQuery) return false;
 
-          final assigns = bMap['assignments'] as List<dynamic>? ?? [];
-          final activeAssign = assigns.firstWhere(
-            (a) => (a['status'] ?? '').toString().toLowerCase() == 'active',
-            orElse: () => assigns.isNotEmpty ? assigns.first : null,
-          );
+      final status = (b['status'] ?? '').toString().toUpperCase();
+      if (_selectedStatusFilter == 'ALL') return true;
+      if (_selectedStatusFilter == 'ACTIVE') return status == 'ACTIVE';
+      if (_selectedStatusFilter == 'COMPLETED') return status == 'COMPLETED';
+      if (_selectedStatusFilter == 'UNASSIGNED') return status == 'UNASSIGNED' || (b['raiser_id'] == null);
+      return true;
+    }).toList();
+  }
 
-          String raiserId = '';
-          String raiserName = 'Unassigned';
-          String pigType = 'Fattening';
-          int hogCount = 0;
+  // Open Drawer for Create / Edit
+  Future<void> _openBatchDrawer({Map<String, dynamic>? existing}) async {
+    _editingBatch = existing;
+    _batchNameError = null;
+    _totalHogError = null;
+    _hogTypeError = null;
 
-          if (activeAssign != null) {
-            final raiser = activeAssign['hog_raisers'] as Map<String, dynamic>?;
-            raiserId = (activeAssign['hog_raiser_id'] ?? raiser?['hog_raiser_id'] ?? '').toString();
-            if (raiser != null) {
-              final appUsers = raiser['app_users'] as Map<String, dynamic>?;
-              final appName = appUsers?['name']?.toString().trim();
-              final rName = raiser['name']?.toString().trim();
-              raiserName = (appName != null && appName.isNotEmpty && appName.toLowerCase() != 'hog raiser')
-                  ? appName
-                  : (rName != null && rName.isNotEmpty ? rName : 'Hog Raiser');
-              pigType = raiser['pig_type']?.toString() ?? 'Fattening';
-            }
-            final hogs = activeAssign['hogs'] as List<dynamic>? ?? [];
-            hogCount = hogs.length;
+    // Refresh active raisers list before opening drawer
+    await _fetchActiveRaisers();
+
+    if (existing != null) {
+      _batchNameCtrl.text = (existing['batch_name'] ?? '').toString();
+      _totalHogCtrl.text = (existing['hog_count'] ?? 0).toString();
+      final existingRaiserId = existing['raiser_id']?.toString();
+      _selectedRaiserId = (existingRaiserId != null && existingRaiserId.isNotEmpty) ? existingRaiserId : 'unassigned';
+
+      final pigTypeStr = (existing['pig_type'] ?? 'Fattening').toString();
+      _selectedHogTypes = pigTypeStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
+
+      // Fetch associated investment capital if present
+      if (_selectedRaiserId != null && _selectedRaiserId != 'unassigned') {
+        try {
+          final inv = await _supabase
+              .from('investment_records')
+              .select('initial_capital')
+              .eq('hog_raiser_id', _selectedRaiserId!)
+              .maybeSingle();
+          if (inv != null && inv['initial_capital'] != null) {
+            _capitalCtrl.text = inv['initial_capital'].toString();
+          } else {
+            _capitalCtrl.text = '';
           }
-
-          parsedBatches.add({
-            'batch_id': bId,
-            'batch_name': bName,
-            'display_label': activeAssign != null
-                ? '$bName • $raiserName ($hogCount heads)'
-                : '$bName • Pool ($hogCount heads)',
-            'raiser_id': raiserId,
-            'raiser_name': raiserName,
-            'pig_type': pigType,
-            'hog_count': hogCount,
-          });
-        }
-
-        _activeBatches = [
-          {
-            'batch_id': 'unassigned',
-            'batch_name': 'General Pool (Unassigned)',
-            'display_label': 'General Investment Pool (Unassigned)',
-            'raiser_id': '',
-            'raiser_name': 'Unassigned',
-            'pig_type': 'Fattening',
-            'hog_count': 0,
-          },
-          ...parsedBatches,
-        ];
-      } catch (_) {
-        _activeBatches = [
-          {
-            'batch_id': 'unassigned',
-            'batch_name': 'General Pool (Unassigned)',
-            'display_label': 'General Investment Pool (Unassigned)',
-            'raiser_id': '',
-            'raiser_name': 'Unassigned',
-            'pig_type': 'Fattening',
-            'hog_count': 0,
-          }
-        ];
-      }
-
-      if (existing == null) {
-        _selectedRaiserId = 'unassigned';
-        _selectedBatchId = _activeBatches.length > 1 ? _activeBatches[1]['batch_id'] : 'unassigned';
-        if (_selectedBatchId != null && _selectedBatchId != 'unassigned') {
-          final matched = _activeBatches.firstWhere((b) => b['batch_id'] == _selectedBatchId, orElse: () => {});
-          _selectedRaiserId = (matched['raiser_id'] ?? '').toString();
-          final count = matched['hog_count'];
-          if (count != null && count > 0) _totalHogCtrl.text = count.toString();
-          final pt = (matched['pig_type'] ?? 'Fattening').toString();
-          if (pt.isNotEmpty) _selectedHogTypes = [pt];
+        } catch (_) {
+          _capitalCtrl.text = '';
         }
       } else {
-        _selectedRaiserId = (existing.hogRaiserId.isEmpty || existing.hogRaiserId == 'unassigned' || existing.raiserName.toLowerCase() == 'unassigned')
-            ? 'unassigned'
-            : existing.hogRaiserId;
-        final matched = _activeBatches.firstWhere(
-          (b) => b['raiser_id'] == _selectedRaiserId && b['raiser_id'].isNotEmpty,
-          orElse: () => _activeBatches.first,
-        );
-        _selectedBatchId = matched['batch_id'];
+        _capitalCtrl.text = '';
       }
-    } catch (_) {
-      _activeRaisers = [
-        {'id': 'unassigned', 'name': 'Unassigned (General Pool)'}
-      ];
-      _activeBatches = [
-        {'batch_id': 'unassigned', 'display_label': 'General Investment Pool (Unassigned)', 'raiser_id': '', 'raiser_name': 'Unassigned', 'pig_type': 'Fattening', 'hog_count': 0}
-      ];
+    } else {
+      final nextNum = _batchesList.length + 1;
+      _batchNameCtrl.text = 'Batch ${DateTime.now().year}-$nextNum';
+      _totalHogCtrl.text = '';
+      _capitalCtrl.text = '';
       _selectedRaiserId = 'unassigned';
-      _selectedBatchId = 'unassigned';
+      _selectedHogTypes = ['Fattening'];
     }
 
     if (!mounted) return;
     final isMobile = MediaQuery.of(context).size.width < 720;
     if (isMobile) {
-      _showInvestmentBottomSheet(existing);
+      _showBatchBottomSheet(existing);
     } else {
-      _showInvestmentSideDrawer(existing);
+      _showBatchSideDrawer(existing);
     }
   }
 
-  void _showInvestmentSideDrawer(Investment? existing) {
+  void _showBatchSideDrawer(Map<String, dynamic>? existing) {
     final isEdit = existing != null;
 
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: isEdit ? 'Edit Investment' : 'Create Investment',
+      barrierLabel: isEdit ? 'Edit Batch' : 'Create Batch',
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (dialogContext, animation, secondaryAnimation) => const SizedBox.shrink(),
@@ -410,19 +300,20 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                     builder: (context, setDrawerState) {
                       return Column(
                         children: [
+                          // Header
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
                             child: Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: _isDark ? Colors.white.withValues(alpha: 0.1) : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.1),
+                                    color: _isDark ? const Color(0xFF2563EB).withValues(alpha: 0.25) : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
-                                    isEdit ? Icons.edit_note_rounded : Icons.add_chart_rounded,
-                                    color: _titleColor,
+                                    isEdit ? Icons.edit_note_rounded : Icons.layers_rounded,
+                                    color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
                                     size: 22,
                                   ),
                                 ),
@@ -432,7 +323,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        isEdit ? 'Edit Investment' : 'Create Investment',
+                                        isEdit ? 'Edit Hog Batch' : 'Create New Hog Batch',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w800,
@@ -441,9 +332,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        isEdit
-                                            ? 'Modify initial capital & hog allocations'
-                                            : 'Assign capital and set hog quantities',
+                                        isEdit ? 'Update batch details and raiser assignment' : 'Define batch code, assigned raiser, and heads',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
@@ -465,6 +354,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           ),
                           Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
 
+                          // Form Content
                           Expanded(
                             child: SingleChildScrollView(
                               padding: const EdgeInsets.all(24),
@@ -473,12 +363,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                 isEdit: isEdit,
                                 isMobile: false,
                                 setDrawerState: setDrawerState,
-                                onSave: () => _handleDrawerSave(dialogContext, setDrawerState),
-                                isSaving: _isDrawerSaving,
                               ),
                             ),
                           ),
 
+                          // Footer Actions
                           Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -506,21 +395,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                 Expanded(
                                   flex: 2,
                                   child: ElevatedButton.icon(
-                                    onPressed: _isDrawerSaving ? null : () => _handleDrawerSave(dialogContext, setDrawerState),
+                                    onPressed: _isDrawerSaving ? null : () => _handleSaveBatch(dialogContext, setDrawerState),
                                     icon: _isDrawerSaving
-                                        ? SizedBox(
+                                        ? const SizedBox(
                                             width: 18,
                                             height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                            ),
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                           )
                                         : Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
                                     label: Text(
-                                      _isDrawerSaving
-                                          ? 'Saving...'
-                                          : (isEdit ? 'Save Changes' : 'Create Investment'),
+                                      _isDrawerSaving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Batch'),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -552,7 +436,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  void _showInvestmentBottomSheet(Investment? existing) {
+  void _showBatchBottomSheet(Map<String, dynamic>? existing) {
     final isEdit = existing != null;
 
     showModalBottomSheet(
@@ -595,7 +479,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   child: Row(
                     children: [
                       Text(
-                        isEdit ? 'Edit Investment' : 'Create Investment',
+                        isEdit ? 'Edit Hog Batch' : 'Create New Hog Batch',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -621,8 +505,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       isEdit: isEdit,
                       isMobile: true,
                       setDrawerState: setDrawerState,
-                      onSave: () => _handleDrawerSave(sheetContext, setDrawerState),
-                      isSaving: _isDrawerSaving,
                     ),
                   ),
                 ),
@@ -653,21 +535,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       Expanded(
                         flex: 2,
                         child: ElevatedButton.icon(
-                          onPressed: _isDrawerSaving ? null : () => _handleDrawerSave(sheetContext, setDrawerState),
+                          onPressed: _isDrawerSaving ? null : () => _handleSaveBatch(sheetContext, setDrawerState),
                           icon: _isDrawerSaving
-                              ? SizedBox(
+                              ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                  ),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
                               : Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
                           label: Text(
-                            _isDrawerSaving
-                                ? 'Saving...'
-                                : (isEdit ? 'Save Changes' : 'Create Investment'),
+                            _isDrawerSaving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Batch'),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
@@ -699,14 +576,41 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     required bool isEdit,
     required bool isMobile,
     required StateSetter setDrawerState,
-    required VoidCallback onSave,
-    required bool isSaving,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 1. BATCH NAME / CODE
         Text(
-          'SELECT BATCH TO FUND',
+          'BATCH NAME / CODE',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: _headerText,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _batchNameCtrl,
+          onChanged: (_) {
+            if (_batchNameError != null) setDrawerState(() => _batchNameError = null);
+          },
+          style: GoogleFonts.plusJakartaSans(
+            color: _fieldText,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+          decoration: _createInputDecoration('e.g. Batch Alpha 2026', hasError: _batchNameError != null).copyWith(
+            prefixIcon: Icon(Icons.tag_rounded, color: _isDark ? const Color(0xFF60A5FA) : _headerText, size: 20),
+          ),
+        ),
+        if (_batchNameError != null) _buildInlineError(_batchNameError!),
+        const SizedBox(height: 20),
+
+        // 2. ASSIGNED HOG RAISER
+        Text(
+          'ASSIGNED HOG RAISER',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
             fontWeight: FontWeight.w800,
@@ -716,13 +620,14 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         ),
         const SizedBox(height: 8),
         InputDecorator(
-          decoration: _createInputDecoration('Select an active batch').copyWith(
+          decoration: _createInputDecoration('Select authorized raiser').copyWith(
+            prefixIcon: Icon(Icons.person_outline_rounded, color: _isDark ? const Color(0xFF60A5FA) : _headerText, size: 20),
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
-                  ? _selectedBatchId
+              value: _activeRaisers.any((r) => r['id'].toString() == _selectedRaiserId)
+                  ? _selectedRaiserId
                   : 'unassigned',
               isExpanded: true,
               menuMaxHeight: 260,
@@ -730,11 +635,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               dropdownColor: _fieldBg,
               icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
               style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w600),
-              items: _activeBatches
-                  .map((b) => DropdownMenuItem<String>(
-                        value: b['batch_id'].toString(),
+              items: _activeRaisers
+                  .map((raiser) => DropdownMenuItem<String>(
+                        value: raiser['id'].toString(),
                         child: Text(
-                          (b['display_label'] ?? '').toString(),
+                          (raiser['name'] ?? '').toString(),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -746,21 +651,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                   .toList(),
               onChanged: (value) {
                 setDrawerState(() {
-                  _selectedBatchId = value;
+                  _selectedRaiserId = value;
                   if (value != null && value != 'unassigned') {
-                    final matched = _activeBatches.firstWhere((b) => b['batch_id'].toString() == value, orElse: () => {});
-                    _selectedRaiserId = (matched['raiser_id'] ?? '').toString();
-                    final count = matched['hog_count'];
-                    if (count != null && count > 0) {
-                      _totalHogCtrl.text = count.toString();
+                    final matched = _activeRaisers.firstWhere((r) => r['id'].toString() == value, orElse: () => {});
+                    final pt = matched['pig_type']?.toString();
+                    if (pt != null && pt.isNotEmpty && pt != 'Auto-populated' && pt != 'N/A') {
+                      final types = pt.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                      if (types.isNotEmpty) {
+                        _selectedHogTypes = types;
+                      }
                     }
-                    final pt = (matched['pig_type'] ?? 'Fattening').toString();
-                    if (pt.isNotEmpty && pt != 'Auto-populated' && pt != 'N/A') {
-                      _selectedHogTypes = pt.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
-                    }
-                  } else {
-                    _selectedRaiserId = 'unassigned';
                   }
                 });
               },
@@ -769,6 +669,60 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         ),
         const SizedBox(height: 20),
 
+        // 3. TOTAL HOGS (HEADS)
+        Text(
+          'TOTAL HOGS (HEADS)',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: _headerText,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _totalHogCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: (_) {
+            if (_totalHogError != null) setDrawerState(() => _totalHogError = null);
+          },
+          style: GoogleFonts.plusJakartaSans(
+            color: _fieldText,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+          decoration: _createInputDecoration('0', hasError: _totalHogError != null).copyWith(
+            suffixIcon: Container(
+              width: 72,
+              alignment: Alignment.center,
+              margin: const EdgeInsets.only(left: 12),
+              decoration: BoxDecoration(
+                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFEEF4FD),
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(10),
+                  bottomRight: Radius.circular(10),
+                ),
+                border: Border(
+                  left: BorderSide(color: _fieldBorder),
+                ),
+              ),
+              child: Text(
+                'Heads',
+                style: GoogleFonts.plusJakartaSans(
+                  color: _isDark ? const Color(0xFFCBD5E1) : _fieldText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
+          ),
+        ),
+        if (_totalHogError != null) _buildInlineError(_totalHogError!),
+        const SizedBox(height: 20),
+
+        // 4. INITIAL CAPITAL (PHP)
         Text(
           'INITIAL CAPITAL (PHP)',
           style: GoogleFonts.plusJakartaSans(
@@ -821,58 +775,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         if (_capitalError != null) _buildInlineError(_capitalError!),
         const SizedBox(height: 20),
 
-        Text(
-          'TOTAL HOG (HEADS)',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: _headerText,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _totalHogCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (_) {
-            if (_totalHogError != null) setDrawerState(() => _totalHogError = null);
-          },
-          style: GoogleFonts.plusJakartaSans(
-            color: _fieldText,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-          decoration: _createInputDecoration('0', hasError: _totalHogError != null).copyWith(
-            suffixIcon: Container(
-              width: 72,
-              alignment: Alignment.center,
-              margin: const EdgeInsets.only(left: 12),
-              decoration: BoxDecoration(
-                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFEEF4FD),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(10),
-                  bottomRight: Radius.circular(10),
-                ),
-                border: Border(
-                  left: BorderSide(color: _fieldBorder),
-                ),
-              ),
-              child: Text(
-                'Heads',
-                style: GoogleFonts.plusJakartaSans(
-                  color: _isDark ? const Color(0xFFCBD5E1) : _fieldText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
-          ),
-        ),
-        if (_totalHogError != null) _buildInlineError(_totalHogError!),
-        const SizedBox(height: 20),
-
+        // 4. HOG TYPE ASSIGNMENT
         Text(
           'HOG TYPE ASSIGNMENT',
           style: GoogleFonts.plusJakartaSans(
@@ -1006,33 +909,29 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Future<void> _handleDrawerSave(BuildContext drawerCtx, StateSetter setDrawerState) async {
-    final parsedCapital = int.tryParse(_capitalCtrl.text.trim());
+  Future<void> _handleSaveBatch(BuildContext drawerCtx, StateSetter setDrawerState) async {
+    final batchName = _batchNameCtrl.text.trim();
     final parsedTotalHog = int.tryParse(_totalHogCtrl.text.trim());
 
-    String? capitalErr;
+    String? nameErr;
     String? totalHogErr;
     String? hogTypeErr;
 
-    if (parsedCapital == null) {
-      capitalErr = 'Please enter a valid initial capital.';
-    } else if (parsedCapital <= 0) {
-      capitalErr = 'Capital must be greater than ₱0.';
+    if (batchName.isEmpty) {
+      nameErr = 'Please enter a batch name or code.';
     }
 
-    if (parsedTotalHog == null) {
-      totalHogErr = 'Please enter total number of heads.';
-    } else if (parsedTotalHog <= 0) {
-      totalHogErr = 'Total heads must be at least 1.';
+    if (parsedTotalHog == null || parsedTotalHog <= 0) {
+      totalHogErr = 'Please enter valid total hogs count (min 1).';
     }
 
     if (_selectedHogTypes.isEmpty) {
       hogTypeErr = 'Please select at least one Hog Type.';
     }
 
-    if (capitalErr != null || totalHogErr != null || hogTypeErr != null) {
+    if (nameErr != null || totalHogErr != null || hogTypeErr != null) {
       setDrawerState(() {
-        _capitalError = capitalErr;
+        _batchNameError = nameErr;
         _totalHogError = totalHogErr;
         _hogTypeError = hogTypeErr;
       });
@@ -1040,42 +939,92 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     }
 
     setDrawerState(() {
-      _capitalError = null;
+      _batchNameError = null;
       _totalHogError = null;
       _hogTypeError = null;
       _isDrawerSaving = true;
     });
 
     final isUnassigned = _selectedRaiserId == 'unassigned';
-    final raiserName = isUnassigned
-        ? 'Unassigned'
-        : (_activeRaisers.firstWhere(
-            (r) => r['id'].toString() == _selectedRaiserId,
-            orElse: () => {'name': ''},
-          )['name'] ?? 'Unassigned');
-
     final hogTypeStr = _selectedHogTypes.join(', ');
-    final isEdit = _editingInvestment != null;
-
-    final payload = {
-      'hog_raiser_id': isUnassigned ? '' : _selectedRaiserId,
-      'raiser_name': raiserName,
-      'initial_capital': parsedCapital,
-      'hog_type': hogTypeStr,
-      'total_hog': parsedTotalHog,
-      'investment_date': isEdit ? _editingInvestment!.investmentDate.toIso8601String() : DateTime.now().toIso8601String(),
-      if (!isEdit) 'stage': 'active',
-    };
+    final isEdit = _editingBatch != null;
 
     try {
+      dynamic batchId;
+
       if (isEdit) {
-        await _supabase.from('investment_records').update(payload).eq('id', _editingInvestment!.id);
+        batchId = _editingBatch!['batch_id'];
+        await _supabase.from('batches').update({
+          'batch_name': batchName,
+        }).eq('batch_id', batchId);
       } else {
-        await _supabase.from('investment_records').insert(payload);
+        final batchRes = await _supabase.from('batches').insert({
+          'batch_name': batchName,
+          'date_created': DateTime.now().toIso8601String().split('T').first,
+        }).select('batch_id').maybeSingle();
+
+        if (batchRes != null && batchRes['batch_id'] != null) {
+          batchId = batchRes['batch_id'];
+        }
       }
 
       if (!isUnassigned && int.tryParse(_selectedRaiserId!) != null) {
         final parsedRaiserId = int.parse(_selectedRaiserId!);
+
+        // 1. Check or Create/Update Assignment
+        dynamic assignId;
+        final existingAssign = await _supabase
+            .from('assignments')
+            .select('assignment_id')
+            .eq('hog_raiser_id', parsedRaiserId)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (existingAssign != null) {
+          assignId = existingAssign['assignment_id'];
+          if (batchId != null) {
+            await _supabase.from('assignments').update({
+              'batch_id': batchId,
+            }).eq('assignment_id', assignId);
+          }
+        } else {
+          final assignPayload = <String, dynamic>{
+            'hog_raiser_id': parsedRaiserId,
+            'status': 'active',
+            'start_date': DateTime.now().toIso8601String().split('T').first,
+          };
+          if (batchId != null) assignPayload['batch_id'] = batchId;
+
+          final newAssignRes = await _supabase
+              .from('assignments')
+              .insert(assignPayload)
+              .select('assignment_id')
+              .maybeSingle();
+
+          if (newAssignRes != null) {
+            assignId = newAssignRes['assignment_id'];
+          }
+        }
+
+        // 2. Generate / Update Hogs
+        if (assignId != null && !isEdit) {
+          final count = parsedTotalHog ?? 5;
+          final List<Map<String, dynamic>> hogsToInsert = [];
+          for (int i = 1; i <= count; i++) {
+            hogsToInsert.add({
+              'assignment_id': assignId,
+              'tag_number': 'HOG-$parsedRaiserId-$i',
+              'status': 'active',
+              'health_status': 'Healthy',
+              'current_weight': 15.0,
+            });
+          }
+          if (hogsToInsert.isNotEmpty) {
+            await _supabase.from('hogs').insert(hogsToInsert);
+          }
+        }
+
+        // 3. Update Hog Raiser info
         final raiserRow = _activeRaisers.firstWhere(
           (r) => r['id'].toString() == _selectedRaiserId,
           orElse: () => {},
@@ -1089,116 +1038,77 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             })
             .eq(pkCol, parsedRaiserId);
 
-        // Ensure active batch & assignment exists for this raiser
+        // 4. Auto-sync with investment_records table
         try {
-          final existingAssign = await _supabase
-              .from('assignments')
-              .select('assignment_id')
-              .eq('hog_raiser_id', parsedRaiserId)
-              .eq('status', 'active')
+          final parsedCapital = double.tryParse(_capitalCtrl.text.trim()) ?? ((parsedTotalHog ?? 5) * 3000.0);
+          final raiserName = raiserRow['name']?.toString() ?? 'Hog Raiser';
+
+          final existingInv = await _supabase
+              .from('investment_records')
+              .select('id')
+              .eq('hog_raiser_id', parsedRaiserId.toString())
               .maybeSingle();
 
-          if (existingAssign == null) {
-            // 1. Create batch
-            dynamic batchId;
-            final batchName = 'Batch ${raiserName.trim()} - ${DateTime.now().year}';
-            final batchRes = await _supabase
-                .from('batches')
-                .insert({
-                  'batch_name': batchName,
-                  'date_created': DateTime.now().toIso8601String().split('T').first,
-                })
-                .select('batch_id')
-                .maybeSingle();
-
-            if (batchRes != null && batchRes['batch_id'] != null) {
-              batchId = batchRes['batch_id'];
-            }
-
-            // 2. Create assignment
-            final assignPayload = <String, dynamic>{
-              'hog_raiser_id': parsedRaiserId,
-              'status': 'active',
-              'start_date': DateTime.now().toIso8601String().split('T').first,
-            };
-            if (batchId != null) assignPayload['batch_id'] = batchId;
-
-            final assignRes = await _supabase
-                .from('assignments')
-                .insert(assignPayload)
-                .select('assignment_id')
-                .maybeSingle();
-
-            if (assignRes != null && assignRes['assignment_id'] != null) {
-              final newAssignId = assignRes['assignment_id'];
-              final int count = parsedTotalHog ?? 1;
-              // 3. Create initial hogs records
-              final List<Map<String, dynamic>> hogsToInsert = [];
-              for (int i = 1; i <= count; i++) {
-                hogsToInsert.add({
-                  'assignment_id': newAssignId,
-                  'tag_number': 'HOG-$parsedRaiserId-$i',
-                  'status': 'active',
-                  'health_status': 'Healthy',
-                  'current_weight': 15.0,
-                });
-              }
-              if (hogsToInsert.isNotEmpty) {
-                await _supabase.from('hogs').insert(hogsToInsert);
-              }
-            }
+          if (existingInv != null) {
+            await _supabase.from('investment_records').update({
+              'initial_capital': parsedCapital,
+              'hog_type': hogTypeStr,
+              'total_hog': parsedTotalHog ?? 5,
+              'raiser_name': raiserName,
+              'stage': 'active',
+            }).eq('id', existingInv['id']);
+          } else {
+            await _supabase.from('investment_records').insert({
+              'hog_raiser_id': parsedRaiserId.toString(),
+              'raiser_name': raiserName,
+              'initial_capital': parsedCapital,
+              'hog_type': hogTypeStr,
+              'total_hog': parsedTotalHog ?? 5,
+              'investment_date': DateTime.now().toIso8601String(),
+              'stage': 'active',
+            });
           }
-        } catch (batchErr) {
-          debugPrint('Auto batch/assignment creation notice: $batchErr');
+        } catch (invErr) {
+          debugPrint('Investment auto-sync notice: $invErr');
         }
       }
 
-      setDrawerState(() {
-        _isDrawerSaving = false;
-      });
+      setDrawerState(() => _isDrawerSaving = false);
+      if (drawerCtx.mounted) Navigator.pop(drawerCtx);
 
-      if (drawerCtx.mounted) {
-        Navigator.pop(drawerCtx);
-      }
-
-      _editingInvestment = null;
-      await _loadInvestments();
+      await _loadData();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isEdit ? 'Investment updated successfully.' : 'Investment batch added successfully.',
+            isEdit ? 'Batch updated successfully.' : 'Batch created and assigned successfully!',
             style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
           ),
           backgroundColor: PiggyTrunkTheme.ptSuccess,
         ),
       );
     } catch (e) {
-      setDrawerState(() {
-        _isDrawerSaving = false;
-      });
+      setDrawerState(() => _isDrawerSaving = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Save failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          content: Text('Save failed: $e', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  Future<void> _deleteInvestment(Investment investment) async {
+  Future<void> _deleteBatch(Map<String, dynamic> batch) async {
+    final name = (batch['batch_name'] ?? 'Batch').toString();
     final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
-      title: 'Delete Investment',
-      message: 'Are you sure you want to delete the investment record for "${investment.raiserName}"? This action cannot be undone.',
+      title: 'Delete Hog Batch',
+      message: 'Are you sure you want to delete "$name"? Associated assignments and active hogs may be affected.',
       actionType: SlideOverActionType.danger,
-      userName: investment.raiserName,
-      userRole: 'Partner Investment',
+      userName: name,
+      userRole: 'Batch Record',
       confirmButtonText: 'Yes, Delete',
       cancelButtonText: 'Cancel',
     );
@@ -1206,54 +1116,67 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     if (confirm != true) return;
 
     try {
-      // 1. Delete the investment record
-      await _supabase.from('investment_records').delete().eq('id', investment.id);
-
-      // 2. Reset the corresponding raiser's lifecycle_stage back to null in hog_raisers table
-      final raiserIdStr = investment.hogRaiserId;
-      final raiserId = int.tryParse(raiserIdStr);
-      if (raiserId != null) {
-        final raiserCheck = await _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id')
-            .eq('hog_raiser_id', raiserId)
-            .maybeSingle();
-
-        if (raiserCheck != null) {
-          final pkVal = raiserCheck['hog_raiser_id'];
-          await _supabase
-              .from('hog_raisers')
-              .update({'lifecycle_stage': null})
-              .eq('hog_raiser_id', pkVal);
-        }
+      final batchId = batch['batch_id'];
+      if (batchId != null) {
+        await _supabase.from('batches').delete().eq('batch_id', batchId);
       }
-
-      await _loadInvestments();
+      await _loadData();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Investment deleted successfully.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.green,
+          content: Text('Batch deleted successfully.', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+          backgroundColor: PiggyTrunkTheme.ptSuccess,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Delete failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Delete failed: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
+  InputDecoration _createInputDecoration(String hint, {bool hasError = false}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
+      filled: true,
+      fillColor: _fieldBg,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: hasError ? const Color(0xFFE53E3E) : _fieldBorder,
+          width: hasError ? 1.5 : 1,
+        ),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(
+          color: hasError ? const Color(0xFFE53E3E) : _fieldFocus,
+          width: hasError ? 1.5 : 1,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    );
+  }
 
+  Widget _buildInlineError(String message) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, left: 2, bottom: 2),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFE53E3E)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1265,7 +1188,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ? Drawer(
               backgroundColor: _cardBg,
               child: AdminSidebar(
-                currentRoute: '/investments',
+                currentRoute: '/batches',
                 onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
                 isDrawer: true,
               ),
@@ -1275,14 +1198,14 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         children: [
           if (!isSmall)
             AdminSidebar(
-              currentRoute: '/investments',
+              currentRoute: '/batches',
               onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
             ),
           Expanded(
             child: Column(
               children: [
                 const ScreenTopBar(),
-                Expanded(child: _buildMainState(context)),
+                Expanded(child: _buildMainContent(context)),
               ],
             ),
           ),
@@ -1291,12 +1214,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildMainState(BuildContext context) {
+  Widget _buildMainContent(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    final totalBatches = _batchesList.length;
+    final activeBatches = _batchesList.where((b) => (b['status'] ?? '').toString().toUpperCase() == 'ACTIVE').length;
+    final totalHogs = _batchesList.fold<int>(0, (sum, b) => sum + (b['hog_count'] as int? ?? 0));
+    final unassignedBatches = _batchesList.where((b) => b['raiser_id'] == null).length;
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
@@ -1319,6 +1247,11 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // 1. Metric Overview Cards
+              _buildMetricsRow(totalBatches, activeBatches, totalHogs, unassignedBatches, isMobile),
+              const SizedBox(height: 24),
+
+              // 2. Main Table Card
               Container(
                 decoration: BoxDecoration(
                   color: _cardBg,
@@ -1329,12 +1262,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header & Action Row
                     if (isMobile)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Investment Management',
+                            'Batch Management',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
@@ -1346,16 +1280,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _openInvestmentDrawer(),
+                              onPressed: () => _openBatchDrawer(),
                               icon: const Icon(Icons.add_rounded, size: 20),
                               label: Text(
-                                'Add Investment',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                'Create Batch',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold),
                               ),
-                              style: _primaryWhiteButtonStyle(minWidth: 0),
+                              style: _primaryButtonStyle(minWidth: 0),
                             ),
                           ),
                         ],
@@ -1364,33 +1295,48 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Investment Management',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              color: _titleColor,
-                              letterSpacing: -0.04,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Batch Management',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  color: _titleColor,
+                                  letterSpacing: -0.04,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Create and assign batches of hogs to active authorized raisers',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: _headerText),
+                              ),
+                            ],
                           ),
                           ElevatedButton.icon(
-                            onPressed: () => _openInvestmentDrawer(),
+                            onPressed: () => _openBatchDrawer(),
                             icon: const Icon(Icons.add_rounded, size: 20),
                             label: Text(
-                              'Add Investment',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              'Create Batch',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.bold),
                             ),
-                            style: _primaryWhiteButtonStyle(minWidth: 180),
+                            style: _primaryButtonStyle(minWidth: 160),
                           ),
                         ],
                       ),
+                    const SizedBox(height: 20),
+
+                    // Search and Filters
+                    _buildSearchAndFilters(isMobile),
                     const SizedBox(height: 16),
+
+                    // Data Table
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
+                        final batches = _filteredBatches;
+
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: SizedBox(
@@ -1399,30 +1345,24 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 _buildTableHeader(),
-                                if (investments.isEmpty)
+                                if (batches.isEmpty)
                                   Container(
                                     width: tableWidth,
                                     padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
                                     decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
-                                      ),
+                                      border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7))),
                                     ),
                                     child: Center(
                                       child: Text(
-                                        'No investments found.',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: _titleColor,
-                                        ),
+                                        'No batches found matching criteria.',
+                                        style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: _titleColor),
                                       ),
                                     ),
                                   )
                                 else
                                   ...List.generate(
-                                    investments.length,
-                                    (index) => _buildTableRow(context, investments[index], index),
+                                    batches.length,
+                                    (index) => _buildTableRow(context, batches[index], index),
                                   ),
                               ],
                             ),
@@ -1440,15 +1380,141 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  ButtonStyle _primaryWhiteButtonStyle({double minWidth = 0}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ElevatedButton.styleFrom(
-      backgroundColor: isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-      foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-      minimumSize: Size(minWidth, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 0,
+  Widget _buildMetricsRow(int total, int active, int hogs, int unassigned, bool isMobile) {
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _buildMetricCard('Total Hogs', '$hogs heads', Icons.pets_rounded, const Color(0xFFFFAA00))),
+              const SizedBox(width: 10),
+              Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E))),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)),
+        const SizedBox(width: 14),
+        Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess)),
+        const SizedBox(width: 14),
+        Expanded(child: _buildMetricCard('Total Hogs Assigned', '$hogs heads', Icons.pets_rounded, const Color(0xFFFFAA00))),
+        const SizedBox(width: 14),
+        Expanded(child: _buildMetricCard('Unassigned Pool', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E))),
+      ],
+    );
+  }
+
+  Widget _buildMetricCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        border: Border.all(color: _cardBorder, width: 1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: _headerText),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: _titleColor),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters(bool isMobile) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 10,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: isMobile ? double.infinity : 280,
+          height: 42,
+          child: TextField(
+            onChanged: (val) => setState(() => _searchQuery = val),
+            style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5, fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: 'Search batch or raiser...',
+              hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 13),
+              prefixIcon: Icon(Icons.search_rounded, size: 18, color: _hintText),
+              filled: true,
+              fillColor: _fieldBg,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _fieldBorder)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: _fieldFocus)),
+            ),
+          ),
+        ),
+        _buildFilterChip('ALL', 'All Batches'),
+        _buildFilterChip('ACTIVE', 'Active'),
+        _buildFilterChip('COMPLETED', 'Completed'),
+        _buildFilterChip('UNASSIGNED', 'Unassigned'),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String key, String label) {
+    final isSelected = _selectedStatusFilter == key;
+    return InkWell(
+      onTap: () => setState(() => _selectedStatusFilter = key),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+              : (_isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : _fieldBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected
+                ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
+                : _headerText,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1456,301 +1522,144 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
-        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
-        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-        ),
+        color: _isDark ? const Color(0xFF1E2D44) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(
-                'HOG RAISER',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'INITIAL CAPITAL',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'HOG TYPE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'TOTAL HOG',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'INVESTMENT DATE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'STAGE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'ACTIONS',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
+          Expanded(flex: 3, child: _headerTitle('BATCH NAME / CODE')),
+          Expanded(flex: 3, child: _headerTitle('ASSIGNED RAISER')),
+          Expanded(flex: 2, child: _headerTitle('HOG TYPE', align: TextAlign.center)),
+          Expanded(flex: 2, child: _headerTitle('HEADS (HOGS)', align: TextAlign.center)),
+          Expanded(flex: 2, child: _headerTitle('DATE CREATED', align: TextAlign.center)),
+          Expanded(flex: 2, child: _headerTitle('STATUS', align: TextAlign.center)),
+          Expanded(flex: 2, child: _headerTitle('ACTIONS', align: TextAlign.center)),
         ],
       ),
     );
   }
 
-  Widget _buildHogTypeTags(String hogType) {
-    if (hogType.isEmpty || hogType == 'Auto-populated' || hogType == 'N/A') {
-      return Text('N/A', textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _headerText));
-    }
-    final types = hogType.split(',').map((e) => e.trim()).toList();
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 6,
-      runSpacing: 4,
-      children: types.map((t) {
-        final isBreeding = t.toLowerCase().contains('breed') || t.toLowerCase().contains('sow');
-        final bg = isBreeding
-            ? (_isDark ? const Color(0xFF581C87).withValues(alpha: 0.45) : Colors.purple.withValues(alpha: 0.12))
-            : (_isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.45) : const Color(0xFFEFF6FF));
-        final fg = isBreeding
-            ? (_isDark ? const Color(0xFFD8B4FE) : Colors.purple)
-            : (_isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F));
-        final border = isBreeding
-            ? (_isDark ? const Color(0xFFA855F7).withValues(alpha: 0.6) : Colors.purple.withValues(alpha: 0.3))
-            : (_isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.6) : const Color(0xFF93C5FD));
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: border),
-          ),
-          child: Text(
-            t,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: fg,
-            ),
-          ),
-        );
-      }).toList(),
+  Widget _headerTitle(String text, {TextAlign align = TextAlign.left}) {
+    return Text(
+      text,
+      textAlign: align,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        color: _headerText,
+        letterSpacing: 0.5,
+      ),
     );
   }
 
-  Widget _buildTableRow(BuildContext context, Investment investment, int index) {
-    final isUnassigned = investment.hogRaiserId.isEmpty ||
-        investment.hogRaiserId == 'unassigned' ||
-        investment.raiserName.toLowerCase() == 'unassigned';
+  Widget _buildTableRow(BuildContext context, Map<String, dynamic> batch, int index) {
+    final batchName = (batch['batch_name'] ?? 'Batch').toString();
+    final raiserName = (batch['raiser_name'] ?? 'Unassigned').toString();
+    final isUnassigned = batch['raiser_id'] == null;
+    final pigType = (batch['pig_type'] ?? 'Fattening').toString();
+    final hogCount = batch['hog_count'] ?? 0;
+    final dateStr = (batch['date_created'] ?? '').toString();
+    final status = (batch['status'] ?? 'Active').toString().toUpperCase();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Batch Name
           Expanded(
             flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      isUnassigned ? 'Unassigned' : investment.raiserName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: isUnassigned ? Colors.orangeAccent : _titleColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Icon(Icons.layers_rounded, size: 18, color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    batchName,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: _titleColor),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Assigned Raiser
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                Icon(isUnassigned ? Icons.person_off_rounded : Icons.person_rounded, size: 16, color: isUnassigned ? Colors.orangeAccent : _headerText),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    raiserName,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isUnassigned ? Colors.orangeAccent : _titleColor,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  if (isUnassigned) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                      ),
-                      child: Text(
-                        'Unassigned',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.orangeAccent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                _formatCurrency(investment.initialCapital),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
                 ),
-              ),
+              ],
             ),
           ),
+          // Hog Type
           Expanded(
             flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _buildHogTypeTags(investment.hogType),
+            child: Center(
+              child: _buildHogTypeBadge(pigType),
             ),
           ),
+          // Heads
           Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                '${investment.totalHog} heads',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
+            flex: 2,
+            child: Text(
+              '$hogCount heads',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: _titleColor),
+            ),
+          ),
+          // Date Created
+          Expanded(
+            flex: 2,
+            child: Text(
+              dateStr.isNotEmpty ? dateStr : 'N/A',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: _headerText),
+            ),
+          ),
+          // Status Badge
+          Expanded(
+            flex: 2,
+            child: Center(
+              child: _buildStatusBadge(status),
+            ),
+          ),
+          // Actions
+          Expanded(
+            flex: 2,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => _openBatchDrawer(existing: batch),
+                  icon: Icon(Icons.edit_outlined, size: 20, color: _headerText),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Edit Batch',
                 ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                _formatDateForDisplay(investment.investmentDate.toString()),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
+                const SizedBox(width: 14),
+                IconButton(
+                  onPressed: () => _deleteBatch(batch),
+                  icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFFF758C)),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Delete Batch',
                 ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Center(
-                child: _buildStageBadge(investment.stage),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () => _openInvestmentDrawer(existing: investment),
-                    icon: Icon(Icons.edit_outlined, size: 22, color: _headerText),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Edit Investment',
-                  ),
-                  const SizedBox(width: 14),
-                  IconButton(
-                    onPressed: () => _deleteInvestment(investment),
-                    icon: const Icon(Icons.delete_outline, size: 22, color: Color(0xFFFF758C)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Delete Investment',
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ],
@@ -1758,39 +1667,76 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildStageBadge(String stage) {
-    Color backgroundColor;
-    Color textColor;
+  Widget _buildHogTypeBadge(String hogType) {
+    final isBreeding = hogType.toLowerCase().contains('breed') || hogType.toLowerCase().contains('sow');
+    final bg = isBreeding
+        ? (_isDark ? const Color(0xFF581C87).withValues(alpha: 0.45) : Colors.purple.withValues(alpha: 0.12))
+        : (_isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.45) : const Color(0xFFEFF6FF));
+    final fg = isBreeding
+        ? (_isDark ? const Color(0xFFD8B4FE) : Colors.purple)
+        : (_isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F));
+    final border = isBreeding
+        ? (_isDark ? const Color(0xFFA855F7).withValues(alpha: 0.6) : Colors.purple.withValues(alpha: 0.3))
+        : (_isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.6) : const Color(0xFF93C5FD));
 
-    switch (stage.toLowerCase()) {
-      case 'active':
-        backgroundColor = _successDark.withValues(alpha: 0.2);
-        textColor = _successDark;
-        break;
-      case 'completed':
-        backgroundColor = _inProgressDark.withValues(alpha: 0.2);
-        textColor = _inProgressDark;
-        break;
-      case 'pending':
-      default:
-        backgroundColor = _mutedDark.withValues(alpha: 0.2);
-        textColor = _mutedDark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border),
+      ),
+      child: Text(
+        hogType,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: fg,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color fg;
+
+    if (status == 'ACTIVE') {
+      bg = _successDark.withValues(alpha: 0.2);
+      fg = _successDark;
+    } else if (status == 'COMPLETED') {
+      bg = _inProgressDark.withValues(alpha: 0.2);
+      fg = _inProgressDark;
+    } else {
+      bg = Colors.orange.withValues(alpha: 0.2);
+      fg = Colors.orangeAccent;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        stage,
+        status,
         style: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: fg,
         ),
       ),
+    );
+  }
+
+  ButtonStyle _primaryButtonStyle({double minWidth = 0}) {
+    return ElevatedButton.styleFrom(
+      backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
+      foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      elevation: 0,
+      minimumSize: Size(minWidth, 42),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
   }
 }

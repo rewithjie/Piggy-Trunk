@@ -13,6 +13,7 @@ import '../screens/inventory_screen.dart';
 import '../screens/pos_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/user_approvals_screen.dart';
+import '../screens/batch_management_screen.dart';
 import '../screens/mobile_app_distribution_screen.dart';
 
 final sidebarExpandedProvider = StateProvider<bool>((ref) => false);
@@ -60,6 +61,12 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         iconAsset: '',
         fallbackIcon: Icons.people_outline,
         route: '/users',
+      ),
+      SidebarItem(
+        label: 'Batch Management',
+        iconAsset: '',
+        fallbackIcon: Icons.layers_outlined,
+        route: '/batches',
       ),
       SidebarItem(
         label: 'Investment Management',
@@ -318,6 +325,8 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         return const SettingsScreen();
       case '/users':
         return const UserApprovalsScreen();
+      case '/batches':
+        return const BatchManagementScreen();
       case '/mobile-app':
         return const MobileAppDistributionScreen();
       default:

@@ -201,6 +201,17 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         debugPrint("Notice: Failed to send approval email: $e");
       }
 
+      // Clear pending registration notification for this user
+      try {
+        if (userEmail.isNotEmpty) {
+          await _supabase
+              .from('admin_notifications')
+              .delete()
+              .eq('metadata->>email', userEmail)
+              .eq('type', 'user_registration');
+        }
+      } catch (_) {}
+
       await _loadUsers(keyword: _searchCtrl.text);
 
       if (!mounted) return;
@@ -253,6 +264,17 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       } catch (_) {}
       try {
         await _supabase.from('hog_raisers').delete().eq('user_id', userId);
+      } catch (_) {}
+
+      // Clear pending registration notification for this user
+      try {
+        if (userEmail.isNotEmpty) {
+          await _supabase
+              .from('admin_notifications')
+              .delete()
+              .eq('metadata->>email', userEmail)
+              .eq('type', 'user_registration');
+        }
       } catch (_) {}
 
       await _loadUsers(keyword: _searchCtrl.text);
@@ -503,7 +525,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => _loadUsers(keyword: _searchCtrl.text),
-                    icon: Icon(Icons.refresh_rounded, color: _isDark ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptPrimary, size: 24),
+                    icon: Icon(Icons.refresh_rounded, color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary, size: 24),
                     tooltip: 'Refresh Users List',
                     style: IconButton.styleFrom(
                       backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
@@ -718,24 +740,24 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 children: [
                   IconButton(
                     onPressed: () => _showUserDetails(row),
-                    icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
+                    icon: Icon(Icons.visibility_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     tooltip: 'View Details',
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   if (status == 'PENDING') ...[
                     IconButton(
                       onPressed: () => _approveUser(userId, name, email: email, role: role),
-                      icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 21, color: PiggyTrunkTheme.ptSuccess),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Approve User',
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     IconButton(
                       onPressed: () => _rejectUser(userId, name, email: email, role: role),
-                      icon: const Icon(Icons.cancel_outlined, size: 22, color: Colors.redAccent),
+                      icon: const Icon(Icons.cancel_outlined, size: 21, color: Color(0xFFFF758C)),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Reject Registration',
@@ -743,7 +765,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   ] else if (status == 'ACTIVE')
                     IconButton(
                       onPressed: () => _suspendUser(userId, name, email: email, role: role),
-                      icon: Icon(Icons.block_rounded, size: 22, color: PiggyTrunkTheme.ptAccent),
+                      icon: const Icon(Icons.block_rounded, size: 20, color: Color(0xFFFF758C)),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Suspend User',
