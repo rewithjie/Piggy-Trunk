@@ -577,7 +577,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final name = raiser['name'] ?? '';
                 final pigType = raiser['pig_type'] ?? '';
                 final currentStage = raiser['lifecycle_stage'] ?? 'Booster';
-                
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -652,11 +652,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fgColor = Colors.white;
             icon = Icons.check;
           } else if (isCurrent) {
-            bgColor = _isDark ? PiggyTrunkTheme.ptPrimaryDark : PiggyTrunkTheme.ptPrimary;
-            fgColor = Colors.white;
+            bgColor = _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+            fgColor = _isDark ? const Color(0xFF0F172A) : Colors.white;
             icon = Icons.priority_high_rounded;
           } else {
-            bgColor = _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+            bgColor = _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
             fgColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
             icon = Icons.radio_button_unchecked;
           }
@@ -676,6 +676,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                           width: 2,
                         )
+                      : null,
+                  boxShadow: isCurrent
+                      ? [
+                          BoxShadow(
+                            color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ]
                       : null,
                 ),
                 child: Center(
@@ -715,7 +724,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
 
-        // On Desktop: Evenly spaced across the card with no connecting lines
+        // On Desktop: Evenly spaced across the card
         return Row(
           children: List.generate(lifecycleStages.length, (index) {
             return Expanded(

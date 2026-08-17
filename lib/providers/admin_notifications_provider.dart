@@ -84,4 +84,37 @@ class AdminNotificationService {
       // Silently catch database failures or offline states
     }
   }
+
+  /// Quick approve a user directly from notifications
+  static Future<bool> quickApproveUser({
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      await _supabase
+          .from('app_users')
+          .update({'status': 'Active'})
+          .eq('user_id', userId);
+
+      if (role == 'hog_raiser' || role == 'raiser') {
+        await _supabase
+            .from('hog_raisers')
+            .update({'status': 'Active', 'account_status': 'Active'})
+            .eq('user_id', userId);
+      } else if (role == 'partner') {
+        await _supabase
+            .from('partner_investors')
+            .update({'status': 'Active'})
+            .eq('user_id', userId);
+      } else if (role == 'cashier') {
+        await _supabase
+            .from('cashiers')
+            .update({'status': 'Active'})
+            .eq('user_id', userId);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

@@ -7,16 +7,36 @@ class AuthService {
   static const String _tokenKey = 'auth_token';
   static const String _userKey = 'user_data';
 
-  /// Login with email and password using Supabase auth.
+  /// Login with email or username and password using Supabase auth.
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
     required bool rememberMe,
   }) async {
     try {
+      String resolvedEmail = email.trim().toLowerCase();
+      final cleanPassword = password.trim();
+
+      // 1. Smart Username Resolver: If input doesn't contain '@', look up email from app_users
+      if (!resolvedEmail.contains('@')) {
+        try {
+          final userRecord = await Supabase.instance.client
+              .from('app_users')
+              .select('email')
+              .ilike('name', resolvedEmail)
+              .maybeSingle();
+
+          if (userRecord != null && userRecord['email'] != null) {
+            resolvedEmail = userRecord['email'].toString().trim().toLowerCase();
+          }
+        } catch (_) {
+          // If query fails, fall back to input as-is
+        }
+      }
+
       final authResponse = await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
+        email: resolvedEmail,
+        password: cleanPassword,
       );
 
       final session = authResponse.session;
@@ -63,7 +83,7 @@ class AuthService {
       if (e is AuthException) {
         final msg = e.message.toLowerCase();
         if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials.';
+          errorMessage = 'Invalid email/username or password. Please check your credentials.';
         } else if (msg.contains('email not confirmed')) {
           errorMessage = 'Email address has not been confirmed.';
         } else {
@@ -72,7 +92,7 @@ class AuthService {
       } else {
         final errStr = e.toString().toLowerCase();
         if (errStr.contains('invalid login credentials') || errStr.contains('invalid_credentials')) {
-          errorMessage = 'Invalid email or password. Please check your credentials.';
+          errorMessage = 'Invalid email/username or password. Please check your credentials.';
         }
       }
 
@@ -80,6 +100,61 @@ class AuthService {
         'success': false,
         'message': errorMessage,
       };
+    }
+  }
+
+  /// Register a new account with typed email/gmail and password with role & metadata
+  Future<Map<String, dynamic>> signUp({
+    required String email,
+    required String password,
+    required String name,
+    required String role,
+  }) async {
+    try {
+      final cleanEmail = email.trim().toLowerCase();
+      final cleanPassword = password.trim();
+      final cleanName = name.trim();
+
+      final res = await Supabase.instance.client.auth.signUp(
+        email: cleanEmail,
+        password: cleanPassword,
+        data: {
+          'name': cleanName,
+          'full_name': cleanName,
+          'role': role,
+        },
+      );
+
+      final user = res.user;
+      if (user != null) {
+        return {
+          'success': true,
+          'message': 'Registration successful! Account is pending admin approval.',
+          'user': user,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Unable to complete registration. Please try again.',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e is AuthException ? e.message : e.toString(),
+      };
+    }
+  }
+
+  /// Update password for the currently authenticated account
+  Future<bool> updatePassword(String newPassword) async {
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: newPassword.trim()),
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

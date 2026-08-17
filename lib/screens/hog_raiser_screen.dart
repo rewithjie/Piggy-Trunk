@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
@@ -6,6 +7,7 @@ import '../main.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
 
 class HogRaiserScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   final Map<int, String?> _selectedPigTypes = {};
 
   RealtimeChannel? _raisersSubscription;
+  bool _hasCheckedRouteArgs = false;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
@@ -41,6 +44,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
   Color get _fieldFocus => _isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
   Color get _fieldText => _isDark ? const Color(0xFFE6F1FF) : const Color(0xFF18314F);
   Color get _hintText => _isDark ? const Color(0xFF8FA7C4) : const Color(0xFF5D7391);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasCheckedRouteArgs) {
+      _hasCheckedRouteArgs = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args == 'pending' || args == 'pending_raiser') {
+        setState(() => _currentTab = 1);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -537,6 +552,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
+                          onPressed: () => _showRaiserDetails(row),
+                          icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'View Details',
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
                           onPressed: () => _approveRaiserDirectly(row),
                           icon: const Icon(Icons.check_circle_outline, size: 22, color: Colors.green),
                           padding: const EdgeInsets.all(4),
@@ -559,12 +583,12 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          onPressed: () => _showRaiserDetailsDialog(row),
+                          onPressed: () => _showRaiserDetails(row),
                           icon: const Icon(Icons.visibility_outlined, size: 20, color: Colors.blueAccent),
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'Tingnan ang Detalye',
+                          tooltip: 'View Details',
                         ),
                         const SizedBox(width: 6),
                         IconButton(
@@ -573,7 +597,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'I-edit ang Raiser',
+                          tooltip: 'Edit Raiser',
                         ),
                         const SizedBox(width: 6),
                         IconButton(
@@ -582,7 +606,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                           padding: const EdgeInsets.all(4),
                           constraints: const BoxConstraints(),
                           visualDensity: VisualDensity.compact,
-                          tooltip: 'I-archive ang Raiser',
+                          tooltip: 'Archive Raiser',
                         ),
                       ],
                     ),
@@ -620,42 +644,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     if (id == null) return;
 
     final name = (row['name'] ?? '').toString();
+    final email = (row['email'] ?? '').toString();
 
-    final confirm = await showDialog<bool>(
+    final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'Approve Hog Raiser',
-          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
-        ),
-        content: Text(
-          'Are you sure you want to approve "$name"?',
-          style: AppTextStyles.body(_titleColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.button(Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              'Approve',
-              style: AppTextStyles.button(Colors.white),
-            ),
-          ),
-        ],
-      ),
+      title: 'Approve Hog Raiser',
+      message: 'Are you sure you want to approve and activate the hog raiser account for "$name"?',
+      actionType: SlideOverActionType.success,
+      userName: name,
+      userEmail: email.isNotEmpty ? email : null,
+      userRole: 'Hog Raiser',
+      confirmButtonText: 'Yes, Approve',
+      cancelButtonText: 'Cancel',
     );
 
     if (confirm != true) return;
@@ -705,42 +705,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     final userId = _parseId(row['user_id']);
     if (id == null) return;
     final name = (row['name'] ?? '').toString();
+    final email = (row['email'] ?? '').toString();
 
-    final confirm = await showDialog<bool>(
+    final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'Reject Hog Raiser',
-          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
-        ),
-        content: Text(
-          'Are you sure you want to reject "$name"?',
-          style: AppTextStyles.body(_titleColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.button(Colors.white70),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accentDark,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              'Reject',
-              style: AppTextStyles.button(Colors.white),
-            ),
-          ),
-        ],
-      ),
+      title: 'Reject Hog Raiser',
+      message: 'Are you sure you want to reject the registration for "$name"? This will permanently delete their registration record.',
+      actionType: SlideOverActionType.danger,
+      userName: name,
+      userEmail: email.isNotEmpty ? email : null,
+      userRole: 'Hog Raiser',
+      confirmButtonText: 'Yes, Reject',
+      cancelButtonText: 'Cancel',
     );
 
     if (confirm != true) return;
@@ -779,42 +755,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     final userId = _parseId(row['user_id']);
     if (id == null) return;
     final name = (row['name'] ?? '').toString();
+    final email = (row['email'] ?? '').toString();
 
-    final confirm = await showDialog<bool>(
+    final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'I-archive ang Hog Raiser',
-          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
-        ),
-        content: Text(
-          'Sigurado ka bang gustong i-archive si "$name"?',
-          style: AppTextStyles.body(_titleColor),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(
-              'Kanselahin',
-              style: AppTextStyles.button(_hintText),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orangeAccent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              'I-archive',
-              style: AppTextStyles.button(Colors.white),
-            ),
-          ),
-        ],
-      ),
+      title: 'Archive Hog Raiser',
+      message: 'Are you sure you want to archive the record for "$name"?',
+      actionType: SlideOverActionType.warning,
+      userName: name,
+      userEmail: email.isNotEmpty ? email : null,
+      userRole: 'Hog Raiser',
+      confirmButtonText: 'Yes, Archive',
+      cancelButtonText: 'Cancel',
     );
 
     if (confirm != true) return;
@@ -825,7 +777,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       final List<Future> updates = [
         _supabase.from('hog_raisers').update({
           'status': 'Archived',
-          'account_status': 'archived',
         }).eq(pkCol, id),
       ];
 
@@ -842,15 +793,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Matagumpay na nai-archive si "$name".', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.orangeAccent,
+          content: Text('Raiser "$name" archived successfully.', style: AppTextStyles.body(Colors.white)),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Archiving failed: $e', style: AppTextStyles.body(Colors.white)),
+          content: Text('Archive failed: $e', style: AppTextStyles.body(Colors.white)),
           backgroundColor: Colors.red,
         ),
       );
@@ -859,71 +810,608 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     }
   }
 
-  void _showRaiserDetailsDialog(Map<String, dynamic> row) {
+  void _showRaiserDetails(Map<String, dynamic> row) {
+    final isMobile = MediaQuery.of(context).size.width < 720;
+    if (isMobile) {
+      _showRaiserBottomSheet(row);
+    } else {
+      _showRaiserSideDrawer(row);
+    }
+  }
+
+  String? _getAvatarUrl(Map<String, dynamic> row) {
+    final appUsers = row['app_users'] as Map<String, dynamic>?;
+    final metadata = row['raw_user_meta_data'] as Map<String, dynamic>?;
+    final dynamic candidate = row['profile_picture'] ??
+        row['avatar_url'] ??
+        row['photo_url'] ??
+        row['image_url'] ??
+        row['profile_image'] ??
+        row['picture'] ??
+        appUsers?['profile_picture'] ??
+        appUsers?['avatar_url'] ??
+        appUsers?['photo_url'] ??
+        appUsers?['image_url'] ??
+        appUsers?['profile_image'] ??
+        appUsers?['picture'] ??
+        metadata?['avatar_url'] ??
+        metadata?['picture'] ??
+        metadata?['profile_picture'];
+
+    if (candidate != null) {
+      final str = candidate.toString().trim();
+      if (str.startsWith('http://') || str.startsWith('https://')) {
+        return str;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildAvatarWidget({
+    required String initials,
+    String? avatarUrl,
+    double size = 68,
+    double fontSize = 20,
+  }) {
+    final hasUrl = avatarUrl != null && avatarUrl.isNotEmpty;
+    final isDark = _isDark;
+    final bgColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final borderColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final textColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: bgColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: borderColor, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.25 : 0.15),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: hasUrl
+          ? Image.network(
+              avatarUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Center(
+                child: Text(
+                  initials,
+                  style: AppTextStyles.jakarta(
+                    size: fontSize,
+                    weight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(
+                  child: SizedBox(
+                    width: size * 0.35,
+                    height: size * 0.35,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(textColor),
+                    ),
+                  ),
+                );
+              },
+            )
+          : Center(
+              child: Text(
+                initials,
+                style: AppTextStyles.jakarta(
+                  size: fontSize,
+                  weight: FontWeight.w800,
+                  color: textColor,
+                ),
+              ),
+            ),
+    );
+  }
+
+  void _showRaiserBottomSheet(Map<String, dynamic> row) {
     final name = (row['name'] ?? 'Hog Raiser').toString();
     final email = (row['email'] ?? 'N/A').toString();
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
-    final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final pigType = (row['pig_type'] ?? 'N/A').toString();
+    final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
+    final isPending = status == 'PENDING';
+    final avatarUrl = _getAvatarUrl(row);
 
-    showDialog(
+    final statusColor = status == 'ACTIVE' || status == 'APPROVED'
+        ? PiggyTrunkTheme.ptSuccess
+        : (status == 'PENDING' ? const Color(0xFFFFAA00) : Colors.redAccent);
+
+    final initials = name.trim().isNotEmpty
+        ? name.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
+        : 'HR';
+
+    showModalBottomSheet(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Detalye ng Hog Raiser',
-          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _detailItem('Pangalan', name),
-            _detailItem('Email', email),
-            _detailItem('Telepono', phone),
-            _detailItem('Address', address),
-            _detailItem('Pig Type', pigType),
-            _detailItem('Status', status),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(top: BorderSide(color: _cardBorder, width: 1.2)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
           ],
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: PiggyTrunkTheme.ptPrimary,
-              foregroundColor: Colors.white,
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _hintText.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Raiser Profile',
+                      style: AppTextStyles.jakarta(
+                        size: 17,
+                        weight: FontWeight.w800,
+                        color: _titleColor,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      icon: Icon(Icons.close_rounded, color: _hintText, size: 22),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      _buildAvatarWidget(initials: initials, avatarUrl: avatarUrl, size: 64, fontSize: 20),
+                      const SizedBox(height: 10),
+                      Text(
+                        name,
+                        style: AppTextStyles.jakarta(size: 17, weight: FontWeight.w800, color: _titleColor),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        email,
+                        style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w500, color: _hintText),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          status,
+                          style: AppTextStyles.jakarta(
+                            color: statusColor,
+                            size: 11,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFF6F9FD),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _cardBorder.withValues(alpha: 0.5)),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: Column(
+                          children: [
+                            _drawerDetailRow('Name', name),
+                            _drawerDivider(),
+                            _drawerDetailRow('Email', email),
+                            _drawerDivider(),
+                            _drawerDetailRow('Phone', phone),
+                            _drawerDivider(),
+                            _drawerDetailRow('Address', address),
+                            _drawerDivider(),
+                            _drawerDetailRow('Pig Type', pigType),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    if (isPending) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _deleteRaiser(row);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                            side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: Text(
+                            'Reject',
+                            style: AppTextStyles.jakarta(
+                              size: 13,
+                              weight: FontWeight.w800,
+                              color: const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _approveRaiserDirectly(row);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A34A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Approve',
+                            style: AppTextStyles.jakarta(
+                              size: 13,
+                              weight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: PiggyTrunkTheme.ptPrimary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'Close',
+                            style: AppTextStyles.jakarta(
+                              size: 13,
+                              weight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRaiserSideDrawer(Map<String, dynamic> row) {
+    final name = (row['name'] ?? 'Hog Raiser').toString();
+    final email = (row['email'] ?? 'N/A').toString();
+    final phone = (row['phone'] ?? 'N/A').toString();
+    final address = (row['address'] ?? 'N/A').toString();
+    final pigType = (row['pig_type'] ?? 'N/A').toString();
+    final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
+    final isPending = status == 'PENDING';
+    final avatarUrl = _getAvatarUrl(row);
+
+    final statusColor = status == 'ACTIVE' || status == 'APPROVED'
+        ? PiggyTrunkTheme.ptSuccess
+        : (status == 'PENDING' ? const Color(0xFFFFAA00) : Colors.redAccent);
+
+    final initials = name.trim().isNotEmpty
+        ? name.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
+        : 'HR';
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Raiser Details',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) => const SizedBox.shrink(),
+      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 420,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: _cardBg,
+                  border: Border(left: BorderSide(color: _cardBorder, width: 1.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 24,
+                      offset: const Offset(-4, 0),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        child: Row(
+                          children: [
+                            Text(
+                              'Raiser Profile',
+                              style: AppTextStyles.jakarta(
+                                size: 17,
+                                weight: FontWeight.w800,
+                                color: _titleColor,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              icon: Icon(Icons.close_rounded, color: _hintText, size: 22),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: 'Close panel',
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                child: Column(
+                                  children: [
+                                    _buildAvatarWidget(initials: initials, avatarUrl: avatarUrl, size: 68, fontSize: 22),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      name,
+                                      style: AppTextStyles.jakarta(
+                                        size: 18,
+                                        weight: FontWeight.w800,
+                                        color: _titleColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      email,
+                                      style: AppTextStyles.jakarta(
+                                        size: 13,
+                                        weight: FontWeight.w500,
+                                        color: _hintText,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        status,
+                                        style: AppTextStyles.jakarta(
+                                          color: statusColor,
+                                          size: 11,
+                                          weight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              Text(
+                                'PROFILE DETAILS',
+                                style: AppTextStyles.jakarta(
+                                  size: 11,
+                                  weight: FontWeight.w800,
+                                  color: _hintText,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFF6F9FD),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _cardBorder.withValues(alpha: 0.5)),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                child: Column(
+                                  children: [
+                                    _drawerDetailRow('Name', name),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Email', email),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Phone', phone),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Address', address),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Pig Type', pigType),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            if (isPending) ...[
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.pop(dialogContext);
+                                    _deleteRaiser(row);
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                                    side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: Text(
+                                    'Reject',
+                                    style: AppTextStyles.jakarta(
+                                      size: 13,
+                                      weight: FontWeight.w800,
+                                      color: const Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(dialogContext);
+                                    _approveRaiserDirectly(row);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF16A34A),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    'Approve',
+                                    style: AppTextStyles.jakarta(
+                                      size: 13,
+                                      weight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ] else
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: PiggyTrunkTheme.ptPrimary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    'Close',
+                                    style: AppTextStyles.jakarta(
+                                      size: 13,
+                                      weight: FontWeight.w800,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: const Text('Isara'),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _drawerDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w600, color: _hintText),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w700, color: _titleColor),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _detailItem(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w700, color: _hintText),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: AppTextStyles.jakarta(size: 14, weight: FontWeight.w600, color: _titleColor),
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget _drawerDivider() {
+    return Divider(color: _cardBorder.withValues(alpha: 0.35), height: 1);
   }
 
   void _showEditRaiserDialog(Map<String, dynamic> row) {
@@ -931,113 +1419,427 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     final userId = _parseId(row['user_id']);
     if (id == null) return;
 
-    final nameCtrl = TextEditingController(text: (row['name'] ?? '').toString());
-    final phoneCtrl = TextEditingController(text: (row['phone'] ?? '').toString());
-    final addressCtrl = TextEditingController(text: (row['address'] ?? '').toString());
+    final initialName = (row['name'] ?? '').toString();
+    final initialPhone = (row['phone'] ?? '').toString();
+    final initialAddress = (row['address'] ?? '').toString();
+    final status = (row['status'] ?? 'Active').toString().toUpperCase();
 
-    showDialog(
+    final nameCtrl = TextEditingController(text: initialName == 'N/A' ? '' : initialName);
+    final phoneCtrl = TextEditingController(text: initialPhone == 'N/A' ? '' : initialPhone);
+    final addressCtrl = TextEditingController(text: initialAddress == 'N/A' ? '' : initialAddress);
+
+    final initials = initialName.trim().isNotEmpty && initialName != 'N/A'
+        ? initialName.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
+        : 'HR';
+
+    showGeneralDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _cardBg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'I-edit ang Detalye ng Raiser',
-          style: AppTextStyles.jakarta(size: 18, weight: FontWeight.w700, color: _titleColor),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pangalan', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameCtrl,
-                style: AppTextStyles.body(_titleColor),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text('Telepono', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: phoneCtrl,
-                style: AppTextStyles.body(_titleColor),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text('Address', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _hintText)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: addressCtrl,
-                maxLines: 2,
-                style: AppTextStyles.body(_titleColor),
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  isDense: true,
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Kanselahin', style: AppTextStyles.button(_hintText)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              setState(() => _isLoading = true);
-              try {
-                final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
-                await _supabase.from('hog_raisers').update({
-                  'name': nameCtrl.text.trim(),
-                  'phone': phoneCtrl.text.trim(),
-                  'address': addressCtrl.text.trim(),
-                }).eq(pkCol, id);
+      barrierDismissible: true,
+      barrierLabel: 'Edit Hog Raiser',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogContext, anim1, anim2) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfaceColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        final titleTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        final fieldBgColor = isDark ? const Color(0xFF131F33) : const Color(0xFFF8FAFC);
+        final fieldBorderColor = isDark ? const Color(0xFF223552) : const Color(0xFFCBD5E1);
 
-                if (userId != null) {
-                  try {
-                    await _supabase.from('app_users').update({
-                      'name': nameCtrl.text.trim(),
-                    }).eq('user_id', userId);
-                  } catch (_) {}
-                }
+        final screenWidth = MediaQuery.of(context).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 420.0;
 
-                await _loadRaisers(keyword: _searchCtrl.text);
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Matagumpay na na-update ang raiser profile!', style: AppTextStyles.body(Colors.white)),
-                    backgroundColor: Colors.green,
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              width: drawerWidth,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.16),
+                    blurRadius: 32,
+                    spreadRadius: 2,
+                    offset: const Offset(-6, 0),
                   ),
-                );
-              } catch (e) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Update failed: $e', style: AppTextStyles.body(Colors.white)),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              } finally {
-                if (mounted) setState(() => _isLoading = false);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: PiggyTrunkTheme.ptPrimary,
-              foregroundColor: Colors.white,
+                ],
+                border: Border(
+                  left: BorderSide(color: borderColor, width: 1.2),
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ==================== DRAWER HEADER ====================
+                    Container(
+                      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 20, 18, isMobile ? 12 : 16, 16),
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(9),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF112240) : const Color(0xFFDBEAFE),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFBFDBFE),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.edit_note_rounded,
+                                  color: Color(0xFF2563EB),
+                                  size: 22,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Edit Hog Raiser Details',
+                                style: AppTextStyles.jakarta(
+                                  size: 17,
+                                  weight: FontWeight.w800,
+                                  color: titleTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close_rounded, color: mutedTextColor, size: 20),
+                            tooltip: 'Close',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            onPressed: () => Navigator.pop(dialogContext),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ==================== FORM BODY ====================
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.all(isMobile ? 16 : 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Raiser Profile Header Card
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF131F33) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: isDark ? const Color(0xFF223552) : const Color(0xFFE2E8F0), width: 1),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.6) : const Color(0xFF93C5FD),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        initials,
+                                        style: AppTextStyles.jakarta(
+                                          size: 15,
+                                          weight: FontWeight.w800,
+                                          color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          initialName.isEmpty ? 'Hog Raiser' : initialName,
+                                          style: AppTextStyles.jakarta(
+                                            size: 14.5,
+                                            weight: FontWeight.w700,
+                                            color: titleTextColor,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: status == 'ACTIVE'
+                                                ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15)
+                                                : Colors.orangeAccent.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(5),
+                                          ),
+                                          child: Text(
+                                            status,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: status == 'ACTIVE' ? PiggyTrunkTheme.ptSuccess : Colors.orangeAccent,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+
+                            // Full Name Field
+                            Text(
+                              'Full Name',
+                              style: AppTextStyles.jakarta(
+                                size: 12.5,
+                                weight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: nameCtrl,
+                              style: AppTextStyles.body(titleTextColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter raiser full name',
+                                hintStyle: AppTextStyles.body(mutedTextColor),
+                                prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: mutedTextColor),
+                                filled: true,
+                                fillColor: fieldBgColor,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: fieldBorderColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Phone Number Field
+                            Text(
+                              'Phone Number',
+                              style: AppTextStyles.jakarta(
+                                size: 12.5,
+                                weight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(11),
+                              ],
+                              style: AppTextStyles.body(titleTextColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter phone number (e.g. 09123456789)',
+                                hintStyle: AppTextStyles.body(mutedTextColor),
+                                prefixIcon: Icon(Icons.phone_outlined, size: 18, color: mutedTextColor),
+                                filled: true,
+                                fillColor: fieldBgColor,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: fieldBorderColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Address / Farm Location Field
+                            Text(
+                              'Address / Farm Location',
+                              style: AppTextStyles.jakarta(
+                                size: 12.5,
+                                weight: FontWeight.w700,
+                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: addressCtrl,
+                              maxLines: 3,
+                              style: AppTextStyles.body(titleTextColor),
+                              decoration: InputDecoration(
+                                hintText: 'Enter complete street address / barangay / municipality',
+                                hintStyle: AppTextStyles.body(mutedTextColor),
+                                prefixIcon: Padding(
+                                  padding: const EdgeInsets.only(bottom: 36),
+                                  child: Icon(Icons.location_on_outlined, size: 18, color: mutedTextColor),
+                                ),
+                                filled: true,
+                                fillColor: fieldBgColor,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(color: fieldBorderColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // ==================== DRAWER FOOTER ACTIONS ====================
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isMobile ? 16 : 20,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        border: Border(top: BorderSide(color: borderColor, width: 1)),
+                      ),
+                      child: Row(
+                        children: [
+                          // Cancel Button
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                foregroundColor: isDark ? Colors.white : const Color(0xFF334155),
+                                side: BorderSide(
+                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                  width: 1,
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: AppTextStyles.jakarta(
+                                  size: 13.5,
+                                  weight: FontWeight.w700,
+                                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Save Changes Button
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () async {
+                                Navigator.pop(dialogContext);
+                                setState(() => _isLoading = true);
+                                try {
+                                  final pkCol = row['id'] != null ? 'id' : 'hog_raiser_id';
+                                  await _supabase.from('hog_raisers').update({
+                                    'name': nameCtrl.text.trim(),
+                                    'phone': phoneCtrl.text.trim(),
+                                    'address': addressCtrl.text.trim(),
+                                  }).eq(pkCol, id);
+
+                                  if (userId != null) {
+                                    try {
+                                      await _supabase.from('app_users').update({
+                                        'name': nameCtrl.text.trim(),
+                                      }).eq('user_id', userId);
+                                    } catch (_) {}
+                                  }
+
+                                  await _loadRaisers(keyword: _searchCtrl.text);
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Hog raiser profile updated successfully.', style: AppTextStyles.body(Colors.white)),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Update failed: $e', style: AppTextStyles.body(Colors.white)),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                } finally {
+                                  if (mounted) setState(() => _isLoading = false);
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 13),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                              label: Text(
+                                'Save Changes',
+                                style: AppTextStyles.jakarta(
+                                  size: 13.5,
+                                  weight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: const Text('I-save'),
           ),
-        ],
-      ),
+        );
+      },
+      transitionBuilder: (dialogContext, anim, secondaryAnim, child) {
+        final curvedAnim = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curvedAnim),
+          child: child,
+        );
+      },
     );
   }
 }

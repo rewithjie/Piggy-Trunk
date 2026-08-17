@@ -283,6 +283,33 @@ class GoogleAuthService {
         }
       }
 
+      // Explicitly ensure admin_notifications matches the registered role
+      try {
+        final String roleDisplay = targetRole == 'hog_raiser' || targetRole == 'raiser'
+            ? 'Hog Raiser'
+            : targetRole == 'partner'
+                ? 'Partner Investor'
+                : targetRole == 'cashier'
+                    ? 'Cashier'
+                    : 'User';
+        await _supabase
+            .from('admin_notifications')
+            .delete()
+            .eq('metadata->>email', email)
+            .eq('type', 'user_registration');
+        await _supabase.from('admin_notifications').insert({
+          'title': 'New User Registration',
+          'message': '$nameToUse ($email) registered as $roleDisplay and is pending approval.',
+          'type': 'user_registration',
+          'is_read': false,
+          'metadata': {
+            'name': nameToUse,
+            'email': email,
+            'role': targetRole,
+          },
+        });
+      } catch (_) {}
+
       return {
         'success': true,
         'email': email,

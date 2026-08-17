@@ -12,6 +12,7 @@ import '../utils/inventory_data_adapter.dart';
 import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/slide_over_confirmation_drawer.dart';
 import '../main.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -182,28 +183,632 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   void _openProductDialog({Product? existing}) {
     if (existing != null) {
-      setState(() {
-        _editingProduct = existing;
-        _nameCtrl.text = existing.name;
-        _categoryCtrl.text = existing.category.isNotEmpty == true ? existing.category : 'Feeds';
-        _descriptionCtrl.text = existing.description;
-        _priceCtrl.text = existing.price.toInt().toString();
-        _unitsCtrl.text = existing.units.toString();
-        _imageCtrl.text = existing.image ?? '';
-        _selectedImageBytes = null;
-        _selectedImageName = null;
-        _productNameError = null;
-        _productCategoryError = null;
-        _productStockError = null;
-        _productPriceError = null;
-        _showAddProductForm = true;
-      });
+      _openEditProductDrawer(existing);
     } else {
       setState(() {
         _resetAddProductForm();
         _showAddProductForm = true;
       });
     }
+  }
+
+  void _openEditProductDrawer(Product existing) {
+    final nameCtrl = TextEditingController(text: existing.name);
+    String selectedCategory = existing.category.isNotEmpty ? existing.category : 'Feeds';
+    final unitsCtrl = TextEditingController(text: existing.units.toString());
+    final descriptionCtrl = TextEditingController(text: existing.description);
+    Uint8List? localImageBytes;
+    String? localImageName;
+    String? nameError;
+    String? stockError;
+    bool isSaving = false;
+
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Edit Product Drawer',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogCtx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        final curvedValue = Curves.easeOutCubic.transform(anim1.value);
+        final screenWidth = MediaQuery.of(dialogCtx).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 440.0;
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final drawerBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        final mutedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+        final fieldBorder = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+
+        return Transform.translate(
+          offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: StatefulBuilder(
+                builder: (stfCtx, setDrawerState) {
+                  return Container(
+                    width: drawerWidth,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: drawerBg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          blurRadius: 24,
+                          offset: const Offset(-4, 0),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.edit_outlined,
+                                    color: Color(0xFF3B82F6),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Edit Product Details',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: titleColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Update photo, stock & details',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: mutedColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                                  splashRadius: 20,
+                                  onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Scrollable Body
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Product Photo Section
+                                  Text(
+                                    'PRODUCT PHOTO',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: isSaving
+                                        ? null
+                                        : () async {
+                                            try {
+                                              final fileResult = await FilePicker.platform.pickFiles(
+                                                type: FileType.custom,
+                                                allowMultiple: false,
+                                                withData: true,
+                                                allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+                                              );
+                                              if (fileResult != null && fileResult.files.isNotEmpty) {
+                                                final file = fileResult.files.first;
+                                                if (file.bytes != null) {
+                                                  setDrawerState(() {
+                                                    localImageBytes = file.bytes;
+                                                    localImageName = file.name;
+                                                  });
+                                                }
+                                              }
+                                            } catch (e) {
+                                              debugPrint('Pick file error: $e');
+                                            }
+                                          },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      height: 150,
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: fieldBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: fieldBorder),
+                                      ),
+                                      child: localImageBytes != null
+                                          ? ClipRRect(
+                                              borderRadius: BorderRadius.circular(11),
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  Image.memory(localImageBytes!, fit: BoxFit.cover),
+                                                  Positioned(
+                                                    right: 8,
+                                                    top: 8,
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.black.withValues(alpha: 0.65),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        'Change',
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                          color: Colors.white,
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          : (existing.image != null && existing.image!.isNotEmpty
+                                              ? ClipRRect(
+                                                  borderRadius: BorderRadius.circular(11),
+                                                  child: Stack(
+                                                    fit: StackFit.expand,
+                                                    children: [
+                                                      Image.network(
+                                                        existing.image!,
+                                                        fit: BoxFit.cover,
+                                                        errorBuilder: (context, error, stackTrace) => Center(
+                                                          child: Icon(Icons.broken_image_outlined, color: mutedColor, size: 32),
+                                                        ),
+                                                      ),
+                                                      Positioned(
+                                                        right: 8,
+                                                        top: 8,
+                                                        child: Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.black.withValues(alpha: 0.65),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            'Change',
+                                                            style: GoogleFonts.plusJakartaSans(
+                                                              color: Colors.white,
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w700,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                )
+                                              : Center(
+                                                  child: Column(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Icon(Icons.add_photo_alternate_outlined, color: mutedColor, size: 36),
+                                                      const SizedBox(height: 6),
+                                                      Text(
+                                                        'Upload Product Image',
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                          color: mutedColor,
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                )),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+
+                                  // Product Name
+                                  Text(
+                                    'PRODUCT NAME *',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: nameCtrl,
+                                    onChanged: (_) {
+                                      if (nameError != null) setDrawerState(() => nameError = null);
+                                    },
+                                    style: GoogleFonts.plusJakartaSans(color: titleColor, fontSize: 14, fontWeight: FontWeight.w600),
+                                    decoration: InputDecoration(
+                                      hintText: 'e.g., Premium Hog Feed',
+                                      hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14),
+                                      prefixIcon: Icon(Icons.inventory_2_outlined, size: 18, color: mutedColor),
+                                      filled: true,
+                                      fillColor: fieldBg,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: nameError != null ? const Color(0xFFE53E3E) : fieldBorder,
+                                          width: nameError != null ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: nameError != null ? const Color(0xFFE53E3E) : const Color(0xFF2563EB),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (nameError != null) _buildInlineError(nameError!),
+                                  const SizedBox(height: 16),
+
+                                  // Category & Stock Row
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Category
+                                      Expanded(
+                                        flex: 6,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'CATEGORY *',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: mutedColor,
+                                                letterSpacing: 0.6,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            DropdownButtonFormField<String>(
+                                              initialValue: _categoryOptions.contains(selectedCategory) ? selectedCategory : 'Feeds',
+                                              isExpanded: true,
+                                              decoration: InputDecoration(
+                                                filled: true,
+                                                fillColor: fieldBg,
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                                enabledBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: BorderSide(color: fieldBorder),
+                                                ),
+                                                focusedBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                                ),
+                                              ),
+                                              dropdownColor: fieldBg,
+                                              borderRadius: BorderRadius.circular(12),
+                                              style: GoogleFonts.plusJakartaSans(
+                                                color: titleColor,
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor),
+                                              items: _categoryOptions.map((c) => DropdownMenuItem<String>(value: c, child: Text(c))).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) setDrawerState(() => selectedCategory = val);
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // Stock
+                                      Expanded(
+                                        flex: 4,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'STOCK *',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                color: mutedColor,
+                                                letterSpacing: 0.6,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            TextField(
+                                              controller: unitsCtrl,
+                                              keyboardType: TextInputType.number,
+                                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                              onChanged: (_) {
+                                                if (stockError != null) setDrawerState(() => stockError = null);
+                                              },
+                                              style: GoogleFonts.plusJakartaSans(color: titleColor, fontSize: 14, fontWeight: FontWeight.w600),
+                                              decoration: InputDecoration(
+                                                hintText: '0',
+                                                hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14),
+                                                filled: true,
+                                                fillColor: fieldBg,
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                                enabledBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: BorderSide(
+                                                    color: stockError != null ? const Color(0xFFE53E3E) : fieldBorder,
+                                                    width: stockError != null ? 1.5 : 1,
+                                                  ),
+                                                ),
+                                                focusedBorder: OutlineInputBorder(
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  borderSide: BorderSide(
+                                                    color: stockError != null ? const Color(0xFFE53E3E) : const Color(0xFF2563EB),
+                                                    width: 1.5,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (stockError != null) _buildInlineError(stockError!),
+                                  const SizedBox(height: 16),
+
+                                  // Price (PHP) Locked
+                                  Text(
+                                    'PRICE (PHP) (Locked)',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: TextEditingController(text: existing.price.toStringAsFixed(2)),
+                                    enabled: false,
+                                    style: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14, fontWeight: FontWeight.w600),
+                                    decoration: InputDecoration(
+                                      prefixText: '₱ ',
+                                      prefixStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14, fontWeight: FontWeight.bold),
+                                      filled: true,
+                                      fillColor: fieldBg.withAlpha(120),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      disabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(color: fieldBorder.withAlpha(100)),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Price is locked after initial product creation.',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: Colors.orangeAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+
+                                  // Description
+                                  Text(
+                                    'DESCRIPTION',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextField(
+                                    controller: descriptionCtrl,
+                                    maxLines: 3,
+                                    style: GoogleFonts.plusJakartaSans(color: titleColor, fontSize: 14),
+                                    decoration: InputDecoration(
+                                      hintText: 'Add product details, usage instructions, or benefits...',
+                                      hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14),
+                                      filled: true,
+                                      fillColor: fieldBg,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(color: fieldBorder),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Docked Footer
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: drawerBg,
+                              border: Border(top: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      side: BorderSide(color: fieldBorder),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: titleColor,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton.icon(
+                                    onPressed: isSaving
+                                        ? null
+                                        : () async {
+                                            final name = nameCtrl.text.trim();
+                                            final units = int.tryParse(unitsCtrl.text.trim());
+                                            if (name.isEmpty) {
+                                              setDrawerState(() => nameError = 'Product name is required.');
+                                              return;
+                                            }
+                                            if (units == null || units < 0) {
+                                              setDrawerState(() => stockError = 'Please enter valid stock units.');
+                                              return;
+                                            }
+
+                                            setDrawerState(() {
+                                              nameError = null;
+                                              stockError = null;
+                                              isSaving = true;
+                                            });
+
+                                            try {
+                                              String? imageUrl = existing.image;
+                                              if (localImageBytes != null && localImageName != null) {
+                                                imageUrl = await _uploadProductImage(localImageBytes!, localImageName!);
+                                              }
+
+                                              final payload = {
+                                                'name': name,
+                                                'category_id': selectedCategory.toLowerCase().replaceAll(' ', '_'),
+                                                'category': selectedCategory,
+                                                'description': descriptionCtrl.text.trim(),
+                                                'units': units,
+                                                'image': imageUrl,
+                                              };
+
+                                              await _supabase.from(_table).update(payload).eq('id', existing.id);
+
+                                              List<String> changes = [];
+                                              if (existing.name != name) changes.add('Name: "${existing.name}" -> "$name"');
+                                              if (existing.category != selectedCategory) changes.add('Category: "${existing.category}" -> "$selectedCategory"');
+                                              if (existing.units != units) changes.add('Stock: ${existing.units} -> $units');
+                                              if (existing.description != descriptionCtrl.text.trim()) changes.add('Description updated');
+
+                                              final detailsStr = changes.isEmpty ? 'No field changes' : changes.join(', ');
+
+                                              await _insertProductLog(
+                                                productId: existing.id,
+                                                productName: name,
+                                                action: 'UPDATE',
+                                                price: existing.price,
+                                                units: units,
+                                                details: detailsStr,
+                                              );
+
+                                              if (!dialogCtx.mounted) return;
+                                              Navigator.of(dialogCtx).pop();
+                                              await _loadProducts();
+
+                                              _showThemedSnackBar(
+                                                'Product "$name" updated successfully.',
+                                                backgroundColor: PiggyTrunkTheme.ptSuccess,
+                                              );
+                                            } catch (e) {
+                                              setDrawerState(() {
+                                                isSaving = false;
+                                                nameError = 'Failed to update product: $e';
+                                              });
+                                            }
+                                          },
+                                    icon: isSaving
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          )
+                                        : const Icon(Icons.check_rounded, size: 18),
+                                    label: Text(
+                                      isSaving ? 'Saving...' : 'Save Changes',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2563EB),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _submitAddProduct() async {
@@ -428,282 +1033,456 @@ class _InventoryScreenState extends State<InventoryScreen> {
     bool isSubmittingRestock = false;
     String? restockError;
 
-    showDialog<void>(
+    showGeneralDialog<void>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Container(
-                width: 480,
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _cardBorder),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: PiggyTrunkTheme.ptPrimary.withAlpha(30),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.add_shopping_cart,
-                            color: PiggyTrunkTheme.ptPrimary,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            isSpecificProduct ? 'Restock ${selectedProduct.name}' : 'Restock Inventory',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _titleColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
+      barrierDismissible: true,
+      barrierLabel: 'Restock Drawer',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogCtx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        final curvedValue = Curves.easeOutCubic.transform(anim1.value);
+        final screenWidth = MediaQuery.of(dialogCtx).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 420.0;
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final drawerBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        final mutedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+        final fieldBorder = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+        final cardBg = isDark ? const Color(0xFF16243A) : const Color(0xFFEFF6FF);
+        final cardBorder = isDark ? const Color(0xFF2563EB).withValues(alpha: 0.3) : const Color(0xFFBFDBFE);
+
+        return Transform.translate(
+          offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: StatefulBuilder(
+                builder: (stfCtx, setDialogState) {
+                  final addUnits = int.tryParse(quantityCtrl.text.trim()) ?? 0;
+                  final projectedStock = selectedProduct.units + addUnits;
+
+                  return Container(
+                    width: drawerWidth,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: drawerBg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          blurRadius: 24,
+                          offset: const Offset(-4, 0),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    if (isSpecificProduct) ...[
-                      _formLabel('PRODUCT'),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: _fieldBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _cardBorder),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
+                    child: SafeArea(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Top Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFF2563EB).withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.add_shopping_cart_rounded,
+                                    color: Color(0xFF3B82F6),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isSpecificProduct ? 'Restock Product' : 'Restock Inventory',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: titleColor,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Add stock units to warehouse',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: mutedColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                                  splashRadius: 20,
+                                  onPressed: isSubmittingRestock ? null : () => Navigator.of(dialogCtx).pop(),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Drawer Body
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // Selected Product Details Card
+                                  if (isSpecificProduct) ...[
+                                    Text(
+                                      'TARGET PRODUCT',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: mutedColor,
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: cardBg,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: cardBorder),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(5),
+                                                ),
+                                                child: Text(
+                                                  selectedProduct.category.toUpperCase(),
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: const Color(0xFF3B82F6),
+                                                  ),
+                                                ),
+                                              ),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFDBEAFE),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  'Stock: ${selectedProduct.units} units',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 10),
+                                          Text(
+                                            selectedProduct.name,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w800,
+                                              color: titleColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '₱${selectedProduct.price.toStringAsFixed(2)} / unit',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: mutedColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    Text(
+                                      'SELECT PRODUCT *',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: mutedColor,
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    DropdownButtonFormField<Product>(
+                                      initialValue: selectedProduct,
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: fieldBg,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: BorderSide(color: fieldBorder),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                        ),
+                                      ),
+                                      dropdownColor: fieldBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: titleColor,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      items: _products.map((prod) {
+                                        return DropdownMenuItem<Product>(
+                                          value: prod,
+                                          child: Text(
+                                            '[${prod.category}] ${prod.name} (${prod.units} units)',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setDialogState(() => selectedProduct = val);
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                  const SizedBox(height: 20),
+
+                                  // Add Quantity
                                   Text(
-                                    selectedProduct.name,
+                                    'ADD QUANTITY (UNITS) *',
                                     style: GoogleFonts.plusJakartaSans(
-                                      color: _titleColor,
-                                      fontSize: 15,
+                                      fontSize: 11,
                                       fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Category: ${selectedProduct.category}',
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: quantityCtrl,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                    onChanged: (_) {
+                                      setDialogState(() {
+                                        if (restockError != null) restockError = null;
+                                      });
+                                    },
                                     style: GoogleFonts.plusJakartaSans(
-                                      color: _mutedColor,
-                                      fontSize: 12,
+                                      color: titleColor,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
+                                    decoration: InputDecoration(
+                                      hintText: 'e.g., 50',
+                                      hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14),
+                                      prefixIcon: Icon(Icons.add_circle_outline_rounded, size: 18, color: mutedColor),
+                                      filled: true,
+                                      fillColor: fieldBg,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: restockError != null ? const Color(0xFFE53E3E) : fieldBorder,
+                                          width: restockError != null ? 1.5 : 1,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: restockError != null ? const Color(0xFFE53E3E) : const Color(0xFF2563EB),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
                                   ),
+                                  if (restockError != null) _buildInlineError(restockError!),
+                                  const SizedBox(height: 20),
+
+                                  // Live Projection Card
+                                  if (addUnits > 0) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.12 : 0.08),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.trending_up_rounded, color: Color(0xFF10B981), size: 20),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'Current: ${selectedProduct.units}  →  New Total: $projectedStock units',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Current Stock: ${selectedProduct.units}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _titleColor,
+                          ),
+
+                          // Docked Footer Buttons
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: drawerBg,
+                              border: Border(top: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: isSubmittingRestock ? null : () => Navigator.of(dialogCtx).pop(),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      side: BorderSide(color: fieldBorder),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: titleColor,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton.icon(
+                                    onPressed: isSubmittingRestock
+                                        ? null
+                                        : () async {
+                                            final units = int.tryParse(quantityCtrl.text.trim());
+                                            if (units == null || units <= 0) {
+                                              setDialogState(() {
+                                                restockError = 'Please enter a valid quantity greater than 0.';
+                                              });
+                                              return;
+                                            }
+
+                                            setDialogState(() {
+                                              restockError = null;
+                                              isSubmittingRestock = true;
+                                            });
+                                            final newUnits = selectedProduct.units + units;
+
+                                            try {
+                                              await _supabase.from(_table).update({
+                                                'units': newUnits,
+                                              }).eq('id', selectedProduct.id);
+
+                                              await _insertProductLog(
+                                                productId: selectedProduct.id,
+                                                productName: selectedProduct.name,
+                                                action: 'RESTOCK',
+                                                price: selectedProduct.price,
+                                                units: newUnits,
+                                                details: 'Restocked +$units units. Previous: ${selectedProduct.units}, New: $newUnits.',
+                                              );
+
+                                              if (!dialogCtx.mounted) return;
+                                              Navigator.of(dialogCtx).pop();
+                                              await _loadProducts();
+
+                                              _showThemedSnackBar(
+                                                'Successfully restocked +$units units to ${selectedProduct.name}.',
+                                                backgroundColor: PiggyTrunkTheme.ptSuccess,
+                                              );
+                                            } catch (e) {
+                                              setDialogState(() {
+                                                isSubmittingRestock = false;
+                                                restockError = 'Restock failed: $e';
+                                              });
+                                            }
+                                          },
+                                    icon: isSubmittingRestock
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          )
+                                        : const Icon(Icons.check_rounded, size: 18),
+                                    label: Text(
+                                      isSubmittingRestock ? 'Saving...' : 'Confirm Restock',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF2563EB),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      _formLabel('SELECT PRODUCT *'),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<Product>(
-                        initialValue: selectedProduct,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: _fieldBg,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: _cardBorder),
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: _fieldFocus),
-                          ),
-                        ),
-                        dropdownColor: _fieldBg,
-                        borderRadius: BorderRadius.circular(12),
-                        style: GoogleFonts.plusJakartaSans(
-                          color: _fieldText,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        items: _products.map((prod) {
-                          return DropdownMenuItem<Product>(
-                            value: prod,
-                            child: Text(
-                              '[${prod.category}] ${prod.name} (Stock: ${prod.units} units)',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => selectedProduct = val);
-                          }
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    _formLabel('ADD QUANTITY (UNITS) *'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: quantityCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onChanged: (_) {
-                        if (restockError != null) {
-                          setDialogState(() => restockError = null);
-                        }
-                      },
-                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: 'e.g., 50',
-                        hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 14),
-                        filled: true,
-                        fillColor: _fieldBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: restockError != null ? const Color(0xFFE53E3E) : _cardBorder,
-                            width: restockError != null ? 1.5 : 1,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: restockError != null ? const Color(0xFFE53E3E) : _fieldFocus,
-                            width: restockError != null ? 1.5 : 1,
-                          ),
-                        ),
+                        ],
                       ),
                     ),
-                    if (restockError != null) _buildInlineError(restockError!),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: isSubmittingRestock ? null : () => Navigator.of(dialogContext).pop(),
-                          child: Text(
-                            'Cancel',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _titleColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: isSubmittingRestock
-                              ? null
-                              : () async {
-                                  final addUnits = int.tryParse(quantityCtrl.text.trim());
-                                  if (addUnits == null || addUnits <= 0) {
-                                    setDialogState(() {
-                                      restockError = 'Please enter a valid quantity greater than 0.';
-                                    });
-                                    return;
-                                  }
-
-                                  setDialogState(() {
-                                    restockError = null;
-                                    isSubmittingRestock = true;
-                                  });
-                                  final newUnits = selectedProduct.units + addUnits;
-
-                                  try {
-                                    await _supabase.from(_table).update({
-                                      'units': newUnits,
-                                    }).eq('id', selectedProduct.id);
-
-                                    await _insertProductLog(
-                                      productId: selectedProduct.id,
-                                      productName: selectedProduct.name,
-                                      action: 'RESTOCK',
-                                      price: selectedProduct.price,
-                                      units: newUnits,
-                                      details: 'Restocked +$addUnits units. Previous: ${selectedProduct.units}, New: $newUnits.',
-                                    );
-
-                                    if (!dialogContext.mounted) return;
-                                    Navigator.of(dialogContext).pop();
-                                    await _loadProducts();
-
-                                    _showThemedSnackBar(
-                                      'Successfully restocked +$addUnits units to ${selectedProduct.name}.',
-                                      backgroundColor: PiggyTrunkTheme.ptSuccess,
-                                    );
-                                  } catch (e) {
-                                    setDialogState(() {
-                                      isSubmittingRestock = false;
-                                      restockError = 'Restock failed: $e';
-                                    });
-                                  }
-                                },
-                          icon: isSubmittingRestock
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Icon(Icons.check, size: 16),
-                          label: Text(
-                            isSubmittingRestock ? 'Saving...' : 'Confirm Restock',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: PiggyTrunkTheme.ptPrimary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
@@ -2365,26 +3144,52 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _buildLogFilterChip(String? filterValue, String label) {
     final isSelected = _selectedLogFilter == filterValue;
-    final activeColor = _isDark ? PiggyTrunkTheme.ptPrimary : const Color(0xFF315C8F);
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
+    final activeBg = _isDark ? const Color(0xFF2563EB) : const Color(0xFF18314F);
+    final unselectedBg = _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final unselectedBorder = _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final unselectedTextColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    return InkWell(
+      onTap: () {
+        if (!isSelected) {
           setState(() {
             _selectedLogFilter = filterValue;
           });
         }
       },
-      labelStyle: GoogleFonts.plusJakartaSans(
-        color: isSelected ? Colors.white : _titleColor,
-        fontWeight: FontWeight.w700,
-        fontSize: 13,
+      borderRadius: BorderRadius.circular(18),
+      splashColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
+      highlightColor: Colors.transparent,
+      hoverColor: const Color(0xFF2563EB).withValues(alpha: 0.05),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : unselectedBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected ? activeBg : unselectedBorder,
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeBg.withValues(alpha: _isDark ? 0.35 : 0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            color: isSelected ? Colors.white : unselectedTextColor,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            fontSize: 12,
+          ),
+        ),
       ),
-      backgroundColor: _fieldBg,
-      selectedColor: activeColor,
-      side: BorderSide(color: isSelected ? Colors.transparent : _cardBorder),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 
@@ -2915,26 +3720,52 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _buildRequestFilterChip(String filterValue, String label) {
     final isSelected = _requestsFilter == filterValue;
-    final activeColor = _isDark ? PiggyTrunkTheme.ptPrimary : const Color(0xFF315C8F);
-    return ChoiceChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
+    final activeBg = _isDark ? const Color(0xFF2563EB) : const Color(0xFF18314F);
+    final unselectedBg = _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final unselectedBorder = _isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final unselectedTextColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    return InkWell(
+      onTap: () {
+        if (!isSelected) {
           setState(() {
             _requestsFilter = filterValue;
           });
         }
       },
-      labelStyle: GoogleFonts.plusJakartaSans(
-        color: isSelected ? Colors.white : _titleColor,
-        fontWeight: FontWeight.w700,
-        fontSize: 13,
+      borderRadius: BorderRadius.circular(20),
+      splashColor: const Color(0xFF2563EB).withValues(alpha: 0.1),
+      highlightColor: Colors.transparent,
+      hoverColor: const Color(0xFF2563EB).withValues(alpha: 0.05),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : unselectedBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? activeBg : unselectedBorder,
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeBg.withValues(alpha: _isDark ? 0.35 : 0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            color: isSelected ? Colors.white : unselectedTextColor,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            fontSize: 12.5,
+          ),
+        ),
       ),
-      backgroundColor: _fieldBg,
-      selectedColor: activeColor,
-      side: BorderSide(color: isSelected ? Colors.transparent : _cardBorder),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
 
@@ -3124,180 +3955,359 @@ class _InventoryScreenState extends State<InventoryScreen> {
       }
     }
 
-    showDialog<void>(
+    showGeneralDialog<void>(
       context: context,
-      builder: (context) {
-        Product? selectedProdInDialog = selectedProduct;
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            final hasSufficientStock = selectedProdInDialog != null && selectedProdInDialog!.units >= requestedQuantity;
+      barrierDismissible: true,
+      barrierLabel: 'Approve Request Drawer',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogCtx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        final curvedValue = Curves.easeOutCubic.transform(anim1.value);
+        final screenWidth = MediaQuery.of(dialogCtx).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 420.0;
 
-            return Dialog(
-              backgroundColor: Colors.transparent,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Container(
-                width: 480,
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _cardBorder),
-                ),
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Approve Stock Request',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _titleColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Raiser: $raiserName',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _titleColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Requesting: $requestedQuantity units of $category${feedType.isNotEmpty ? ' ($feedType)' : ''}',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _titleColor,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'SELECT PRODUCT FROM INVENTORY TO RELEASE:',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _mutedColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (matchingProducts.isEmpty)
-                      Text(
-                        'No products found in the inventory under "$category" category. Please add a product first.',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.redAccent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    else
-                      DropdownButtonFormField<Product>(
-                        initialValue: selectedProdInDialog,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: _fieldBg,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: _cardBorder),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: _fieldFocus),
-                          ),
-                        ),
-                        dropdownColor: _fieldBg,
-                        style: GoogleFonts.plusJakartaSans(
-                          color: _fieldText,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: _mutedColor),
-                        items: matchingProducts
-                            .map((prod) => DropdownMenuItem<Product>(
-                                  value: prod,
-                                  child: Text('${prod.name} (${prod.units} left)'),
-                                ))
-                            .toList(),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            selectedProdInDialog = val;
-                          });
-                        },
-                      ),
-                    if (selectedProdInDialog != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        'Current Stock: ${selectedProdInDialog!.units} units',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: hasSufficientStock ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (!hasSufficientStock) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'WARNING: Insufficient stock. You only have ${selectedProdInDialog!.units} units available but $requestedQuantity are requested.',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: Colors.redAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final drawerBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+        final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+        final mutedColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+        final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+        final fieldBorder = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+        final cardBg = isDark ? const Color(0xFF16243A) : const Color(0xFFEFF6FF);
+        final cardBorder = isDark ? const Color(0xFF2563EB).withValues(alpha: 0.3) : const Color(0xFFBFDBFE);
+
+        return Transform.translate(
+          offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: StatefulBuilder(
+                builder: (stfCtx, setStateDialog) {
+                  Product? selectedProdInDialog = selectedProduct;
+                  final hasSufficientStock = selectedProdInDialog != null && selectedProdInDialog.units >= requestedQuantity;
+
+                  return Container(
+                    width: drawerWidth,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      color: drawerBg,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          blurRadius: 24,
+                          offset: const Offset(-4, 0),
                         ),
                       ],
-                    ],
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: _titleColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                    ),
+                    child: SafeArea(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.task_alt_rounded,
+                                    color: Color(0xFF10B981),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Approve Request',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: titleColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Release stock from inventory',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: mutedColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                                  splashRadius: 20,
+                                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Body
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Raiser Request Card
+                                  Text(
+                                    'REQUEST DETAILS',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: cardBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: cardBorder),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              raiserName,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: titleColor,
+                                              ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(5),
+                                              ),
+                                              child: Text(
+                                                'HOG RAISER',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: const Color(0xFF3B82F6),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Requested: $requestedQuantity units of $category${feedType.isNotEmpty ? ' ($feedType)' : ''}',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // Product selection
+                                  Text(
+                                    'SELECT PRODUCT TO RELEASE *',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (matchingProducts.isEmpty)
+                                    Text(
+                                      'No products found in the inventory under "$category" category.',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: Colors.redAccent,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    )
+                                  else
+                                    DropdownButtonFormField<Product>(
+                                      initialValue: selectedProdInDialog,
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: fieldBg,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: BorderSide(color: fieldBorder),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                        ),
+                                      ),
+                                      dropdownColor: fieldBg,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: titleColor,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: mutedColor),
+                                      items: matchingProducts
+                                          .map((prod) => DropdownMenuItem<Product>(
+                                                value: prod,
+                                                child: Text('${prod.name} (${prod.units} left)'),
+                                              ))
+                                          .toList(),
+                                      onChanged: (val) {
+                                        setStateDialog(() {
+                                          selectedProduct = val;
+                                        });
+                                      },
+                                    ),
+                                  if (selectedProdInDialog != null) ...[
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: hasSufficientStock
+                                            ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.15 : 0.08)
+                                            : Colors.red.withValues(alpha: isDark ? 0.15 : 0.08),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: hasSufficientStock
+                                              ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                                              : Colors.red.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Current Stock: ${selectedProdInDialog.units} units',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              color: hasSufficientStock
+                                                  ? (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46))
+                                                  : Colors.redAccent,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          if (!hasSufficientStock) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Insufficient stock. You need $requestedQuantity units but only have ${selectedProdInDialog.units}.',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                color: Colors.redAccent,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: (selectedProdInDialog == null || !hasSufficientStock)
-                              ? null
-                              : () {
-                                  Navigator.of(context).pop();
-                                  _processApproveRequest(requestId, selectedProdInDialog!, requestedQuantity, raiserName);
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: PiggyTrunkTheme.ptSuccess,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+
+                          // Footer
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: drawerBg,
+                              border: Border(top: BorderSide(color: borderColor, width: 1)),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.of(dialogCtx).pop(),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      side: BorderSide(color: fieldBorder),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Cancel',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: titleColor,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton.icon(
+                                    onPressed: (selectedProdInDialog == null || !hasSufficientStock)
+                                        ? null
+                                        : () {
+                                            Navigator.of(dialogCtx).pop();
+                                            _processApproveRequest(requestId, selectedProdInDialog, requestedQuantity, raiserName);
+                                          },
+                                    icon: const Icon(Icons.check_rounded, size: 18),
+                                    label: Text(
+                                      'Confirm Approval',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF10B981),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          child: Text(
-                            'Confirm Approval',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
@@ -3355,85 +4365,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
     final raiserName = raiser?['name'] ?? 'Unknown Raiser';
 
-    showDialog<void>(
+    final confirmed = await SlideOverConfirmationDrawer.show(
       context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Container(
-            width: 450,
-            decoration: BoxDecoration(
-              color: _cardBg,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _cardBorder),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Reject Stock Request',
-                  style: GoogleFonts.plusJakartaSans(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Are you sure you want to reject the stock request from $raiserName for $quantity units of $category?',
-                  style: GoogleFonts.plusJakartaSans(color: _titleColor, fontSize: 14),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.plusJakartaSans(
-                            color: _titleColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        _processRejectRequest(requestId);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'Confirm Rejection',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      actionType: SlideOverActionType.danger,
+      title: 'Reject Stock Request',
+      userName: raiserName,
+      userRole: 'HOG RAISER',
+      confirmButtonText: 'Confirm Rejection',
+      message: 'Are you sure you want to reject the stock request from $raiserName for $quantity units of $category? This will cancel this pending stock request.',
     );
+
+    if (confirmed == true) {
+      await _processRejectRequest(requestId);
+    }
   }
 
   Future<void> _processRejectRequest(dynamic requestId) async {

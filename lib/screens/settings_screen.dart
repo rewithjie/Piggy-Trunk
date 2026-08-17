@@ -27,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _profilePicturePath;
   bool _isUploadingImage = false;
   bool _isSavingProfile = false;
+  bool _isChangingPassword = false;
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -517,7 +518,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _solidButton('Change Password', onTap: _requestPasswordChange),
+              _solidButton(
+                _isChangingPassword ? 'Updating Password...' : 'Change Password',
+                onTap: _requestPasswordChange,
+                isLoading: _isChangingPassword,
+              ),
             ],
           ),
         ],
@@ -686,29 +691,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _requestPasswordChange() async {
+    if (_isChangingPassword) return;
+
     final user = _supabase.auth.currentUser;
-    if (user == null) {
+    if (user == null || user.email == null || user.email!.isEmpty) {
       _showThemedSnackBar('No active admin session found.', backgroundColor: Colors.red);
       return;
     }
+
+    final currentPass = _currentPasswordController.text.trim();
+    final newPass = _newPasswordController.text.trim();
+    final confirmPass = _confirmPasswordController.text.trim();
 
     String? currentErr;
     String? newErr;
     String? confirmErr;
 
-    if (_currentPasswordController.text.trim().isEmpty) {
+    if (currentPass.isEmpty) {
       currentErr = 'Current password is required.';
     }
 
-    if (_newPasswordController.text.trim().isEmpty) {
+    if (newPass.isEmpty) {
       newErr = 'New password is required.';
-    } else if (_newPasswordController.text.length < 6) {
+    } else if (newPass.length < 6) {
       newErr = 'Password must be at least 6 characters.';
+    } else if (newPass == currentPass) {
+      newErr = 'New password must be different from current password.';
     }
 
-    if (_confirmPasswordController.text.trim().isEmpty) {
+    if (confirmPass.isEmpty) {
       confirmErr = 'Please confirm your new password.';
-    } else if (_newPasswordController.text != _confirmPasswordController.text) {
+    } else if (newPass != confirmPass) {
       confirmErr = 'New password and confirmation do not match.';
     }
 
@@ -725,22 +738,67 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _currentPasswordError = null;
       _newPasswordError = null;
       _confirmPasswordError = null;
+      _isChangingPassword = true;
     });
 
-    _showThemedSnackBar(
-      'Password update is connected and ready, but not enabled yet. Coming soon.',
-      backgroundColor: const Color(0xFF315C8F),
-    );
+    try {
+      // 1. Verify current password by signing in with Supabase Auth
+      try {
+        await _supabase.auth.signInWithPassword(
+          email: user.email!,
+          password: currentPass,
+        );
+      } on AuthException catch (authErr) {
+        final errText = authErr.message.toLowerCase();
+        if (errText.contains('invalid') ||
+            errText.contains('credential') ||
+            errText.contains('password')) {
+          if (!mounted) return;
+          setState(() {
+            _currentPasswordError = 'Incorrect current password. Please try again.';
+            _isChangingPassword = false;
+          });
+          return;
+        }
+        rethrow;
+      }
+
+      // 2. Update to new password in Supabase Auth
+      await _supabase.auth.updateUser(
+        UserAttributes(password: newPass),
+      );
+
+      // 3. Clear inputs & show success notification
+      _currentPasswordController.clear();
+      _newPasswordController.clear();
+      _confirmPasswordController.clear();
+
+      if (!mounted) return;
+      _showThemedSnackBar(
+        'Password changed successfully!',
+        backgroundColor: PiggyTrunkTheme.ptSuccess,
+      );
+    } catch (e) {
+      debugPrint('Error changing password: $e');
+      if (!mounted) return;
+      _showThemedSnackBar(
+        'Failed to change password: $e',
+        backgroundColor: Colors.redAccent,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isChangingPassword = false);
+      }
+    }
   }
 
-
-  Widget _solidButton(String label, {VoidCallback? onTap}) {
+  Widget _solidButton(String label, {VoidCallback? onTap, bool isLoading = false}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final actionBg = isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary;
     final actionFg = isDark ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptSurface;
 
     return ElevatedButton(
-      onPressed: onTap,
+      onPressed: isLoading ? null : onTap,
       style: ElevatedButton.styleFrom(
         backgroundColor: actionBg,
         foregroundColor: actionFg,
@@ -749,13 +807,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         elevation: 0,
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      child: isLoading
+          ? SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: actionFg,
+              ),
+            )
+          : Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
     );
   }
 

@@ -23,6 +23,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _errorMessage;
+  String? _fullNameError;
+  String? _emailError;
+  String? _passwordError;
+  String? _confirmPasswordError;
 
   final GoogleAuthService _googleAuthService = GoogleAuthService();
 
@@ -33,6 +37,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _clearErrors() {
+    if (_fullNameError != null ||
+        _emailError != null ||
+        _passwordError != null ||
+        _confirmPasswordError != null ||
+        _errorMessage != null) {
+      setState(() {
+        _fullNameError = null;
+        _emailError = null;
+        _passwordError = null;
+        _confirmPasswordError = null;
+        _errorMessage = null;
+      });
+    }
   }
 
   String _getFriendlyAuthErrorMessage(String rawMessage) {
@@ -51,30 +71,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return 'Nagkaroon ng problema sa pag-rehistro. Mangyaring subukang muli.';
   }
 
+  Widget _buildInlineError(String? error) {
+    if (error == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 5, left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1.5),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 14,
+              color: Color(0xFFE53935),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              error,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handlePasswordSignUp(String targetRole) async {
+    _clearErrors();
+
     final String fullName = _fullNameController.text.trim();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
     final String confirmPassword = _confirmPasswordController.text;
 
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
-      setState(() {
-        _errorMessage =
-            'Mangyaring ilagay ang Email, Password, at Kumpirmahin ang Password.';
-      });
-      return;
+    String? nameErr;
+    String? emailErr;
+    String? passErr;
+    String? confirmPassErr;
+
+    // 1. Full Name Validation
+    if (fullName.isEmpty) {
+      nameErr = 'Mangyaring ilagay ang iyong buong pangalan.';
     }
 
-    if (password != confirmPassword) {
+    // 2. Email Validation (Strict for '@' and 'gmail.com')
+    final cleanEmail = email.toLowerCase().trim();
+    if (cleanEmail.isEmpty) {
+      emailErr = 'Mangyaring ilagay ang iyong Gmail address.';
+    } else if (!cleanEmail.contains('@')) {
+      emailErr = 'Kulang ng "@" ang email address (hal. name@gmail.com).';
+    } else if (!cleanEmail.contains('gmail')) {
+      emailErr = 'Kailangang Gmail account ang gamitin (hal. name@gmail.com).';
+    } else if (!cleanEmail.endsWith('@gmail.com')) {
+      emailErr = 'Dapat magtapos sa "@gmail.com" ang email address.';
+    } else if (!RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$').hasMatch(cleanEmail)) {
+      emailErr = 'Maglagay ng wastong Gmail address (hal. name@gmail.com).';
+    }
+
+    // 3. Password Validation
+    if (password.isEmpty) {
+      passErr = 'Mangyaring maglagay ng password.';
+    } else if (password.length < 6) {
+      passErr = 'Ang password ay dapat hindi bababa sa 6 na karakter.';
+    }
+
+    // 4. Confirm Password Validation
+    if (confirmPassword.isEmpty) {
+      confirmPassErr = 'Mangyaring kumpirmahin ang iyong password.';
+    } else if (password != confirmPassword) {
+      confirmPassErr = 'Hindi magkatugma ang Password at Kumpirmahin ang Password.';
+    }
+
+    if (nameErr != null || emailErr != null || passErr != null || confirmPassErr != null) {
       setState(() {
-        _errorMessage =
-            'Hindi magkatugma ang Password at Kumpirmahin ang Password.';
+        _fullNameError = nameErr;
+        _emailError = emailErr;
+        _passwordError = passErr;
+        _confirmPasswordError = confirmPassErr;
       });
       return;
     }
 
     setState(() {
-      _errorMessage = null;
       _isLoading = true;
     });
 
@@ -160,6 +244,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
           } catch (e) {
             debugPrint('Registration email dispatch notice: $e');
           }
+
+          // Explicitly sync admin notification with exact targetRole
+          try {
+            final String roleDisplay = targetRole == 'hog_raiser' || targetRole == 'raiser'
+                ? 'Hog Raiser'
+                : targetRole == 'partner'
+                    ? 'Partner Investor'
+                    : targetRole == 'cashier'
+                        ? 'Cashier'
+                        : 'User';
+            await Supabase.instance.client
+                .from('admin_notifications')
+                .delete()
+                .eq('metadata->>email', email)
+                .eq('type', 'user_registration');
+            await Supabase.instance.client.from('admin_notifications').insert({
+              'title': 'New User Registration',
+              'message': '$resolvedName ($email) registered as $roleDisplay and is pending approval.',
+              'type': 'user_registration',
+              'is_read': false,
+              'metadata': {
+                'user_id': newUserId,
+                'name': resolvedName,
+                'email': email,
+                'role': targetRole,
+              },
+            });
+          } catch (_) {}
         }
 
         await Supabase.instance.client.auth.signOut();
@@ -199,27 +311,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
               actions: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF18314F),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18314F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pushReplacementNamed(
-                      context,
-                      '/login',
-                      arguments: targetRole,
-                    );
-                  },
-                  child: const Text(
-                    'Mag-Login',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pushReplacementNamed(
+                        context,
+                        '/login',
+                        arguments: targetRole,
+                      );
+                    },
+                    child: const Text(
+                      'Mag-Login',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ),
@@ -296,29 +414,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
                 actions: [
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF18314F),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF18314F),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(dialogCtx);
-                      Navigator.pushReplacementNamed(
-                        context,
-                        '/login',
-                        arguments: role,
-                      );
-                    },
-                    child: const Text(
-                      'OK',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                      onPressed: () {
+                        Navigator.pop(dialogCtx);
+                        Navigator.pushReplacementNamed(
+                          context,
+                          '/login',
+                          arguments: role,
+                        );
+                      },
+                      child: const Text(
+                        'Mag-Login',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
@@ -625,8 +747,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _fullNameError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _fullNameError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -636,6 +760,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_fullNameError != null) {
+                                      setState(() => _fullNameError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -656,6 +785,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_fullNameError),
                               SizedBox(height: fieldSpacing),
 
                               // Username / Email Label
@@ -675,8 +805,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _emailError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _emailError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -687,6 +819,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_emailError != null) {
+                                      setState(() => _emailError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -707,6 +844,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_emailError),
                               SizedBox(height: fieldSpacing),
 
                               // Password Label
@@ -726,8 +864,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _passwordError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _passwordError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -738,6 +878,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_passwordError != null) {
+                                      setState(() => _passwordError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -772,6 +917,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_passwordError),
                               SizedBox(height: fieldSpacing),
 
                               // Confirm Password Label
@@ -791,8 +937,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _confirmPasswordError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _confirmPasswordError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -803,6 +951,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_confirmPasswordError != null) {
+                                      setState(() => _confirmPasswordError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -838,6 +991,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_confirmPasswordError),
                               SizedBox(height: fieldSpacing * 1.3),
 
                               // Sign Up Button (Piggy Brand Navy Gradient without check icon)

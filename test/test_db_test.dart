@@ -21,48 +21,26 @@ void main() {
 
       final client = Supabase.instance.client;
 
-      // Step 1: Attempt to manually insert a user in app_users
-      print('\n--- Attempting manual insert into app_users ---');
-      int? newUserId;
-      try {
-        final email = 'test_manual_${DateTime.now().millisecondsSinceEpoch}@example.com';
-        final response = await client.from('app_users').insert({
-          'name': 'Test Manual User',
-          'email': email,
+      print('\n--- Querying app_users for rejiexyz@gmail.com ---');
+      final users = await client.from('app_users').select().eq('email', 'rejiexyz@gmail.com');
+      print('Users matching rejiexyz@gmail.com: $users');
+
+      print('\n--- Inserting fresh English notification for user 35 ---');
+      await client.from('admin_notifications').insert({
+        'title': 'New User Registration',
+        'message': 'rej (rejiexyz@gmail.com) registered as Hog Raiser and is pending approval.',
+        'type': 'user_registration',
+        'is_read': false,
+        'metadata': {
+          'user_id': 35,
+          'name': 'rej',
+          'email': 'rejiexyz@gmail.com',
           'role': 'hog_raiser',
-          'status': 'Pending',
-          'supabase_user_id': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', // Dummy UUID
-        }).select('user_id').single();
+        },
+      });
 
-        newUserId = response['user_id'] as int;
-        print('SUCCESS: Inserted into app_users. Generated user_id: $newUserId');
-      } catch (e) {
-        print('FAILED: Insert into app_users failed with database error:');
-        print(e.toString());
-      }
-
-      // Step 2: Attempt to manually insert into hog_raisers using the new user_id
-      if (newUserId != null) {
-        print('\n--- Attempting manual insert into hog_raisers ---');
-        try {
-          final response = await client.from('hog_raisers').insert({
-            'name': 'Test Manual User',
-            'phone': '',
-            'pig_type': 'Fattening',
-            'status': 'Pending',
-            'lifecycle_stage': 'Booster',
-            'user_id': newUserId,
-            'account_status': 'pending',
-            'address': '',
-          }).select('hog_raiser_id').single();
-
-          final newRaiserId = response['hog_raiser_id'];
-          print('SUCCESS: Inserted into hog_raisers. Generated hog_raiser_id: $newRaiserId');
-        } catch (e) {
-          print('FAILED: Insert into hog_raisers failed with database error:');
-          print(e.toString());
-        }
-      }
+      final allNotifs = await client.from('admin_notifications').select();
+      print('Current Admin Notifications: $allNotifs');
 
     } catch (e) {
       print('Execution failed: $e');

@@ -19,6 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _identifierError;
+  String? _passwordError;
 
   final GoogleAuthService _googleAuthService = GoogleAuthService();
 
@@ -29,35 +31,78 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  String _getFriendlyAuthErrorMessage(String rawMessage) {
-    final lower = rawMessage.toLowerCase();
-    if (lower.contains('invalid login credentials') ||
-        lower.contains('invalid_credentials')) {
-      return 'Maling Email o Password. Mangyaring suriin at subukang muli.';
-    } else if (lower.contains('user not found') ||
-        lower.contains('user_not_found')) {
-      return 'Hindi mahanap ang account na ito. Siguraduhing tama ang inilagay na email.';
-    } else if (lower.contains('network') ||
-        lower.contains('socketexception') ||
-        lower.contains('connection')) {
-      return 'Hindi makakonekta sa internet. Mangyaring suriin ang iyong koneksyon.';
+  void _clearErrors() {
+    if (_identifierError != null || _passwordError != null || _errorMessage != null) {
+      setState(() {
+        _identifierError = null;
+        _passwordError = null;
+        _errorMessage = null;
+      });
     }
-    return 'Maling Email o Password. Mangyaring subukang muli.';
+  }
+
+  Widget _buildInlineError(String? error) {
+    if (error == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 5, left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1.5),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 14,
+              color: Color(0xFFE53935),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              error,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE53935),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handlePasswordSignIn(String targetRole) async {
+    _clearErrors();
+
     final String identifier = _usernameController.text.trim();
     final String password = _passwordController.text;
 
-    if (identifier.isEmpty || password.isEmpty) {
+    String? idErr;
+    String? passErr;
+
+    final cleanId = identifier.trim().toLowerCase();
+    if (cleanId.isEmpty) {
+      idErr = 'Mangyaring ilagay ang iyong Username o Gmail.';
+    } else if (cleanId.contains('gmail') && !cleanId.contains('@')) {
+      idErr = 'Kulang ng "@" ang Gmail address (hal. name@gmail.com).';
+    }
+
+    if (password.isEmpty) {
+      passErr = 'Mangyaring ilagay ang iyong password.';
+    } else if (password.length < 6) {
+      passErr = 'Ang password ay dapat hindi bababa sa 6 na karakter.';
+    }
+
+    if (idErr != null || passErr != null) {
       setState(() {
-        _errorMessage = 'Mangyaring ilagay ang Username/Email at Password.';
+        _identifierError = idErr;
+        _passwordError = passErr;
       });
       return;
     }
 
     setState(() {
-      _errorMessage = null;
       _isLoading = true;
     });
 
@@ -68,14 +113,14 @@ class _LoginScreenState extends State<LoginScreen> {
           final res = await Supabase.instance.client
               .from('app_users')
               .select('email')
-              .eq('email', identifier)
+              .ilike('name', identifier)
               .maybeSingle();
 
           if (res != null && res['email'] != null) {
             emailToUse = res['email'];
           }
         } catch (_) {
-          // Gracefully fallback if username column doesn't exist
+          // Gracefully fallback if username lookup fails
         }
       }
 
@@ -105,13 +150,30 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         if (mounted) _navigateToDashboard(role);
       }
-    } on AuthException catch (e) {
-      setState(() {
-        _errorMessage = _getFriendlyAuthErrorMessage(e.message);
-      });
+    } on AuthException catch (_) {
+      // Smart check: Does this user exist in app_users?
+      bool userExists = false;
+      try {
+        final existing = await Supabase.instance.client
+            .from('app_users')
+            .select('user_id')
+            .or('email.ilike.$identifier,name.ilike.$identifier')
+            .maybeSingle();
+        userExists = existing != null;
+      } catch (_) {}
+
+      if (!userExists) {
+        setState(() {
+          _identifierError = 'Walang natagpuang account. Mangyaring gumawa muna ng account bago mag-login.';
+        });
+      } else {
+        setState(() {
+          _passwordError = 'Maling password. Pakisuri ang iyong password at subukang muli.';
+        });
+      }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Maling Email o Password. Mangyaring subukang muli.';
+        _passwordError = 'Maling Email o Password. Mangyaring subukang muli.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -121,6 +183,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleSignIn(String targetRole) async {
     setState(() {
       _errorMessage = null;
+      _identifierError = null;
+      _passwordError = null;
       _isGoogleLoading = true;
     });
 
@@ -142,9 +206,16 @@ class _LoginScreenState extends State<LoginScreen> {
           if (mounted) _navigateToDashboard(role);
         }
       } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.') {
-        setState(() {
-          _errorMessage = result['message'];
-        });
+        final rawMsg = result['message'].toString();
+        if (rawMsg.contains('Walang nakalaang account') || rawMsg.contains('mag-Sign Up muna')) {
+          setState(() {
+            _identifierError = 'Walang natagpuang account para sa Google account na ito. Mangyaring mag-rehistro muna.';
+          });
+        } else {
+          setState(() {
+            _errorMessage = result['message'];
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -188,23 +259,26 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF18314F),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF18314F),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-            ),
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Naintindihan',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Naintindihan',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
             ),
           ),
@@ -517,8 +591,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _identifierError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _identifierError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -528,6 +604,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_identifierError != null) {
+                                      setState(() => _identifierError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -548,6 +629,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_identifierError),
                               SizedBox(height: fieldSpacing),
 
                               // Password Label
@@ -567,8 +649,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: const Color(0xFFF8FAFC),
                                   borderRadius: BorderRadius.circular(12.0),
                                   border: Border.all(
-                                    color: const Color(0xFFCBD5E1),
-                                    width: 1.2,
+                                    color: _passwordError != null
+                                        ? const Color(0xFFE53935)
+                                        : const Color(0xFFCBD5E1),
+                                    width: _passwordError != null ? 1.5 : 1.2,
                                   ),
                                 ),
                                 child: TextField(
@@ -579,6 +663,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
                                   ),
+                                  onChanged: (_) {
+                                    if (_passwordError != null) {
+                                      setState(() => _passwordError = null);
+                                    }
+                                  },
                                   decoration: InputDecoration(
                                     contentPadding: EdgeInsets.symmetric(
                                       horizontal: 14,
@@ -613,6 +702,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                               ),
+                              _buildInlineError(_passwordError),
                               SizedBox(height: fieldSpacing * 0.6),
 
                               // Forgot Password Link

@@ -250,13 +250,15 @@ class _POSScreenState extends State<POSScreen> {
                       ? const Center(child: CircularProgressIndicator())
                       : LayoutBuilder(
                           builder: (context, constraints) {
-                            final isNarrow = constraints.maxWidth < 1200;
+                            final isMobile = constraints.maxWidth < 800;
 
-                            if (isNarrow) {
+                            if (isMobile) {
                               return SingleChildScrollView(
+                                padding: EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16),
                                 child: Column(
                                   children: [
-                                    _buildProductsPanel(EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16)),
+                                    _buildProductsPanel(EdgeInsets.zero),
+                                    const SizedBox(height: 16),
                                     Container(
                                       constraints: const BoxConstraints(minHeight: 480),
                                       child: _buildCurrentOrderPanel(context, stacked: true),
@@ -266,15 +268,27 @@ class _POSScreenState extends State<POSScreen> {
                               );
                             }
 
+                            // Laptop & Desktop layout (14-inch laptops, 1366x768, 1080p, etc.)
+                            final rightPanelWidth = constraints.maxWidth > 1300
+                                ? 380.0
+                                : (constraints.maxWidth > 1050 ? 340.0 : 310.0);
+
                             return Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                // Left Column: Always scrollable product catalog - prevents any bottom overflow
                                 Expanded(
-                                  flex: 2,
-                                  child: _buildProductsPanel(const EdgeInsets.fromLTRB(16, 16, 16, 16)),
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.all(16),
+                                    child: _buildProductsPanel(EdgeInsets.zero),
+                                  ),
                                 ),
                                 Container(width: 1, color: _border),
-                                Expanded(flex: 1, child: _buildCurrentOrderPanel(context)),
+                                // Right Column: Current Order panel always docked on the side
+                                SizedBox(
+                                  width: rightPanelWidth,
+                                  child: _buildCurrentOrderPanel(context),
+                                ),
                               ],
                             );
                           },
@@ -385,19 +399,19 @@ class _POSScreenState extends State<POSScreen> {
             else
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final isWide = constraints.maxWidth > 900;
-                  final isNarrow = constraints.maxWidth <= 700;
-                  final crossAxisCount = isWide ? 2 : 1;
-                  final childAspectRatio = isWide ? 2.3 : 2.0;
+                  final width = constraints.maxWidth;
+                  int crossAxisCount;
+                  double childAspectRatio;
 
-                  if (isNarrow) {
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: products.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 14),
-                      itemBuilder: (context, idx) => _buildPOSProductCard(products[idx]),
-                    );
+                  if (width > 850) {
+                    crossAxisCount = 2;
+                    childAspectRatio = 2.2;
+                  } else if (width > 550) {
+                    crossAxisCount = 2;
+                    childAspectRatio = 1.95;
+                  } else {
+                    crossAxisCount = 1;
+                    childAspectRatio = 2.2;
                   }
 
                   return GridView.builder(
@@ -405,8 +419,8 @@ class _POSScreenState extends State<POSScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 14,
+                      mainAxisSpacing: 14,
                       childAspectRatio: childAspectRatio,
                     ),
                     itemCount: products.length,
@@ -424,7 +438,7 @@ class _POSScreenState extends State<POSScreen> {
   Widget _buildPOSProductCard(POSProduct product) {
     final isOutOfStock = product.units <= 0;
     final isMobile = Responsive.isMobile(context);
-    final double imgSize = isMobile ? 95.0 : 135.0;
+    final double imgSize = isMobile ? 85.0 : 110.0;
 
     return Container(
       decoration: BoxDecoration(

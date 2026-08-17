@@ -5,9 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/investment_model.dart';
 import '../theme/app_theme.dart';
-import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
 import '../main.dart';
 
@@ -1013,54 +1013,15 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   }
 
   Future<void> _deleteInvestment(Investment investment) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final confirm = await showDialog<bool>(
+    final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        title: Text(
-          'Delete Investment',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : Colors.black87,
-          ),
-        ),
-        content: Text(
-          'Delete investment for ${investment.raiserName}?',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 16,
-            color: isDark ? Colors.white70 : Colors.black54,
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? const Color(0xFF334155) : Colors.grey[200],
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              'Cancel',
-              style: AppTextStyles.button(isDark ? Colors.white : Colors.black87),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF758C),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(
-              'Delete',
-              style: AppTextStyles.button(Colors.white),
-            ),
-          ),
-        ],
-      ),
+      title: 'Delete Investment',
+      message: 'Are you sure you want to delete the investment record for "${investment.raiserName}"? This action cannot be undone.',
+      actionType: SlideOverActionType.danger,
+      userName: investment.raiserName,
+      userRole: 'Partner Investment',
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
     );
 
     if (confirm != true) return;

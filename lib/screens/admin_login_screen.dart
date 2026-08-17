@@ -96,9 +96,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     String? passwordErr;
 
     if (email.isEmpty) {
-      emailErr = 'Please enter your email address.';
-    } else if (!email.contains('@') || !email.contains('.')) {
-      emailErr = 'Please enter a valid email address.';
+      emailErr = 'Please enter your email or username.';
     }
 
     if (password.isEmpty) {
@@ -363,7 +361,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'EMAIL ADDRESS',
+          'EMAIL OR USERNAME',
           style: LoginStyles.labelStyle,
         ),
         const SizedBox(height: 8),
@@ -378,10 +376,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             fontWeight: FontWeight.w500,
           ),
           decoration: LoginStyles.emailFieldDecoration(
-            hintText: 'admin@piggytrunk.com',
+            hintText: 'admin@piggytrunk.com or username',
             hasError: _emailError != null,
             prefixIcon: const Icon(
-              Icons.mail_outline_rounded,
+              Icons.person_outline_rounded,
               size: 20,
               color: LoginStyles.fieldIconColor,
             ),
