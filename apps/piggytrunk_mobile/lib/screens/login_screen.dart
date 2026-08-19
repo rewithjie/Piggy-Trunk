@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 import '../services/google_auth_service.dart';
+import '../services/auth_session_service.dart';
 import '../utils/screen_fit_util.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -146,8 +147,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (statusLower == 'pending' || statusLower == 'inactive') {
         await Supabase.instance.client.auth.signOut();
+        await AuthSessionService().clearSession();
         if (mounted) _showPendingDialog();
       } else {
+        await AuthSessionService().saveSession(
+          email: user.email ?? emailToUse,
+          role: role,
+          loginMethod: 'password',
+          userId: user.id,
+        );
         if (mounted) _navigateToDashboard(role);
       }
     } on AuthException catch (_) {
@@ -198,11 +206,52 @@ class _LoginScreenState extends State<LoginScreen> {
         final String rawStatus = (result['status'] ?? 'pending').toString();
         final String statusLower = rawStatus.toLowerCase();
         final String role = (result['role'] ?? targetRole).toString();
+        final String? googleEmail = result['email'];
 
-        if (statusLower == 'pending') {
+        final bool isActuallyActive = statusLower == 'active' || statusLower == 'approved';
+
+        if (!isActuallyActive) {
+          // Double-check database directly in case of stale status
+          bool dbActive = false;
+          if (googleEmail != null && googleEmail.isNotEmpty) {
+            try {
+              final freshUser = await Supabase.instance.client
+                  .from('app_users')
+                  .select('status, role')
+                  .eq('email', googleEmail)
+                  .maybeSingle();
+              if (freshUser != null) {
+                final st = (freshUser['status'] ?? '').toString().toLowerCase();
+                if (st == 'active' || st == 'approved') {
+                  dbActive = true;
+                }
+              }
+            } catch (_) {}
+          }
+
+          if (dbActive) {
+            if (googleEmail != null) {
+              await AuthSessionService().saveSession(
+                email: googleEmail,
+                role: role,
+                loginMethod: 'google',
+              );
+            }
+            if (mounted) _navigateToDashboard(role);
+            return;
+          }
+
           await Supabase.instance.client.auth.signOut();
+          await AuthSessionService().clearSession();
           if (mounted) _showPendingDialog();
         } else {
+          if (googleEmail != null && googleEmail.isNotEmpty) {
+            await AuthSessionService().saveSession(
+              email: googleEmail,
+              role: role,
+              loginMethod: 'google',
+            );
+          }
           if (mounted) _navigateToDashboard(role);
         }
       } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.') {
@@ -236,11 +285,11 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Row(
           children: [
-            Icon(Icons.info_outline_rounded, color: Color(0xFFFF9F43), size: 26),
+            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Naka-pending ang Account',
+                'Nagawa na ang Account!',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
@@ -251,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
         content: const Text(
-          'Naitala na ang iyong account! Kasalukuyan pa itong naghihintay ng pag-apruba mula sa Admin bago ka makapasok sa Dashboard.',
+          'Matagumpay na naitala ang iyong account!\n\nKasalukuyan pa itong naghihintay ng pag-apruba mula sa Admin bago ka makapasok sa Dashboard.',
           style: TextStyle(
             fontSize: 14,
             color: Color(0xFF334155),

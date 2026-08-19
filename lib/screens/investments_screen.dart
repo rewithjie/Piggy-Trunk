@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/investment_model.dart';
@@ -9,6 +7,8 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
+import '../widgets/investment/investment_drawer.dart';
+import '../widgets/investment/investment_table_view.dart';
 import '../main.dart';
 
 class InvestmentsScreen extends StatefulWidget {
@@ -22,73 +22,12 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Investment> investments = [];
   bool _isLoading = true;
+
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _panelStart => _isDark ? const Color(0xFF1A2940) : Colors.white;
   Color get _panelEnd => _isDark ? const Color(0xFF0F1C2F) : Colors.white;
   Color get _panelBorder => _isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
-  Color get _cardBg => _isDark ? const Color(0xFF132238) : Colors.white;
-  Color get _cardBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
-  Color get _titleColor => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _headerText => _isDark ? const Color(0xFF9EC0E8) : const Color(0xFF4B6281);
-  Color get _fieldBg => _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
-  Color get _fieldBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC);
-  Color get _fieldFocus => _isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
-  Color get _fieldText => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _hintText => _isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
-  Color get _successDark => _isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
-  Color get _inProgressDark => _isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
-  Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
-
-  InputDecoration _createInputDecoration(String hint, {bool hasError = false}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: GoogleFonts.plusJakartaSans(color: _hintText, fontSize: 14, fontWeight: FontWeight.w500),
-      filled: true,
-      fillColor: _fieldBg,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(
-          color: hasError ? const Color(0xFFE53E3E) : _fieldBorder,
-          width: hasError ? 1.5 : 1,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(
-          color: hasError ? const Color(0xFFE53E3E) : _fieldFocus,
-          width: hasError ? 1.5 : 1,
-        ),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    );
-  }
-
-  Widget _buildInlineError(String message) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, left: 2, bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 1.5),
-            child: Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53E3E)),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFFE53E3E),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   void initState() {
@@ -107,1163 +46,68 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       });
       return;
     }
-    _loadInitialData();
-  }
-
-  Future<void> _loadInitialData() async {
-    await _loadInvestments();
+    _loadInvestments();
   }
 
   Future<void> _loadInvestments() async {
     setState(() => _isLoading = true);
     try {
-      // Auto-migrate: convert any old pending investments to active in the database
-      try {
-        await _supabase
-            .from('investment_records')
-            .update({'stage': 'active'})
-            .eq('stage', 'pending');
-      } catch (_) {
-        // Ignore silent migration failures (e.g. offline/network)
-      }
-
       final response = await _supabase
           .from('investment_records')
-          .select()
+          .select('*, hog_raisers(name, app_users!hog_raisers_user_id_fkey(name))')
           .order('investment_date', ascending: false);
 
-      final rows = (response as List)
-          .map((row) => Investment.fromJson(row as Map<String, dynamic>))
-          .toList();
+      final List<Investment> loaded = [];
+      for (var row in response as List) {
+        final rMap = Map<String, dynamic>.from(row as Map);
+        final raiser = rMap['hog_raisers'] as Map<String, dynamic>?;
+        final appUsers = raiser?['app_users'] as Map<String, dynamic>?;
+        final appName = appUsers?['name']?.toString().trim();
+        final raiserName = raiser?['name']?.toString().trim();
+
+        if (appName != null && appName.isNotEmpty && appName.toLowerCase() != 'hog raiser') {
+          rMap['raiser_name'] = appName;
+        } else if (raiserName != null && raiserName.isNotEmpty) {
+          rMap['raiser_name'] = raiserName;
+        }
+
+        loaded.add(Investment.fromJson(rMap));
+      }
 
       if (!mounted) return;
-      setState(() => investments = rows);
+      setState(() => investments = loaded);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load investments: $e')),
-      );
+      debugPrint('Error loading investments: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-
-
-  String _formatDateForDisplay(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
-    } catch (e) {
-      return 'Select date';
-    }
-  }
-
-  String _formatCurrency(double amount) {
-    final String fixed = amount.toStringAsFixed(2);
-    final List<String> parts = fixed.split('.');
-    final String integerPart = parts[0];
-    final String decimalPart = parts[1];
-    
-    final String formattedInteger = integerPart.replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    );
-    
-    return '₱$formattedInteger.$decimalPart';
-  }
-  Investment? _editingInvestment;
-  bool _isDrawerSaving = false;
-  final TextEditingController _capitalCtrl = TextEditingController();
-  final TextEditingController _totalHogCtrl = TextEditingController();
-  List<String> _selectedHogTypes = ['Fattening'];
-  String? _selectedRaiserId = 'unassigned';
-  List<Map<String, dynamic>> _activeRaisers = [];
-  List<Map<String, dynamic>> _activeBatches = [];
-  String? _selectedBatchId = 'unassigned';
-  String? _capitalError;
-  String? _totalHogError;
-  String? _hogTypeError;
-
-  Future<void> _openInvestmentDrawer({Investment? existing}) async {
-    _capitalCtrl.text = existing != null ? existing.initialCapital.toInt().toString() : '';
-    _totalHogCtrl.text = existing != null ? existing.totalHog.toString() : '';
-    _capitalError = null;
-    _totalHogError = null;
-    _hogTypeError = null;
-
-    if (existing != null && existing.hogType.isNotEmpty && existing.hogType != 'Auto-populated' && existing.hogType != 'N/A') {
-      _selectedHogTypes = existing.hogType.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
-    } else {
-      _selectedHogTypes = ['Fattening'];
-    }
-
-    _editingInvestment = existing;
-
-    try {
-      dynamic response;
-      try {
-        response = await _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
-            .order('name', ascending: true);
-      } catch (_) {
-        response = await _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id, name, pig_type, status, account_status')
-            .order('name', ascending: true);
-      }
-
-      final List<Map<String, dynamic>> activeRows = [];
-      for (var r in (response as List)) {
-        final rMap = Map<String, dynamic>.from(r as Map);
-        final accStatus = (rMap['account_status'] ?? '').toString().toLowerCase();
-        if (accStatus == 'rejected' || accStatus == 'pending') continue;
-
-        final appUsers = rMap['app_users'] as Map<String, dynamic>?;
-        final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
-        final raiserName = (rMap['name'] ?? '').toString().trim();
-        final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
-            ? googleOrAppName
-            : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
-
-        final idStr = (rMap['id'] ?? rMap['hog_raiser_id'] ?? '').toString();
-        if (idStr.isEmpty) continue;
-
-        activeRows.add({
-          'id': idStr,
-          'name': resolvedFullName,
-          'pig_type': rMap['pig_type'] ?? 'Fattening',
-          'real_pk_col': rMap['id'] != null ? 'id' : 'hog_raiser_id',
-        });
-      }
-
-      _activeRaisers = [
-        {
-          'id': 'unassigned',
-          'name': 'Unassigned (General Pool)',
-        },
-        ...activeRows,
-      ];
-
-      // Also fetch batches for direct batch funding
-      try {
-        final batchesRes = await _supabase
-            .from('batches')
-            .select('batch_id, batch_name, date_created, assignments(assignment_id, hog_raiser_id, status, hog_raisers(name, pig_type, hog_raiser_id, app_users!hog_raisers_user_id_fkey(name)), hogs(hog_id))')
-            .order('date_created', ascending: false);
-
-        final List<Map<String, dynamic>> parsedBatches = [];
-        for (var b in (batchesRes as List)) {
-          final bMap = Map<String, dynamic>.from(b as Map);
-          final bId = bMap['batch_id']?.toString() ?? '';
-          final bName = bMap['batch_name']?.toString() ?? 'Batch $bId';
-
-          final assigns = bMap['assignments'] as List<dynamic>? ?? [];
-          final activeAssign = assigns.firstWhere(
-            (a) => (a['status'] ?? '').toString().toLowerCase() == 'active',
-            orElse: () => assigns.isNotEmpty ? assigns.first : null,
-          );
-
-          String raiserId = '';
-          String raiserName = 'Unassigned';
-          String pigType = 'Fattening';
-          int hogCount = 0;
-
-          if (activeAssign != null) {
-            final raiser = activeAssign['hog_raisers'] as Map<String, dynamic>?;
-            raiserId = (activeAssign['hog_raiser_id'] ?? raiser?['hog_raiser_id'] ?? '').toString();
-            if (raiser != null) {
-              final appUsers = raiser['app_users'] as Map<String, dynamic>?;
-              final appName = appUsers?['name']?.toString().trim();
-              final rName = raiser['name']?.toString().trim();
-              raiserName = (appName != null && appName.isNotEmpty && appName.toLowerCase() != 'hog raiser')
-                  ? appName
-                  : (rName != null && rName.isNotEmpty ? rName : 'Hog Raiser');
-              pigType = raiser['pig_type']?.toString() ?? 'Fattening';
-            }
-            final hogs = activeAssign['hogs'] as List<dynamic>? ?? [];
-            hogCount = hogs.length;
-          }
-
-          parsedBatches.add({
-            'batch_id': bId,
-            'batch_name': bName,
-            'display_label': activeAssign != null
-                ? '$bName • $raiserName ($hogCount heads)'
-                : '$bName • Pool ($hogCount heads)',
-            'raiser_id': raiserId,
-            'raiser_name': raiserName,
-            'pig_type': pigType,
-            'hog_count': hogCount,
-          });
-        }
-
-        _activeBatches = [
-          {
-            'batch_id': 'unassigned',
-            'batch_name': 'General Pool (Unassigned)',
-            'display_label': 'General Investment Pool (Unassigned)',
-            'raiser_id': '',
-            'raiser_name': 'Unassigned',
-            'pig_type': 'Fattening',
-            'hog_count': 0,
-          },
-          ...parsedBatches,
-        ];
-      } catch (_) {
-        _activeBatches = [
-          {
-            'batch_id': 'unassigned',
-            'batch_name': 'General Pool (Unassigned)',
-            'display_label': 'General Investment Pool (Unassigned)',
-            'raiser_id': '',
-            'raiser_name': 'Unassigned',
-            'pig_type': 'Fattening',
-            'hog_count': 0,
-          }
-        ];
-      }
-
-      if (existing == null) {
-        _selectedRaiserId = 'unassigned';
-        _selectedBatchId = _activeBatches.length > 1 ? _activeBatches[1]['batch_id'] : 'unassigned';
-        if (_selectedBatchId != null && _selectedBatchId != 'unassigned') {
-          final matched = _activeBatches.firstWhere((b) => b['batch_id'] == _selectedBatchId, orElse: () => {});
-          _selectedRaiserId = (matched['raiser_id'] ?? '').toString();
-          final count = matched['hog_count'];
-          if (count != null && count > 0) _totalHogCtrl.text = count.toString();
-          final pt = (matched['pig_type'] ?? 'Fattening').toString();
-          if (pt.isNotEmpty) _selectedHogTypes = [pt];
-        }
-      } else {
-        _selectedRaiserId = (existing.hogRaiserId.isEmpty || existing.hogRaiserId == 'unassigned' || existing.raiserName.toLowerCase() == 'unassigned')
-            ? 'unassigned'
-            : existing.hogRaiserId;
-        final matched = _activeBatches.firstWhere(
-          (b) => b['raiser_id'] == _selectedRaiserId && b['raiser_id'].isNotEmpty,
-          orElse: () => _activeBatches.first,
-        );
-        _selectedBatchId = matched['batch_id'];
-      }
-    } catch (_) {
-      _activeRaisers = [
-        {'id': 'unassigned', 'name': 'Unassigned (General Pool)'}
-      ];
-      _activeBatches = [
-        {'batch_id': 'unassigned', 'display_label': 'General Investment Pool (Unassigned)', 'raiser_id': '', 'raiser_name': 'Unassigned', 'pig_type': 'Fattening', 'hog_count': 0}
-      ];
-      _selectedRaiserId = 'unassigned';
-      _selectedBatchId = 'unassigned';
-    }
-
+  void _showThemedSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
-    final isMobile = MediaQuery.of(context).size.width < 720;
-    if (isMobile) {
-      _showInvestmentBottomSheet(existing);
-    } else {
-      _showInvestmentSideDrawer(existing);
-    }
-  }
-
-  void _showInvestmentSideDrawer(Investment? existing) {
-    final isEdit = existing != null;
-
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: isEdit ? 'Edit Investment' : 'Create Investment',
-      barrierColor: Colors.black.withValues(alpha: 0.45),
-      transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) => const SizedBox.shrink(),
-      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(1.0, 0.0),
-            end: Offset.zero,
-          ).animate(curvedAnimation),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 480,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  border: Border(left: BorderSide(color: _cardBorder, width: 1.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.25),
-                      blurRadius: 24,
-                      offset: const Offset(-4, 0),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: StatefulBuilder(
-                    builder: (context, setDrawerState) {
-                      return Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: _isDark ? Colors.white.withValues(alpha: 0.1) : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Icon(
-                                    isEdit ? Icons.edit_note_rounded : Icons.add_chart_rounded,
-                                    color: _titleColor,
-                                    size: 22,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        isEdit ? 'Edit Investment' : 'Create Investment',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          color: _titleColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        isEdit
-                                            ? 'Modify initial capital & hog allocations'
-                                            : 'Assign capital and set hog quantities',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                          color: _hintText,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () => Navigator.pop(dialogContext),
-                                  icon: Icon(Icons.close_rounded, color: _hintText, size: 22),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  tooltip: 'Close panel',
-                                ),
-                              ],
-                            ),
-                          ),
-                          Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
-
-                          Expanded(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(24),
-                              child: _buildDrawerFormContent(
-                                drawerCtx: dialogContext,
-                                isEdit: isEdit,
-                                isMobile: false,
-                                setDrawerState: setDrawerState,
-                                onSave: () => _handleDrawerSave(dialogContext, setDrawerState),
-                                isSaving: _isDrawerSaving,
-                              ),
-                            ),
-                          ),
-
-                          Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: _isDrawerSaving ? null : () => Navigator.pop(dialogContext),
-                                    style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      side: BorderSide(color: _fieldBorder),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                    child: Text(
-                                      'Cancel',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        color: _fieldText,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 2,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isDrawerSaving ? null : () => _handleDrawerSave(dialogContext, setDrawerState),
-                                    icon: _isDrawerSaving
-                                        ? SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                            ),
-                                          )
-                                        : Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
-                                    label: Text(
-                                      _isDrawerSaving
-                                          ? 'Saving...'
-                                          : (isEdit ? 'Save Changes' : 'Create Investment'),
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-                                      foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showInvestmentBottomSheet(Investment? existing) {
-    final isEdit = existing != null;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setDrawerState) => Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.90,
-          ),
-          decoration: BoxDecoration(
-            color: _cardBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border(top: BorderSide(color: _cardBorder, width: 1.2)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 10),
-                Container(
-                  width: 38,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _hintText.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        isEdit ? 'Edit Investment' : 'Create Investment',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          color: _titleColor,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(sheetContext),
-                        icon: Icon(Icons.close_rounded, color: _hintText, size: 22),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: _buildDrawerFormContent(
-                      drawerCtx: sheetContext,
-                      isEdit: isEdit,
-                      isMobile: true,
-                      setDrawerState: setDrawerState,
-                      onSave: () => _handleDrawerSave(sheetContext, setDrawerState),
-                      isSaving: _isDrawerSaving,
-                    ),
-                  ),
-                ),
-                Divider(color: _cardBorder.withValues(alpha: 0.5), height: 1),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isDrawerSaving ? null : () => Navigator.pop(sheetContext),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(color: _fieldBorder),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: _fieldText,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton.icon(
-                          onPressed: _isDrawerSaving ? null : () => _handleDrawerSave(sheetContext, setDrawerState),
-                          icon: _isDrawerSaving
-                              ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                                  ),
-                                )
-                              : Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
-                          label: Text(
-                            _isDrawerSaving
-                                ? 'Saving...'
-                                : (isEdit ? 'Save Changes' : 'Create Investment'),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-                            foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
+        backgroundColor: isError ? Colors.red : PiggyTrunkTheme.ptSuccess,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
-  Widget _buildDrawerFormContent({
-    required BuildContext drawerCtx,
-    required bool isEdit,
-    required bool isMobile,
-    required StateSetter setDrawerState,
-    required VoidCallback onSave,
-    required bool isSaving,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'SELECT BATCH TO FUND',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: _headerText,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        InputDecorator(
-          decoration: _createInputDecoration('Select an active batch').copyWith(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
-                  ? _selectedBatchId
-                  : 'unassigned',
-              isExpanded: true,
-              menuMaxHeight: 260,
-              borderRadius: BorderRadius.circular(12),
-              dropdownColor: _fieldBg,
-              icon: Icon(Icons.keyboard_arrow_down_rounded, color: _hintText),
-              style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14, fontWeight: FontWeight.w600),
-              items: _activeBatches
-                  .map((b) => DropdownMenuItem<String>(
-                        value: b['batch_id'].toString(),
-                        child: Text(
-                          (b['display_label'] ?? '').toString(),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _fieldText,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                setDrawerState(() {
-                  _selectedBatchId = value;
-                  if (value != null && value != 'unassigned') {
-                    final matched = _activeBatches.firstWhere((b) => b['batch_id'].toString() == value, orElse: () => {});
-                    _selectedRaiserId = (matched['raiser_id'] ?? '').toString();
-                    final count = matched['hog_count'];
-                    if (count != null && count > 0) {
-                      _totalHogCtrl.text = count.toString();
-                    }
-                    final pt = (matched['pig_type'] ?? 'Fattening').toString();
-                    if (pt.isNotEmpty && pt != 'Auto-populated' && pt != 'N/A') {
-                      _selectedHogTypes = pt.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                      if (_selectedHogTypes.isEmpty) _selectedHogTypes = ['Fattening'];
-                    }
-                  } else {
-                    _selectedRaiserId = 'unassigned';
-                  }
-                });
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        Text(
-          'INITIAL CAPITAL (PHP)',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: _headerText,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _capitalCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (_) {
-            if (_capitalError != null) setDrawerState(() => _capitalError = null);
-          },
-          style: GoogleFonts.plusJakartaSans(
-            color: _fieldText,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-          decoration: _createInputDecoration('0.00', hasError: _capitalError != null).copyWith(
-            prefixIcon: Container(
-              width: 48,
-              alignment: Alignment.center,
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFEEF4FD),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(10),
-                  bottomLeft: Radius.circular(10),
-                ),
-                border: Border(
-                  right: BorderSide(color: _fieldBorder),
-                ),
-              ),
-              child: Text(
-                '₱',
-                style: GoogleFonts.plusJakartaSans(
-                  color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-          ),
-        ),
-        if (_capitalError != null) _buildInlineError(_capitalError!),
-        const SizedBox(height: 20),
-
-        Text(
-          'TOTAL HOG (HEADS)',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: _headerText,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _totalHogCtrl,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          onChanged: (_) {
-            if (_totalHogError != null) setDrawerState(() => _totalHogError = null);
-          },
-          style: GoogleFonts.plusJakartaSans(
-            color: _fieldText,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-          decoration: _createInputDecoration('0', hasError: _totalHogError != null).copyWith(
-            suffixIcon: Container(
-              width: 72,
-              alignment: Alignment.center,
-              margin: const EdgeInsets.only(left: 12),
-              decoration: BoxDecoration(
-                color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFEEF4FD),
-                borderRadius: const BorderRadius.only(
-                  topRight: Radius.circular(10),
-                  bottomRight: Radius.circular(10),
-                ),
-                border: Border(
-                  left: BorderSide(color: _fieldBorder),
-                ),
-              ),
-              child: Text(
-                'Heads',
-                style: GoogleFonts.plusJakartaSans(
-                  color: _isDark ? const Color(0xFFCBD5E1) : _fieldText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            suffixIconConstraints: const BoxConstraints(minWidth: 72, minHeight: 48),
-          ),
-        ),
-        if (_totalHogError != null) _buildInlineError(_totalHogError!),
-        const SizedBox(height: 20),
-
-        Text(
-          'HOG TYPE ASSIGNMENT',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: _headerText,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (_hogTypeError != null) ...[
-          _buildInlineError(_hogTypeError!),
-          const SizedBox(height: 6),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  setDrawerState(() {
-                    _hogTypeError = null;
-                    if (_selectedHogTypes.contains('Fattening')) {
-                      if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Fattening');
-                    } else {
-                      _selectedHogTypes.add('Fattening');
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _selectedHogTypes.contains('Fattening')
-                        ? (_isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFEEF4FD))
-                        : _fieldBg,
-                    border: Border.all(
-                      color: _selectedHogTypes.contains('Fattening')
-                          ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                          : _fieldBorder,
-                      width: _selectedHogTypes.contains('Fattening') ? 1.5 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selectedHogTypes.contains('Fattening') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                        color: _selectedHogTypes.contains('Fattening')
-                            ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                            : _hintText,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Fattening',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: _selectedHogTypes.contains('Fattening') ? FontWeight.w700 : FontWeight.w500,
-                            color: _selectedHogTypes.contains('Fattening')
-                                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                                : (_isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  setDrawerState(() {
-                    _hogTypeError = null;
-                    if (_selectedHogTypes.contains('Sow / Breeding')) {
-                      if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Sow / Breeding');
-                    } else {
-                      _selectedHogTypes.add('Sow / Breeding');
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _selectedHogTypes.contains('Sow / Breeding')
-                        ? (_isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFEEF4FD))
-                        : _fieldBg,
-                    border: Border.all(
-                      color: _selectedHogTypes.contains('Sow / Breeding')
-                          ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                          : _fieldBorder,
-                      width: _selectedHogTypes.contains('Sow / Breeding') ? 1.5 : 1,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _selectedHogTypes.contains('Sow / Breeding') ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                        color: _selectedHogTypes.contains('Sow / Breeding')
-                            ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                            : _hintText,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Sow / Breeding',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13.5,
-                            fontWeight: _selectedHogTypes.contains('Sow / Breeding') ? FontWeight.w700 : FontWeight.w500,
-                            color: _selectedHogTypes.contains('Sow / Breeding')
-                                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                                : (_isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Future<void> _handleDrawerSave(BuildContext drawerCtx, StateSetter setDrawerState) async {
-    final parsedCapital = int.tryParse(_capitalCtrl.text.trim());
-    final parsedTotalHog = int.tryParse(_totalHogCtrl.text.trim());
-
-    String? capitalErr;
-    String? totalHogErr;
-    String? hogTypeErr;
-
-    if (parsedCapital == null) {
-      capitalErr = 'Please enter a valid initial capital.';
-    } else if (parsedCapital <= 0) {
-      capitalErr = 'Capital must be greater than ₱0.';
-    }
-
-    if (parsedTotalHog == null) {
-      totalHogErr = 'Please enter total number of heads.';
-    } else if (parsedTotalHog <= 0) {
-      totalHogErr = 'Total heads must be at least 1.';
-    }
-
-    if (_selectedHogTypes.isEmpty) {
-      hogTypeErr = 'Please select at least one Hog Type.';
-    }
-
-    if (capitalErr != null || totalHogErr != null || hogTypeErr != null) {
-      setDrawerState(() {
-        _capitalError = capitalErr;
-        _totalHogError = totalHogErr;
-        _hogTypeError = hogTypeErr;
-      });
-      return;
-    }
-
-    setDrawerState(() {
-      _capitalError = null;
-      _totalHogError = null;
-      _hogTypeError = null;
-      _isDrawerSaving = true;
-    });
-
-    final isUnassigned = _selectedRaiserId == 'unassigned';
-    final raiserName = isUnassigned
-        ? 'Unassigned'
-        : (_activeRaisers.firstWhere(
-            (r) => r['id'].toString() == _selectedRaiserId,
-            orElse: () => {'name': ''},
-          )['name'] ?? 'Unassigned');
-
-    final hogTypeStr = _selectedHogTypes.join(', ');
-    final isEdit = _editingInvestment != null;
-
-    final payload = {
-      'hog_raiser_id': isUnassigned ? '' : _selectedRaiserId,
-      'raiser_name': raiserName,
-      'initial_capital': parsedCapital,
-      'hog_type': hogTypeStr,
-      'total_hog': parsedTotalHog,
-      'investment_date': isEdit ? _editingInvestment!.investmentDate.toIso8601String() : DateTime.now().toIso8601String(),
-      if (!isEdit) 'stage': 'active',
-    };
-
-    try {
-      if (isEdit) {
-        await _supabase.from('investment_records').update(payload).eq('id', _editingInvestment!.id);
-      } else {
-        await _supabase.from('investment_records').insert(payload);
-      }
-
-      if (!isUnassigned && int.tryParse(_selectedRaiserId!) != null) {
-        final parsedRaiserId = int.parse(_selectedRaiserId!);
-        final raiserRow = _activeRaisers.firstWhere(
-          (r) => r['id'].toString() == _selectedRaiserId,
-          orElse: () => {},
-        );
-        final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
-        await _supabase
-            .from('hog_raisers')
-            .update({
-              'lifecycle_stage': 'Booster',
-              'pig_type': hogTypeStr,
-            })
-            .eq(pkCol, parsedRaiserId);
-
-        // Ensure active batch & assignment exists for this raiser
-        try {
-          final existingAssign = await _supabase
-              .from('assignments')
-              .select('assignment_id')
-              .eq('hog_raiser_id', parsedRaiserId)
-              .eq('status', 'active')
-              .maybeSingle();
-
-          if (existingAssign == null) {
-            // 1. Create batch
-            dynamic batchId;
-            final batchName = 'Batch ${raiserName.trim()} - ${DateTime.now().year}';
-            final batchRes = await _supabase
-                .from('batches')
-                .insert({
-                  'batch_name': batchName,
-                  'date_created': DateTime.now().toIso8601String().split('T').first,
-                })
-                .select('batch_id')
-                .maybeSingle();
-
-            if (batchRes != null && batchRes['batch_id'] != null) {
-              batchId = batchRes['batch_id'];
-            }
-
-            // 2. Create assignment
-            final assignPayload = <String, dynamic>{
-              'hog_raiser_id': parsedRaiserId,
-              'status': 'active',
-              'start_date': DateTime.now().toIso8601String().split('T').first,
-            };
-            if (batchId != null) assignPayload['batch_id'] = batchId;
-
-            final assignRes = await _supabase
-                .from('assignments')
-                .insert(assignPayload)
-                .select('assignment_id')
-                .maybeSingle();
-
-            if (assignRes != null && assignRes['assignment_id'] != null) {
-              final newAssignId = assignRes['assignment_id'];
-              final int count = parsedTotalHog ?? 1;
-              // 3. Create initial hogs records
-              final List<Map<String, dynamic>> hogsToInsert = [];
-              for (int i = 1; i <= count; i++) {
-                hogsToInsert.add({
-                  'assignment_id': newAssignId,
-                  'tag_number': 'HOG-$parsedRaiserId-$i',
-                  'status': 'active',
-                  'health_status': 'Healthy',
-                  'current_weight': 15.0,
-                });
-              }
-              if (hogsToInsert.isNotEmpty) {
-                await _supabase.from('hogs').insert(hogsToInsert);
-              }
-            }
-          }
-        } catch (batchErr) {
-          debugPrint('Auto batch/assignment creation notice: $batchErr');
-        }
-      }
-
-      setDrawerState(() {
-        _isDrawerSaving = false;
-      });
-
-      if (drawerCtx.mounted) {
-        Navigator.pop(drawerCtx);
-      }
-
-      _editingInvestment = null;
-      await _loadInvestments();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isEdit ? 'Investment updated successfully.' : 'Investment batch added successfully.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: PiggyTrunkTheme.ptSuccess,
-        ),
-      );
-    } catch (e) {
-      setDrawerState(() {
-        _isDrawerSaving = false;
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Save failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _deleteInvestment(Investment investment) async {
-    final confirm = await SlideOverConfirmationDrawer.show(
-      context: context,
-      title: 'Delete Investment',
-      message: 'Are you sure you want to delete the investment record for "${investment.raiserName}"? This action cannot be undone.',
-      actionType: SlideOverActionType.danger,
-      userName: investment.raiserName,
-      userRole: 'Partner Investment',
-      confirmButtonText: 'Yes, Delete',
-      cancelButtonText: 'Cancel',
-    );
-
-    if (confirm != true) return;
-
-    try {
-      // 1. Delete the investment record
-      await _supabase.from('investment_records').delete().eq('id', investment.id);
-
-      // 2. Reset the corresponding raiser's lifecycle_stage back to null in hog_raisers table
-      final raiserIdStr = investment.hogRaiserId;
-      final raiserId = int.tryParse(raiserIdStr);
-      if (raiserId != null) {
-        final raiserCheck = await _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id')
-            .eq('hog_raiser_id', raiserId)
-            .maybeSingle();
-
-        if (raiserCheck != null) {
-          final pkVal = raiserCheck['hog_raiser_id'];
-          await _supabase
-              .from('hog_raisers')
-              .update({'lifecycle_stage': null})
-              .eq('hog_raiser_id', pkVal);
-        }
-      }
-
-      await _loadInvestments();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Investment deleted successfully.',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Delete failed: $e',
-            style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-
-
   @override
   Widget build(BuildContext context) {
     final isSmall = Responsive.isSmallScreen(context);
+    final isMobile = Responsive.isMobile(context);
 
     return Scaffold(
       backgroundColor: _bgDark,
       drawer: isSmall
           ? Drawer(
-              backgroundColor: _cardBg,
+              backgroundColor: _panelStart,
               child: AdminSidebar(
                 currentRoute: '/investments',
                 onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
@@ -1282,7 +126,47 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             child: Column(
               children: [
                 const ScreenTopBar(),
-                Expanded(child: _buildMainState(context)),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : SingleChildScrollView(
+                          padding: EdgeInsets.all(isMobile ? 12 : 20),
+                          child: Center(
+                            child: Container(
+                              constraints: const BoxConstraints(maxWidth: 1350),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [_panelStart, _panelEnd],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                border: Border.all(color: _panelBorder, width: 1),
+                                borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+                              ),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 14 : 34,
+                                vertical: isMobile ? 16 : 32,
+                              ),
+                              child: InvestmentTableView(
+                                investments: investments,
+                                onAddInvestment: () => InvestmentDrawer.show(
+                                  context: context,
+                                  onSaved: _loadInvestments,
+                                  onShowSnackBar: _showThemedSnackBar,
+                                ),
+                                onEditInvestment: (item) => InvestmentDrawer.show(
+                                  context: context,
+                                  existingInvestment: item,
+                                  onSaved: _loadInvestments,
+                                  onShowSnackBar: _showThemedSnackBar,
+                                ),
+                                onArchiveInvestment: _archiveInvestment,
+                                onDeleteInvestment: _deleteInvestment,
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
               ],
             ),
           ),
@@ -1291,506 +175,45 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  Widget _buildMainState(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
+  void _archiveInvestment(Investment item) async {
+    final confirmed = await SlideOverConfirmationDrawer.show(
+      context: context,
+      title: 'Archive Investment',
+      message: 'Are you sure you want to archive the investment record for "${item.raiserName}"?',
+      confirmButtonText: 'Archive',
+      actionType: SlideOverActionType.warning,
+      customIcon: Icons.archive_outlined,
+    );
 
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+    if (confirmed == true) {
+      try {
+        await _supabase.from('investment_records').update({'stage': 'archived'}).eq('id', item.id);
+        _showThemedSnackBar('Investment archived successfully.');
+        _loadInvestments();
+      } catch (e) {
+        _showThemedSnackBar('Archive failed: $e', isError: true);
+      }
     }
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 12 : 20),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1350),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [_panelStart, _panelEnd],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            border: Border.all(color: _panelBorder, width: 1),
-            borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 14 : 34,
-            vertical: isMobile ? 16 : 32,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: _cardBg,
-                  border: Border.all(color: _cardBorder, width: 1),
-                  borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
-                ),
-                padding: EdgeInsets.all(isMobile ? 14 : 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isMobile)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Investment Management',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: _titleColor,
-                              letterSpacing: -0.04,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => _openInvestmentDrawer(),
-                              icon: const Icon(Icons.add_rounded, size: 20),
-                              label: Text(
-                                'Add Investment',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              style: _primaryWhiteButtonStyle(minWidth: 0),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Investment Management',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w800,
-                              color: _titleColor,
-                              letterSpacing: -0.04,
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () => _openInvestmentDrawer(),
-                            icon: const Icon(Icons.add_rounded, size: 20),
-                            label: Text(
-                              'Add Investment',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            style: _primaryWhiteButtonStyle(minWidth: 180),
-                          ),
-                        ],
-                      ),
-                    const SizedBox(height: 16),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SizedBox(
-                            width: tableWidth,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildTableHeader(),
-                                if (investments.isEmpty)
-                                  Container(
-                                    width: tableWidth,
-                                    padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.7)),
-                                      ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        'No investments found.',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: _titleColor,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ...List.generate(
-                                    investments.length,
-                                    (index) => _buildTableRow(context, investments[index], index),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
-  ButtonStyle _primaryWhiteButtonStyle({double minWidth = 0}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ElevatedButton.styleFrom(
-      backgroundColor: isDark ? PiggyTrunkTheme.ptSurface : PiggyTrunkTheme.ptPrimary,
-      foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-      minimumSize: Size(minWidth, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 0,
+  void _deleteInvestment(Investment item) async {
+    final confirmed = await SlideOverConfirmationDrawer.show(
+      context: context,
+      title: 'Delete Investment',
+      message: 'Are you sure you want to permanently delete this investment record for "${item.raiserName}"?',
+      confirmButtonText: 'Delete Permanently',
+      actionType: SlideOverActionType.danger,
+      customIcon: Icons.delete_outline_rounded,
     );
-  }
 
-  Widget _buildTableHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
-        border: Border(bottom: BorderSide(color: _cardBorder, width: 1.2)),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          topRight: Radius.circular(8),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(
-                'HOG RAISER',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'INITIAL CAPITAL',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'HOG TYPE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'TOTAL HOG',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'INVESTMENT DATE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'STAGE',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'ACTIONS',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _headerText,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHogTypeTags(String hogType) {
-    if (hogType.isEmpty || hogType == 'Auto-populated' || hogType == 'N/A') {
-      return Text('N/A', textAlign: TextAlign.center, style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _headerText));
+    if (confirmed == true) {
+      try {
+        await _supabase.from('investment_records').delete().eq('id', item.id);
+        _showThemedSnackBar('Investment deleted.');
+        _loadInvestments();
+      } catch (e) {
+        _showThemedSnackBar('Delete failed: $e', isError: true);
+      }
     }
-    final types = hogType.split(',').map((e) => e.trim()).toList();
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 6,
-      runSpacing: 4,
-      children: types.map((t) {
-        final isBreeding = t.toLowerCase().contains('breed') || t.toLowerCase().contains('sow');
-        final bg = isBreeding
-            ? (_isDark ? const Color(0xFF581C87).withValues(alpha: 0.45) : Colors.purple.withValues(alpha: 0.12))
-            : (_isDark ? const Color(0xFF1E3A8A).withValues(alpha: 0.45) : const Color(0xFFEFF6FF));
-        final fg = isBreeding
-            ? (_isDark ? const Color(0xFFD8B4FE) : Colors.purple)
-            : (_isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F));
-        final border = isBreeding
-            ? (_isDark ? const Color(0xFFA855F7).withValues(alpha: 0.6) : Colors.purple.withValues(alpha: 0.3))
-            : (_isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.6) : const Color(0xFF93C5FD));
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: border),
-          ),
-          child: Text(
-            t,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: fg,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildTableRow(BuildContext context, Investment investment, int index) {
-    final isUnassigned = investment.hogRaiserId.isEmpty ||
-        investment.hogRaiserId == 'unassigned' ||
-        investment.raiserName.toLowerCase() == 'unassigned';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)))),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      isUnassigned ? 'Unassigned' : investment.raiserName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: isUnassigned ? Colors.orangeAccent : _titleColor,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (isUnassigned) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.5)),
-                      ),
-                      child: Text(
-                        'Unassigned',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.orangeAccent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                _formatCurrency(investment.initialCapital),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _buildHogTypeTags(investment.hogType),
-            ),
-          ),
-          Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                '${investment.totalHog} heads',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                _formatDateForDisplay(investment.investmentDate.toString()),
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: _titleColor,
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Center(
-                child: _buildStageBadge(investment.stage),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () => _openInvestmentDrawer(existing: investment),
-                    icon: Icon(Icons.edit_outlined, size: 22, color: _headerText),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Edit Investment',
-                  ),
-                  const SizedBox(width: 14),
-                  IconButton(
-                    onPressed: () => _deleteInvestment(investment),
-                    icon: const Icon(Icons.delete_outline, size: 22, color: Color(0xFFFF758C)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'Delete Investment',
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStageBadge(String stage) {
-    Color backgroundColor;
-    Color textColor;
-
-    switch (stage.toLowerCase()) {
-      case 'active':
-        backgroundColor = _successDark.withValues(alpha: 0.2);
-        textColor = _successDark;
-        break;
-      case 'completed':
-        backgroundColor = _inProgressDark.withValues(alpha: 0.2);
-        textColor = _inProgressDark;
-        break;
-      case 'pending':
-      default:
-        backgroundColor = _mutedDark.withValues(alpha: 0.2);
-        textColor = _mutedDark;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        stage,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: textColor,
-        ),
-      ),
-    );
   }
 }

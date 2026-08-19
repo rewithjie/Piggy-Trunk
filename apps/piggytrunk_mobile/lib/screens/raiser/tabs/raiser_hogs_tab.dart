@@ -432,28 +432,30 @@ class RaiserHogsTab extends StatelessWidget {
               const SizedBox(height: 20),
             ],
 
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: () => _showAddReportDialog(context),
-                icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                label: Text(
-                  'Add Report',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: Colors.white,
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showAddReportDialog(context),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                  label: Text(
+                    'Add Report',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF006B33),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: PiggyTrunkTheme.ptPrimary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
-            ),
             const SizedBox(height: 24),
 
             Text(

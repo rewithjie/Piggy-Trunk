@@ -141,16 +141,9 @@ class GoogleAuthService {
       String role = targetRole;
       String status = 'Pending';
 
+      dynamic newUserId;
+
       if (existingUser == null) {
-        // If user clicked Google Sign-In on LOGIN screen (isSignUpMode = false) and has no account:
-        if (!isSignUpMode) {
-          await _supabase.auth.signOut();
-          return {
-            'success': false,
-            'message': 'Walang nakalaang account sa Google email na ito ($email). Mangyaring mag-Sign Up muna.',
-          };
-        }
-        dynamic newUserId;
         try {
           final insertedUser = await _supabase.from('app_users').upsert({
             'supabase_user_id': validGoogleUuid,
@@ -229,16 +222,17 @@ class GoogleAuthService {
         final currentStatus = (existingUser['status'] ?? 'Pending').toString();
         final existingUserId = existingUser['user_id'];
 
-        if (currentRole.isNotEmpty &&
-            currentRole.toLowerCase() != targetRole.toLowerCase() &&
-            currentStatus.toLowerCase() != 'pending') {
-          final displayCurrentRole = _formatRoleName(currentRole);
-          final displayTargetRole = _formatRoleName(targetRole);
-          return {
-            'success': false,
-            'message': 'Ang Google account na ito ay nakarehistro na bilang $displayCurrentRole. Hindi ito pwedeng gamitin sa $displayTargetRole registration.',
-          };
-        }
+        // Seamlessly use the user's actual registered role from database
+        role = currentRole.isNotEmpty ? currentRole : targetRole;
+        status = currentStatus;
+
+        // Link supabase_user_id if not linked yet
+        try {
+          await _supabase
+              .from('app_users')
+              .update({'supabase_user_id': validGoogleUuid})
+              .eq('user_id', existingUserId);
+        } catch (_) {}
 
         // Update role and re-initialize role table if account is still pending
         if (currentStatus.toLowerCase() == 'pending') {
@@ -275,11 +269,27 @@ class GoogleAuthService {
               role: targetRole,
             );
           } catch (_) {}
-          role = targetRole;
-          status = 'Pending';
-        } else {
-          role = currentRole.isNotEmpty ? currentRole : targetRole;
-          status = currentStatus;
+        }
+
+        // Always ensure Google Display Name is synced to app_users and role tables
+        if (nameToUse.isNotEmpty && nameToUse != email.split('@').first) {
+          try {
+            await _supabase
+                .from('app_users')
+                .update({'name': nameToUse})
+                .eq('user_id', existingUserId);
+            if (role.toLowerCase() == 'cashier') {
+              await _supabase
+                  .from('cashiers')
+                  .update({'name': nameToUse})
+                  .eq('user_id', existingUserId);
+            } else if (role.toLowerCase() == 'hog_raiser' || role.toLowerCase() == 'raiser') {
+              await _supabase
+                  .from('hog_raisers')
+                  .update({'name': nameToUse})
+                  .eq('user_id', existingUserId);
+            }
+          } catch (_) {}
         }
       }
 
@@ -335,11 +345,13 @@ class GoogleAuthService {
     }
   }
 
-  String _formatRoleName(String role) {
+  static String formatRoleName(String role) {
     switch (role.toLowerCase()) {
       case 'hog_raiser':
+      case 'raiser':
         return 'Hog Raiser';
       case 'partner':
+      case 'investor':
         return 'Partner Investor';
       case 'cashier':
         return 'Cashier';

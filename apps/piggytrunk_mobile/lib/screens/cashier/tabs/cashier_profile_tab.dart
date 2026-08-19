@@ -30,6 +30,11 @@ class CashierProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = cashierName.trim().isNotEmpty ? cashierName : 'Cashier Staff';
+    final email = cashierEmail.trim().isNotEmpty ? cashierEmail : 'N/A';
+    final phone = cashierPhone.trim().isNotEmpty && cashierPhone != 'N/A' ? cashierPhone : 'Not set';
+    final address = cashierAddress.trim().isNotEmpty && cashierAddress != 'N/A' ? cashierAddress : 'Not set';
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -49,8 +54,15 @@ class CashierProfileTab extends StatelessWidget {
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: _brandColor, width: 2),
-                          color: const Color(0xFFF7F8FB),
+                          border: Border.all(color: _brandColor, width: 2.5),
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _brandColor.withValues(alpha: 0.12),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
                         child: ClipOval(
                           child: cashierAvatarUrl != null && cashierAvatarUrl!.isNotEmpty
@@ -65,8 +77,8 @@ class CashierProfileTab extends StatelessWidget {
                                     height: 100,
                                     fit: BoxFit.contain,
                                     errorBuilder: (context, err, st) => Container(
-                                      color: _brandColor,
-                                      child: const Icon(Icons.person, size: 50, color: Colors.white),
+                                      color: Colors.white,
+                                      child: const Icon(Icons.person, size: 50, color: _brandColor),
                                     ),
                                   ),
                                 )
@@ -76,8 +88,8 @@ class CashierProfileTab extends StatelessWidget {
                                   height: 100,
                                   fit: BoxFit.contain,
                                   errorBuilder: (context, err, st) => Container(
-                                    color: _brandColor,
-                                    child: const Icon(Icons.person, size: 50, color: Colors.white),
+                                    color: Colors.white,
+                                    child: const Icon(Icons.person, size: 50, color: _brandColor),
                                   ),
                                 ),
                         ),
@@ -103,7 +115,7 @@ class CashierProfileTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  cashierName,
+                  name,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -112,7 +124,7 @@ class CashierProfileTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Cashier Terminal Staff',
+                  'Cashier',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     color: PiggyTrunkTheme.ptMuted,
@@ -129,7 +141,7 @@ class CashierProfileTab extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Detalye ng Account',
+                'Account Details',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -146,7 +158,7 @@ class CashierProfileTab extends StatelessWidget {
                           const Icon(Icons.refresh, size: 16, color: _brandColor),
                           const SizedBox(width: 4),
                           Text(
-                            'I-reset',
+                            'Reset',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -162,10 +174,10 @@ class CashierProfileTab extends StatelessWidget {
                     onTap: onShowEditProfileDialog,
                     child: Row(
                       children: [
-                        const Icon(Icons.edit, size: 16, color: _brandColor),
+                        const Icon(Icons.edit_outlined, size: 16, color: _brandColor),
                         const SizedBox(width: 4),
                         Text(
-                          'I-edit',
+                          'Edit',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -179,7 +191,7 @@ class CashierProfileTab extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           // Details List Card
           Container(
@@ -191,13 +203,13 @@ class CashierProfileTab extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildProfileRow(Icons.email_outlined, 'Email Address', cashierEmail),
+                _buildProfileRow(Icons.email_outlined, 'Email Address', email),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.phone_iphone, 'Phone Number', cashierPhone),
+                _buildProfileRow(Icons.phone_iphone, 'Phone Number', phone),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.location_on_outlined, 'Address / Branch', cashierAddress),
+                _buildProfileRow(Icons.location_on_outlined, 'Address / Branch', address),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.security, 'System Access', 'Cashier Terminal'),
+                _buildProfileRow(Icons.security_rounded, 'System Access', 'Cashier'),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
                 _buildProfileRow(Icons.verified_user_outlined, 'Account Status', 'Active'),
               ],
@@ -221,7 +233,7 @@ class CashierProfileTab extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Mag-Sign Out',
+                    'Sign Out',
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w700,
                       color: _brandColor,

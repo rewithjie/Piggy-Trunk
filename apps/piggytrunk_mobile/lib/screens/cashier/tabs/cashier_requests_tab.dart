@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
-import '../widgets/cashier_empty_state.dart';
 
 class CashierRequestsTab extends StatefulWidget {
   final List<Map<String, dynamic>> pendingRequests;
@@ -21,19 +20,24 @@ class CashierRequestsTab extends StatefulWidget {
 }
 
 class _CashierRequestsTabState extends State<CashierRequestsTab> {
-  int _selectedTab = 0; // 0 = ALL REQUESTS, 1 = HISTORICAL
-  Map<String, dynamic>? _selectedRequest; // Selected request for allocation view
-  int _allocatedSacks = 15; // Default stepper count
+  static const Color _brandColor = Color(0xFF18314F);
+  static const Color _brandBlue = Color(0xFF2563EB);
+  static const Color _brandGreen = Color(0xFF10B981);
+  static const Color _brandAmber = Color(0xFFF59E0B);
+  static const Color _brandRed = Color(0xFFEF4444);
+
+  int _selectedTab = 0; // 0 = Pending Requests, 1 = History
+  String _searchQuery = '';
   DateTime? _startDate;
   DateTime? _endDate;
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  // Selected request for allocation view
+  Map<String, dynamic>? _selectedRequest;
+  int _allocatedSacks = 10;
+  bool _isProcessing = false;
 
   void _openAllocationView(Map<String, dynamic> request) {
-    final qty = request['quantity'] as int? ?? 1;
+    final qty = request['quantity'] as int? ?? (request['sacks'] as int? ?? 1);
     setState(() {
       _selectedRequest = request;
       _allocatedSacks = qty > 0 ? qty : 1;
@@ -47,19 +51,16 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
   }
 
   String _getTimeAgo(String? dateStr) {
-    if (dateStr == null || dateStr.isEmpty) return 'Requested recently';
+    if (dateStr == null || dateStr.isEmpty) return 'Recent';
     try {
-      final dt = DateTime.parse(dateStr);
+      final dt = DateTime.parse(dateStr).toLocal();
       final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 60) {
-        return 'Requested ${diff.inMinutes <= 0 ? 1 : diff.inMinutes}m ago';
-      } else if (diff.inHours < 24) {
-        return 'Requested ${diff.inHours}h ago';
-      } else {
-        return 'Requested ${diff.inDays}d ago';
-      }
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
     } catch (_) {
-      return 'Requested recently';
+      return 'Recent';
     }
   }
 
@@ -69,7 +70,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     if (dateStr == null || dateStr.isEmpty) return true;
 
     try {
-      final reqDt = DateTime.parse(dateStr);
+      final reqDt = DateTime.parse(dateStr).toLocal();
       final reqDateOnly = DateTime(reqDt.year, reqDt.month, reqDt.day);
       final sDate = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
       final eDate = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
@@ -84,10 +85,10 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
   Future<void> _showFilterModal() async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      helpText: 'PUMILI NG PETSA SA KALENDARYO',
-      cancelText: 'I-RESET',
-      confirmText: 'I-APPLY',
-      saveText: 'I-APPLY',
+      helpText: 'SELECT DATE RANGE',
+      cancelText: 'RESET',
+      confirmText: 'APPLY',
+      saveText: 'APPLY',
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: _startDate != null && _endDate != null
@@ -100,40 +101,17 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color(0xFF18314F),
+              primary: _brandColor,
               onPrimary: Colors.white,
               surface: Colors.white,
-              onSurface: Color(0xFF18314F),
-              secondary: Color(0xFF34D399),
+              onSurface: _brandColor,
+              secondary: _brandBlue,
             ),
             scaffoldBackgroundColor: Colors.white,
             dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
             textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme).apply(
-              bodyColor: const Color(0xFF18314F),
-              displayColor: const Color(0xFF18314F),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              backgroundColor: Colors.white,
-              headerBackgroundColor: const Color(0xFF18314F),
-              headerForegroundColor: Colors.white,
-              weekdayStyle: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF18314F),
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-              dayStyle: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF18314F),
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.white;
-                }
-                return const Color(0xFF18314F);
-              }),
-              todayForegroundColor: WidgetStateProperty.all(const Color(0xFF10B981)),
-              todayBorder: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+              bodyColor: _brandColor,
+              displayColor: _brandColor,
             ),
           ),
           child: child!,
@@ -160,296 +138,361 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
       return _buildAllocationView(_selectedRequest!);
     }
 
-    List<Map<String, dynamic>> requestsToDisplay = [];
-    if (_selectedTab == 0) {
-      // ALL REQUESTS (Pending only)
-      requestsToDisplay = widget.pendingRequests.where((req) {
-        final st = (req['status'] as String? ?? 'Pending').toLowerCase();
-        if (st != 'pending') return false;
-        return _matchesDateFilter(req);
-      }).toList();
-    } else {
-      // HISTORICAL (Approved / Rejected / Completed)
-      requestsToDisplay = widget.pendingRequests.where((req) {
-        final st = (req['status'] as String? ?? '').toLowerCase();
-        if (st == 'pending' || st.isEmpty) return false;
-        return _matchesDateFilter(req);
+    final allPending = widget.pendingRequests.where((req) {
+      final st = (req['status'] as String? ?? 'Pending').toLowerCase();
+      return st == 'pending' || st == 'for_approval' || st.isEmpty;
+    }).toList();
+
+    final allHistorical = widget.pendingRequests.where((req) {
+      final st = (req['status'] as String? ?? '').toLowerCase();
+      return st.isNotEmpty && st != 'pending' && st != 'for_approval';
+    }).toList();
+
+    List<Map<String, dynamic>> requestsToDisplay = _selectedTab == 0 ? allPending : allHistorical;
+
+    // Filter by Date
+    requestsToDisplay = requestsToDisplay.where(_matchesDateFilter).toList();
+
+    // Filter by Search Query
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      requestsToDisplay = requestsToDisplay.where((req) {
+        final raiser = req['hog_raisers'];
+        final raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
+            req['raiser_name']?.toString() ??
+            '';
+        final pName = req['product_name']?.toString() ?? req['item_name']?.toString() ?? '';
+        return raiserName.toLowerCase().contains(q) || pName.toLowerCase().contains(q);
       }).toList();
     }
 
-    return Column(
-      children: [
-        // Header Tab Navigation Bar
-        Container(
-          height: 48,
-          color: Colors.white,
-          child: Row(
-            children: [
-              // ALL REQUESTS tab
-              Expanded(
-                child: InkWell(
-                  onTap: () => setState(() => _selectedTab = 0),
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: _selectedTab == 0 ? const Color(0xFF34D399) : Colors.transparent,
-                          width: 3.5,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      'ALL REQUESTS',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: _selectedTab == 0 ? const Color(0xFF18314F) : const Color(0xFF8E8E93),
-                      ),
-                    ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Column(
+        children: [
+          // ==================== TOP BAR & CONTROLS ====================
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Column(
+              children: [
+                // Segmented Pill Navigation Control
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ),
-              ),
-              // HISTORICAL tab
-              Expanded(
-                child: InkWell(
-                  onTap: () => setState(() => _selectedTab = 1),
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: _selectedTab == 1 ? const Color(0xFF34D399) : Colors.transparent,
-                          width: 3.5,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      'HISTORICAL',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: _selectedTab == 1 ? const Color(0xFF18314F) : const Color(0xFF8E8E93),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              // FILTER button
-              InkWell(
-                onTap: _showFilterModal,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  height: double.infinity,
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.calendar_month_outlined,
-                        size: 16,
-                        color: (_startDate != null && _endDate != null) ? const Color(0xFF059669) : const Color(0xFF8E8E93),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedTab = 0),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedTab == 0 ? _brandColor : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: _selectedTab == 0
+                                  ? [
+                                      BoxShadow(
+                                        color: _brandColor.withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.pending_actions_rounded,
+                                  size: 16,
+                                  color: _selectedTab == 0 ? Colors.white : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Pending',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedTab == 0 ? Colors.white : const Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (allPending.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: _selectedTab == 0 ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${allPending.length}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: _selectedTab == 0 ? Colors.white : _brandColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        (_startDate != null && _endDate != null)
-                            ? 'FILTER (${_startDate!.month.toString().padLeft(2, '0')}/${_startDate!.day.toString().padLeft(2, '0')} - ${_endDate!.month.toString().padLeft(2, '0')}/${_endDate!.day.toString().padLeft(2, '0')})'
-                            : 'FILTER',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                          color: (_startDate != null && _endDate != null) ? const Color(0xFF059669) : const Color(0xFF8E8E93),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedTab = 1),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _selectedTab == 1 ? _brandColor : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: _selectedTab == 1
+                                  ? [
+                                      BoxShadow(
+                                        color: _brandColor.withValues(alpha: 0.25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.history_rounded,
+                                  size: 16,
+                                  color: _selectedTab == 1 ? Colors.white : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'History',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _selectedTab == 1 ? Colors.white : const Color(0xFF64748B),
+                                  ),
+                                ),
+                                if (allHistorical.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: _selectedTab == 1 ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFCBD5E1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${allHistorical.length}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: _selectedTab == 1 ? Colors.white : _brandColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 12),
 
-        // List of Request Cards
-        Expanded(
-          child: requestsToDisplay.isEmpty
-              ? CashierEmptyState(
-                  message: _selectedTab == 0
-                      ? 'Walang nakabinbing feed requests sa kasalukuyan'
-                      : 'Walang historical requests sa kasalukuyan',
-                  icon: Icons.assignment_outlined,
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: requestsToDisplay.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) {
-                    final req = requestsToDisplay[index];
-                    return _selectedTab == 0 ? _buildRequestCard(req) : _buildHistoricalCard(req);
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRequestCard(Map<String, dynamic> request) {
-    final raiserName = (request['raiser'] as Map?)?['name'] as String? ??
-        (request['hog_raisers'] as Map?)?['name'] as String? ??
-        request['raiser_name'] as String? ??
-        'Hog Raiser';
-
-    final itemsList = request['items'] as List<dynamic>?;
-
-    List<Map<String, dynamic>> items = [];
-    if (itemsList != null && itemsList.isNotEmpty) {
-      items = itemsList.map((i) => Map<String, dynamic>.from(i as Map)).toList();
-    } else {
-      final pName = (request['product'] as Map?)?['name'] as String? ??
-          (request['products'] as Map?)?['name'] as String? ??
-          request['feed_type'] as String? ??
-          request['category'] as String? ??
-          'Feed Supply';
-      final qty = request['quantity'] as int? ?? 1;
-      items = [{'name': pName, 'quantity': qty}];
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Raiser Name Header
-          Text(
-            raiserName,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF18314F),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Requested Feed Items Breakdown
-          ...items.map((item) {
-            final pName = item['name'] as String? ?? 'Feeds';
-            final int pQty = item['quantity'] as int? ?? 1;
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    pName,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFFFF6565),
-                    ),
-                  ),
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: '$pQty ',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF18314F),
+                // Search Box & Date Filter Action Row
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: TextField(
+                          onChanged: (val) => setState(() => _searchQuery = val),
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _brandColor),
+                          decoration: InputDecoration(
+                            hintText: 'Search raiser or feed item...',
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              color: PiggyTrunkTheme.ptMuted,
+                            ),
+                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 18),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 16, color: Color(0xFF94A3B8)),
+                                    onPressed: () => setState(() => _searchQuery = ''),
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
-                        TextSpan(
-                          text: 'Sacks',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF8E8E93),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _showFilterModal,
+                      child: Container(
+                        height: 42,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: (_startDate != null && _endDate != null) ? const Color(0xFFEFF6FF) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (_startDate != null && _endDate != null) ? _brandBlue : const Color(0xFFE2E8F0),
                           ),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 15,
+                              color: (_startDate != null && _endDate != null) ? _brandBlue : const Color(0xFF64748B),
+                            ),
+                            if (_startDate != null && _endDate != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '${_startDate!.month}/${_startDate!.day}-${_endDate!.month}/${_endDate!.day}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _brandBlue,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 16),
-
-          // Allocate Feeds Action Button
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: () => _openAllocationView(request),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A80F6),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  ],
                 ),
-              ),
-              child: Text(
-                'ALLOCATE FEEDS',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                ),
-              ),
+              ],
             ),
+          ),
+
+          // ==================== LIST OF REQUESTS ====================
+          Expanded(
+            child: requestsToDisplay.isEmpty
+                ? _buildEmptyState()
+                : ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: requestsToDisplay.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final req = requestsToDisplay[index];
+                      return _selectedTab == 0 ? _buildPendingRequestCard(req) : _buildHistoricalCard(req);
+                    },
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHistoricalCard(Map<String, dynamic> request) {
-    final raiserName = (request['raiser'] as Map?)?['name'] as String? ??
-        (request['hog_raisers'] as Map?)?['name'] as String? ??
-        request['raiser_name'] as String? ??
-        'Hog Raiser';
-    final status = (request['status'] as String? ?? 'Approved');
-    final isApproved = status.toLowerCase() == 'approved';
-    final decisionDate = request['decision_date'] as String? ?? _getTimeAgo(request['created_at'] as String?);
+  Widget _buildEmptyState() {
+    final bool isPending = _selectedTab == 0;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isPending ? const Color(0xFFECFDF5) : const Color(0xFFEFF6FF),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isPending ? Icons.task_alt_rounded : Icons.history_toggle_off_rounded,
+                size: 48,
+                color: isPending ? _brandGreen : _brandBlue,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              isPending ? 'All Requests Processed!' : 'No Request History',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: _brandColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isPending
+                  ? 'There are no pending stock requests from hog raisers at the moment.'
+                  : 'Completed and processed feed allocation requests will appear here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: PiggyTrunkTheme.ptMuted,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    final itemsList = request['items'] as List<dynamic>?;
-    List<Map<String, dynamic>> items = [];
-    if (itemsList != null && itemsList.isNotEmpty) {
-      items = itemsList.map((i) => Map<String, dynamic>.from(i as Map)).toList();
-    } else {
-      final pName = (request['product'] as Map?)?['name'] as String? ??
-          (request['products'] as Map?)?['name'] as String? ??
-          request['feed_type'] as String? ??
-          request['category'] as String? ??
-          'Feed Supply';
-      final qty = request['quantity'] as int? ?? 1;
-      items = [{'name': pName, 'quantity': qty}];
+  Widget _buildPendingRequestCard(Map<String, dynamic> request) {
+    final raiser = request['hog_raisers'] ?? request['raiser'];
+    final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
+        request['raiser_name']?.toString() ??
+        'Hog Raiser';
+
+    final String productName = request['product_name']?.toString() ??
+        request['item_name']?.toString() ??
+        (request['product'] as Map?)?['name']?.toString() ??
+        'Booster Feeds';
+
+    final int quantity = request['quantity'] as int? ?? (request['sacks'] as int? ?? 1);
+    final String timeAgo = _getTimeAgo(request['created_at']?.toString() ?? request['request_date']?.toString());
+    final int requestId = (request['id'] ?? request['request_id'] ?? 0) as int;
+
+    // Find live stock in inventory
+    int inStock = 0;
+    for (final p in widget.allProducts) {
+      if (p.name.toLowerCase().contains(productName.toLowerCase()) ||
+          productName.toLowerCase().contains(p.name.toLowerCase())) {
+        inStock = p.units;
+        break;
+      }
+    }
+    if (inStock == 0 && widget.allProducts.isNotEmpty) {
+      inStock = widget.allProducts.first.units;
     }
 
+    final bool hasEnoughStock = inStock >= quantity;
+
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: PiggyTrunkTheme.ptBorder),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
@@ -457,190 +500,46 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                raiserName,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF18314F),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isApproved ? const Color(0xFFE6F4EA) : const Color(0xFFFCE8E6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: isApproved ? const Color(0xFF137333) : const Color(0xFFC5221F),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...items.map((item) {
-            final pName = item['name'] as String? ?? 'Feeds';
-            final int pQty = item['quantity'] as int? ?? 1;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    pName,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF4C6FFF),
-                    ),
-                  ),
-                  Text(
-                    '$pQty Sacks',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF18314F),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.history, size: 14, color: Color(0xFF8E8E93)),
-              const SizedBox(width: 4),
-              Text(
-                decisionDate,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF8E8E93),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAllocationView(Map<String, dynamic> request) {
-    final requestId = request['request_id'] as int;
-    final raiserName = request['raiser']?['name'] as String? ?? 'John Dela Cruz';
-    final productName = request['product']?['name'] as String? ?? 'Booster';
-    final int requestedQty = request['quantity'] as int? ?? 1;
-    final String timeAgo = _getTimeAgo(request['created_at'] as String?);
-
-    // Calculate live inventory stock
-    int totalAvailableStock = 420;
-    if (widget.allProducts.isNotEmpty) {
-      totalAvailableStock = widget.allProducts.fold(0, (sum, p) => sum + p.units);
-    }
-    final int warehouseA = (totalAvailableStock * 0.67).round();
-    final int warehouseB = totalAvailableStock - warehouseA;
-
-    final double equivalentKg = _allocatedSacks * 25.0; // 25kg per sack
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Subheader row with back arrow
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Color(0xFF18314F)),
-                onPressed: _closeAllocationView,
-              ),
-              Text(
-                'Feed Allocation',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF18314F),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // 1. Raiser Request Card
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder, width: 1),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Header: Raiser info + Pending badge
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFFEFF6FF),
+                  child: Text(
+                    raiserName.isNotEmpty ? raiserName[0].toUpperCase() : 'R',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: _brandBlue,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Raiser Request',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: PiggyTrunkTheme.ptMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
                         raiserName,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
+                          fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF18314F),
+                          color: _brandColor,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 2),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
+                          const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
+                          const SizedBox(width: 4),
                           Text(
-                            productName,
+                            timeAgo,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF10B981),
-                            ),
-                          ),
-                          RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '$requestedQty ',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: const Color(0xFF18314F),
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'Sacks',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: PiggyTrunkTheme.ptMuted,
-                                  ),
-                                ),
-                              ],
+                              fontSize: 11.5,
+                              color: PiggyTrunkTheme.ptMuted,
                             ),
                           ),
                         ],
@@ -649,25 +548,22 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   ),
                 ),
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.access_time, size: 14, color: PiggyTrunkTheme.ptMuted),
-                      const SizedBox(width: 6),
+                      const CircleAvatar(radius: 3, backgroundColor: _brandAmber),
+                      const SizedBox(width: 5),
                       Text(
-                        timeAgo,
+                        'PENDING',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: PiggyTrunkTheme.ptMuted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: _brandAmber,
                         ),
                       ),
                     ],
@@ -676,15 +572,373 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
               ],
             ),
           ),
+          const Divider(height: 1),
+
+          // Requested Item Details Box
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.inventory_2_rounded, color: _brandBlue, size: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                productName,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: _brandColor,
+                                ),
+                              ),
+                              Text(
+                                'Feed Type • Standard 50kg Sack',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: PiggyTrunkTheme.ptMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _brandColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$quantity ${quantity == 1 ? 'Sack' : 'Sacks'}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Warehouse Inventory:',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: PiggyTrunkTheme.ptMuted,
+                        ),
+                      ),
+                      Text(
+                        hasEnoughStock ? '$inStock sacks in stock' : 'Low stock: only $inStock available',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: hasEnoughStock ? _brandGreen : _brandRed,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Action Buttons: Allocate & Reject
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: SizedBox(
+                    height: 44,
+                    child: ElevatedButton(
+                      onPressed: () => _openAllocationView(request),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _brandColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Allocate & Approve',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () => _showRejectConfirmationDialog(requestId, raiserName),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        foregroundColor: _brandRed,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Reject',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _brandRed,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoricalCard(Map<String, dynamic> request) {
+    final raiser = request['hog_raisers'] ?? request['raiser'];
+    final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
+        request['raiser_name']?.toString() ??
+        'Hog Raiser';
+
+    final String productName = request['product_name']?.toString() ??
+        request['item_name']?.toString() ??
+        (request['product'] as Map?)?['name']?.toString() ??
+        'Booster Feeds';
+
+    final int quantity = request['quantity'] as int? ?? (request['sacks'] as int? ?? 1);
+    final String status = (request['status'] as String? ?? 'Approved').toLowerCase();
+    final bool isApproved = status == 'approved' || status == 'completed';
+    final String dateStr = _getTimeAgo(request['created_at']?.toString() ?? request['request_date']?.toString());
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isApproved ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              color: isApproved ? _brandGreen : _brandRed,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      raiserName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: _brandColor,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isApproved ? 'APPROVED' : 'REJECTED',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: isApproved ? _brandGreen : _brandRed,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$productName • $quantity Sacks',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF475569),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  dateStr,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: PiggyTrunkTheme.ptMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectConfirmationDialog(int requestId, String raiserName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Reject Stock Request?',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w800,
+            color: _brandColor,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to reject the feed request from $raiserName?',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, color: const Color(0xFF475569)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: PiggyTrunkTheme.ptMuted),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await widget.onProcessRequest(requestId, 'Rejected');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _brandRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'Reject Request',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== ALLOCATION SHEET VIEW ====================
+  Widget _buildAllocationView(Map<String, dynamic> request) {
+    final int requestId = (request['id'] ?? request['request_id'] ?? 0) as int;
+    final raiser = request['hog_raisers'] ?? request['raiser'];
+    final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
+        request['raiser_name']?.toString() ??
+        'Hog Raiser';
+
+    final String productName = request['product_name']?.toString() ??
+        request['item_name']?.toString() ??
+        (request['product'] as Map?)?['name']?.toString() ??
+        'Booster Feeds';
+
+    final int requestedQty = request['quantity'] as int? ?? (request['sacks'] as int? ?? 1);
+
+    // Live inventory check
+    int inStock = 0;
+    int? matchedProductId;
+    for (final p in widget.allProducts) {
+      if (p.name.toLowerCase().contains(productName.toLowerCase()) ||
+          productName.toLowerCase().contains(p.name.toLowerCase())) {
+        inStock = p.units;
+        matchedProductId = int.tryParse(p.id);
+        break;
+      }
+    }
+    if (inStock == 0 && widget.allProducts.isNotEmpty) {
+      inStock = widget.allProducts.first.units;
+      matchedProductId = int.tryParse(widget.allProducts.first.id);
+    }
+
+    final double totalWeightKg = _allocatedSacks * 50.0;
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header Row with Back Button
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: _brandColor),
+                onPressed: _closeAllocationView,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Allocate & Distribute',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: _brandColor,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
 
-          // 2. Current Stock Availability Card
+          // Request Summary Card
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder, width: 1),
+              border: Border.all(color: PiggyTrunkTheme.ptBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,163 +947,110 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'CURRENT STOCK AVAILABILITY',
+                      'Raiser Details',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                         color: PiggyTrunkTheme.ptMuted,
-                        letterSpacing: 0.5,
                       ),
                     ),
                     Text(
-                      '$totalAvailableStock Sacks',
+                      'Requested: $requestedQty Sacks',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: const Color(0xFF10B981),
+                        color: _brandBlue,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: totalAvailableStock > 0 ? (totalAvailableStock / 500).clamp(0.0, 1.0) : 0.0,
-                    minHeight: 10,
-                    backgroundColor: const Color(0xFFE2E8F0),
-                    color: const Color(0xFF059669),
+                const SizedBox(height: 8),
+                Text(
+                  raiserName,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: _brandColor,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Warehouse A: $warehouseA Sacks',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: PiggyTrunkTheme.ptMuted,
-                      ),
-                    ),
-                    Text(
-                      'Warehouse B: $warehouseB Sacks',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: PiggyTrunkTheme.ptMuted,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 4),
+                Text(
+                  'Feed Product: $productName',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    color: const Color(0xFF475569),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // 3. Stepper & KG Calculator Card
+          // Allocation Stepper Card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder, width: 1),
+              border: Border.all(color: PiggyTrunkTheme.ptBorder),
             ),
-            child: Row(
+            child: Column(
               children: [
-                // Amount (Sacks) Stepper
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Amount (Sacks)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: PiggyTrunkTheme.ptMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove, size: 18, color: Color(0xFF991B1B)),
-                              onPressed: () {
-                                if (_allocatedSacks > 1) {
-                                  setState(() => _allocatedSacks--);
-                                }
-                              },
-                            ),
-                            Text(
-                              '$_allocatedSacks',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF18314F),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add, size: 18, color: Color(0xFF991B1B)),
-                              onPressed: () {
-                                setState(() => _allocatedSacks++);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                Text(
+                  'Allocated Sacks to Release',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _brandColor,
                   ),
                 ),
-                const SizedBox(width: 16),
-
-                // Equivalent (KG) Box
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Equivalent (KG)',
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton.filledTonal(
+                      icon: const Icon(Icons.remove_rounded),
+                      onPressed: _allocatedSacks > 1 ? () => setState(() => _allocatedSacks--) : null,
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: _brandColor,
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _brandBlue, width: 1.5),
+                      ),
+                      child: Text(
+                        '$_allocatedSacks',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: PiggyTrunkTheme.ptMuted,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: _brandColor,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        height: 48,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.scale_outlined, size: 18, color: Color(0xFF18314F)),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${equivalentKg.toStringAsFixed(2)} kg',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF18314F),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                    ),
+                    const SizedBox(width: 20),
+                    IconButton.filledTonal(
+                      icon: const Icon(Icons.add_rounded),
+                      onPressed: () => setState(() => _allocatedSacks++),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        foregroundColor: _brandColor,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Total Weight: ${totalWeightKg.toStringAsFixed(0)} kg ($inStock available in warehouse)',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _allocatedSacks > inStock ? _brandRed : PiggyTrunkTheme.ptMuted,
                   ),
                 ),
               ],
@@ -857,57 +1058,37 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
           ),
           const SizedBox(height: 28),
 
-          // Action Buttons: Confirm Allocation & Cancel
+          // Confirm Button
           SizedBox(
             height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                final prodId = request['product']?['id'] as int?;
-                _closeAllocationView();
-                await widget.onProcessRequest(
-                  requestId,
-                  'Approved',
-                  allocatedSacks: _allocatedSacks,
-                  productId: prodId,
-                );
-              },
-              icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-              label: Text(
-                'Confirm Allocation',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            child: ElevatedButton(
+              onPressed: _isProcessing
+                  ? null
+                  : () async {
+                      setState(() => _isProcessing = true);
+                      await widget.onProcessRequest(
+                        requestId,
+                        'Approved',
+                        allocatedSacks: _allocatedSacks,
+                        productId: matchedProductId,
+                      );
+                      setState(() => _isProcessing = false);
+                      _closeAllocationView();
+                    },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF38A169),
+                backgroundColor: _brandColor,
                 foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 52,
-            child: OutlinedButton(
-              onPressed: _closeAllocationView,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFC04F5E), width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFC04F5E),
-                ),
-              ),
+              child: _isProcessing
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(
+                      'Confirm & Distribute $_allocatedSacks Sacks',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         ],

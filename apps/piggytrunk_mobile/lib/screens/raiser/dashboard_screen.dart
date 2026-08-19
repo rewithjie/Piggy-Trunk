@@ -6,6 +6,7 @@ import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../services/auth_session_service.dart';
 
 import 'tabs/raiser_home_tab.dart';
 import 'tabs/raiser_request_tab.dart';
@@ -407,7 +408,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   }
 
   Future<void> _handleSignOut() async {
-    await Supabase.instance.client.auth.signOut();
+    await AuthSessionService().clearSession();
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/login');
     }
@@ -788,11 +789,35 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         flex: 2,
                         child: ElevatedButton(
                           onPressed: () async {
+                            final newName = nameController.text.trim();
+                            final newPhone = phoneController.text.trim();
+                            final newAddr = addressController.text.trim();
+
+                            if (newName.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Mangyaring ilagay ang buong pangalan.'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
+                            if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09 (hal. 09123456789).'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
                             Navigator.pop(ctx);
                             await _updateProfile(
-                              nameController.text.trim(),
-                              phoneController.text.trim(),
-                              addressController.text.trim(),
+                              newName,
+                              newPhone,
+                              newAddr,
                             );
                           },
                           style: ElevatedButton.styleFrom(

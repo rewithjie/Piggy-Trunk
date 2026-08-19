@@ -6,6 +6,7 @@ import 'admin_inventory_screen.dart';
 import 'admin_requests_screen.dart';
 import 'admin_investment_screen.dart';
 import 'admin_distribution_portal_screen.dart';
+import '../../services/auth_session_service.dart';
 
 class AdminMobileDashboardScreen extends StatefulWidget {
   const AdminMobileDashboardScreen({super.key});
@@ -212,7 +213,7 @@ class _AdminMobileDashboardScreenState
     );
 
     if (confirm == true) {
-      await Supabase.instance.client.auth.signOut();
+      await AuthSessionService().clearSession();
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }

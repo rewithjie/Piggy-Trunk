@@ -11,6 +11,7 @@ import 'tabs/partner_projects_tab.dart';
 import 'tabs/partner_my_projects_tab.dart';
 import 'tabs/partner_activities_tab.dart';
 import 'tabs/partner_profile_tab.dart';
+import '../../services/auth_session_service.dart';
 
 class PartnerDashboardScreen extends StatefulWidget {
   const PartnerDashboardScreen({super.key});
@@ -291,6 +292,26 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                             final newPhone = phoneCtrl.text.trim();
                             final newAddr = addrCtrl.text.trim();
 
+                            if (newName.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Mangyaring ilagay ang buong pangalan.'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
+                            if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09 (hal. 09123456789).'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
                             setState(() {
                               if (newName.isNotEmpty) _partnerName = newName;
                               _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
@@ -525,7 +546,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   }
 
   Future<void> _handleLogout() async {
-    await Supabase.instance.client.auth.signOut();
+    await AuthSessionService().clearSession();
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/onboarding');
     }

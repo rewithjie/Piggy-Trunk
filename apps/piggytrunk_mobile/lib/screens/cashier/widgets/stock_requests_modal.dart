@@ -74,7 +74,7 @@ class StockRequestsModal extends StatelessWidget {
           Expanded(
             child: pendingRequests.isEmpty
                 ? const CashierEmptyState(
-                    message: 'Walang laman sa kasalukuyan',
+                    message: 'No pending stock requests at this time',
                     icon: Icons.assignment_outlined,
                   )
                 : ListView.separated(

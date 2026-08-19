@@ -824,9 +824,9 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
   }) {
     final hasUrl = avatarUrl != null && avatarUrl.isNotEmpty;
     final isDark = _isDark;
-    final bgColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
-    final borderColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
-    final textColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+    const bgColor = Colors.white;
+    final borderColor = isDark ? Colors.white : const Color(0xFF18314F);
+    final textColor = isDark ? const Color(0xFF0F172A) : const Color(0xFF18314F);
 
     return Container(
       width: size,
@@ -838,7 +838,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         border: Border.all(color: borderColor, width: 2),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.25 : 0.15),
+            color: (isDark ? Colors.white : const Color(0xFF18314F)).withValues(alpha: isDark ? 0.25 : 0.12),
             blurRadius: 10,
             spreadRadius: 1,
           ),

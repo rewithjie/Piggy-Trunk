@@ -168,7 +168,6 @@ class DashboardData {
   });
 
   factory DashboardData.fromJson(Map<String, dynamic> json) {
-    print('Parsing dashboard data...');
     final raisersData = (json['raisers'] as List?)
             ?.map((e) => Raiser.fromJson(e as Map<String, dynamic>))
             .toList() ??

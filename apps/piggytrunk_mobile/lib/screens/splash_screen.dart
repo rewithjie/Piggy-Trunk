@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:piggytrunk/theme/app_text_styles.dart';
-import 'package:piggytrunk/widgets/piggy_trunk_logo.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../services/auth_session_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,39 +9,90 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _pulseAnimation;
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _entranceController;
+  late AnimationController _floatingController;
+  late AnimationController _progressController;
+
+  late Animation<double> _scaleSpringAnimation;
+  late Animation<double> _fadeEntranceAnimation;
+  late Animation<double> _titleSlideAnimation;
+  late Animation<double> _floatAnimation;
+  late Animation<double> _progressAnimation;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
+
+    // 1. Spring Entrance Animation (0.6 -> 1.0 with natural bounce)
+    _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 750),
     );
 
-    _pulseAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 0.95, end: 1.05)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50,
+    _scaleSpringAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: Curves.easeOutBack,
       ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.05, end: 0.95)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 50,
-      ),
-    ]).animate(_animationController);
+    );
 
-    _animationController.repeat();
+    _fadeEntranceAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+      ),
+    );
+
+    _titleSlideAnimation = Tween<double>(begin: 18.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // 2. Continuous Floating / Levitation Animation (Ultra-smooth 2800ms easeInOutSine)
+    _floatingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    );
+
+    _floatAnimation = Tween<double>(begin: -8.0, end: 8.0).animate(
+      CurvedAnimation(
+        parent: _floatingController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
+
+    // 3. Progress Bar Fill Animation (Synchronized with 10-second loading)
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 9600),
+    );
+
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _progressController,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
+
+    // Start Entrance, then loop floating, then load app
+    _entranceController.forward().then((_) {
+      if (mounted) {
+        _floatingController.repeat(reverse: true);
+      }
+    });
+    _progressController.forward();
 
     _initializeApp();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _entranceController.dispose();
+    _floatingController.dispose();
+    _progressController.dispose();
     super.dispose();
   }
 
@@ -51,97 +101,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     String targetRoute = '/onboarding';
 
     try {
-      final supabase = Supabase.instance.client;
-      final session = supabase.auth.currentSession;
-
-      if (session != null) {
-        final user = session.user;
-        Map<String, dynamic>? userData;
-
-        try {
-          final userEmail = user.email;
-          if (userEmail != null && userEmail.isNotEmpty) {
-            userData = await supabase
-                .from('app_users')
-                .select('status, role, user_id')
-                .or('supabase_user_id.eq.${user.id},email.eq.$userEmail')
-                .maybeSingle();
-          } else {
-            userData = await supabase
-                .from('app_users')
-                .select('status, role, user_id')
-                .eq('supabase_user_id', user.id)
-                .maybeSingle();
-          }
-        } catch (dbErr) {
-          debugPrint('Notice during app_users check: $dbErr');
-        }
-
-        // Fallback: check specific role tables if app_users not found
-        if (userData == null && user.email != null) {
-          try {
-            final raiser = await supabase
-                .from('hog_raisers')
-                .select('account_status, status')
-                .eq('email', user.email!)
-                .maybeSingle();
-            if (raiser != null) {
-              userData = {
-                'role': 'hog_raiser',
-                'status': raiser['account_status'] ?? raiser['status'] ?? 'Active',
-              };
-            }
-          } catch (_) {}
-        }
-
-        if (userData != null) {
-          final String rawStatus = (userData['status'] ?? 'Active').toString();
-          final String statusLower = rawStatus.toLowerCase();
-          final String role = (userData['role'] ?? 'hog_raiser').toString();
-
-          if (statusLower == 'active') {
-            switch (role) {
-              case 'hog_raiser':
-              case 'raiser':
-                targetRoute = '/raiser_dashboard';
-                break;
-              case 'partner':
-              case 'investor':
-                targetRoute = '/partner_dashboard';
-                break;
-              case 'cashier':
-                targetRoute = '/cashier_dashboard';
-                break;
-              case 'admin':
-                targetRoute = '/admin_dashboard';
-                break;
-              default:
-                targetRoute = '/raiser_dashboard';
-            }
-          } else if (statusLower == 'pending') {
-            // Still pending approval
-            targetRoute = '/onboarding';
-          }
-        } else {
-          // If session exists and user metadata has role, route directly
-          final userMetaRole = user.userMetadata?['role']?.toString().toLowerCase() ?? 'hog_raiser';
-          if (userMetaRole.contains('partner')) {
-            targetRoute = '/partner_dashboard';
-          } else if (userMetaRole.contains('cashier')) {
-            targetRoute = '/cashier_dashboard';
-          } else if (userMetaRole.contains('admin')) {
-            targetRoute = '/admin_dashboard';
-          } else {
-            targetRoute = '/raiser_dashboard';
-          }
-        }
+      final authResult = await AuthSessionService().checkAndAttemptAutoLogin();
+      if (authResult['canAutoLogin'] == true && authResult['targetRoute'] != null) {
+        targetRoute = authResult['targetRoute'];
+      } else if (authResult['targetRoute'] != null) {
+        targetRoute = authResult['targetRoute'];
       }
     } catch (e) {
-      debugPrint('Error checking session: $e');
+      debugPrint('Error during auto-login on SplashScreen: $e');
+      targetRoute = '/onboarding';
     }
 
     final elapsedTime = DateTime.now().difference(startTime);
-    const minDuration = Duration(milliseconds: 1200);
+    // Adjusted to 10 seconds as requested by the user
+    const minDuration = Duration(milliseconds: 10000);
     if (elapsedTime < minDuration) {
       await Future<void>.delayed(minDuration - elapsedTime);
     }
@@ -153,68 +126,198 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    const Color brandColor = Color(0xFF18314F);
-    const Color backgroundBg = Color(0xFFE0E6EF);
+    const Color brandNavy = Color(0xFF18314F);
+    const Color brandNavyDark = Color(0xFF0B1726);
 
     return Scaffold(
-      backgroundColor: backgroundBg,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ScaleTransition(
-                    scale: _pulseAnimation,
-                    child: const PiggyTrunkLogo(
-                      size: 140,
-                      withBorder: false,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Piggy Trunk',
-                    style: AppTextStyles.jakarta(
-                      size: 32,
-                      weight: FontWeight.w800,
-                      color: brandColor,
-                      letterSpacing: -0.6,
-                      height: 1.05,
-                    ),
-                  ),
-                ],
-              ),
+      backgroundColor: brandNavy,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF1E3A5F), // Rich Piggy Trunk Navy Top
+              brandNavy,         // #18314F Core Brand Navy
+              brandNavyDark,     // #0B1726 Deep Midnight Navy Base
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SizedBox.expand(
+            child: Column(
+              children: [
+                const Spacer(flex: 3),
+
+                // Animated Enlarged Spring & Floating PiggyTrunk Logo
+                AnimatedBuilder(
+                  animation: Listenable.merge([_entranceController, _floatingController]),
+                  builder: (context, child) {
+                    final floatY = _floatingController.isAnimating ? _floatAnimation.value : 0.0;
+                    // Normalized t: 0.0 when top (-8px), 1.0 when bottom (+8px)
+                    final double t = ((floatY + 8.0) / 16.0).clamp(0.0, 1.0);
+
+                    return FadeTransition(
+                      opacity: _fadeEntranceAnimation,
+                      child: ScaleTransition(
+                        scale: _scaleSpringAnimation,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Levitating Enlarged Logo (Height 165)
+                            Transform.translate(
+                              offset: Offset(0, floatY),
+                              child: Image.asset(
+                                'assets/piggytrunk_logo.png',
+                                height: 165,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            // Photorealistic Soft Ambient Floor Shadow
+                            Opacity(
+                              opacity: (0.45 + 0.35 * t).clamp(0.25, 0.85),
+                              child: Transform.scale(
+                                scaleX: 0.88 + 0.24 * (1.0 - t),
+                                scaleY: 0.85 + 0.20 * (1.0 - t),
+                                child: Container(
+                                  width: 125,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.7),
+                                    borderRadius: const BorderRadius.all(Radius.elliptical(125, 18)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.75),
+                                        blurRadius: 22,
+                                        spreadRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // Animated Brand Title "Piggy Trunk" (Pure White High Contrast)
+                AnimatedBuilder(
+                  animation: _entranceController,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(0, _titleSlideAnimation.value),
+                      child: FadeTransition(
+                        opacity: _fadeEntranceAnimation,
+                        child: Text(
+                          'Piggy Trunk',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            letterSpacing: -0.8,
+                            fontSize: 38,
+                            fontWeight: FontWeight.w900,
+                            shadows: [
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 48),
+
+                // Raised & Enlarged Monochrome Silver-White Gradient Progress Bar
+                AnimatedBuilder(
+                  animation: _progressAnimation,
+                  builder: (context, child) {
+                    final progressVal = _progressAnimation.value;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                      child: Column(
+                        children: [
+                          Container(
+                            height: 7.5,
+                            width: 230,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0D223B),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.18),
+                                width: 1,
+                              ),
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                width: 230 * progressVal,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF94A3B8), // Silver slate
+                                      Color(0xFFE2E8F0), // Platinum
+                                      Colors.white,      // Pure White
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withValues(alpha: 0.5),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Text(
+                              progressVal < 0.30
+                                  ? 'Connecting to PiggyTrunk network...'
+                                  : progressVal < 0.65
+                                      ? 'Syncing farm records & live stocks...'
+                                      : progressVal < 0.90
+                                          ? 'Securing session & permissions...'
+                                          : 'Ready! Launching dashboard...',
+                              key: ValueKey(
+                                progressVal < 0.30
+                                    ? 'p1'
+                                    : progressVal < 0.65
+                                        ? 'p2'
+                                        : progressVal < 0.90
+                                            ? 'p3'
+                                            : 'p4',
+                              ),
+                              style: GoogleFonts.plusJakartaSans(
+                                color: const Color(0xFFCBD5E1),
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+
+                const Spacer(flex: 4),
+              ],
             ),
-            Positioned(
-              bottom: 48,
-              left: 0,
-              right: 0,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: CircularProgressIndicator(
-                      valueColor: const AlwaysStoppedAnimation<Color>(brandColor),
-                      strokeWidth: 3.5,
-                      backgroundColor: brandColor.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading...',
-                    style: AppTextStyles.jakarta(
-                      size: 12,
-                      weight: FontWeight.w600,
-                      color: brandColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

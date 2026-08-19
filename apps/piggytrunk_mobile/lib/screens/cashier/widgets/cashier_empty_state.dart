@@ -8,7 +8,7 @@ class CashierEmptyState extends StatelessWidget {
 
   const CashierEmptyState({
     super.key,
-    this.message = 'Walang laman sa kasalukuyan',
+    this.message = 'No data available at this time',
     this.icon = Icons.inbox_outlined,
   });
 

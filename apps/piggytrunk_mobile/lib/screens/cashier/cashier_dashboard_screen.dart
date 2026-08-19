@@ -2,11 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/utils/inventory_data_adapter.dart';
-import 'package:image_picker/image_picker.dart';
 
 import 'tabs/cashier_home_tab.dart';
 import 'tabs/cashier_requests_tab.dart';
@@ -14,7 +13,9 @@ import 'tabs/cashier_inventory_tab.dart';
 import 'tabs/cashier_pos_tab.dart';
 import 'tabs/cashier_profile_tab.dart';
 import 'widgets/stock_requests_modal.dart';
-import 'widgets/cashier_notification_bell.dart';
+import 'widgets/cashier_empty_state.dart';
+import '../../services/auth_session_service.dart';
+import 'package:piggytrunk/theme/app_theme.dart';
 
 class CashierDashboardScreen extends StatefulWidget {
   const CashierDashboardScreen({super.key});
@@ -30,6 +31,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   // Realtime & Auto-Refresh State
   RealtimeChannel? _requestsChannel;
+  RealtimeChannel? _inventoryChannel;
   Timer? _refreshTimer;
 
   // Profile State
@@ -45,15 +47,10 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   List<POSProduct> _allProducts = [];
   List<POSProduct> _lowStockProducts = [];
   List<Map<String, dynamic>> _pendingRequests = [];
-  int _selectedInventoryTab = 0; // 0 = Fattening, 1 = Sow
-
-  // Restock Screen State
-  POSProduct? _selectedRestockProduct;
-  int _restockQuantity = 1;
-  final TextEditingController _priceController = TextEditingController();
+  final Set<String> _readNotificationIds = {};
 
   // Sales History State
-  bool _showSalesHistory = false;
+  final bool _showSalesHistory = false;
   List<Map<String, dynamic>> _salesLogs = [];
   bool _isLoadingSales = false;
 
@@ -63,13 +60,19 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   // Search & Filter State
   String _selectedCategory = "All";
-  final List<String> _categories = ["All", "Feeds", "Vitamins", "Medicines", "Others"];
+  final List<String> _categories = [
+    "All",
+    "Feeds",
+    "Vitamins",
+    "Medicines",
+    "Others",
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
-    _subscribeToStockRequests();
+    _subscribeToRealtime();
     // Auto-refresh every 10 seconds for real-time safety
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (mounted) {
@@ -82,11 +85,11 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _requestsChannel?.unsubscribe();
-    _priceController.dispose();
+    _inventoryChannel?.unsubscribe();
     super.dispose();
   }
 
-  void _subscribeToStockRequests() {
+  void _subscribeToRealtime() {
     try {
       _requestsChannel = _supabase
           .channel('public:stock_requests')
@@ -95,14 +98,24 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
             schema: 'public',
             table: 'stock_requests',
             callback: (payload) {
-              if (mounted) {
-                _fetchPendingRequests();
-              }
+              if (mounted) _fetchPendingRequests();
+            },
+          )
+          .subscribe();
+
+      _inventoryChannel = _supabase
+          .channel('public:inventory_products')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'inventory_products',
+            callback: (payload) {
+              if (mounted) _fetchInventory();
             },
           )
           .subscribe();
     } catch (e) {
-      debugPrint('Error subscribing to stock_requests channel: $e');
+      debugPrint('Error subscribing to channels: $e');
     }
   }
 
@@ -111,6 +124,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     await _fetchProfile();
     await _fetchInventory();
     await _fetchPendingRequests();
+    await _fetchSalesLogs();
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -119,226 +133,384 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   Future<void> _fetchProfile() async {
     try {
       final user = _supabase.auth.currentUser;
-      if (user != null) {
-        _cashierEmail = user.email ?? "";
-        Map<String, dynamic>? profile = await _supabase
-            .from('app_users')
-            .select('user_id, name, email, phone, address, avatar_url')
-            .eq('supabase_user_id', user.id)
-            .maybeSingle();
+      String effectiveEmail = user?.email ?? "";
+      if (effectiveEmail.isEmpty) {
+        final saved = await AuthSessionService().getSavedEmail();
+        if (saved != null && saved.isNotEmpty) {
+          effectiveEmail = saved;
+        }
+      }
 
-        if (profile == null && user.email != null && user.email!.isNotEmpty) {
-          final profileByEmail = await _supabase
+      _cashierEmail = effectiveEmail;
+
+      // Extract Google Metadata if available
+      final meta = user?.userMetadata;
+      String? googleName;
+      if (meta != null) {
+        googleName = (meta['full_name'] ?? meta['name'] ?? meta['displayName'])
+            ?.toString()
+            .trim();
+      }
+
+      Map<String, dynamic>? profile;
+      if (user != null) {
+        try {
+          profile = await _supabase
               .from('app_users')
               .select('user_id, name, email, phone, address, avatar_url')
-              .eq('email', user.email!)
+              .eq('supabase_user_id', user.id)
               .maybeSingle();
+        } catch (_) {}
+      }
 
-          if (profileByEmail != null) {
-            profile = profileByEmail;
+      if (profile == null && effectiveEmail.isNotEmpty) {
+        try {
+          profile = await _supabase
+              .from('app_users')
+              .select('user_id, name, email, phone, address, avatar_url')
+              .ilike('email', effectiveEmail)
+              .maybeSingle();
+          if (profile != null && user != null) {
             try {
               await _supabase
                   .from('app_users')
                   .update({'supabase_user_id': user.id})
-                  .eq('user_id', profileByEmail['user_id']);
-            } catch (e) {
-              debugPrint('Error linking supabase_user_id: $e');
-            }
+                  .eq('user_id', profile['user_id']);
+            } catch (_) {}
           }
-        }
+        } catch (_) {}
+      }
 
-        String resolvedName = "";
-        if (profile != null) {
-          final rawName = profile['name'] as String?;
-          if (rawName != null && rawName.trim().isNotEmpty) {
-            resolvedName = rawName.trim();
-          }
-        }
+      Map<String, dynamic>? cashierRow;
+      if (effectiveEmail.isNotEmpty) {
+        try {
+          cashierRow = await _supabase
+              .from('cashiers')
+              .select('cashier_id, name, email, phone, address, avatar_url')
+              .ilike('email', effectiveEmail)
+              .maybeSingle();
+        } catch (_) {}
+      }
 
-        if (resolvedName.isEmpty) {
-          final metaName = (user.userMetadata?['name'] as String?) ??
-              (user.userMetadata?['full_name'] as String?);
-          if (metaName != null && metaName.trim().isNotEmpty) {
-            resolvedName = metaName.trim();
-          } else if (user.email != null && user.email!.contains('@')) {
-            final prefix = user.email!.split('@').first.trim();
-            if (prefix.isNotEmpty) {
-              resolvedName = prefix[0].toUpperCase() + prefix.substring(1);
-            }
-          }
-        }
+      String resolvedName = "";
+      String resolvedPhone = "Not set";
+      String resolvedAddress = "Not set";
+      String? resolvedAvatar;
 
-        if (resolvedName.isEmpty) {
-          resolvedName = "Cashier Staff";
+      if (profile != null) {
+        final dbName = profile['name']?.toString().trim() ?? '';
+        if (dbName.isNotEmpty && dbName != 'Cashier Staff' && dbName != 'N/A') {
+          resolvedName = dbName;
         }
-
-        if (mounted) {
-          setState(() {
-            _cashierName = resolvedName;
-            if (profile != null) {
-              _cashierEmail = (profile['email'] as String?) ?? user.email ?? "";
-              _cashierPhone = (profile['phone'] as String?) ?? "N/A";
-              _cashierAddress = (profile['address'] as String?) ?? "N/A";
-              _cashierAvatarUrl = profile['avatar_url'] as String?;
-            } else {
-              _cashierEmail = user.email ?? "";
-            }
-          });
+        if (profile['phone']?.toString().trim().isNotEmpty == true &&
+            profile['phone'] != 'N/A') {
+          resolvedPhone = profile['phone'];
+        }
+        if (profile['address']?.toString().trim().isNotEmpty == true &&
+            profile['address'] != 'N/A') {
+          resolvedAddress = profile['address'];
+        }
+        if (profile['avatar_url']?.toString().trim().isNotEmpty == true) {
+          resolvedAvatar = profile['avatar_url'];
         }
       }
+
+      if (cashierRow != null) {
+        final cName = cashierRow['name']?.toString().trim() ?? '';
+        if (resolvedName.isEmpty &&
+            cName.isNotEmpty &&
+            cName != 'Cashier Staff' &&
+            cName != 'N/A') {
+          resolvedName = cName;
+        }
+        if ((resolvedPhone == 'Not set' || resolvedPhone == 'N/A') &&
+            cashierRow['phone']?.toString().trim().isNotEmpty == true &&
+            cashierRow['phone'] != 'N/A') {
+          resolvedPhone = cashierRow['phone'];
+        }
+        if ((resolvedAddress == 'Not set' || resolvedAddress == 'N/A') &&
+            cashierRow['address']?.toString().trim().isNotEmpty == true &&
+            cashierRow['address'] != 'N/A') {
+          resolvedAddress = cashierRow['address'];
+        }
+        if (resolvedAvatar == null &&
+            cashierRow['avatar_url']?.toString().trim().isNotEmpty == true) {
+          resolvedAvatar = cashierRow['avatar_url'];
+        }
+      }
+
+      if (resolvedName.isEmpty && googleName != null && googleName.isNotEmpty) {
+        resolvedName = googleName;
+      }
+
+      if (resolvedName.isEmpty && effectiveEmail.isNotEmpty) {
+        final prefix = effectiveEmail.split('@').first;
+        if (prefix.toLowerCase() == 'justrejie') {
+          resolvedName = 'Just Rejie';
+        } else {
+          resolvedName = prefix;
+        }
+      }
+
+      // Auto-sync resolved details to database if profile exists
+      if (profile != null &&
+          resolvedName.isNotEmpty &&
+          resolvedName != 'Cashier Staff') {
+        try {
+          await _supabase
+              .from('app_users')
+              .update({'name': resolvedName})
+              .eq('user_id', profile['user_id']);
+          await _supabase
+              .from('cashiers')
+              .update({'name': resolvedName})
+              .eq('user_id', profile['user_id']);
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _cashierName = resolvedName.isNotEmpty
+              ? resolvedName
+              : "Cashier Staff";
+          _cashierPhone = resolvedPhone;
+          _cashierAddress = resolvedAddress;
+          _cashierAvatarUrl = resolvedAvatar;
+        });
+      }
     } catch (e) {
-      debugPrint('Error fetching profile: $e');
+      debugPrint('Error loading cashier profile: $e');
     }
   }
 
   Future<void> _fetchInventory() async {
     try {
-      final response = await _supabase
-          .from('inventory_products')
-          .select()
-          .eq('is_archived', false)
-          .order('name', ascending: true);
+      List<dynamic> rows = [];
+      String source = 'inventory_products';
+      try {
+        rows = await _supabase
+            .from('inventory_products')
+            .select()
+            .order('name', ascending: true);
+      } catch (_) {
+        try {
+          rows = await _supabase
+              .from('products')
+              .select()
+              .order('name', ascending: true);
+          source = 'products';
+        } catch (_) {}
+      }
 
-      final rows = response as List;
-      final normalized = normalizeInventoryRows(rows, sourceTable: 'inventory_products');
-      final productsList = normalized.map((r) => POSProduct.fromJson(r)).toList();
+      final normalized = normalizeInventoryRows(rows, sourceTable: source);
+      final List<POSProduct> products = normalized
+          .map((r) => POSProduct.fromJson(r))
+          .toList();
 
       if (mounted) {
         setState(() {
-          _allProducts = productsList;
-          _lowStockProducts = productsList.where((p) => p.units < 50).toList();
+          _allProducts = products;
+          _lowStockProducts = products
+              .where((p) => p.stock <= 10 && !p.isArchived)
+              .toList();
         });
       }
     } catch (e) {
-      debugPrint('Error loading inventory products: $e');
-      try {
-        final fallbackResponse = await _supabase.from('products').select();
-        final fallbackRows = fallbackResponse as List;
-        final fallbackNormalized = normalizeInventoryRows(fallbackRows, sourceTable: 'products');
-        final fallbackList = fallbackNormalized.map((r) => POSProduct.fromJson(r)).toList();
-        if (mounted) {
-          setState(() {
-            _allProducts = fallbackList;
-            _lowStockProducts = fallbackList.where((p) => p.units < 50).toList();
-          });
-        }
-      } catch (err) {
-        debugPrint('Fallback error: $err');
-      }
+      debugPrint('Error fetching inventory: $e');
     }
   }
 
   Future<void> _fetchPendingRequests() async {
     try {
-      final requests = await _supabase
-          .from('stock_requests')
-          .select('request_id, status, quantity, created_at, product:products(name), raiser:hog_raisers(name)')
-          .order('created_at', ascending: false);
+      List<dynamic> res = [];
+      try {
+        res = await _supabase
+            .from('stock_requests')
+            .select(
+              '*, hog_raisers(name, avatar_url, hog_raiser_id, user_id, app_users!hog_raisers_user_id_fkey(name, email))',
+            )
+            .order('created_at', ascending: false);
+      } catch (_) {
+        try {
+          res = await _supabase
+              .from('stock_requests')
+              .select('*, hog_raisers(name, avatar_url)')
+              .order('created_at', ascending: false);
+        } catch (_) {
+          try {
+            res = await _supabase
+                .from('stock_requests')
+                .select()
+                .order('request_date', ascending: false);
+          } catch (_) {
+            res = await _supabase.from('stock_requests').select();
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
-          _pendingRequests = List<Map<String, dynamic>>.from(requests);
+          _pendingRequests = List<Map<String, dynamic>>.from(res);
         });
       }
     } catch (e) {
-      debugPrint('Error fetching stock requests: $e');
+      debugPrint('Error fetching pending requests: $e');
     }
   }
 
-  Future<void> _handleLogout() async {
-    await _supabase.auth.signOut();
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/onboarding');
-    }
-  }
-
-  void _showSnackBar(String message, {Color? backgroundColor}) {
+  Future<void> _fetchSalesLogs() async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: backgroundColor ?? const Color(0xFF18314F),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
+    setState(() => _isLoadingSales = true);
+    final List<Map<String, dynamic>> combined = [];
+
+    // 1. Fetch from inventory_logs (Action: 'SALE')
+    try {
+      final invLogs = await _supabase
+          .from('inventory_logs')
+          .select()
+          .eq('action', 'SALE')
+          .order('created_at', ascending: false)
+          .limit(100);
+
+      for (final raw in (invLogs as List)) {
+        final log = Map<String, dynamic>.from(raw as Map);
+        final details = (log['details'] ?? '').toString();
+
+        String customer = 'Walk-in Customer';
+        if (details.contains('POS Sale to ')) {
+          final afterTo = details.split('POS Sale to ').last;
+          customer = afterTo.split(' (').first.trim();
+        }
+
+        String payment = 'Cash';
+        if (details.contains('(') && details.contains(')')) {
+          final paren = details.split('(').last.split(')').first.trim();
+          if (paren.isNotEmpty) payment = paren;
+        }
+
+        combined.add({
+          'id': log['id'],
+          'product_name': log['product_name'] ?? 'Product',
+          'total_amount': (log['price'] as num?)?.toDouble() ?? 0.0,
+          'quantity': (log['units'] as num?)?.toInt() ?? 1,
+          'sale_date': log['created_at'],
+          'created_at': log['created_at'],
+          'cashier_name': log['performed_by'] ?? _cashierName,
+          'customer_name': customer,
+          'payment_method': payment,
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching inventory_logs for sales: $e');
+    }
+
+    // 2. Fetch from sales table
+    try {
+      final salesRes = await _supabase
+          .from('sales')
+          .select()
+          .order('sale_date', ascending: false)
+          .limit(100);
+
+      for (final raw in (salesRes as List)) {
+        final s = Map<String, dynamic>.from(raw as Map);
+        final saleId = s['sale_id'] ?? s['id'];
+        final exists = combined.any((c) => c['id'] == saleId);
+        if (!exists) {
+          combined.add({
+            'id': saleId,
+            'product_name': s['product_name'] ?? 'Inventory Sale',
+            'total_amount': (s['total_amount'] as num?)?.toDouble() ?? 0.0,
+            'quantity': (s['quantity'] as num?)?.toInt() ?? 1,
+            'sale_date': s['sale_date'] ?? s['created_at'],
+            'created_at': s['sale_date'] ?? s['created_at'],
+            'cashier_name': s['cashier_name'] ?? _cashierName,
+            'customer_name': s['customer_name'] ?? 'Walk-in Customer',
+            'payment_method': s['payment_method'] ?? 'Cash',
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching sales table: $e');
+    }
+
+    // Sort descending by date
+    combined.sort((a, b) {
+      final dtA = DateTime.tryParse((a['sale_date'] ?? a['created_at'] ?? '').toString()) ?? DateTime(2000);
+      final dtB = DateTime.tryParse((b['sale_date'] ?? b['created_at'] ?? '').toString()) ?? DateTime(2000);
+      return dtB.compareTo(dtA);
+    });
+
+    if (mounted) {
+      setState(() {
+        _salesLogs = combined;
+        _isLoadingSales = false;
+      });
+    }
   }
 
-  // Profile Management Methods
-  Future<void> _pickAndUploadAvatar() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
+  // ===================== PROFILE ACTIONS =====================
 
+  Future<void> _pickAndUploadAvatar() async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
+      final file = await ImagePicker().pickImage(
         source: ImageSource.gallery,
         imageQuality: 80,
         maxWidth: 300,
         maxHeight: 300,
       );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
 
-      if (image == null) return;
+      final path =
+          'avatars/${user.id}_${DateTime.now().millisecondsSinceEpoch}.png';
+      await _supabase.storage
+          .from('profile_pictures')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
+          );
+      final avatarUrl = _supabase.storage
+          .from('profile_pictures')
+          .getPublicUrl(path);
 
-      setState(() => _isLoading = true);
-
-      final bytes = await image.readAsBytes();
-      final fileName = 'avatar-cashier-${DateTime.now().millisecondsSinceEpoch}.png';
-      final filePath = 'avatars/$fileName';
-
-      await _supabase.storage.from('profile_pictures').uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: const FileOptions(cacheControl: '3600', upsert: true),
-      );
-
-      final publicUrl = _supabase.storage.from('profile_pictures').getPublicUrl(filePath);
-
+      // Sync across Auth User Metadata, app_users, and cashiers table for Admin Web
       try {
         await _supabase.auth.updateUser(
-          UserAttributes(data: {'avatar_url': publicUrl, 'picture': publicUrl}),
+          UserAttributes(data: {'avatar_url': avatarUrl, 'picture': avatarUrl}),
         );
       } catch (_) {}
 
       try {
-        await _supabase.from('app_users').update({
-          'avatar_url': publicUrl,
-        }).eq('supabase_user_id', user.id);
+        await _supabase
+            .from('app_users')
+            .update({'avatar_url': avatarUrl})
+            .or('supabase_user_id.eq.${user.id},email.eq.${user.email}');
       } catch (_) {}
 
-      if (mounted) {
-        setState(() {
-          _cashierAvatarUrl = publicUrl;
-        });
-      }
+      try {
+        await _supabase
+            .from('cashiers')
+            .update({'avatar_url': avatarUrl})
+            .eq('email', user.email!);
+      } catch (_) {}
 
-      _showSnackBar('Matagumpay na na-update ang inyong profile picture!', backgroundColor: PiggyTrunkTheme.ptSuccess);
+      setState(() => _cashierAvatarUrl = avatarUrl);
+      _showSnackBar('Profile picture updated successfully!');
       await _fetchProfile();
     } catch (e) {
-      debugPrint('Error uploading image: $e');
-      _showSnackBar('Error uploading image: $e', backgroundColor: Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      _showSnackBar('Error updating profile picture: $e', isError: true);
     }
   }
 
   Future<void> _restoreDefaultAvatar() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    setState(() => _isLoading = true);
-
     try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
       try {
         await _supabase.auth.updateUser(
           UserAttributes(data: {'avatar_url': null, 'picture': null}),
@@ -346,40 +518,51 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
       } catch (_) {}
 
       try {
-        await _supabase.from('app_users').update({
-          'avatar_url': null,
-        }).eq('supabase_user_id', user.id);
+        await _supabase
+            .from('app_users')
+            .update({'avatar_url': null})
+            .or('supabase_user_id.eq.${user.id},email.eq.${user.email}');
       } catch (_) {}
 
-      if (mounted) {
-        setState(() {
-          _cashierAvatarUrl = null;
-        });
-      }
+      try {
+        await _supabase
+            .from('cashiers')
+            .update({'avatar_url': null})
+            .eq('email', user.email!);
+      } catch (_) {}
 
-      _showSnackBar('Nabalik sa default ang inyong profile picture!', backgroundColor: PiggyTrunkTheme.ptSuccess);
+      setState(() => _cashierAvatarUrl = null);
+      _showSnackBar('Default profile picture restored.');
       await _fetchProfile();
     } catch (e) {
-      debugPrint('Error restoring image: $e');
-      _showSnackBar('Error restoring image: $e', backgroundColor: Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      _showSnackBar('Error restoring default picture: $e', isError: true);
     }
   }
 
   void _showEditProfileDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final nameController = TextEditingController(text: _cashierName == 'N/A' ? '' : _cashierName);
-    final phoneController = TextEditingController(text: _cashierPhone == 'N/A' ? '' : _cashierPhone);
-    final addressController = TextEditingController(text: _cashierAddress == 'N/A' ? '' : _cashierAddress);
+    final currentName = _cashierName == 'Cashier Staff' ? '' : _cashierName;
+    final currentPhone = _cashierPhone == 'N/A' || _cashierPhone == 'Not set'
+        ? ''
+        : _cashierPhone;
+    final currentAddress =
+        _cashierAddress == 'N/A' || _cashierAddress == 'Not set'
+        ? ''
+        : _cashierAddress;
+
+    final nameController = TextEditingController(text: currentName);
+    final phoneController = TextEditingController(text: currentPhone);
+    final addressController = TextEditingController(text: currentAddress);
 
     final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
     final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
     final inputBg = isDark ? const Color(0xFF1B2A3F) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF2A3C55) : const Color(0xFFE2E8F0);
-    final hintColor = isDark ? const Color(0xFF8A9FB8) : PiggyTrunkTheme.ptMuted;
+    final borderColor = isDark
+        ? const Color(0xFF2A3C55)
+        : const Color(0xFFE2E8F0);
+    final hintColor = isDark
+        ? const Color(0xFF8A9FB8)
+        : PiggyTrunkTheme.ptMuted;
 
     showModalBottomSheet(
       context: context,
@@ -406,63 +589,43 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Drag Handle Pill
+                  // Top Drag Handle
                   Center(
                     child: Container(
                       width: 40,
                       height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                        color: borderColor,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
 
-                  // Header Row
+                  // Sheet Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.person_outline_rounded,
-                              color: isDark ? const Color(0xFF93C5FD) : _brandColor,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'I-edit ang Profile',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                              color: titleColor,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Edit Cashier Profile',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                        ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.close, size: 20),
+                        color: hintColor,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  Divider(color: borderColor, height: 1),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
 
-                  // 1. Pangalan
+                  // Full Name Field
                   Text(
-                    'Buong Pangalan',
+                    'Full Name',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -472,17 +635,26 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: nameController,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: titleColor,
+                    ),
                     decoration: InputDecoration(
-                      hintText: 'Ilagay ang inyong buong pangalan',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
+                      hintText: 'Enter your full name',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: hintColor,
+                      ),
                       filled: true,
                       fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
+                      prefixIcon: Icon(
+                        Icons.person_outline,
+                        size: 20,
+                        color: hintColor,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -490,33 +662,23 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        borderSide: const BorderSide(
+                          color: _brandColor,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // 2. Phone Number (Numerical Only!)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Telepono / Phone Number',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: titleColor,
-                        ),
-                      ),
-                      Text(
-                        'Numbers only (11 digits)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: hintColor,
-                        ),
-                      ),
-                    ],
+                  // Phone Number Field
+                  Text(
+                    'Phone Number',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   TextField(
@@ -526,17 +688,26 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                       FilteringTextInputFormatter.digitsOnly,
                       LengthLimitingTextInputFormatter(11),
                     ],
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: titleColor,
+                    ),
                     decoration: InputDecoration(
-                      hintText: '09XXXXXXXXX',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
+                      hintText: 'e.g. 09123456789',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: hintColor,
+                      ),
                       filled: true,
                       fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
+                      prefixIcon: Icon(
+                        Icons.phone_iphone,
+                        size: 20,
+                        color: hintColor,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -544,13 +715,16 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        borderSide: const BorderSide(
+                          color: _brandColor,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Address / Branch
+                  // Address / Branch Field
                   Text(
                     'Address / Branch',
                     style: GoogleFonts.plusJakartaSans(
@@ -562,21 +736,26 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: addressController,
-                    maxLines: 2,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      color: titleColor,
+                    ),
                     decoration: InputDecoration(
-                      hintText: 'Ilagay ang inyong address o branch',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
+                      hintText: 'Enter branch location or address',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: hintColor,
                       ),
                       filled: true,
                       fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
+                      prefixIcon: Icon(
+                        Icons.location_on_outlined,
+                        size: 20,
+                        color: hintColor,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -584,62 +763,116 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        borderSide: const BorderSide(
+                          color: _brandColor,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 24),
 
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: borderColor, width: 1.2),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            'Kanselahin',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              color: hintColor,
-                              fontWeight: FontWeight.w700,
+                  // Save Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final newName = nameController.text.trim();
+                        final newPhone = phoneController.text.trim();
+                        final newAddress = addressController.text.trim();
+
+                        if (newName.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter your full name.'),
+                              backgroundColor: Colors.red,
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            await _updateProfile(
-                              nameController.text.trim(),
-                              phoneController.text.trim(),
-                              addressController.text.trim(),
+                          );
+                          return;
+                        }
+
+                        if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Phone number must be exactly 11 digits starting with 09 (e.g. 09123456789).'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(ctx);
+                        final user = _supabase.auth.currentUser;
+                        if (user == null) return;
+
+                        try {
+                          // 1. Update Auth User Metadata
+                          try {
+                            await _supabase.auth.updateUser(
+                              UserAttributes(
+                                data: {'full_name': newName, 'name': newName},
+                              ),
                             );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark ? Colors.white : _brandColor,
-                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            'I-save ang Pagbabago',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                          } catch (_) {}
+
+                          // 2. Update app_users table (visible on Admin Web)
+                          await _supabase
+                              .from('app_users')
+                              .update({
+                                'name': newName,
+                                'phone': newPhone.isNotEmpty ? newPhone : null,
+                                'address': newAddress.isNotEmpty
+                                    ? newAddress
+                                    : null,
+                              })
+                              .or(
+                                'supabase_user_id.eq.${user.id},email.eq.${user.email}',
+                              );
+
+                          // 3. Update cashiers table if exists (visible on Admin Web)
+                          if (user.email != null) {
+                            try {
+                              await _supabase
+                                  .from('cashiers')
+                                  .update({
+                                    'name': newName,
+                                    'phone': newPhone.isNotEmpty
+                                        ? newPhone
+                                        : null,
+                                    'address': newAddress.isNotEmpty
+                                        ? newAddress
+                                        : null,
+                                  })
+                                  .eq('email', user.email!);
+                            } catch (_) {}
+                          }
+
+                          await _fetchProfile();
+                          _showSnackBar('Profile updated successfully!');
+                        } catch (e) {
+                          _showSnackBar(
+                            'Error updating profile: $e',
+                            isError: true,
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _brandColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                    ],
+                      child: Text(
+                        'Save Changes',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -650,398 +883,464 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     );
   }
 
-  Future<void> _updateProfile(String name, String phone, String address) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    setState(() => _isLoading = true);
+  Future<void> _handleLogout() async {
     try {
-      await _supabase.from('app_users').update({
-        'name': name.isNotEmpty ? name : _cashierName,
-        'phone': phone.isNotEmpty ? phone : null,
-        'address': address.isNotEmpty ? address : null,
-      }).eq('supabase_user_id', user.id);
-
-      _showSnackBar('Matagumpay na na-update ang inyong profile!', backgroundColor: PiggyTrunkTheme.ptSuccess);
-      await _fetchProfile();
-    } catch (e) {
-      _showSnackBar('Pumalya ang pag-update: $e', backgroundColor: Colors.red);
-    } finally {
+      await AuthSessionService().clearSession();
       if (mounted) {
-        setState(() => _isLoading = false);
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/login', (route) => false);
       }
+    } catch (e) {
+      _showSnackBar('Error signing out: $e', isError: true);
     }
   }
 
-  // POS - Add product to order cart
-  void _addToCart(POSProduct product) {
-    if (product.units <= 0) {
-      _showSnackBar('Pasensya na, wala nang stock ang item na ito.', backgroundColor: Colors.red);
+  // ===================== POS ACTIONS =====================
+
+  void _onAddToCart(POSProduct product) {
+    if (product.stock <= 0) {
+      _showSnackBar('Product is out of stock', isError: true);
       return;
     }
 
-    final existingIndex = _currentOrder.items.indexWhere((i) => i.productId == product.id);
-    if (existingIndex != -1) {
-      final currentQty = _currentOrder.items[existingIndex].quantity;
-      if (currentQty >= product.units) {
-        _showSnackBar('Hindi maaaring lumampas sa ${product.units} units na stock.', backgroundColor: Colors.amber[800]);
-        return;
-      }
-    }
-
     setState(() {
-      _orderItemCounter++;
-      _currentOrder.addItem(
-        OrderItem(
-          id: _orderItemCounter,
-          productId: product.id,
-          productName: product.name,
-          price: product.price,
-          quantity: 1,
-        ),
+      final existingIndex = _currentOrder.items.indexWhere(
+        (item) => item.productId == product.id,
       );
+      if (existingIndex >= 0) {
+        final currentQty = _currentOrder.items[existingIndex].quantity;
+        if (currentQty < product.stock) {
+          _currentOrder.items[existingIndex] = _currentOrder
+              .items[existingIndex]
+              .copyWith(quantity: currentQty + 1);
+        } else {
+          _showSnackBar(
+            'Cannot exceed available stock (${product.stock})',
+            isError: true,
+          );
+          return;
+        }
+      } else {
+        _orderItemCounter++;
+        _currentOrder.items.add(
+          OrderItem(
+            id: _orderItemCounter,
+            productId: product.id,
+            productName: product.name,
+            price: product.price,
+            quantity: 1,
+            image: product.image,
+          ),
+        );
+      }
     });
-    _showSnackBar('${product.name} naidagdag sa cart!', backgroundColor: PiggyTrunkTheme.ptSuccess);
+
+    _showSnackBar('Added ${product.name} to cart');
   }
 
-  // POS - Complete supply release / purchase
-  Future<void> _completeTransaction() async {
-    if (_currentOrder.items.isEmpty) return;
+  void _onUpdateItemQuantity(OrderItem item, int newQuantity) {
+    setState(() {
+      final index = _currentOrder.items.indexWhere(
+        (i) => i.productId == item.productId,
+      );
+      if (index >= 0) {
+        if (newQuantity <= 0) {
+          _currentOrder.items.removeAt(index);
+        } else {
+          _currentOrder.items[index] = _currentOrder.items[index].copyWith(
+            quantity: newQuantity,
+          );
+        }
+      }
+    });
+  }
 
-    setState(() => _isLoading = true);
+  void _onRemoveItem(OrderItem item) {
+    setState(() {
+      _currentOrder.items.removeWhere((i) => i.productId == item.productId);
+    });
+    _showSnackBar('Removed ${item.productName} from cart');
+  }
+
+  void _onClearCart() {
+    setState(() {
+      _currentOrder.items.clear();
+    });
+  }
+
+  Future<void> _handleCompletePOSSale({
+    required String customerName,
+    required String customerType,
+    required String paymentMethod,
+    required double tenderedAmount,
+    required double changeAmount,
+    required Order order,
+  }) async {
+    final double totalAmount = order.total;
+    final int totalUnits = order.items.fold<int>(
+      0,
+      (sum, i) => sum + i.quantity,
+    );
+    final nowStr = DateTime.now().toIso8601String();
+    final cashierIdentifier = _cashierName.trim().isNotEmpty
+        ? _cashierName.trim()
+        : (_supabase.auth.currentUser?.email ?? 'Cashier Staff');
+
+    // 1. Insert Sales Record into sales table
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) throw Exception("Hindi naka-login ang user.");
+      await _supabase.from('sales').insert({
+        'total_amount': totalAmount,
+        'quantity': totalUnits,
+        'sale_date': nowStr,
+        'type': 'pos_cashier',
+      });
+    } catch (e) {
+      debugPrint('Sales table summary insert fallback: $e');
+    }
 
-      final userProfile = await _supabase
-          .from('app_users')
-          .select('user_id')
-          .eq('supabase_user_id', user.id)
-          .maybeSingle();
+    // 2. Deduct Inventory & Insert Inventory Logs for each item
+    for (final item in order.items) {
+      final matchingProduct = _allProducts.firstWhere(
+        (p) => p.id == item.productId,
+        orElse: () => POSProduct(
+          id: item.productId,
+          name: item.productName,
+          categoryId: '',
+          category: 'Feeds',
+          description: '',
+          price: item.price,
+          units: 0,
+          sold: 0,
+        ),
+      );
 
-      final performerId = userProfile != null ? userProfile['user_id'] as int : null;
+      final newStock = (matchingProduct.stock - item.quantity).clamp(0, 999999);
+      final newSold = matchingProduct.sold + item.quantity;
 
-      for (final item in _currentOrder.items) {
-        final dbProduct = _allProducts.firstWhere((p) => p.id == item.productId);
-        final newUnits = dbProduct.units - item.quantity;
-
+      // Deduct stock in database
+      try {
         await _supabase
             .from('inventory_products')
-            .update({'units': newUnits})
+            .update({'units': newStock, 'sold': newSold})
             .eq('id', item.productId);
+      } catch (_) {
+        try {
+          await _supabase
+              .from('products')
+              .update({'units': newStock, 'sold': newSold})
+              .eq('id', item.productId);
+        } catch (_) {}
+      }
 
-        if (performerId != null) {
-          await _supabase.from('sales').insert({
-            'quantity': item.quantity,
+      // Log sale item in inventory_logs
+      try {
+        final logPayload = <String, dynamic>{
+          'product_name': item.productName,
+          'action': 'SALE',
+          'performed_by': cashierIdentifier,
+          'price': item.subtotal,
+          'units': item.quantity,
+          'details': 'POS Sale to $customerName ($paymentMethod) by $cashierIdentifier • Tendered: ₱${tenderedAmount.toStringAsFixed(2)}, Change: ₱${changeAmount.toStringAsFixed(2)}',
+          'created_at': nowStr,
+        };
+
+        // If productId is a valid UUID, include it
+        if (item.productId.length >= 32) {
+          logPayload['product_id'] = item.productId;
+        }
+
+        await _supabase.from('inventory_logs').insert(logPayload);
+      } catch (e) {
+        debugPrint('Inventory logs insert error: $e');
+      }
+
+      // Also try item-level insert in sales table
+      try {
+        final numProductId = int.tryParse(item.productId);
+        final itemSaleData = <String, dynamic>{
+          'total_amount': item.subtotal,
+          'quantity': item.quantity,
+          'sale_date': nowStr,
+          'type': 'pos_cashier',
+        };
+        if (numProductId != null) itemSaleData['product_id'] = numProductId;
+        await _supabase.from('sales').insert(itemSaleData);
+      } catch (_) {}
+    }
+
+    // Immediately update local sales logs so the receipt is visible right away
+    if (mounted) {
+      setState(() {
+        for (final item in order.items) {
+          _salesLogs.insert(0, {
+            'id': DateTime.now().millisecondsSinceEpoch,
+            'product_name': item.productName,
             'total_amount': item.subtotal,
-            'type': 'Release',
-            'product_id': int.tryParse(item.productId) ?? 1,
-            'performed_by': performerId,
+            'quantity': item.quantity,
+            'sale_date': nowStr,
+            'created_at': nowStr,
+            'cashier_name': cashierIdentifier,
+            'customer_name': customerName,
+            'payment_method': paymentMethod,
           });
+        }
+      });
+    }
+
+    await _fetchInventory();
+    await _fetchSalesLogs();
+  }
+
+  // ===================== REQUEST PROCESSING =====================
+
+  Future<void> _processRequest(
+    int requestId,
+    String status, {
+    int? allocatedSacks,
+    int? productId,
+  }) async {
+    try {
+      final updateData = {'status': status};
+      if (allocatedSacks != null) {
+        updateData['allocated_sacks'] = allocatedSacks.toString();
+      }
+
+      await _supabase
+          .from('stock_requests')
+          .update(updateData)
+          .eq('request_id', requestId);
+
+      if (status == 'Approved' && allocatedSacks != null && productId != null) {
+        try {
+          final prod = await _supabase
+              .from('inventory_products')
+              .select('units, name')
+              .eq('id', productId)
+              .maybeSingle();
+          if (prod != null) {
+            final currentStock = prod['units'] as int? ?? 0;
+            final newStock = (currentStock - allocatedSacks).clamp(0, 999999);
+            await _supabase
+                .from('inventory_products')
+                .update({'units': newStock})
+                .eq('id', productId);
+
+            await _supabase.from('inventory_logs').insert({
+              'product_name': prod['name'] ?? 'Feed Product',
+              'action': 'OUT',
+              'units': allocatedSacks,
+              'price': 0,
+              'details': 'Stock request #$requestId approved and distributed',
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          }
+        } catch (e) {
+          debugPrint('Error deducting stock on allocation: $e');
         }
       }
 
-      _showSnackBar('Matagumpay na na-release ang supply!', backgroundColor: PiggyTrunkTheme.ptSuccess);
-
-      setState(() {
-        _currentOrder.clearOrder();
-        _orderItemCounter = 0;
-      });
-
+      await _fetchPendingRequests();
       await _fetchInventory();
+      _showSnackBar('Request #$requestId marked as $status');
     } catch (e) {
-      debugPrint('Checkout error: $e');
-      _showSnackBar('Nagka-error sa checkout: $e', backgroundColor: Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      _showSnackBar('Failed to process request: $e', isError: true);
     }
   }
 
   void _showRequestsDialog() {
-    StockRequestsModal.show(
-      context,
-      pendingRequests: _pendingRequests,
-      onProcessRequest: _processRequest,
-    );
-  }
-
-  Future<void> _processRequest(int requestId, String status, {int? allocatedSacks, int? productId}) async {
-    setState(() => _isLoading = true);
-    try {
-      await _supabase
-          .from('stock_requests')
-          .update({'status': status})
-          .eq('request_id', requestId);
-
-      if (status == 'Approved' && allocatedSacks != null && allocatedSacks > 0) {
-        if (productId != null && _allProducts.isNotEmpty) {
-          final dbProd = _allProducts.firstWhere((p) => p.id.toString() == productId.toString(), orElse: () => _allProducts.first);
-          final newUnits = (dbProd.units - allocatedSacks) < 0 ? 0 : (dbProd.units - allocatedSacks);
-          try {
-            await _supabase.from('inventory_products').update({'units': newUnits}).eq('id', dbProd.id);
-          } catch (_) {
-            await _supabase.from('products').update({'units': newUnits}).eq('id', dbProd.id);
-          }
-
-          try {
-            final user = _supabase.auth.currentUser;
-            await _supabase.from('inventory_logs').insert({
-              'product_id': dbProd.id,
-              'product_name': dbProd.name,
-              'action': 'ALLOCATION',
-              'performed_by': _cashierName.isNotEmpty ? _cashierName : (user?.email ?? 'Cashier Staff'),
-              'price': dbProd.price,
-              'units': allocatedSacks,
-              'details': 'Allocated $allocatedSacks sacks to raiser request #$requestId',
-            });
-          } catch (e) {
-            debugPrint('Error logging allocation: $e');
-          }
-        }
-      }
-
-      _showSnackBar('Request successfully $status!', backgroundColor: PiggyTrunkTheme.ptSuccess);
-      await _fetchPendingRequests();
-      await _fetchInventory();
-    } catch (e) {
-      _showSnackBar('Failed to update request: $e', backgroundColor: Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _openRestockScreen(POSProduct product) {
-    setState(() {
-      _selectedRestockProduct = product;
-      _restockQuantity = 2;
-      _priceController.text = product.price.toStringAsFixed(2);
-    });
-  }
-
-  Future<void> _performRestockWithPrice(POSProduct product, int amount, double newPrice) async {
-    setState(() => _isLoading = true);
-    try {
-      final user = _supabase.auth.currentUser;
-      final newUnits = product.units + amount;
-
-      await _supabase
-          .from('inventory_products')
-          .update({
-            'units': newUnits,
-            'price': newPrice,
-          })
-          .eq('id', product.id);
-
-      await _supabase.from('inventory_logs').insert({
-        'product_id': product.id,
-        'product_name': product.name,
-        'action': 'UPDATE',
-        'performed_by': user?.email ?? 'Cashier Staff',
-        'price': newPrice,
-        'units': newUnits,
-        'details': 'Restocked $amount bags at new price ₱${newPrice.toStringAsFixed(2)} via Cashier Mobile App',
-      });
-
-      _showSnackBar('Matagumpay na na-restock ang ${product.name} (+$amount bags)!', backgroundColor: PiggyTrunkTheme.ptSuccess);
-
-      setState(() {
-        _selectedRestockProduct = null;
-      });
-      await _fetchInventory();
-    } catch (e) {
-      debugPrint('Error performing restock: $e');
-      _showSnackBar('Pumalya ang restock: $e', backgroundColor: Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _openSalesHistory() {
-    setState(() {
-      _showSalesHistory = true;
-    });
-    _fetchSalesLogs();
-  }
-
-  Future<void> _fetchSalesLogs() async {
-    if (!mounted) return;
-    setState(() => _isLoadingSales = true);
-    try {
-      final response = await _supabase
-          .from('sales')
-          .select('''
-            id,
-            quantity,
-            total_amount,
-            type,
-            created_at,
-            product:inventory_products(
-              id,
-              name,
-              category,
-              description,
-              image
-            )
-          ''')
-          .order('created_at', ascending: false);
-
-      if (mounted) {
-        setState(() {
-          _salesLogs = List<Map<String, dynamic>>.from(response);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching sales logs: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingSales = false);
-      }
-    }
-  }
-
-  void _showCartSummarySheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          height: MediaQuery.of(context).size.height * 0.8,
+      builder: (context) => StockRequestsModal(
+        pendingRequests: _pendingRequests,
+        onProcessRequest: (id, status) => _processRequest(id, status),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+              color: isError ? Colors.white : const Color(0xFF10B981),
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? const Color(0xFFDC2626) : _brandColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1800),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          _currentOrder.items.isNotEmpty ? 84 : 16,
+        ),
+      ),
+    );
+  }
+
+  void _openSalesHistoryModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
               Container(
-                margin: const EdgeInsets.only(top: 12),
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: PiggyTrunkTheme.ptBorder,
+                  color: Colors.grey[300],
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Iyong Order Cart',
+                      'All Sales Receipts',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF18314F),
+                        fontWeight: FontWeight.w800,
+                        color: _brandColor,
                       ),
                     ),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
                   ],
                 ),
               ),
+              const Divider(height: 1),
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: _currentOrder.items.length,
-                  separatorBuilder: (context, index) => const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                  itemBuilder: (context, index) {
-                    final item = _currentOrder.items[index];
-                    final dbProd = _allProducts.firstWhere((p) => p.id == item.productId);
+                child: _salesLogs.isEmpty
+                    ? const CashierEmptyState(
+                        message: 'No sales receipts found',
+                        icon: Icons.receipt_long_outlined,
+                      )
+                    : ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(20),
+                        itemCount: _salesLogs.length,
+                        separatorBuilder: (ctx, i) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final sale = _salesLogs[index];
+                          final invoice =
+                              (sale['invoice_number'] ??
+                                      sale['receipt_number'] ??
+                                      '#SALE-${sale['id'] ?? index + 1001}')
+                                  .toString();
+                          final rawTotal =
+                              sale['total_amount'] ?? sale['total'] ?? 0;
+                          final double total = rawTotal is num
+                              ? rawTotal.toDouble()
+                              : double.tryParse(rawTotal.toString()) ?? 0.0;
+                          final String paymentMethod =
+                              (sale['payment_method'] ?? 'Cash').toString();
+                          final dateStr =
+                              (sale['sale_date'] ?? sale['created_at'])
+                                  ?.toString() ??
+                              '';
 
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF18314F))),
-                              const SizedBox(height: 4),
-                              Text('₱${item.price.toStringAsFixed(2)} bawat sack', style: const TextStyle(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline),
-                              onPressed: () {
-                                if (item.quantity > 1) {
-                                  setState(() {
-                                    _currentOrder.items[index] = item.copyWith(quantity: item.quantity - 1);
-                                  });
-                                  setModalState(() {});
-                                } else {
-                                  setState(() {
-                                    _currentOrder.removeItem(item.productId);
-                                  });
-                                  setModalState(() {});
-                                }
-                              },
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
                             ),
-                            Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline),
-                              onPressed: () {
-                                if (item.quantity < dbProd.units) {
-                                  setState(() {
-                                    _currentOrder.items[index] = item.copyWith(quantity: item.quantity + 1);
-                                  });
-                                  setModalState(() {});
-                                } else {
-                                  _showSnackBar('Hindi maaaring lumampas sa ${dbProd.units} units na stock.', backgroundColor: Colors.amber[800]);
-                                }
-                              },
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFF1F5F9),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.receipt_rounded,
+                                    color: _brandColor,
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        invoice,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: _brandColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '$paymentMethod • $dateStr',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          color: PiggyTrunkTheme.ptMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '₱${total.toStringAsFixed(2)}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF10B981),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        )
-                      ],
-                    );
-                  },
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(
-                  border: Border(top: BorderSide(color: PiggyTrunkTheme.ptBorder)),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Kabuuang Halaga (Total):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        Text('₱${_currentOrder.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: PiggyTrunkTheme.ptAccent)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          Navigator.pop(context);
-                          await _completeTransaction();
+                          );
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF18314F),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('I-release ang Supply / I-complete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       ),
-                    ),
-                  ],
-                ),
-              )
+              ),
             ],
           ),
         ),
@@ -1051,221 +1350,201 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> tabs = [
-      CashierHomeTab(
-        cashierName: _cashierName,
-        lowStockProducts: _lowStockProducts,
-        pendingRequests: _pendingRequests,
-        onNavigateToInventory: () => setState(() => _currentIndex = 2),
-        onShowRequestsDialog: () => setState(() => _currentIndex = 1),
-      ),
-      CashierRequestsTab(
-        pendingRequests: _pendingRequests,
-        allProducts: _allProducts,
-        onProcessRequest: _processRequest,
-      ),
-      CashierInventoryTab(
-        allProducts: _allProducts,
-        selectedRestockProduct: _selectedRestockProduct,
-        restockQuantity: _restockQuantity,
-        priceController: _priceController,
-        selectedInventoryTab: _selectedInventoryTab,
-        onTabChanged: (tabIndex) => setState(() => _selectedInventoryTab = tabIndex),
-        onOpenRestockScreen: _openRestockScreen,
-        onQuantityChanged: (qty) => setState(() => _restockQuantity = qty),
-        onPerformRestock: _performRestockWithPrice,
-      ),
-      CashierPOSTab(
-        allProducts: _allProducts,
-        categories: _categories,
-        selectedCategory: _selectedCategory,
-        currentOrder: _currentOrder,
-        showSalesHistory: _showSalesHistory,
-        salesLogs: _salesLogs,
-        isLoadingSales: _isLoadingSales,
-        onCategorySelected: (cat) => setState(() => _selectedCategory = cat),
-        onAddToCart: _addToCart,
-        onShowCartSummary: _showCartSummarySheet,
-      ),
-      CashierProfileTab(
-        cashierName: _cashierName,
-        cashierEmail: _cashierEmail,
-        cashierPhone: _cashierPhone,
-        cashierAddress: _cashierAddress,
-        cashierAvatarUrl: _cashierAvatarUrl,
-        onPickAndUploadAvatar: _pickAndUploadAvatar,
-        onRestoreDefaultAvatar: _restoreDefaultAvatar,
-        onShowEditProfileDialog: _showEditProfileDialog,
-        onHandleLogout: _handleLogout,
-      ),
-    ];
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-
-        if (_currentIndex != 0) {
-          setState(() => _currentIndex = 0);
-          return;
-        }
-
         final now = DateTime.now();
-        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+        if (_lastBackPressTime == null ||
+            now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
+              content: Text('Press back again to exit the app'),
               duration: Duration(seconds: 2),
-              backgroundColor: Color(0xFF18314F),
             ),
           );
-          return;
+        } else {
+          SystemNavigator.pop();
         }
-
-        SystemNavigator.pop();
       },
       child: Scaffold(
-        backgroundColor: PiggyTrunkTheme.ptBg,
-        appBar: _currentIndex == 0
-          ? null
-          : AppBar(
-              automaticallyImplyLeading: false,
-              leading: (_currentIndex == 2 && _selectedRestockProduct != null)
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Color(0xFF18314F)),
-                      onPressed: () => setState(() => _selectedRestockProduct = null),
-                    )
-                  : (_currentIndex == 3 && _showSalesHistory)
-                      ? IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Color(0xFF18314F)),
-                          onPressed: () => setState(() => _showSalesHistory = false),
-                        )
-                      : null,
-              title: Text(
-                _currentIndex == 1
-                    ? 'Requests'
-                    : _currentIndex == 2
-                        ? (_selectedRestockProduct != null ? 'Restock' : 'Inventory')
-                        : _currentIndex == 3
-                            ? (_showSalesHistory ? 'New Sale' : 'POS Terminal')
-                            : 'Account Profile',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF18314F),
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: SafeArea(
+          bottom: false,
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: _brandColor),
+                )
+              : IndexedStack(
+                  index: _currentIndex,
+                  children: [
+                    // Tab 0: Home
+                    CashierHomeTab(
+                      cashierName: _cashierName,
+                      allProducts: _allProducts,
+                      lowStockProducts: _lowStockProducts,
+                      pendingRequests: _pendingRequests,
+                      salesLogs: _salesLogs,
+                      readNotificationIds: _readNotificationIds,
+                      onNavigateToPOS: () => setState(() => _currentIndex = 3),
+                      onNavigateToInventory: () =>
+                          setState(() => _currentIndex = 2),
+                      onNavigateToRequests: () =>
+                          setState(() => _currentIndex = 1),
+                      onShowRequestsDialog: _showRequestsDialog,
+                      onShowSalesHistory: _openSalesHistoryModal,
+                      onMarkAllAsRead: () {
+                        setState(() {
+                          for (final req in _pendingRequests) {
+                            _readNotificationIds.add('req_${req['id'] ?? req['request_id']}');
+                          }
+                          for (final p in _lowStockProducts) {
+                            _readNotificationIds.add('stock_${p.id}');
+                          }
+                          for (final sale in _salesLogs.take(5)) {
+                            _readNotificationIds.add('sale_${sale['id']}');
+                          }
+                        });
+                      },
+                      onMarkAsRead: (id) {
+                        setState(() {
+                          _readNotificationIds.add(id);
+                        });
+                      },
+                      onAddToCart: (product) {
+                        _onAddToCart(product);
+                      },
+                      onRefresh: () async {
+                        await _fetchProfile();
+                        await _fetchInventory();
+                        await _fetchPendingRequests();
+                        await _fetchSalesLogs();
+                      },
+                    ),
+
+                    // Tab 1: Requests / Allocation
+                    CashierRequestsTab(
+                      pendingRequests: _pendingRequests,
+                      allProducts: _allProducts,
+                      onProcessRequest: _processRequest,
+                    ),
+
+                    // Tab 2: Inventory Management (Exact Replica of Admin Inventory UI)
+                    CashierInventoryTab(onProductsChanged: _fetchInventory),
+
+                    // Tab 3: POS (Point of Sale Mirrored with Admin UI)
+                    CashierPOSTab(
+                      allProducts: _allProducts,
+                      categories: _categories,
+                      selectedCategory: _selectedCategory,
+                      currentOrder: _currentOrder,
+                      showSalesHistory: _showSalesHistory,
+                      salesLogs: _salesLogs,
+                      isLoadingSales: _isLoadingSales,
+                      cashierName: _cashierName,
+                      onCategorySelected: (cat) =>
+                          setState(() => _selectedCategory = cat),
+                      onAddToCart: _onAddToCart,
+                      onShowCartSummary: () {},
+                      onUpdateItemQuantity: _onUpdateItemQuantity,
+                      onRemoveItem: _onRemoveItem,
+                      onClearCart: _onClearCart,
+                      onCompleteSale: _handleCompletePOSSale,
+                      onRefresh: () async {
+                        await _fetchInventory();
+                        await _fetchSalesLogs();
+                      },
+                    ),
+
+                    // Tab 4: Profile
+                    CashierProfileTab(
+                      cashierName: _cashierName,
+                      cashierEmail: _cashierEmail,
+                      cashierPhone: _cashierPhone,
+                      cashierAddress: _cashierAddress,
+                      cashierAvatarUrl: _cashierAvatarUrl,
+                      onPickAndUploadAvatar: _pickAndUploadAvatar,
+                      onRestoreDefaultAvatar: _restoreDefaultAvatar,
+                      onShowEditProfileDialog: _showEditProfileDialog,
+                      onHandleLogout: _handleLogout,
+                    ),
+                  ],
                 ),
-              ),
-              backgroundColor: PiggyTrunkTheme.ptBg,
-              elevation: 0,
-              scrolledUnderElevation: 0,
-              actions: (_currentIndex == 2 && _selectedRestockProduct != null)
-                  ? [
-                      IconButton(
-                        icon: const Icon(Icons.more_vert, color: Color(0xFF18314F)),
-                        onPressed: () {},
-                      ),
-                      const SizedBox(width: 8),
-                    ]
-                  : (_currentIndex == 3
-                      ? (_showSalesHistory
-                          ? [
-                              CashierNotificationBell(
-                                pendingRequests: _pendingRequests,
-                                onOpenRequestsModal: _showRequestsDialog,
-                              ),
-                              const SizedBox(width: 8),
-                            ]
-                          : [
-                              CashierNotificationBell(
-                                pendingRequests: _pendingRequests,
-                                onOpenRequestsModal: _showRequestsDialog,
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.receipt_long, color: Color(0xFF18314F)),
-                                onPressed: _openSalesHistory,
-                              ),
-                              const SizedBox(width: 8),
-                            ])
-                      : [
-                          CashierNotificationBell(
-                            pendingRequests: _pendingRequests,
-                            onOpenRequestsModal: _showRequestsDialog,
-                          ),
-                          const SizedBox(width: 8),
-                        ]),
-            ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF18314F)))
-          : tabs[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            )
-          ],
         ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() {
-            _currentIndex = index;
-            if (index != 3) {
-              _showSalesHistory = false;
-            }
-            if (index == 3 || index == 2) {
-              _selectedCategory = "All";
-            }
-          }),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFF18314F),
-          unselectedItemColor: PiggyTrunkTheme.ptMuted,
-          selectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 11),
-          unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11),
-          elevation: 0,
-          items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.grid_view_rounded),
-              activeIcon: Icon(Icons.grid_view_rounded),
-              label: 'Dashboard',
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+          ),
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: _brandColor,
+            unselectedItemColor: const Color(0xFF909BB0),
+            selectedLabelStyle: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
             ),
-            BottomNavigationBarItem(
-              icon: _pendingRequests.where((r) => (r['status'] as String? ?? 'Pending').toLowerCase() == 'pending').isNotEmpty
-                  ? Badge(
-                      label: Text('${_pendingRequests.where((r) => (r['status'] as String? ?? 'Pending').toLowerCase() == 'pending').length}'),
-                      child: const Icon(Icons.assignment_outlined),
-                    )
-                  : const Icon(Icons.assignment_outlined),
-              activeIcon: _pendingRequests.where((r) => (r['status'] as String? ?? 'Pending').toLowerCase() == 'pending').isNotEmpty
-                  ? Badge(
-                      label: Text('${_pendingRequests.where((r) => (r['status'] as String? ?? 'Pending').toLowerCase() == 'pending').length}'),
-                      child: const Icon(Icons.assignment),
-                    )
-                  : const Icon(Icons.assignment),
-              label: 'Requests',
+            unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.inventory_2_outlined),
-              activeIcon: Icon(Icons.inventory_2),
-              label: 'Inventory',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.calculate_outlined),
-              activeIcon: Icon(Icons.calculate),
-              label: 'POS',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
+            elevation: 0,
+            items: [
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                activeIcon: Icon(Icons.home_rounded),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Badge(
+                  isLabelVisible: _pendingRequests
+                      .where((r) => r['status'] == 'Pending')
+                      .isNotEmpty,
+                  label: Text(
+                    '${_pendingRequests.where((r) => r['status'] == 'Pending').length}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                  backgroundColor: Colors.red,
+                  child: const Icon(Icons.assignment_outlined),
+                ),
+                activeIcon: const Icon(Icons.assignment_rounded),
+                label: 'Requests',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.inventory_2_outlined),
+                activeIcon: Icon(Icons.inventory_2_rounded),
+                label: 'Inventory',
+              ),
+              BottomNavigationBarItem(
+                icon: Badge(
+                  isLabelVisible: _currentOrder.items.isNotEmpty,
+                  label: Text(
+                    '${_currentOrder.totalItems}',
+                    style: const TextStyle(fontSize: 10, color: Colors.white),
+                  ),
+                  backgroundColor: const Color(0xFF10B981),
+                  child: const Icon(Icons.point_of_sale_outlined),
+                ),
+                activeIcon: const Icon(Icons.point_of_sale_rounded),
+                label: 'POS',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline_rounded),
+                activeIcon: Icon(Icons.person_rounded),
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 }
