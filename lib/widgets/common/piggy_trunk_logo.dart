@@ -102,4 +102,6 @@ class LogoSize {
   static const double large = 80.0;
   static const double xlarge = 120.0;
   static const double extraLarge = 120.0;
+  static const double display = 180.0;
+  static const double hero = 200.0;
 }

@@ -7,6 +7,7 @@ enum SlideOverActionType {
   success,  // For Approval, Activation (Green)
   warning,  // For Status Change, Archive, Reset (Amber)
   info,     // For Confirmation (Blue)
+  primary,  // Brand Primary (Navy in Light / White in Dark)
 }
 
 /// Universal Slide-Over Right Drawer for Action Confirmations
@@ -153,6 +154,11 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
         actionAccent = const Color(0xFF2563EB);
         actionLightBg = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE);
         defaultIcon = Icons.help_outline_rounded;
+        break;
+      case SlideOverActionType.primary:
+        actionAccent = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+        actionLightBg = isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD);
+        defaultIcon = Icons.archive_outlined;
         break;
     }
 
@@ -367,7 +373,7 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                         onPressed: () => Navigator.of(context).pop(true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: actionAccent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: actionType == SlideOverActionType.primary && isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -377,7 +383,7 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                           style: AppTextStyles.jakarta(
                             size: 13.5,
                             weight: FontWeight.w800,
-                            color: Colors.white,
+                            color: actionType == SlideOverActionType.primary && isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                           ),
                         ),
                       ),
@@ -636,7 +642,7 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                         onPressed: () => Navigator.of(context).pop(true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: actionAccent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: actionType == SlideOverActionType.primary && isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                           elevation: 0,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(
@@ -648,7 +654,7 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
                           style: AppTextStyles.jakarta(
                             size: 13.5,
                             weight: FontWeight.w700,
-                            color: Colors.white,
+                            color: actionType == SlideOverActionType.primary && isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                           ),
                         ),
                       ),

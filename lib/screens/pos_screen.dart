@@ -10,6 +10,7 @@ import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../main.dart';
+import 'best_sellers_screen.dart';
 
 class POSScreen extends StatefulWidget {
   const POSScreen({super.key});
@@ -127,6 +128,13 @@ class _POSScreenState extends State<POSScreen> {
 
   List<POSProduct> _productsByCategory(String category) {
     return _products.where((p) => p.category.toLowerCase() == category.toLowerCase()).toList();
+  }
+
+  bool _isProductTopSeller(POSProduct product) {
+    if (product.sold <= 0) return false;
+    final sorted = List<POSProduct>.from(_products)..sort((a, b) => b.sold.compareTo(a.sold));
+    final topRank = sorted.indexWhere((p) => p.id == product.id);
+    return topRank >= 0 && topRank < 3;
   }
 
   void _clearOrder() {
@@ -327,6 +335,43 @@ class _POSScreenState extends State<POSScreen> {
                   'POS',
                   style: AppTextStyles.sectionTitle(_text),
                 ),
+                InkWell(
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => BestSellersScreen(initialProducts: _products),
+                      ),
+                    );
+                    _loadProductsFromInventory();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9.5),
+                    decoration: BoxDecoration(
+                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.12 : 0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'Best Sellers',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -405,13 +450,13 @@ class _POSScreenState extends State<POSScreen> {
 
                   if (width > 850) {
                     crossAxisCount = 2;
-                    childAspectRatio = 2.2;
+                    childAspectRatio = 1.9;
                   } else if (width > 550) {
                     crossAxisCount = 2;
-                    childAspectRatio = 1.95;
+                    childAspectRatio = 1.7;
                   } else {
                     crossAxisCount = 1;
-                    childAspectRatio = 2.2;
+                    childAspectRatio = 1.9;
                   }
 
                   return GridView.builder(
@@ -437,6 +482,7 @@ class _POSScreenState extends State<POSScreen> {
 
   Widget _buildPOSProductCard(POSProduct product) {
     final isOutOfStock = product.units <= 0;
+    final isTopSeller = _isProductTopSeller(product);
     final isMobile = Responsive.isMobile(context);
     final double imgSize = isMobile ? 85.0 : 110.0;
 
@@ -450,29 +496,61 @@ class _POSScreenState extends State<POSScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left Column: Square Product Image (1:1 Ratio)
-          Container(
-            width: imgSize,
-            height: imgSize,
-            decoration: BoxDecoration(
-              color: _bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _border.withValues(alpha: 0.8)),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: product.image != null && product.image!.isNotEmpty
-                  ? Image.network(
-                      product.image!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Center(
-                        child: Icon(Icons.broken_image_outlined, color: _muted, size: 28),
-                      ),
-                    )
-                  : Center(
-                      child: Icon(Icons.image_outlined, color: _muted, size: 28),
+          // Left Column: Square Product Image (1:1 Ratio) with Optional TOP Badge
+          Stack(
+            children: [
+              Container(
+                width: imgSize,
+                height: imgSize,
+                decoration: BoxDecoration(
+                  color: _bg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _border.withValues(alpha: 0.8)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: product.image != null && product.image!.isNotEmpty
+                      ? Image.network(
+                          product.image!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Icon(Icons.broken_image_outlined, color: _muted, size: 28),
+                          ),
+                        )
+                      : Center(
+                          child: Icon(Icons.image_outlined, color: _muted, size: 28),
+                        ),
+                ),
+              ),
+              if (isTopSeller)
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
-            ),
+                    child: Text(
+                      'TOP',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           SizedBox(width: isMobile ? 10 : 12),
           // Right Column: Product Details & Actions
@@ -483,21 +561,22 @@ class _POSScreenState extends State<POSScreen> {
               children: [
                 // Top Row: Title + Stock Status Badge
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Text(
                         product.name,
                         style: AppTextStyles.jakarta(
-                          size: isMobile ? 13 : 14,
+                          size: isMobile ? 12.5 : 13.5,
                           weight: FontWeight.w800,
                           color: _text,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: isMobile ? 3 : 4),
                       decoration: BoxDecoration(
@@ -619,18 +698,30 @@ class _POSScreenState extends State<POSScreen> {
                               duration: const Duration(milliseconds: 800),
                             );
                           },
-                    icon: const Icon(Icons.add_shopping_cart, size: 14),
+                    icon: Icon(
+                      Icons.add_shopping_cart,
+                      size: 14,
+                      color: isOutOfStock
+                          ? (_isDark ? Colors.white54 : Colors.white70)
+                          : (_isDark ? const Color(0xFF0F1C2F) : Colors.white),
+                    ),
                     label: Text(
                       isOutOfStock ? 'Out of Stock' : '+ Add to Order',
                       style: AppTextStyles.jakarta(
                         size: 12,
                         weight: FontWeight.w700,
-                        color: Colors.white,
+                        color: isOutOfStock
+                            ? (_isDark ? Colors.white54 : Colors.white70)
+                            : (_isDark ? const Color(0xFF0F1C2F) : Colors.white),
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isOutOfStock ? Colors.grey : PiggyTrunkTheme.ptPrimary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: isOutOfStock
+                          ? (_isDark ? const Color(0xFF334155) : Colors.grey)
+                          : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
+                      foregroundColor: isOutOfStock
+                          ? (_isDark ? Colors.white54 : Colors.white70)
+                          : (_isDark ? const Color(0xFF0F1C2F) : Colors.white),
                       padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 10),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

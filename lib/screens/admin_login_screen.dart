@@ -12,7 +12,8 @@ class AdminLoginScreen extends StatefulWidget {
   State<AdminLoginScreen> createState() => _AdminLoginScreenState();
 }
 
-class _AdminLoginScreenState extends State<AdminLoginScreen> {
+class _AdminLoginScreenState extends State<AdminLoginScreen>
+    with SingleTickerProviderStateMixin {
   static const Color _loginBg = Colors.white;
   static const Color _brandPanelBg = Color(0xFFE0E6EF);
   static const Color _brandColor = Color(0xFF18314F);
@@ -22,6 +23,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   late TextEditingController _passwordController;
   late FocusNode _emailFocus;
   late FocusNode _passwordFocus;
+
+  late final AnimationController _logoController;
+  late final Animation<double> _logoFloatAnimation;
 
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
@@ -41,6 +45,18 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     _passwordController = TextEditingController();
     _emailFocus = FocusNode();
     _passwordFocus = FocusNode();
+
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
+
+    _logoFloatAnimation = Tween<double>(begin: -8.0, end: 8.0).animate(
+      CurvedAnimation(
+        parent: _logoController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
 
     _loadRememberedCredentials();
 
@@ -68,6 +84,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
   @override
   void dispose() {
+    _logoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _emailFocus.dispose();
@@ -206,10 +223,50 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Top Brand Header for Mobile
-                  PiggyTrunkLogo(
-                    size: LogoSize.large,
-                    withBorder: false,
+                  // Top Brand Header for Mobile (Mobile-style Levitation & Shadow)
+                  AnimatedBuilder(
+                    animation: _logoController,
+                    builder: (context, child) {
+                      final floatY = _logoController.isAnimating ? _logoFloatAnimation.value * 0.7 : 0.0;
+                      final double t = ((floatY + 5.6) / 11.2).clamp(0.0, 1.0);
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Transform.translate(
+                            offset: Offset(0, floatY),
+                            child: const PiggyTrunkLogo(
+                              size: 96,
+                              withBorder: false,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          // Mobile Photorealistic Ambient Floor Shadow
+                          Opacity(
+                            opacity: (0.16 + 0.14 * t).clamp(0.08, 0.40),
+                            child: Transform.scale(
+                              scaleX: 0.88 + 0.24 * (1.0 - t),
+                              scaleY: 0.85 + 0.20 * (1.0 - t),
+                              child: Container(
+                                width: 80,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: _brandColor.withValues(alpha: 0.4),
+                                  borderRadius: const BorderRadius.all(Radius.elliptical(80, 12)),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _brandColor.withValues(alpha: 0.30),
+                                      blurRadius: 16,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -598,9 +655,51 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   Widget _buildBrandLogoCard() {
-    return PiggyTrunkLogo(
-      size: LogoSize.extraLarge,
-      withBorder: false,
+    return AnimatedBuilder(
+      animation: _logoController,
+      builder: (context, child) {
+        final floatY = _logoController.isAnimating ? _logoFloatAnimation.value : 0.0;
+        // Normalized t: 0.0 when top (-8px), 1.0 when bottom (+8px)
+        final double t = ((floatY + 8.0) / 16.0).clamp(0.0, 1.0);
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Levitating Enlarged Logo
+            Transform.translate(
+              offset: Offset(0, floatY),
+              child: const PiggyTrunkLogo(
+                size: LogoSize.hero,
+                withBorder: false,
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Photorealistic Soft Ambient Floor Shadow (Matching Mobile App)
+            Opacity(
+              opacity: (0.18 + 0.16 * t).clamp(0.08, 0.45),
+              child: Transform.scale(
+                scaleX: 0.88 + 0.24 * (1.0 - t),
+                scaleY: 0.85 + 0.20 * (1.0 - t),
+                child: Container(
+                  width: 135,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: _brandColor.withValues(alpha: 0.4),
+                    borderRadius: const BorderRadius.all(Radius.elliptical(135, 18)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandColor.withValues(alpha: 0.35),
+                        blurRadius: 22,
+                        spreadRadius: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

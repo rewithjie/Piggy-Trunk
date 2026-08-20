@@ -7,7 +7,7 @@ import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
 import '../widgets/batch/batch_detail_drawer.dart';
-import '../widgets/batch/batch_form_drawer.dart';
+import '../widgets/batch/batch_form_view.dart';
 import '../widgets/batch/batch_table_view.dart';
 import '../main.dart';
 
@@ -24,6 +24,8 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
   List<Map<String, dynamic>> _batchesList = [];
   List<Map<String, dynamic>> _activeRaisers = [];
   bool _isLoading = true;
+  bool _showBatchForm = false;
+  Map<String, dynamic>? _editingBatch;
   String _searchQuery = '';
   String _selectedStatusFilter = 'ALL';
 
@@ -204,62 +206,71 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
                             color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
                           ),
                         )
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(isMobile ? 12 : 20),
-                          child: Center(
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 1350),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [_panelStart, _panelEnd],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                                border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 14 : 34,
-                                vertical: isMobile ? 16 : 32,
-                              ),
-                              child: BatchTableView(
-                                batches: _batchesList,
-                                searchQuery: _searchQuery,
-                                selectedStatusFilter: _selectedStatusFilter,
-                                onSearchChanged: (val) => setState(() => _searchQuery = val),
-                                onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
-                                onCreateBatch: () => BatchFormDrawer.show(
-                                  context: context,
-                                  activeRaisers: _activeRaisers,
-                                  onBatchSaved: _loadData,
-                                  onShowSnackBar: _showThemedSnackBar,
-                                ),
-                                onViewDetails: (batch) => BatchDetailDrawer.show(
-                                  context: context,
-                                  batch: batch,
-                                  onEdit: () => BatchFormDrawer.show(
-                                    context: context,
-                                    existingBatch: batch,
-                                    activeRaisers: _activeRaisers,
-                                    onBatchSaved: _loadData,
-                                    onShowSnackBar: _showThemedSnackBar,
+                      : _showBatchForm
+                          ? BatchFormView(
+                              onCancel: () => setState(() {
+                                _showBatchForm = false;
+                                _editingBatch = null;
+                              }),
+                              onBatchSaved: () {
+                                setState(() {
+                                  _showBatchForm = false;
+                                  _editingBatch = null;
+                                });
+                                _loadData();
+                              },
+                              existingBatch: _editingBatch,
+                              activeRaisers: _activeRaisers,
+                              onShowSnackBar: _showThemedSnackBar,
+                            )
+                          : SingleChildScrollView(
+                              padding: EdgeInsets.all(isMobile ? 12 : 20),
+                              child: Center(
+                                child: Container(
+                                  constraints: const BoxConstraints(maxWidth: 1350),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [_panelStart, _panelEnd],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    border: Border.all(color: _panelBorder, width: 1),
+                                    borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
                                   ),
-                                  onArchive: () => _archiveBatch(batch),
-                                  onDelete: () => _deleteBatch(batch),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 14 : 34,
+                                    vertical: isMobile ? 16 : 32,
+                                  ),
+                                  child: BatchTableView(
+                                    batches: _batchesList,
+                                    searchQuery: _searchQuery,
+                                    selectedStatusFilter: _selectedStatusFilter,
+                                    onSearchChanged: (val) => setState(() => _searchQuery = val),
+                                    onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
+                                    onCreateBatch: () => setState(() {
+                                      _showBatchForm = true;
+                                      _editingBatch = null;
+                                    }),
+                                    onViewDetails: (batch) => BatchDetailDrawer.show(
+                                      context: context,
+                                      batch: batch,
+                                      onEdit: () => setState(() {
+                                        _showBatchForm = true;
+                                        _editingBatch = batch;
+                                      }),
+                                      onArchive: () => _archiveBatch(batch),
+                                      onDelete: () => _deleteBatch(batch),
+                                    ),
+                                    onEditBatch: (batch) => setState(() {
+                                      _showBatchForm = true;
+                                      _editingBatch = batch;
+                                    }),
+                                    onArchiveBatch: _archiveBatch,
+                                    onDeleteBatch: _deleteBatch,
+                                  ),
                                 ),
-                                onEditBatch: (batch) => BatchFormDrawer.show(
-                                  context: context,
-                                  existingBatch: batch,
-                                  activeRaisers: _activeRaisers,
-                                  onBatchSaved: _loadData,
-                                  onShowSnackBar: _showThemedSnackBar,
-                                ),
-                                onArchiveBatch: _archiveBatch,
-                                onDeleteBatch: _deleteBatch,
                               ),
                             ),
-                          ),
-                        ),
                 ),
               ],
             ),

@@ -7,7 +7,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
-import '../widgets/investment/investment_drawer.dart';
+import '../widgets/investment/investment_form_view.dart';
 import '../widgets/investment/investment_table_view.dart';
 import '../main.dart';
 
@@ -22,6 +22,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Investment> investments = [];
   bool _isLoading = true;
+  bool _showInvestmentForm = false;
+  Investment? _editingInvestment;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
@@ -129,43 +131,56 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(isMobile ? 12 : 20),
-                          child: Center(
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 1350),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [_panelStart, _panelEnd],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
+                      : _showInvestmentForm
+                          ? InvestmentFormView(
+                              onCancel: () => setState(() {
+                                _showInvestmentForm = false;
+                                _editingInvestment = null;
+                              }),
+                              onSaved: () {
+                                setState(() {
+                                  _showInvestmentForm = false;
+                                  _editingInvestment = null;
+                                });
+                                _loadInvestments();
+                              },
+                              existingInvestment: _editingInvestment,
+                              onShowSnackBar: _showThemedSnackBar,
+                            )
+                          : SingleChildScrollView(
+                              padding: EdgeInsets.all(isMobile ? 12 : 20),
+                              child: Center(
+                                child: Container(
+                                  constraints: const BoxConstraints(maxWidth: 1350),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [_panelStart, _panelEnd],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    border: Border.all(color: _panelBorder, width: 1),
+                                    borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 14 : 34,
+                                    vertical: isMobile ? 16 : 32,
+                                  ),
+                                  child: InvestmentTableView(
+                                    investments: investments,
+                                    onAddInvestment: () => setState(() {
+                                      _showInvestmentForm = true;
+                                      _editingInvestment = null;
+                                    }),
+                                    onEditInvestment: (item) => setState(() {
+                                      _showInvestmentForm = true;
+                                      _editingInvestment = item;
+                                    }),
+                                    onArchiveInvestment: _archiveInvestment,
+                                    onDeleteInvestment: _deleteInvestment,
+                                  ),
                                 ),
-                                border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 14 : 34,
-                                vertical: isMobile ? 16 : 32,
-                              ),
-                              child: InvestmentTableView(
-                                investments: investments,
-                                onAddInvestment: () => InvestmentDrawer.show(
-                                  context: context,
-                                  onSaved: _loadInvestments,
-                                  onShowSnackBar: _showThemedSnackBar,
-                                ),
-                                onEditInvestment: (item) => InvestmentDrawer.show(
-                                  context: context,
-                                  existingInvestment: item,
-                                  onSaved: _loadInvestments,
-                                  onShowSnackBar: _showThemedSnackBar,
-                                ),
-                                onArchiveInvestment: _archiveInvestment,
-                                onDeleteInvestment: _deleteInvestment,
                               ),
                             ),
-                          ),
-                        ),
                 ),
               ],
             ),

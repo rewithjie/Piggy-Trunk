@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/responsive.dart';
 
 class ProductRestockDialog {
   static void show({
@@ -38,11 +39,16 @@ class ProductRestockDialog {
     bool isSubmittingRestock = false;
     String? restockError;
 
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (dialogCtx) {
+      barrierDismissible: true,
+      barrierLabel: isSpecificProduct ? 'Restock Product' : 'Restock Inventory',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogCtx, animation, secondaryAnimation) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        final isMobile = Responsive.isMobile(dialogCtx);
         final screenHeight = MediaQuery.of(dialogCtx).size.height;
         final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
         final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
@@ -54,48 +60,65 @@ class ProductRestockDialog {
         final cardBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF0F6FF);
         final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC);
 
-        return StatefulBuilder(
-          builder: (stfCtx, setDialogState) {
-            final addUnits = int.tryParse(quantityCtrl.text.trim()) ?? 0;
-            final projectedStock = selectedProduct.units + addUnits;
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: isMobile ? const Offset(0.0, 1.0) : const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: Align(
+            alignment: isMobile ? Alignment.bottomCenter : Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: StatefulBuilder(
+                builder: (stfCtx, setDialogState) {
+                  final addUnits = int.tryParse(quantityCtrl.text.trim()) ?? 0;
+                  final projectedStock = selectedProduct.units + addUnits;
 
-            return Container(
-              height: screenHeight * 0.85,
-              decoration: BoxDecoration(
-                color: drawerBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
-                    blurRadius: 24,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Drag Handle
-                    Center(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 12, bottom: 6),
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(10),
+                  return Container(
+                    width: isMobile ? double.infinity : 440,
+                    height: isMobile ? screenHeight * 0.85 : double.infinity,
+                    decoration: BoxDecoration(
+                      color: drawerBg,
+                      borderRadius: isMobile
+                          ? const BorderRadius.vertical(top: Radius.circular(24))
+                          : const BorderRadius.horizontal(left: Radius.circular(20)),
+                      border: isMobile
+                          ? Border(top: BorderSide(color: borderColor, width: 1.2))
+                          : Border(left: BorderSide(color: borderColor, width: 1.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          blurRadius: 24,
+                          offset: isMobile ? const Offset(0, -4) : const Offset(-4, 0),
                         ),
-                      ),
+                      ],
                     ),
+                    child: SafeArea(
+                      top: !isMobile,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isMobile) ...[
+                            // Top Drag Handle for mobile only
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 12, bottom: 6),
+                                width: 44,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
 
-                    // Top Header
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
-                      ),
+                          // Top Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                            ),
                             child: Row(
                               children: [
                                 Container(
@@ -110,7 +133,7 @@ class ProductRestockDialog {
                                   ),
                                   child: Icon(
                                     Icons.add_shopping_cart_rounded,
-                                    color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                     size: 20,
                                   ),
                                 ),
@@ -184,7 +207,7 @@ class ProductRestockDialog {
                                                   style: GoogleFonts.plusJakartaSans(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w700,
-                                                    color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                                                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                                   ),
                                                 ),
                                               ),
@@ -313,7 +336,7 @@ class ProductRestockDialog {
                                       prefixIcon: Icon(
                                         Icons.add_circle_outline_rounded,
                                         size: 18,
-                                        color: isDark ? const Color(0xFF60A5FA) : mutedColor,
+                                        color: isDark ? Colors.white : mutedColor,
                                       ),
                                       filled: true,
                                       fillColor: fieldBg,
@@ -401,8 +424,8 @@ class ProductRestockDialog {
                                     child: Text(
                                       'Cancel',
                                       style: GoogleFonts.plusJakartaSans(
-                                        color: titleColor,
-                                        fontWeight: FontWeight.w700,
+                                        color: mutedColor,
+                                        fontWeight: FontWeight.w600,
                                         fontSize: 13.5,
                                       ),
                                     ),
@@ -415,9 +438,8 @@ class ProductRestockDialog {
                                     onPressed: isSubmittingRestock
                                         ? null
                                         : () async {
-                                            final inputVal = quantityCtrl.text.trim();
-                                            final units = int.tryParse(inputVal);
-                                            if (units == null || units <= 0) {
+                                            final addUnits = int.tryParse(quantityCtrl.text.trim());
+                                            if (addUnits == null || addUnits <= 0) {
                                               setDialogState(() {
                                                 restockError = 'Please enter a valid quantity greater than 0.';
                                               });
@@ -425,12 +447,13 @@ class ProductRestockDialog {
                                             }
 
                                             setDialogState(() {
-                                              isSubmittingRestock = true;
                                               restockError = null;
+                                              isSubmittingRestock = true;
                                             });
 
                                             try {
-                                              final newUnits = selectedProduct.units + units;
+                                              final newUnits = selectedProduct.units + addUnits;
+
                                               await Supabase.instance.client
                                                   .from('inventory_products')
                                                   .update({'units': newUnits})
@@ -441,8 +464,8 @@ class ProductRestockDialog {
                                                 productName: selectedProduct.name,
                                                 action: 'RESTOCK',
                                                 price: selectedProduct.price,
-                                                units: newUnits,
-                                                details: 'Restocked +$units units. Previous: ${selectedProduct.units}, New: $newUnits.',
+                                                units: addUnits,
+                                                details: 'Added $addUnits units to stock. Total is now $newUnits units.',
                                               );
 
                                               if (!dialogCtx.mounted) return;
@@ -450,7 +473,7 @@ class ProductRestockDialog {
                                               onProductsReload();
 
                                               onShowSnackBar(
-                                                'Successfully restocked +$units units to ${selectedProduct.name}.',
+                                                'Successfully added $addUnits units to "${selectedProduct.name}".',
                                                 backgroundColor: PiggyTrunkTheme.ptSuccess,
                                               );
                                             } catch (e) {
@@ -501,8 +524,11 @@ class ProductRestockDialog {
                     ),
                   );
                 },
-              );
-            },
-          );
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

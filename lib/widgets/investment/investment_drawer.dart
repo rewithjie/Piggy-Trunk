@@ -277,6 +277,10 @@ class InvestmentDrawer {
                                   DropdownButtonFormField<String>(
                                     initialValue: selectedBatchId,
                                     isExpanded: true,
+                                    hint: Text(
+                                      'Select a batch to fund',
+                                      style: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 13.5, fontWeight: FontWeight.w500),
+                                    ),
                                     decoration: InputDecoration(
                                       filled: true,
                                       fillColor: fieldBg,
@@ -334,18 +338,6 @@ class InvestmentDrawer {
                                       });
                                     },
                                   ),
-                                  if (parsedBatches.isEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'No farm batches found. Investment will be allocated to the General Pool.',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.5,
-                                        color: hintText,
-                                        fontWeight: FontWeight.w500,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ],
                                   const SizedBox(height: 18),
 
                                   // Capital
@@ -370,8 +362,18 @@ class InvestmentDrawer {
                                     decoration: InputDecoration(
                                       hintText: '0.00',
                                       hintStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14),
-                                      prefixText: '₱ ',
-                                      prefixStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14, fontWeight: FontWeight.bold),
+                                      prefixIcon: Container(
+                                        width: 40,
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          '₱',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
                                       filled: true,
                                       fillColor: fieldBg,
                                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -644,8 +646,12 @@ class InvestmentDrawer {
             Checkbox(
               value: isSelected,
               onChanged: onChanged,
-              activeColor: isDark ? const Color(0xFF2563EB) : PiggyTrunkTheme.ptPrimary,
-              checkColor: Colors.white,
+              activeColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+              checkColor: isDark ? const Color(0xFF132238) : Colors.white,
+              side: BorderSide(
+                color: isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096),
+                width: 1.5,
+              ),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
             Text(

@@ -27,20 +27,30 @@ class NotificationFilterBar extends StatelessWidget {
         : (isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD));
     final fg = isSelected
         ? (isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF5D7391));
+        : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569));
     final border = isSelected
         ? Colors.transparent
-        : (isDark ? const Color(0xFF28405D) : const Color(0xFFB4C9E6));
+        : (isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3));
 
     return InkWell(
       onTap: () => onFilterChanged(filterKey),
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: border),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.18),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
@@ -56,6 +66,8 @@ class NotificationFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final brandColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -84,20 +96,20 @@ class NotificationFilterBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.08),
+                color: brandColor.withValues(alpha: isDark ? 0.12 : 0.08),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                  color: brandColor.withValues(alpha: 0.25),
                   width: 1,
                 ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.done_all_rounded,
                     size: 14,
-                    color: Color(0xFF2563EB),
+                    color: brandColor,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -105,7 +117,7 @@ class NotificationFilterBar extends StatelessWidget {
                     style: AppTextStyles.jakarta(
                       size: 11.5,
                       weight: FontWeight.w700,
-                      color: const Color(0xFF2563EB),
+                      color: brandColor,
                     ),
                   ),
                 ],

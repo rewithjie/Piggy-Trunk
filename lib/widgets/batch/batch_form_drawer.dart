@@ -258,67 +258,6 @@ class BatchFormDrawer {
                                       if (val != null) setDrawerState(() => selectedRaiserId = val);
                                     },
                                   ),
-                                  if (activeRaisers.isEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      'No registered raisers available. Batch will be saved as unassigned.',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.5,
-                                        color: hintText,
-                                        fontWeight: FontWeight.w500,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 24),
-
-                                  // Informational Card explaining Investment flow
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E3A5F).withValues(alpha: 0.3) : const Color(0xFFEFF6FF),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.3) : const Color(0xFFBFDBFE),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Icon(
-                                          Icons.info_outline_rounded,
-                                          size: 20,
-                                          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Investment & Hog Allocation Note',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Text(
-                                                'Capital, Hog Heads, and Pig Types are managed under Investment Management to prevent duplicate entries.',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: isDark ? const Color(0xFFBFDBFE) : const Color(0xFF1E40AF),
-                                                  height: 1.4,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),

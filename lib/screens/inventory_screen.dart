@@ -732,7 +732,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              _isArchiveMode ? Icons.inventory_2_rounded : Icons.archive_outlined,
+              _isArchiveMode ? Icons.arrow_back_rounded : Icons.archive_outlined,
               size: 16,
               color: _isArchiveMode
                   ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
@@ -740,7 +740,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
             const SizedBox(width: 6),
             Text(
-              _isArchiveMode ? 'Archived Mode' : 'View Archived',
+              _isArchiveMode ? 'Return to Inventory' : 'View Archived',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -1065,7 +1065,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ? 'Are you sure you want to restore "${product.name}" back to active inventory?'
           : 'Are you sure you want to archive "${product.name}"? It will be hidden from active inventory.',
       confirmButtonText: isRestore ? 'Restore Product' : 'Archive Product',
-      actionType: isRestore ? SlideOverActionType.success : SlideOverActionType.warning,
+      actionType: isRestore ? SlideOverActionType.success : SlideOverActionType.primary,
       customIcon: isRestore ? Icons.unarchive_outlined : Icons.archive_outlined,
     );
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_text_styles.dart';
+import '../../theme/app_theme.dart';
 import '../../models/admin_notification_model.dart';
 import '../../providers/admin_notifications_provider.dart';
 import '../slide_over_confirmation_drawer.dart';
@@ -17,7 +18,7 @@ class AdminNotificationDrawer extends ConsumerStatefulWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Notifications Drawer',
-      barrierColor: Colors.black.withValues(alpha: 0.4),
+      barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (ctx, anim1, anim2) {
         return const Align(
@@ -116,15 +117,16 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
     }).toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceColor = isDark ? const Color(0xff151f2e) : Colors.white;
-    final bgColor = isDark ? const Color(0xff0d1522) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xff28354a) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? const Color(0xffecf2ff) : const Color(0xFF0F172A);
-    final mutedColor = isDark ? const Color(0xff9cb0c9) : const Color(0xFF64748B);
+    final surfaceColor = isDark ? const Color(0xFF132238) : Colors.white;
+    final bgColor = isDark ? const Color(0xFF0F1A2A) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+    final textColor = isDark ? Colors.white : const Color(0xFF18314F);
+    final mutedColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
+    final brandPrimary = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
-    final drawerWidth = isMobile ? screenWidth : 400.0;
+    final drawerWidth = isMobile ? screenWidth : 420.0;
 
     return Material(
       color: Colors.transparent,
@@ -135,21 +137,21 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
           color: surfaceColor,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
+              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.16),
               blurRadius: 28,
               spreadRadius: 2,
               offset: const Offset(-4, 0),
             ),
           ],
           border: Border(
-            left: BorderSide(color: borderColor, width: 1),
+            left: BorderSide(color: borderColor, width: 1.2),
           ),
         ),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Clean Header
+              // Branded Header
               Container(
                 padding: EdgeInsets.fromLTRB(isMobile ? 16 : 20, 16, isMobile ? 12 : 16, 14),
                 decoration: BoxDecoration(
@@ -165,34 +167,49 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                       children: [
                         Row(
                           children: [
-                            Icon(
-                              Icons.notifications_outlined,
-                              color: textColor,
-                              size: 22,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF28405D) : const Color(0xFFBFDBFE),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.notifications_active_outlined,
+                                color: brandPrimary,
+                                size: 18,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'Notifications',
                               style: AppTextStyles.jakarta(
                                 size: 17,
-                                weight: FontWeight.w700,
+                                weight: FontWeight.w800,
                                 color: textColor,
                               ),
                             ),
                             if (unreadCount > 0) ...[
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                  color: brandPrimary.withValues(alpha: isDark ? 0.18 : 0.1),
                                   borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: brandPrimary.withValues(alpha: 0.25),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Text(
-                                  '$unreadCount',
+                                  '$unreadCount new',
                                   style: AppTextStyles.jakarta(
                                     size: 11,
                                     weight: FontWeight.w700,
-                                    color: const Color(0xFF2563EB),
+                                    color: brandPrimary,
                                   ),
                                 ),
                               ),
@@ -208,7 +225,7 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     NotificationFilterBar(
                       selectedFilter: _selectedFilter,
                       allNotifications: allNotifications,
@@ -220,10 +237,10 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                 ),
               ),
 
-              // Notifications List
+              // Notifications List / Empty State
               Expanded(
                 child: filteredNotifications.isEmpty
-                    ? _buildEmptyState(mutedColor, textColor)
+                    ? _buildEmptyState(isDark, mutedColor, textColor, borderColor)
                     : ListView.separated(
                         padding: EdgeInsets.symmetric(
                           horizontal: isMobile ? 12 : 16,
@@ -266,12 +283,20 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Total: ${allNotifications.length}',
-                        style: AppTextStyles.jakarta(
-                          size: 12,
-                          weight: FontWeight.w500,
-                          color: mutedColor,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Text(
+                          'Total: ${allNotifications.length} items',
+                          style: AppTextStyles.jakarta(
+                            size: 11.5,
+                            weight: FontWeight.w600,
+                            color: mutedColor,
+                          ),
                         ),
                       ),
                       InkWell(
@@ -328,35 +353,110 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
     );
   }
 
-  Widget _buildEmptyState(Color mutedColor, Color textColor) {
+  Widget _buildEmptyState(bool isDark, Color mutedColor, Color textColor, Color borderColor) {
+    final brandPrimary = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final ringOuter = isDark ? const Color(0xFF1E2F47).withValues(alpha: 0.6) : const Color(0xFFEEF4FD);
+    final ringInner = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9);
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.notifications_none_rounded,
-              size: 40,
-              color: mutedColor.withValues(alpha: 0.5),
+            // Layered concentric glowing badge
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: ringOuter,
+                border: Border.all(
+                  color: isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: brandPrimary.withValues(alpha: isDark ? 0.12 : 0.08),
+                    blurRadius: 24,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: ringInner,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334E6F) : const Color(0xFFCBD5E1),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.notifications_none_rounded,
+                      size: 30,
+                      color: brandPrimary,
+                    ),
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             Text(
-              'No notifications',
+              'All Caught Up!',
               style: AppTextStyles.jakarta(
-                size: 14,
-                weight: FontWeight.w600,
+                size: 16,
+                weight: FontWeight.w800,
                 color: textColor,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              'No new registrations or farm alerts right now.',
+              'No new registrations, farm alerts, or stock requests at the moment.',
               textAlign: TextAlign.center,
               style: AppTextStyles.jakarta(
-                size: 12,
+                size: 12.5,
                 weight: FontWeight.w400,
                 color: mutedColor,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF132238) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'System is up to date',
+                    style: AppTextStyles.jakarta(
+                      size: 11.5,
+                      weight: FontWeight.w600,
+                      color: mutedColor,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

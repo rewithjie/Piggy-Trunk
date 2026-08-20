@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/responsive.dart';
 
 class ProductEditDrawer {
   static const List<String> categoryOptions = <String>[
@@ -41,11 +42,16 @@ class ProductEditDrawer {
     String? stockError;
     bool isSaving = false;
 
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (dialogCtx) {
+      barrierDismissible: true,
+      barrierLabel: 'Edit Product Details',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 280),
+      pageBuilder: (dialogCtx, animation, secondaryAnimation) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        final isMobile = Responsive.isMobile(dialogCtx);
         final screenHeight = MediaQuery.of(dialogCtx).size.height;
         final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
         final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
@@ -55,45 +61,62 @@ class ProductEditDrawer {
         final fieldBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
         final fieldBorder = isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
 
-        return StatefulBuilder(
-          builder: (stfCtx, setDrawerState) {
-            return Container(
-              height: screenHeight * 0.88,
-              decoration: BoxDecoration(
-                color: drawerBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
-                    blurRadius: 24,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Drag Handle
-                    Center(
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 12, bottom: 6),
-                        width: 44,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(10),
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: isMobile ? const Offset(0.0, 1.0) : const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curvedAnimation),
+          child: Align(
+            alignment: isMobile ? Alignment.bottomCenter : Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: StatefulBuilder(
+                builder: (stfCtx, setDrawerState) {
+                  return Container(
+                    width: isMobile ? double.infinity : 440,
+                    height: isMobile ? screenHeight * 0.88 : double.infinity,
+                    decoration: BoxDecoration(
+                      color: drawerBg,
+                      borderRadius: isMobile
+                          ? const BorderRadius.vertical(top: Radius.circular(24))
+                          : const BorderRadius.horizontal(left: Radius.circular(20)),
+                      border: isMobile
+                          ? Border(top: BorderSide(color: borderColor, width: 1.2))
+                          : Border(left: BorderSide(color: borderColor, width: 1.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          blurRadius: 24,
+                          offset: isMobile ? const Offset(0, -4) : const Offset(-4, 0),
                         ),
-                      ),
+                      ],
                     ),
+                    child: SafeArea(
+                      top: !isMobile,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isMobile) ...[
+                            // Top Drag Handle for mobile only
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 12, bottom: 6),
+                                width: 44,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
 
-                    // Header
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      decoration: BoxDecoration(
-                        border: Border(bottom: BorderSide(color: borderColor, width: 1)),
-                      ),
+                          // Header
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            decoration: BoxDecoration(
+                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                            ),
                             child: Row(
                               children: [
                                 Container(
@@ -108,7 +131,7 @@ class ProductEditDrawer {
                                   ),
                                   child: Icon(
                                     Icons.edit_outlined,
-                                    color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                     size: 20,
                                   ),
                                 ),
@@ -213,11 +236,15 @@ class ProductEditDrawer {
                                             child: Container(
                                               padding: const EdgeInsets.all(7),
                                               decoration: BoxDecoration(
-                                                color: PiggyTrunkTheme.ptPrimary,
+                                                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                                 shape: BoxShape.circle,
-                                                border: Border.all(color: Colors.white, width: 2),
+                                                border: Border.all(color: isDark ? const Color(0xFF132238) : Colors.white, width: 2),
                                               ),
-                                              child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15),
+                                              child: Icon(
+                                                Icons.camera_alt_rounded,
+                                                color: isDark ? const Color(0xFF132238) : Colors.white,
+                                                size: 15,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -274,7 +301,7 @@ class ProductEditDrawer {
                                   ],
                                   const SizedBox(height: 16),
 
-                                  // Category & Stock Row
+                                  // Row: Category & Stock
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -450,7 +477,7 @@ class ProductEditDrawer {
                                       hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 13),
                                       filled: true,
                                       fillColor: fieldBg,
-                                      contentPadding: const EdgeInsets.all(14),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(10),
                                         borderSide: BorderSide(color: fieldBorder),
@@ -466,7 +493,7 @@ class ProductEditDrawer {
                             ),
                           ),
 
-                          // Docked Action Buttons
+                          // Docked Footer Buttons
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
@@ -480,7 +507,7 @@ class ProductEditDrawer {
                                     onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
                                     style: OutlinedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(vertical: 12),
-                                      side: BorderSide(color: borderColor),
+                                      side: BorderSide(color: borderColor, width: 1.2),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(10),
                                       ),
@@ -488,8 +515,8 @@ class ProductEditDrawer {
                                     child: Text(
                                       'Cancel',
                                       style: GoogleFonts.plusJakartaSans(
-                                        color: titleColor,
-                                        fontWeight: FontWeight.w700,
+                                        color: mutedColor,
+                                        fontWeight: FontWeight.w600,
                                         fontSize: 13.5,
                                       ),
                                     ),
@@ -612,8 +639,11 @@ class ProductEditDrawer {
                     ),
                   );
                 },
-              );
-            },
-          );
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
