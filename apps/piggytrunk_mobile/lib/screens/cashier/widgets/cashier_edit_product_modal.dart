@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierEditProductModal extends StatefulWidget {
   final POSProduct product;
@@ -166,6 +167,8 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
+                textCapitalization: TextCapitalization.words,
+                inputFormatters: const [CapitalizeWordsInputFormatter()],
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),
                 decoration: InputDecoration(
                   filled: true,
@@ -218,20 +221,23 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
                   );
                 }).toList(),
                 onChanged: (val) {
-                  if (val != null) setState(() => _selectedCategory = val);
+                  if (val != null) {
+                    setState(() => _selectedCategory = val);
+                  }
                 },
               ),
               const SizedBox(height: 14),
 
               // Price & Stock in Row
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Price / Unit (₱)',
+                          'Price (₱)',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -244,7 +250,6 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),
                           decoration: InputDecoration(
-                            prefixText: '₱ ',
                             filled: true,
                             fillColor: const Color(0xFFF5F8FE),
                             border: OutlineInputBorder(
@@ -272,7 +277,7 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Current Stock (Bags)',
+                          'Current Stock',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -323,6 +328,8 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
               TextFormField(
                 controller: _descController,
                 maxLines: 2,
+                textCapitalization: TextCapitalization.sentences,
+                inputFormatters: const [CapitalizeSentencesInputFormatter()],
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),
                 decoration: InputDecoration(
                   hintText: 'Specifications, notes...',

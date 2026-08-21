@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class ProductAddForm extends StatefulWidget {
   final VoidCallback onCancel;
@@ -214,6 +215,7 @@ class _ProductAddFormState extends State<ProductAddForm> {
     TextEditingController controller,
     String label, {
     TextInputType keyboardType = TextInputType.text,
+    TextCapitalization textCapitalization = TextCapitalization.none,
     List<TextInputFormatter>? inputFormatters,
     double minHeight = 0,
     bool withBottomPadding = true,
@@ -234,6 +236,7 @@ class _ProductAddFormState extends State<ProductAddForm> {
         controller: controller,
         enabled: enabled,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
         inputFormatters: inputFormatters,
         onChanged: onChanged,
         style: GoogleFonts.plusJakartaSans(
@@ -459,6 +462,8 @@ class _ProductAddFormState extends State<ProductAddForm> {
                               _buildInput(
                                 _nameCtrl,
                                 'e.g., Premium Hog Feed',
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: const [CapitalizeWordsInputFormatter()],
                                 hasError: _productNameError != null,
                                 onChanged: (_) {
                                   if (_productNameError != null) setState(() => _productNameError = null);
@@ -573,6 +578,8 @@ class _ProductAddFormState extends State<ProductAddForm> {
                     TextField(
                       controller: _descriptionCtrl,
                       maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      inputFormatters: const [CapitalizeSentencesInputFormatter()],
                       style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Add product details, usage instructions, or benefits...',

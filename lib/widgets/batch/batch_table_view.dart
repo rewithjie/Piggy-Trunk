@@ -7,6 +7,8 @@ class BatchTableView extends StatelessWidget {
   final List<Map<String, dynamic>> batches;
   final String searchQuery;
   final String selectedStatusFilter;
+  final String? errorMessage;
+  final VoidCallback? onRefresh;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onFilterChanged;
   final VoidCallback onCreateBatch;
@@ -20,6 +22,8 @@ class BatchTableView extends StatelessWidget {
     required this.batches,
     required this.searchQuery,
     required this.selectedStatusFilter,
+    this.errorMessage,
+    this.onRefresh,
     required this.onSearchChanged,
     required this.onFilterChanged,
     required this.onCreateBatch,
@@ -171,9 +175,21 @@ class BatchTableView extends StatelessWidget {
                                 border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.7))),
                               ),
                               child: Center(
-                                child: Text(
-                                  'No batches found matching criteria.',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'No batches found matching criteria.',
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
+                                    ),
+                                    if (errorMessage != null) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        errorMessage!,
+                                        style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.red),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                             )
@@ -337,6 +353,14 @@ class BatchTableView extends StatelessWidget {
         Expanded(flex: 3, child: searchField),
         const SizedBox(width: 16),
         Expanded(flex: 2, child: filterPills),
+        if (onRefresh != null) ...[
+          const SizedBox(width: 10),
+          IconButton(
+            onPressed: onRefresh,
+            icon: Icon(Icons.refresh_rounded, color: fieldFocus),
+            tooltip: 'Refresh Batches',
+          ),
+        ],
       ],
     );
   }

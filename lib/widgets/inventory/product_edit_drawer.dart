@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class ProductEditDrawer {
   static const List<String> categoryOptions = <String>[
@@ -266,6 +267,8 @@ class ProductEditDrawer {
                                   const SizedBox(height: 6),
                                   TextField(
                                     controller: nameCtrl,
+                                    textCapitalization: TextCapitalization.words,
+                                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                                     onChanged: (_) {
                                       if (nameError != null) setDrawerState(() => nameError = null);
                                     },
@@ -471,6 +474,8 @@ class ProductEditDrawer {
                                   TextField(
                                     controller: descriptionCtrl,
                                     maxLines: 3,
+                                    textCapitalization: TextCapitalization.sentences,
+                                    inputFormatters: const [CapitalizeSentencesInputFormatter()],
                                     style: GoogleFonts.plusJakartaSans(color: titleColor, fontSize: 13.5),
                                     decoration: InputDecoration(
                                       hintText: 'Enter optional product description...',

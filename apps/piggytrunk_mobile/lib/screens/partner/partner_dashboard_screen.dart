@@ -12,6 +12,7 @@ import 'tabs/partner_my_projects_tab.dart';
 import 'tabs/partner_activities_tab.dart';
 import 'tabs/partner_profile_tab.dart';
 import '../../services/auth_session_service.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class PartnerDashboardScreen extends StatefulWidget {
   const PartnerDashboardScreen({super.key});
@@ -241,6 +242,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                     controller: nameCtrl,
                     label: 'Buong Pangalan',
                     icon: Icons.person_outline_rounded,
+                    inputFormatters: const [],
                   ),
                   const SizedBox(height: 14),
                   _buildDialogInputField(
@@ -375,13 +377,17 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     required String label,
     required IconData icon,
     TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.words,
     List<TextInputFormatter>? inputFormatters,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveFormatters = inputFormatters ??
+        (keyboardType == TextInputType.phone ? null : const [CapitalizeWordsInputFormatter()]);
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
+      inputFormatters: effectiveFormatters,
       style: GoogleFonts.plusJakartaSans(
         color: isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F),
         fontWeight: FontWeight.w600,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/investment_model.dart';
@@ -54,13 +55,25 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Future<void> _loadInvestments() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _supabase
-          .from('investment_records')
-          .select('*, hog_raisers(name, app_users!hog_raisers_user_id_fkey(name))')
-          .order('investment_date', ascending: false);
+      dynamic response;
+      try {
+        response = await _supabase
+            .from('investment_records')
+            .select('*, hog_raisers(name, app_users(name))');
+      } catch (e1) {
+        debugPrint('Notice joining hog_raisers on investment_records: $e1. Retrying basic...');
+        try {
+          response = await _supabase
+              .from('investment_records')
+              .select('*, hog_raisers(name)');
+        } catch (e2) {
+          debugPrint('Notice loading with hog_raisers: $e2. Retrying plain select...');
+          response = await _supabase.from('investment_records').select('*');
+        }
+      }
 
       final List<Investment> loaded = [];
-      for (var row in response as List) {
+      for (var row in (response as List? ?? [])) {
         final rMap = Map<String, dynamic>.from(row as Map);
         final raiser = rMap['hog_raisers'] as Map<String, dynamic>?;
         final appUsers = raiser?['app_users'] as Map<String, dynamic>?;
@@ -87,15 +100,35 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
   void _showThemedSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: isError ? Colors.red : PiggyTrunkTheme.ptSuccess,
+        backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 4),
       ),
     );
   }

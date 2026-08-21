@@ -143,6 +143,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final targetUser = _users.firstWhere((u) => u['user_id'] == userId, orElse: () => <String, dynamic>{});
     final userEmail = email ?? targetUser['email']?.toString() ?? '';
     final userRole = role ?? targetUser['role']?.toString() ?? 'User';
+    final avatarUrl = (targetUser['avatar_url'] ?? targetUser['profile_picture'] ?? targetUser['photo_url'])?.toString();
 
     final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
@@ -152,6 +153,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       userName: name,
       userEmail: userEmail,
       userRole: userRole,
+      avatarUrl: avatarUrl,
       confirmButtonText: 'Yes, Approve',
       cancelButtonText: 'Cancel',
     );
@@ -238,6 +240,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final targetUser = _users.firstWhere((u) => u['user_id'] == userId, orElse: () => <String, dynamic>{});
     final userEmail = email ?? targetUser['email']?.toString() ?? '';
     final userRole = role ?? targetUser['role']?.toString() ?? 'User';
+    final avatarUrl = (targetUser['avatar_url'] ?? targetUser['profile_picture'] ?? targetUser['photo_url'])?.toString();
 
     final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
@@ -247,6 +250,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       userName: name,
       userEmail: userEmail,
       userRole: userRole,
+      avatarUrl: avatarUrl,
       confirmButtonText: 'Yes, Reject',
       cancelButtonText: 'Cancel',
     );
@@ -303,6 +307,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final targetUser = _users.firstWhere((u) => u['user_id'] == userId, orElse: () => <String, dynamic>{});
     final userEmail = email ?? targetUser['email']?.toString() ?? '';
     final userRole = role ?? targetUser['role']?.toString() ?? 'User';
+    final avatarUrl = (targetUser['avatar_url'] ?? targetUser['profile_picture'] ?? targetUser['photo_url'])?.toString();
 
     final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
@@ -312,6 +317,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       userName: name,
       userEmail: userEmail,
       userRole: userRole,
+      avatarUrl: avatarUrl,
       confirmButtonText: 'Yes, Suspend',
       cancelButtonText: 'Cancel',
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
@@ -28,6 +29,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
   Map<String, dynamic>? _editingBatch;
   String _searchQuery = '';
   String _selectedStatusFilter = 'ALL';
+  String? _loadError;
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
@@ -57,26 +59,30 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
 
   Future<void> _loadData() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
 
     try {
       // 1. Fetch batches
       List<dynamic> batchesData = [];
       try {
-        batchesData = await _supabase
-            .from('batches')
-            .select('batch_id, batch_name, date_created')
-            .order('date_created', ascending: false);
+        batchesData = await _supabase.from('batches').select('*');
       } catch (e) {
-        debugPrint('Error fetching batches: $e');
+        debugPrint('Error fetching batches with select(*): $e');
+        try {
+          batchesData = await _supabase.from('batches').select();
+        } catch (e2) {
+          debugPrint('Error fetching batches fallback: $e2');
+          _loadError = 'Batches query error: $e2';
+        }
       }
 
-      // 2. Fetch assignments
+      // 2. Fetch assignments directly
       List<dynamic> assignmentsData = [];
       try {
-        assignmentsData = await _supabase
-            .from('assignments')
-            .select('assignment_id, batch_id, hog_raiser_id, status, hog_raisers(name, hog_raiser_id)');
+        assignmentsData = await _supabase.from('assignments').select('*');
       } catch (e) {
         debugPrint('Error fetching assignments: $e');
       }
@@ -84,61 +90,98 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
       // 3. Fetch active authorized raisers
       List<dynamic> raisersData = [];
       try {
-        raisersData = await _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id, name, phone, email, status, account_status');
+        raisersData = await _supabase.from('hog_raisers').select('*');
       } catch (e) {
         debugPrint('Error fetching raisers: $e');
+      }
+
+      final Map<String, String> raiserMap = {};
+      final List<Map<String, dynamic>> parsedRaisers = [];
+      for (var r in raisersData) {
+        if (r is! Map) continue;
+        final rMap = Map<String, dynamic>.from(r);
+        final realPk = rMap['hog_raiser_id'] ?? rMap['id'];
+        if (realPk != null) {
+          final pkStr = realPk.toString();
+          
+          dynamic appUsersRaw = rMap['app_users'];
+          Map<String, dynamic>? appUsers;
+          if (appUsersRaw is Map) {
+            appUsers = Map<String, dynamic>.from(appUsersRaw);
+          } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+            appUsers = Map<String, dynamic>.from(appUsersRaw.first);
+          }
+
+          final gName = (appUsers?['name'] ?? '').toString().trim();
+          final rName = (rMap['name'] ?? '').toString().trim();
+          final resolvedName = (gName.isNotEmpty && gName.toLowerCase() != 'hog raiser')
+              ? gName
+              : (rName.isNotEmpty ? rName : 'Hog Raiser');
+
+          raiserMap[pkStr] = resolvedName;
+          parsedRaisers.add({
+            'id': realPk,
+            'name': resolvedName,
+            'phone': rMap['phone'] ?? 'N/A',
+            'email': appUsers?['email'] ?? '',
+          });
+        }
       }
 
       final List<Map<String, dynamic>> parsedBatches = [];
 
       for (var b in batchesData) {
-        final bMap = Map<String, dynamic>.from(b as Map);
-        final bId = bMap['batch_id'];
+        if (b is! Map) continue;
+        final bMap = Map<String, dynamic>.from(b);
+        final bId = bMap['batch_id'] ?? bMap['id'] ?? bMap['batch_number'] ?? bMap['batch_code'];
+        if (bId == null) continue;
 
-        // Find assignment for this batch
-        final matchingAssign = assignmentsData.firstWhere(
-          (a) => a['batch_id'] == bId && (a['status'] ?? '').toString().toLowerCase() == 'active',
-          orElse: () => assignmentsData.firstWhere(
-            (a) => a['batch_id'] == bId,
-            orElse: () => null,
-          ),
-        );
+        final rawStatus = (bMap['status'] ?? bMap['batch_status'] ?? '').toString().toLowerCase();
+        if (rawStatus == 'archived' || rawStatus == 'deleted') continue;
+
+        // Find assignment for this batch safely
+        Map<String, dynamic>? matchingAssign;
+        for (var a in assignmentsData) {
+          if (a is Map && (a['batch_id']?.toString() == bId.toString() || a['id']?.toString() == bId.toString())) {
+            if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
+              matchingAssign = Map<String, dynamic>.from(a);
+              break;
+            }
+            matchingAssign ??= Map<String, dynamic>.from(a);
+          }
+        }
 
         String raiserName = 'Unassigned';
         dynamic raiserId;
+        String batchStatus = 'Unassigned';
 
         if (matchingAssign != null) {
-          final raiser = matchingAssign['hog_raisers'] as Map<String, dynamic>?;
-          raiserName = raiser?['name'] ?? 'Hog Raiser';
-          raiserId = matchingAssign['hog_raiser_id'];
+          final rawRaiserId = matchingAssign['hog_raiser_id'];
+          if (rawRaiserId != null) {
+            raiserId = rawRaiserId;
+            raiserName = raiserMap[rawRaiserId.toString()] ?? 'Hog Raiser';
+            batchStatus = 'Active';
+          }
         }
 
         parsedBatches.add({
           'batch_id': bId,
-          'batch_name': bMap['batch_name'] ?? 'Batch $bId',
-          'date_created': bMap['date_created']?.toString() ?? 'N/A',
-          'status': matchingAssign != null ? 'Active' : 'Unassigned',
+          'batch_name': bMap['batch_name'] ?? bMap['name'] ?? 'Batch $bId',
+          'date_created': (bMap['date_created'] ?? bMap['created_at'])?.toString() ?? 'N/A',
+          'status': batchStatus,
           'assignment_id': matchingAssign?['assignment_id'],
           'raiser_id': raiserId,
           'raiser_name': raiserName,
         });
       }
 
-      final List<Map<String, dynamic>> parsedRaisers = [];
-      for (var r in raisersData) {
-        final rMap = Map<String, dynamic>.from(r as Map);
-        final realPk = rMap['hog_raiser_id'];
-        if (realPk != null) {
-          parsedRaisers.add({
-            'id': realPk,
-            'name': rMap['name'] ?? 'Hog Raiser',
-            'phone': rMap['phone'] ?? 'N/A',
-            'email': rMap['email'] ?? '',
-          });
-        }
-      }
+      parsedBatches.sort((a, b) {
+        final aId = int.tryParse(a['batch_id']?.toString() ?? '0') ?? 0;
+        final bId = int.tryParse(b['batch_id']?.toString() ?? '0') ?? 0;
+        return bId.compareTo(aId);
+      });
+
+      debugPrint('Loaded ${parsedBatches.length} batches and ${parsedRaisers.length} raisers');
 
       if (!mounted) return;
       setState(() {
@@ -150,6 +193,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
       debugPrint('Error in _loadData: $e');
       if (mounted) {
         setState(() {
+          _loadError = 'Load error: $e';
           _isLoading = false;
         });
       }
@@ -158,15 +202,34 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
 
   void _showThemedSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.plusJakartaSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
+          ],
         ),
-        backgroundColor: isError ? Colors.red : PiggyTrunkTheme.ptSuccess,
+        backgroundColor: isError ? const Color(0xFFDC2626) : const Color(0xFF059669),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
+        duration: Duration(seconds: isError ? 5 : 3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -245,6 +308,8 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
                                     batches: _batchesList,
                                     searchQuery: _searchQuery,
                                     selectedStatusFilter: _selectedStatusFilter,
+                                    errorMessage: _loadError,
+                                    onRefresh: _loadData,
                                     onSearchChanged: (val) => setState(() => _searchQuery = val),
                                     onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
                                     onCreateBatch: () => setState(() {
@@ -282,7 +347,8 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
 
   void _archiveBatch(Map<String, dynamic> batch) async {
     final batchName = batch['batch_name'] ?? 'Batch';
-    final batchId = batch['batch_id'];
+    final batchId = batch['batch_id'] ?? batch['id'];
+    if (batchId == null) return;
 
     final confirmed = await SlideOverConfirmationDrawer.show(
       context: context,
@@ -294,22 +360,36 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
     );
 
     if (confirmed == true) {
+      setState(() => _isLoading = true);
       try {
-        await _supabase.from('batches').update({'status': 'Archived'}).eq('batch_id', batchId);
+        try {
+          await _supabase.from('batches').update({'status': 'Archived'}).eq('batch_id', batchId);
+        } catch (_) {
+          await _supabase.from('batches').update({'status': 'Archived'}).eq('id', batchId);
+        }
+
         try {
           await _supabase.from('assignments').update({'status': 'archived'}).eq('batch_id', batchId);
         } catch (_) {}
+
+        try {
+          await _supabase.from('investment_records').update({'stage': 'archived'}).eq('batch_id', batchId);
+        } catch (_) {}
+
         _showThemedSnackBar('Batch "$batchName" archived successfully.');
-        _loadData();
+        await _loadData();
       } catch (e) {
         _showThemedSnackBar('Archive failed: $e', isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }
 
   void _deleteBatch(Map<String, dynamic> batch) async {
     final batchName = batch['batch_name'] ?? 'Batch';
-    final batchId = batch['batch_id'];
+    final batchId = batch['batch_id'] ?? batch['id'];
+    if (batchId == null) return;
 
     final confirmed = await SlideOverConfirmationDrawer.show(
       context: context,
@@ -321,8 +401,9 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
     );
 
     if (confirmed == true) {
+      setState(() => _isLoading = true);
       try {
-        // Cascade delete child assignments, hogs, and requests to prevent foreign key violations
+        // 1. Cascade delete child assignments, hogs, and requests to prevent foreign key violations
         try {
           final assignmentsRes = await _supabase.from('assignments').select('assignment_id').eq('batch_id', batchId);
           final assignmentIds = (assignmentsRes as List).map((a) => a['assignment_id']).toList();
@@ -340,15 +421,27 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
           debugPrint('Cascade cleanup assignments warning: $cascadeErr');
         }
 
+        // 2. Cascade delete investment records
         try {
           await _supabase.from('investment_records').delete().eq('batch_id', batchId);
         } catch (_) {}
+        try {
+          await _supabase.from('investments').delete().eq('batch_id', batchId);
+        } catch (_) {}
 
-        await _supabase.from('batches').delete().eq('batch_id', batchId);
-        _showThemedSnackBar('Batch "$batchName" deleted successfully.');
-        _loadData();
+        // 3. Delete from batches
+        try {
+          await _supabase.from('batches').delete().eq('batch_id', batchId);
+        } catch (_) {
+          await _supabase.from('batches').delete().eq('id', batchId);
+        }
+
+        _showThemedSnackBar('Batch "$batchName" deleted successfully from database.');
+        await _loadData();
       } catch (e) {
         _showThemedSnackBar('Delete failed: $e', isError: true);
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
       }
     }
   }

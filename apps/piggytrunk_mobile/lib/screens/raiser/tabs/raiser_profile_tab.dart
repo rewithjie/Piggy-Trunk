@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 
 class RaiserProfileTab extends StatelessWidget {
@@ -23,20 +22,36 @@ class RaiserProfileTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = raiserData['name'] ?? 'Hog Raiser';
-    final email = raiserData['email'] ?? 'N/A';
-    final phone = raiserData['phone'] ?? 'N/A';
-    final address = raiserData['address'] ?? 'N/A';
-    final type = raiserData['pig_type'] ?? 'N/A';
-    final stage = raiserData['lifecycle_stage'] ?? 'N/A';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : _brandColor;
+
+    final name = (raiserData['name'] ?? '').toString().trim().isNotEmpty
+        ? (raiserData['name'] as String)
+        : 'Hog Raiser';
+    final email = (raiserData['email'] ?? '').toString().trim().isNotEmpty
+        ? (raiserData['email'] as String)
+        : 'N/A';
+    final phone = (raiserData['phone'] != null && raiserData['phone'] != 'N/A' && raiserData['phone'].toString().trim().isNotEmpty)
+        ? raiserData['phone'].toString()
+        : 'Not set';
+    final address = (raiserData['address'] != null && raiserData['address'] != 'N/A' && raiserData['address'].toString().trim().isNotEmpty)
+        ? raiserData['address'].toString()
+        : 'Not set';
+    final type = (raiserData['pig_type'] != null && raiserData['pig_type'] != 'N/A' && raiserData['pig_type'] != 'None')
+        ? raiserData['pig_type'].toString()
+        : 'Unassigned';
+    final stage = (raiserData['lifecycle_stage'] != null && raiserData['lifecycle_stage'] != 'N/A' && raiserData['lifecycle_stage'] != 'None')
+        ? raiserData['lifecycle_stage'].toString()
+        : 'Not set';
     final avatarUrl = raiserData['avatar_url'] as String?;
 
     return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar & Name Header Card
+          // ==================== AVATAR & NAME HEADER CARD ====================
           Center(
             child: Column(
               children: [
@@ -49,35 +64,48 @@ class RaiserProfileTab extends StatelessWidget {
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: _brandColor, width: 2),
-                          color: const Color(0xfff7f8fb),
+                          border: Border.all(color: _brandColor, width: 2.5),
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: _brandColor.withValues(alpha: 0.12),
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
                         ),
                         child: ClipOval(
-                          child: avatarUrl != null && avatarUrl.isNotEmpty
+                          child: (avatarUrl != null && avatarUrl.isNotEmpty)
                               ? Image.network(
                                   avatarUrl,
                                   width: 100,
                                   height: 100,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Image.asset(
-                                    'assets/piggytrunk_logo.png',
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, err, st) => Container(
-                                      color: _brandColor,
-                                      child: const Icon(Icons.person, size: 50, color: Colors.white),
+                                  errorBuilder: (context, error, stackTrace) => Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Image.asset(
+                                      'assets/piggytrunk_logo.png',
+                                      width: 76,
+                                      height: 76,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, err, st) => Container(
+                                        color: Colors.white,
+                                        child: const Icon(Icons.person, size: 50, color: _brandColor),
+                                      ),
                                     ),
                                   ),
                                 )
-                              : Image.asset(
-                                  'assets/piggytrunk_logo.png',
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (context, err, st) => Container(
-                                    color: _brandColor,
-                                    child: const Icon(Icons.person, size: 50, color: Colors.white),
+                              : Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Image.asset(
+                                    'assets/piggytrunk_logo.png',
+                                    width: 76,
+                                    height: 76,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, err, st) => Container(
+                                      color: Colors.white,
+                                      child: const Icon(Icons.person, size: 50, color: _brandColor),
+                                    ),
                                   ),
                                 ),
                         ),
@@ -107,7 +135,7 @@ class RaiserProfileTab extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: _brandColor,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -124,47 +152,46 @@ class RaiserProfileTab extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
+          // ==================== ACCOUNT DETAILS SECTION HEADER ====================
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Detalye ng Account',
+                'Account Details',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: _brandColor,
+                  color: titleColor,
                 ),
               ),
               Row(
                 children: [
-                  if (avatarUrl != null && avatarUrl.isNotEmpty) ...[
-                    GestureDetector(
-                      onTap: onRestoreDefaultAvatar,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.refresh, size: 16, color: _brandColor),
-                          const SizedBox(width: 4),
-                          Text(
-                            'I-reset',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _brandColor,
-                            ),
+                  GestureDetector(
+                    onTap: onRestoreDefaultAvatar,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.refresh_rounded, size: 16, color: _brandColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'I-reset',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _brandColor,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                  ],
+                  ),
+                  const SizedBox(width: 16),
                   GestureDetector(
                     onTap: onShowEditProfileDialog,
                     child: Row(
                       children: [
-                        const Icon(Icons.edit, size: 16, color: _brandColor),
+                        const Icon(Icons.edit_outlined, size: 16, color: _brandColor),
                         const SizedBox(width: 4),
                         Text(
-                          'I-edit',
+                          'Edit',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -178,31 +205,44 @@ class RaiserProfileTab extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
+          // ==================== DETAILS LIST CARD ====================
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: PiggyTrunkTheme.ptBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               children: [
                 _buildProfileRow(Icons.email_outlined, 'Email Address', email),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.phone_iphone, 'Phone Number', phone),
+                _buildProfileRow(Icons.phone_iphone_rounded, 'Phone Number', phone),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.location_on_outlined, 'Address', address),
+                _buildProfileRow(Icons.location_on_outlined, 'Farm Address', address),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.style_outlined, 'Pig Type Assignment', type),
+                _buildProfileRow(Icons.pets_outlined, 'Pig Type Assignment', type),
                 const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.hourglass_empty_outlined, 'Current Stage', stage),
+                _buildProfileRow(Icons.restaurant_rounded, 'Current Feeds Stage', stage),
+                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
+                _buildProfileRow(Icons.security_rounded, 'System Access', 'Hog Raiser'),
+                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
+                _buildProfileRow(Icons.verified_user_outlined, 'Account Status', 'Active'),
               ],
             ),
           ),
           const SizedBox(height: 32),
 
+          // ==================== LOGOUT BUTTON ====================
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -211,14 +251,14 @@ class RaiserProfileTab extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: _brandColor, width: 1.5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Mag-Sign Out',
+                    'Sign Out',
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w700,
                       color: _brandColor,
@@ -226,12 +266,7 @@ class RaiserProfileTab extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SvgPicture.asset(
-                    'assets/icons/sidebar/logout.svg',
-                    width: 18,
-                    height: 18,
-                    colorFilter: const ColorFilter.mode(_brandColor, BlendMode.srcIn),
-                  ),
+                  const Icon(Icons.logout_rounded, color: _brandColor, size: 20),
                 ],
               ),
             ),

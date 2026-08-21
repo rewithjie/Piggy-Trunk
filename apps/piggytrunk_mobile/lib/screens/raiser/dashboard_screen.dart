@@ -7,6 +7,7 @@ import 'package:piggytrunk/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/auth_session_service.dart';
+import '../../utils/capitalization_formatters.dart';
 
 import 'tabs/raiser_home_tab.dart';
 import 'tabs/raiser_request_tab.dart';
@@ -152,15 +153,17 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         throw Exception('Raiser ID is null!');
       }
 
-      // 3. Fetch total capital invested
+      // 3. Fetch total capital invested and total hogs from investment_records
       final capitalRes = await Supabase.instance.client
           .from('investment_records')
-          .select('initial_capital')
+          .select('initial_capital, total_hog, hog_type')
           .eq('hog_raiser_id', raiserId.toString());
 
       double totalCapital = 0.0;
-      for (var row in capitalRes) {
-        totalCapital += (row['initial_capital'] as num).toDouble();
+      int totalHogsFromInvestment = 0;
+      for (var row in (capitalRes as List? ?? [])) {
+        totalCapital += (row['initial_capital'] as num?)?.toDouble() ?? 0.0;
+        totalHogsFromInvestment += (row['total_hog'] as num?)?.toInt() ?? 0;
       }
 
       // 4. Fetch assignments
@@ -169,18 +172,74 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .select('*, hog_types(*), batches(*)')
           .eq('hog_raiser_id', raiserId)
           .eq('status', 'active');
-      final assignments = List<Map<String, dynamic>>.from(assignmentsRes);
+      final rawAssignments = List<Map<String, dynamic>>.from(assignmentsRes);
+      final assignments = <Map<String, dynamic>>[];
+      for (var a in rawAssignments) {
+        final b = a['batches'] as Map<String, dynamic>?;
+        if (b != null) {
+          final bStatus = (b['status'] ?? '').toString().toLowerCase();
+          if (bStatus != 'archived' && bStatus != 'deleted') {
+            assignments.add(a);
+          }
+        } else {
+          // Clean up orphaned assignment record
+          try {
+            Supabase.instance.client
+                .from('assignments')
+                .delete()
+                .eq('assignment_id', a['assignment_id']);
+          } catch (_) {}
+        }
+      }
 
       // 5. Fetch hogs
-      final hogsRes = await Supabase.instance.client
-          .from('hogs')
-          .select('*, assignments!inner(*, hog_types(*))')
-          .eq('assignments.hog_raiser_id', raiserId)
-          .eq('assignments.status', 'active')
-          .eq('status', 'active');
-      final hogs = List<Map<String, dynamic>>.from(hogsRes)
+      List<dynamic> hogsRes = [];
+      try {
+        hogsRes = await Supabase.instance.client
+            .from('hogs')
+            .select('*, assignments!inner(*, hog_types(*))')
+            .eq('assignments.hog_raiser_id', raiserId)
+            .eq('assignments.status', 'active')
+            .eq('status', 'active');
+      } catch (_) {
+        try {
+          hogsRes = await Supabase.instance.client
+              .from('hogs')
+              .select('*')
+              .eq('status', 'active');
+        } catch (_) {}
+      }
+
+      var hogs = List<Map<String, dynamic>>.from(hogsRes)
           .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
           .toList();
+
+      // If hogs table is empty but investment assigned heads exist, auto-seed and display
+      if (hogs.isEmpty && totalHogsFromInvestment > 0 && assignments.isNotEmpty) {
+        final assignId = assignments[0]['assignment_id'] ?? assignments[0]['id'];
+        final pigType = (raiser['pig_type'] ?? 'Fattening').toString();
+
+        for (int i = 1; i <= totalHogsFromInvestment; i++) {
+          try {
+            await Supabase.instance.client.from('hogs').insert({
+              'assignment_id': assignId,
+              'status': 'active',
+              'health_status': 'healthy',
+              'weight': 15.0,
+            });
+          } catch (_) {}
+        }
+
+        hogs = List.generate(totalHogsFromInvestment, (i) => {
+          'hog_id': i + 1,
+          'assignment_id': assignId,
+          'status': 'active',
+          'health_status': 'healthy',
+          'pig_type': pigType,
+          'weight': 15.0,
+        });
+      }
+
       hogs.sort((a, b) {
         final aId = a['hog_id'] as num? ?? 0;
         final bId = b['hog_id'] as num? ?? 0;
@@ -220,9 +279,81 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               ? appUser['email'].toString().trim()
               : (user.email ?? 'N/A'));
 
-      final resolvedAvatar = raiser['avatar_url'] ??
-          user.userMetadata?['avatar_url'] ??
-          user.userMetadata?['picture'];
+      String? resolvedAvatar;
+
+      // 1. Check direct database fields in hog_raisers & app_users
+      final possibleDbUrls = [
+        raiser['avatar_url'],
+        raiser['picture'],
+        raiser['photo_url'],
+        appUser['avatar_url'],
+        appUser['picture'],
+        appUser['photo_url'],
+      ];
+      for (final u in possibleDbUrls) {
+        final s = u?.toString().trim();
+        if (s != null && s.isNotEmpty && s != 'N/A' && s != 'null') {
+          resolvedAvatar = s;
+          break;
+        }
+      }
+
+      // 2. Check Supabase Auth user metadata (Google OAuth picture / avatar_url)
+      if (resolvedAvatar == null) {
+        final meta = user.userMetadata;
+        final possibleMetaUrls = [
+          meta?['avatar_url'],
+          meta?['picture'],
+          meta?['photo_url'],
+          meta?['avatar'],
+        ];
+        for (final u in possibleMetaUrls) {
+          final s = u?.toString().trim();
+          if (s != null && s.isNotEmpty && s != 'N/A' && s != 'null') {
+            resolvedAvatar = s;
+            break;
+          }
+        }
+      }
+
+      // 3. Check Supabase Storage profile_pictures/avatars bucket for uploaded avatar
+      if (resolvedAvatar == null) {
+        try {
+          final storageFiles = await Supabase.instance.client.storage.from('profile_pictures').list(path: 'avatars');
+          final rIdStr = raiserId.toString();
+          final uIdStr = userId.toString();
+          for (final file in storageFiles) {
+            final fname = file.name;
+            final match = RegExp(r'^avatar-(\d+)-').firstMatch(fname);
+            if (match != null) {
+              final matchedId = match.group(1)!;
+              if (matchedId == rIdStr || matchedId == uIdStr) {
+                resolvedAvatar = Supabase.instance.client.storage.from('profile_pictures').getPublicUrl('avatars/$fname');
+                break;
+              }
+            }
+          }
+        } catch (sErr) {
+          debugPrint('Notice checking storage avatar in mobile: $sErr');
+        }
+      }
+
+      // 4. If an avatar was found from OAuth/Storage but missing in DB, sync it in background
+      if (resolvedAvatar != null &&
+          (raiser['avatar_url'] == null ||
+              raiser['avatar_url'].toString().trim().isEmpty ||
+              raiser['avatar_url'] == 'N/A')) {
+        try {
+          await Supabase.instance.client
+              .from('hog_raisers')
+              .update({'avatar_url': resolvedAvatar})
+              .eq('hog_raiser_id', raiserId);
+          await Supabase.instance.client
+              .from('app_users')
+              .update({'avatar_url': resolvedAvatar})
+              .eq('user_id', userId);
+        } catch (_) {}
+      }
 
       String resolvedPigType = (raiser['pig_type'] != null &&
               raiser['pig_type'].toString().trim().isNotEmpty &&
@@ -251,7 +382,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
       final Map<String, dynamic> combinedRaiserData = Map<String, dynamic>.from(raiser);
       combinedRaiserData['email'] = resolvedEmail;
-      if (resolvedAvatar != null) combinedRaiserData['avatar_url'] = resolvedAvatar;
+      combinedRaiserData['avatar_url'] = resolvedAvatar;
       combinedRaiserData['pig_type'] = resolvedPigType;
       combinedRaiserData['lifecycle_stage'] = resolvedStage;
 
@@ -452,13 +583,22 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         debugPrint('Auth metadata update notice: $authErr');
       }
 
-      // 2. Update hog_raisers table if column exists
+      // 2. Update hog_raisers & app_users tables
       try {
         await Supabase.instance.client.from('hog_raisers').update({
           'avatar_url': publicUrl,
         }).eq('hog_raiser_id', raiserId);
       } catch (dbErr) {
-        debugPrint('DB column update notice: $dbErr');
+        debugPrint('DB hog_raisers column update notice: $dbErr');
+      }
+
+      final userId = _raiserData['user_id'];
+      if (userId != null) {
+        try {
+          await Supabase.instance.client.from('app_users').update({
+            'avatar_url': publicUrl,
+          }).eq('user_id', userId);
+        } catch (_) {}
       }
 
       if (mounted) {
@@ -494,6 +634,98 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
     if (raiserId == null) return;
 
+    // Show Tagalog Confirmation Dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'I-reset ang Profile?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: _brandColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Sigurado ka bang nais mong ibalik sa default ang iyong profile picture at mga setting?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: const Color(0xFF475569),
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Hindi',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: const Color(0xFF475569),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _brandColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Oo, I-reset',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
     setState(() => _isLoading = true);
 
     try {
@@ -509,13 +741,22 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }).eq('hog_raiser_id', raiserId);
       } catch (_) {}
 
+      final userId = _raiserData['user_id'];
+      if (userId != null) {
+        try {
+          await Supabase.instance.client.from('app_users').update({
+            'avatar_url': null,
+          }).eq('user_id', userId);
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           _raiserData.remove('avatar_url');
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Nabalik sa default ang inyong profile picture!'),
+            content: Text('Matagumpay na naibalik sa default ang inyong profile!'),
             backgroundColor: PiggyTrunkTheme.ptSuccess,
           ),
         );
@@ -645,6 +886,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: nameController,
+                    textCapitalization: TextCapitalization.words,
                     style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: 'Ilagay ang inyong buong pangalan',
@@ -736,6 +978,8 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                   TextField(
                     controller: addressController,
                     maxLines: 2,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: 'Ilagay ang inyong kumpletong address',
@@ -942,6 +1186,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                       investedAmount: _investedAmount,
                       requestsList: _requestsList,
                       notificationsList: _notificationsList,
+                      activeAssignments: _activeAssignments,
+                      hogsList: _hogsList,
+                      reportsList: _reportsList,
                       errorMessage: _errorMessage,
                       onRefresh: _fetchRaiserData,
                       onNavigateToTab: (index) => setState(() => _currentIndex = index),
@@ -957,6 +1204,8 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                     ),
                     RaiserHogsTab(
                       raiserData: _raiserData,
+                      investedAmount: _investedAmount,
+                      activeAssignments: _activeAssignments,
                       hogsList: _hogsList,
                       reportsList: _reportsList,
                       notificationsList: _notificationsList,

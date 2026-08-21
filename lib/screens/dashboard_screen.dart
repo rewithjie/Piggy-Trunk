@@ -54,44 +54,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _supabase
-          .from('dashboard_summary')
-          .select()
-          .maybeSingle();
-
-      final invRecordsRes = await _supabase
-          .from('investment_records')
-          .select('hog_raiser_id, id');
-      final realBatchCount = (invRecordsRes as List).length;
-
-      if (response != null) {
-        setState(() {
-          _activeRaisers = (response['active_raisers'] as num?)?.toInt() ?? 0;
-          _batchCount = realBatchCount;
-          _totalCapital = (response['total_capital'] as num?)?.toDouble() ?? 0;
-          _fatteningCapital = (response['fattening_capital'] as num?)?.toDouble() ?? 0;
-          _sowCapital = (response['sow_capital'] as num?)?.toDouble() ?? 0;
-        });
-      }
-
+      // 1. Load active raisers
       final raisersRes = await _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
           .or('account_status.ilike.active,account_status.ilike.approved')
           .order('name', ascending: true);
 
+      // 2. Load investment records to compute total, fattening, and sow allocations
+      final invRecordsRes = await _supabase
+          .from('investment_records')
+          .select('hog_raiser_id, id, initial_capital, hog_type, stage, investment_date')
+          .order('investment_date', ascending: false);
+
+      final invList = (invRecordsRes as List? ?? []);
+      double calculatedTotalCapital = 0;
+      double calculatedFatteningCapital = 0;
+      double calculatedSowCapital = 0;
+      final Map<String, String> raiserInvestmentTypeMap = {};
+
+      for (var inv in invList) {
+        if (inv is! Map) continue;
+        final rawCap = inv['initial_capital'];
+        final amt = rawCap is num
+            ? rawCap.toDouble()
+            : double.tryParse(rawCap?.toString() ?? '0') ?? 0;
+        calculatedTotalCapital += amt;
+
+        final ht = (inv['hog_type'] ?? '').toString().toLowerCase();
+        if (ht.contains('sow') || ht.contains('inahin')) {
+          calculatedSowCapital += amt;
+        } else {
+          // Defaults or contains fattening
+          calculatedFatteningCapital += amt;
+        }
+
+        final rId = inv['hog_raiser_id']?.toString() ?? '';
+        final rawHt = (inv['hog_type'] ?? '').toString().trim();
+        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
+          raiserInvestmentTypeMap[rId] = rawHt;
+        }
+      }
+
       if (mounted) {
-        final list = (raisersRes as List).cast<Map<String, dynamic>>();
-        setState(() {
-          _activeRaisersList = list;
-          if (_activeRaisers == 0 && list.isNotEmpty) {
-            _activeRaisers = list.length;
+        final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
+          final copy = Map<String, dynamic>.from(r);
+          final idStr = (copy['hog_raiser_id'] ?? '').toString();
+          final rawType = (copy['pig_type'] ?? '').toString().trim();
+          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') && raiserInvestmentTypeMap.containsKey(idStr)) {
+            copy['pig_type'] = raiserInvestmentTypeMap[idStr];
           }
+          return copy;
+        }).toList();
+
+        setState(() {
+          _activeRaisers = list.length;
+          _batchCount = invList.length;
+          _totalCapital = calculatedTotalCapital;
+          _fatteningCapital = calculatedFatteningCapital;
+          _sowCapital = calculatedSowCapital;
+          _activeRaisersList = list;
         });
       }
     } catch (e) {
-      // If dashboard_summary view doesn't exist yet (SQL not run),
-      // fall back to individual table queries
+      debugPrint('Notice loading dashboard data: $e. Using fallback...');
       await _loadDashboardFallback();
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -129,11 +155,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double sowCapital = 0;
 
       for (final row in investmentRows) {
-        final amt = (row['initial_capital'] as num?)?.toDouble() ?? 0;
+        if (row is! Map) continue;
+        final rawCap = row['initial_capital'];
+        final amt = rawCap is num
+            ? rawCap.toDouble()
+            : double.tryParse(rawCap?.toString() ?? '0') ?? 0;
         totalCapital += amt;
         final ht = (row['hog_type'] ?? '').toString().toLowerCase();
-        if (ht == 'fattening') fatteningCapital += amt;
-        if (ht == 'sow') sowCapital += amt;
+        if (ht.contains('sow') || ht.contains('inahin')) {
+          sowCapital += amt;
+        } else {
+          fatteningCapital += amt;
+        }
       }
 
       setState(() {
@@ -574,9 +607,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               itemBuilder: (context, index) {
                 final raiser = _activeRaisersList[index];
-                final name = raiser['name'] ?? '';
-                final pigType = raiser['pig_type'] ?? '';
-                final currentStage = raiser['lifecycle_stage'] ?? 'Booster';
+                final name = (raiser['name'] ?? 'Hog Raiser').toString();
+                final rawPigType = (raiser['pig_type'] ?? '').toString().trim();
+                final bool isUnassigned = rawPigType.isEmpty ||
+                    rawPigType.toUpperCase() == 'N/A' ||
+                    rawPigType.toUpperCase() == 'NONE' ||
+                    rawPigType.toUpperCase() == 'UNASSIGNED';
+                final String displayBadge = isUnassigned ? 'UNASSIGNED' : rawPigType.toUpperCase();
+                final currentStage = isUnassigned ? 'Unassigned' : (raiser['lifecycle_stage'] ?? 'Booster').toString();
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -599,26 +637,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                            color: isUnassigned
+                                ? (_isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
+                                : (_isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: _isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                              color: isUnassigned
+                                  ? (_isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
+                                  : (_isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                               width: 1,
                             ),
                           ),
                           child: Text(
-                            pigType.toString().toUpperCase(),
+                            displayBadge,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: _isDark ? Colors.white : const Color(0xFF475569),
+                              color: isUnassigned
+                                  ? (_isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))
+                                  : (_isDark ? Colors.white : const Color(0xFF18314F)),
                             ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildLifecycleMap(currentStage.toString(), pigType.toString()),
+                    _buildLifecycleMap(currentStage, isUnassigned ? 'Fattening' : pigTypeString(rawPigType), isUnassigned: isUnassigned),
                   ],
                 );
               },
@@ -628,12 +672,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildLifecycleMap(String currentStage, String pigType) {
+  String pigTypeString(String raw) {
+    if (raw.toLowerCase().contains('sow')) return 'sow';
+    return 'fattening';
+  }
+
+  Widget _buildLifecycleMap(String currentStage, String pigType, {bool isUnassigned = false}) {
     final List<String> lifecycleStages = pigType.toLowerCase() == 'sow'
         ? ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
         : ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
-    final activeIndex = lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
-    final normalizedIndex = activeIndex < 0 ? 0 : activeIndex;
+    final activeIndex = isUnassigned
+        ? -1
+        : lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
+    final normalizedIndex = isUnassigned ? -1 : (activeIndex < 0 ? 0 : activeIndex);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -641,8 +692,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         Widget buildStepContent(int index) {
           final stage = lifecycleStages[index];
-          final isDone = index < normalizedIndex;
-          final isCurrent = index == normalizedIndex;
+          final isDone = !isUnassigned && index < normalizedIndex;
+          final isCurrent = !isUnassigned && index == normalizedIndex;
 
           Color bgColor;
           Color fgColor;
@@ -658,7 +709,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           } else {
             bgColor = _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
             fgColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-            icon = Icons.radio_button_unchecked;
+            icon = isUnassigned ? Icons.lock_outline_rounded : Icons.radio_button_unchecked;
           }
 
           return Column(

@@ -3,12 +3,38 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class EditRaiserDrawer {
   static int? _parseId(dynamic rawId) {
     if (rawId == null) return null;
     if (rawId is int) return rawId;
     return int.tryParse(rawId.toString());
+  }
+
+  static String? _getAvatarUrl(Map<String, dynamic> row) {
+    final appUsers = row['app_users'] as Map<String, dynamic>?;
+    final metadata = row['raw_user_meta_data'] as Map<String, dynamic>?;
+    final dynamic candidate = row['avatar_url'] ??
+        row['profile_picture'] ??
+        row['photo_url'] ??
+        row['image_url'] ??
+        row['profile_image'] ??
+        row['picture'] ??
+        appUsers?['avatar_url'] ??
+        appUsers?['profile_picture'] ??
+        appUsers?['photo_url'] ??
+        appUsers?['picture'] ??
+        metadata?['avatar_url'] ??
+        metadata?['picture'];
+
+    if (candidate != null) {
+      final str = candidate.toString().trim();
+      if (str.startsWith('http://') || str.startsWith('https://')) {
+        return str;
+      }
+    }
+    return null;
   }
 
   static void show({
@@ -25,6 +51,7 @@ class EditRaiserDrawer {
     final initialPhone = (row['phone'] ?? '').toString();
     final initialAddress = (row['address'] ?? '').toString();
     final status = (row['status'] ?? 'Active').toString().toUpperCase();
+    final avatarUrl = _getAvatarUrl(row);
 
     final nameCtrl = TextEditingController(text: initialName == 'N/A' ? '' : initialName);
     final phoneCtrl = TextEditingController(text: initialPhone == 'N/A' ? '' : initialPhone);
@@ -149,6 +176,7 @@ class EditRaiserDrawer {
                                   Container(
                                     width: 44,
                                     height: 44,
+                                    clipBehavior: Clip.antiAlias,
                                     decoration: BoxDecoration(
                                       color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
                                       shape: BoxShape.circle,
@@ -157,16 +185,33 @@ class EditRaiserDrawer {
                                         width: 1.5,
                                       ),
                                     ),
-                                    child: Center(
-                                      child: Text(
-                                        initials,
-                                        style: AppTextStyles.jakarta(
-                                          size: 15,
-                                          weight: FontWeight.w800,
-                                          color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
-                                        ),
-                                      ),
-                                    ),
+                                    child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                                        ? Image.network(
+                                            avatarUrl,
+                                            width: 44,
+                                            height: 44,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Center(
+                                              child: Text(
+                                                initials,
+                                                style: AppTextStyles.jakarta(
+                                                  size: 15,
+                                                  weight: FontWeight.w800,
+                                                  color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              initials,
+                                              style: AppTextStyles.jakarta(
+                                                size: 15,
+                                                weight: FontWeight.w800,
+                                                color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                              ),
+                                            ),
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -291,6 +336,8 @@ class EditRaiserDrawer {
                             TextField(
                               controller: addressCtrl,
                               maxLines: 3,
+                              textCapitalization: TextCapitalization.words,
+                              inputFormatters: const [CapitalizeWordsInputFormatter()],
                               style: AppTextStyles.body(titleTextColor),
                               decoration: InputDecoration(
                                 hintText: 'Enter complete street address / barangay / municipality',

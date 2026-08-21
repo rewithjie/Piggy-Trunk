@@ -15,6 +15,7 @@ import 'tabs/cashier_profile_tab.dart';
 import 'widgets/stock_requests_modal.dart';
 import 'widgets/cashier_empty_state.dart';
 import '../../services/auth_session_service.dart';
+import '../../utils/capitalization_formatters.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 
 class CashierDashboardScreen extends StatefulWidget {
@@ -635,6 +636,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: nameController,
+                    textCapitalization: TextCapitalization.words,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       color: titleColor,
@@ -736,6 +738,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: addressController,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       color: titleColor,

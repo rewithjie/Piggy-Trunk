@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class BatchFormView extends StatefulWidget {
   final VoidCallback onCancel;
@@ -31,6 +32,7 @@ class _BatchFormViewState extends State<BatchFormView> {
   String? _selectedRaiserId;
   String? _batchNameError;
   bool _isSubmitting = false;
+  List<Map<String, dynamic>> _activeRaisers = [];
 
   bool get _isEdit => widget.existingBatch != null;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -50,6 +52,7 @@ class _BatchFormViewState extends State<BatchFormView> {
   @override
   void initState() {
     super.initState();
+    _activeRaisers = List.from(widget.activeRaisers);
     _batchNameCtrl = TextEditingController(
       text: _isEdit ? widget.existingBatch!['batch_name']?.toString() ?? '' : '',
     );
@@ -58,6 +61,54 @@ class _BatchFormViewState extends State<BatchFormView> {
             ? widget.existingBatch!['raiser_id'].toString()
             : 'unassigned')
         : 'unassigned';
+
+    if (_activeRaisers.isEmpty) {
+      _loadActiveRaisers();
+    }
+  }
+
+  Future<void> _loadActiveRaisers() async {
+    try {
+      final res = await _supabase
+          .from('hog_raisers')
+          .select('hog_raiser_id, name, phone, status, account_status, user_id, app_users!hog_raisers_user_id_fkey(name, email)');
+      final list = <Map<String, dynamic>>[];
+      for (var r in (res as List)) {
+        final rMap = Map<String, dynamic>.from(r as Map);
+        final pk = rMap['hog_raiser_id'];
+        if (pk != null) {
+          final appUsers = rMap['app_users'] as Map<String, dynamic>?;
+          final gName = (appUsers?['name'] ?? '').toString().trim();
+          final rName = (rMap['name'] ?? '').toString().trim();
+          final resolvedName = (gName.isNotEmpty && gName.toLowerCase() != 'hog raiser')
+              ? gName
+              : (rName.isNotEmpty ? rName : 'Hog Raiser');
+          list.add({
+            'id': pk,
+            'name': resolvedName,
+            'phone': rMap['phone'] ?? 'N/A',
+          });
+        }
+      }
+      if (mounted) setState(() => _activeRaisers = list);
+    } catch (_) {
+      try {
+        final res = await _supabase.from('hog_raisers').select('hog_raiser_id, name, phone');
+        final list = <Map<String, dynamic>>[];
+        for (var r in (res as List)) {
+          final rMap = Map<String, dynamic>.from(r as Map);
+          final pk = rMap['hog_raiser_id'];
+          if (pk != null) {
+            list.add({
+              'id': pk,
+              'name': (rMap['name'] ?? 'Hog Raiser').toString(),
+              'phone': rMap['phone'] ?? 'N/A',
+            });
+          }
+        }
+        if (mounted) setState(() => _activeRaisers = list);
+      } catch (_) {}
+    }
   }
 
   @override
@@ -89,42 +140,105 @@ class _BatchFormViewState extends State<BatchFormView> {
           'batch_name': batchName,
         }).eq('batch_id', batchId);
       } else {
-        final batchRes = await _supabase.from('batches').insert({
-          'batch_name': batchName,
-          'date_created': DateTime.now().toIso8601String().split('T').first,
-        }).select('batch_id').maybeSingle();
+        try {
+          final batchRes = await _supabase.from('batches').insert({
+            'batch_name': batchName,
+            'date_created': DateTime.now().toIso8601String().split('T').first,
+          }).select().maybeSingle();
 
-        if (batchRes != null && batchRes['batch_id'] != null) {
-          batchId = batchRes['batch_id'];
+          if (batchRes != null) {
+            batchId = batchRes['batch_id'] ?? batchRes['id'];
+          }
+        } catch (bErr) {
+          debugPrint('Batch insert with date_created failed: $bErr. Retrying with basic payload...');
+          final batchRes = await _supabase.from('batches').insert({
+            'batch_name': batchName,
+          }).select().maybeSingle();
+
+          if (batchRes != null) {
+            batchId = batchRes['batch_id'] ?? batchRes['id'];
+          }
         }
       }
 
       final isUnassigned = _selectedRaiserId == 'unassigned' || _selectedRaiserId == null;
 
-      if (!isUnassigned && int.tryParse(_selectedRaiserId!) != null) {
+      // Check if this batch already has an assignment record
+      final existingAssignForBatch = batchId != null
+          ? await _supabase
+              .from('assignments')
+              .select('assignment_id, hog_type_id')
+              .eq('batch_id', batchId)
+              .maybeSingle()
+          : null;
+
+      if (isUnassigned) {
+        if (existingAssignForBatch != null) {
+          await _supabase
+              .from('assignments')
+              .delete()
+              .eq('assignment_id', existingAssignForBatch['assignment_id']);
+        }
+      } else if (int.tryParse(_selectedRaiserId!) != null) {
         final parsedRaiserId = int.parse(_selectedRaiserId!);
 
-        final existingAssign = await _supabase
-            .from('assignments')
-            .select('assignment_id')
-            .eq('hog_raiser_id', parsedRaiserId)
-            .eq('status', 'active')
-            .maybeSingle();
+        // 1. Resolve required hog_type_id
+        dynamic resolvedHogTypeId;
+        try {
+          final raiserInfo = await _supabase
+              .from('hog_raisers')
+              .select('pig_type')
+              .eq('hog_raiser_id', parsedRaiserId)
+              .maybeSingle();
 
-        if (existingAssign != null) {
-          if (batchId != null) {
-            await _supabase.from('assignments').update({
-              'batch_id': batchId,
-            }).eq('assignment_id', existingAssign['assignment_id']);
+          final pigTypeStr = raiserInfo?['pig_type']?.toString();
+
+          if (pigTypeStr != null && pigTypeStr.isNotEmpty && pigTypeStr != 'N/A' && pigTypeStr.toLowerCase() != 'unassigned') {
+            final typeMatch = await _supabase
+                .from('hog_types')
+                .select('hog_type_id')
+                .ilike('type_name', '%$pigTypeStr%')
+                .maybeSingle();
+            if (typeMatch != null) {
+              resolvedHogTypeId = typeMatch['hog_type_id'];
+            }
           }
-        } else {
-          final assignPayload = <String, dynamic>{
+
+          if (resolvedHogTypeId == null) {
+            final defaultType = await _supabase
+                .from('hog_types')
+                .select('hog_type_id')
+                .limit(1)
+                .maybeSingle();
+            if (defaultType != null) {
+              resolvedHogTypeId = defaultType['hog_type_id'];
+            }
+          }
+        } catch (htErr) {
+          debugPrint('Notice resolving hog_type_id: $htErr');
+        }
+
+        final int finalHogTypeId = resolvedHogTypeId != null
+            ? (resolvedHogTypeId as num).toInt()
+            : 1;
+
+        if (existingAssignForBatch != null) {
+          final updatePayload = <String, dynamic>{
             'hog_raiser_id': parsedRaiserId,
             'status': 'active',
-            'start_date': DateTime.now().toIso8601String().split('T').first,
+            'hog_type_id': finalHogTypeId,
           };
-          if (batchId != null) assignPayload['batch_id'] = batchId;
-
+          await _supabase
+              .from('assignments')
+              .update(updatePayload)
+              .eq('assignment_id', existingAssignForBatch['assignment_id']);
+        } else {
+          final assignPayload = <String, dynamic>{
+            'batch_id': batchId,
+            'hog_raiser_id': parsedRaiserId,
+            'status': 'active',
+            'hog_type_id': finalHogTypeId,
+          };
           await _supabase.from('assignments').insert(assignPayload);
         }
       }
@@ -228,6 +342,8 @@ class _BatchFormViewState extends State<BatchFormView> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _batchNameCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
                       onChanged: (_) {
                         if (_batchNameError != null) setState(() => _batchNameError = null);
                       },
@@ -265,7 +381,7 @@ class _BatchFormViewState extends State<BatchFormView> {
 
                     // Assign Hog Raiser Dropdown
                     Text(
-                      'ASSIGN HOG RAISER',
+                       'ASSIGN HOG RAISER',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
@@ -300,7 +416,9 @@ class _BatchFormViewState extends State<BatchFormView> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'No Raiser Assigned (Unassigned)',
+                                  _activeRaisers.isEmpty
+                                      ? 'No Active Raisers Available (Unassigned)'
+                                      : 'No Raiser Assigned (Unassigned)',
                                   style: GoogleFonts.plusJakartaSans(
                                     color: _mutedColor,
                                     fontWeight: FontWeight.w600,
@@ -311,7 +429,7 @@ class _BatchFormViewState extends State<BatchFormView> {
                             ],
                           ),
                         ),
-                        ...widget.activeRaisers.map((r) {
+                        ..._activeRaisers.map((r) {
                           return DropdownMenuItem<String>(
                             value: r['id'].toString(),
                             child: Row(
@@ -324,7 +442,7 @@ class _BatchFormViewState extends State<BatchFormView> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    '${r['name']} (${r['phone']})',
+                                    '${r['name']}',
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.plusJakartaSans(
                                       color: _fieldText,

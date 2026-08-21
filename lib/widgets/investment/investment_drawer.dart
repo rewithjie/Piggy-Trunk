@@ -31,37 +31,62 @@ class InvestmentDrawer {
     String? selectedBatchId = 'unassigned';
     List<Map<String, dynamic>> activeBatches = [];
     List<Map<String, dynamic>> activeRaisers = [];
-    List<Map<String, dynamic>> parsedBatches = [];
 
     // Fetch batches and raisers
     try {
-      final raisersRes = await supabase
-          .from('hog_raisers')
-          .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
-          .order('name', ascending: true);
+      // 1. Fetch authorized active/approved raisers
+      List<dynamic> raisersRaw = [];
+      try {
+        raisersRaw = await supabase
+            .from('hog_raisers')
+            .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
+            .order('name', ascending: true);
+      } catch (rErr) {
+        debugPrint('Notice loading raisers in drawer: $rErr. Falling back to plain hog_raisers...');
+        try {
+          raisersRaw = await supabase
+              .from('hog_raisers')
+              .select('hog_raiser_id, name, pig_type, status, account_status')
+              .order('name', ascending: true);
+        } catch (rErr2) {
+          debugPrint('Error fetching raisers fallback in drawer: $rErr2');
+        }
+      }
 
+      final Map<String, Map<String, dynamic>> raisersMap = {};
       final List<Map<String, dynamic>> parsedRaisers = [];
-      for (var r in (raisersRes as List)) {
-        final rMap = Map<String, dynamic>.from(r as Map);
+
+      for (var r in raisersRaw) {
+        if (r is! Map) continue;
+        final rMap = Map<String, dynamic>.from(r);
         final accStatus = (rMap['account_status'] ?? '').toString().toLowerCase();
         if (accStatus == 'rejected' || accStatus == 'pending') continue;
 
-        final appUsers = rMap['app_users'] as Map<String, dynamic>?;
+        dynamic appUsersRaw = rMap['app_users'];
+        Map<String, dynamic>? appUsers;
+        if (appUsersRaw is Map) {
+          appUsers = Map<String, dynamic>.from(appUsersRaw);
+        } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+          appUsers = Map<String, dynamic>.from(appUsersRaw.first);
+        }
+
         final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
         final raiserName = (rMap['name'] ?? '').toString().trim();
         final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
             ? googleOrAppName
             : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
 
-        final idStr = (rMap['id'] ?? rMap['hog_raiser_id'] ?? '').toString();
+        final idStr = (rMap['hog_raiser_id'] ?? rMap['id'] ?? '').toString();
         if (idStr.isEmpty) continue;
 
-        parsedRaisers.add({
+        final raiserEntry = {
           'id': idStr,
           'name': resolvedFullName,
           'pig_type': rMap['pig_type'] ?? 'Fattening',
-          'real_pk_col': rMap['id'] != null ? 'id' : 'hog_raiser_id',
-        });
+          'real_pk_col': 'hog_raiser_id',
+        };
+        parsedRaisers.add(raiserEntry);
+        raisersMap[idStr] = raiserEntry;
       }
 
       activeRaisers = [
@@ -69,49 +94,81 @@ class InvestmentDrawer {
         ...parsedRaisers,
       ];
 
-      final batchesRes = await supabase
-          .from('batches')
-          .select('batch_id, batch_name, date_created, assignments(assignment_id, hog_raiser_id, status, hog_raisers(name, pig_type, hog_raiser_id, app_users!hog_raisers_user_id_fkey(name)), hogs(hog_id))')
-          .order('date_created', ascending: false);
+      // 2. Fetch Batches
+      List<dynamic> batchesRaw = [];
+      try {
+        batchesRaw = await supabase.from('batches').select('*');
+      } catch (bErr) {
+        debugPrint('Error fetching batches in drawer: $bErr');
+      }
 
-      for (var b in (batchesRes as List)) {
-        final bMap = Map<String, dynamic>.from(b as Map);
-        final bId = bMap['batch_id']?.toString() ?? '';
-        final bName = bMap['batch_name']?.toString() ?? 'Batch $bId';
+      // 3. Fetch Assignments
+      List<dynamic> assignmentsRaw = [];
+      try {
+        assignmentsRaw = await supabase.from('assignments').select('*');
+      } catch (aErr) {
+        debugPrint('Error fetching assignments in drawer: $aErr');
+      }
 
-        final assigns = bMap['assignments'] as List<dynamic>? ?? [];
-        final activeAssign = assigns.firstWhere(
-          (a) => (a['status'] ?? '').toString().toLowerCase() == 'active',
-          orElse: () => assigns.isNotEmpty ? assigns.first : null,
-        );
+      // 4. Fetch Hogs (to calculate hog count per batch / assignment)
+      List<dynamic> hogsRaw = [];
+      try {
+        hogsRaw = await supabase.from('hogs').select('*');
+      } catch (hErr) {
+        debugPrint('Error fetching hogs in drawer: $hErr');
+      }
+
+      final Map<String, int> assignmentHogCounts = {};
+      for (var h in hogsRaw) {
+        if (h is! Map) continue;
+        final assignId = (h['assignment_id'] ?? h['id'])?.toString() ?? '';
+        if (assignId.isNotEmpty) {
+          assignmentHogCounts[assignId] = (assignmentHogCounts[assignId] ?? 0) + 1;
+        }
+      }
+
+      final List<Map<String, dynamic>> parsedBatches = [];
+      for (var b in batchesRaw) {
+        if (b is! Map) continue;
+        final bMap = Map<String, dynamic>.from(b);
+        final bId = (bMap['batch_id'] ?? bMap['id'] ?? bMap['batch_number'] ?? bMap['batch_code'])?.toString() ?? '';
+        if (bId.isEmpty) continue;
+        final bName = bMap['batch_name']?.toString() ?? bMap['name']?.toString() ?? 'Batch $bId';
+
+        Map<String, dynamic>? matchingAssign;
+        for (var a in assignmentsRaw) {
+          if (a is Map && (a['batch_id']?.toString() == bId || a['id']?.toString() == bId)) {
+            if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
+              matchingAssign = Map<String, dynamic>.from(a);
+              break;
+            }
+            matchingAssign ??= Map<String, dynamic>.from(a);
+          }
+        }
 
         String raiserId = '';
         String raiserName = 'Unassigned';
         String pigType = 'Fattening';
         int hogCount = 0;
 
-        if (activeAssign != null) {
-          final raiser = activeAssign['hog_raisers'] as Map<String, dynamic>?;
-          raiserId = (activeAssign['hog_raiser_id'] ?? raiser?['hog_raiser_id'] ?? '').toString();
-          if (raiser != null) {
-            final appUsers = raiser['app_users'] as Map<String, dynamic>?;
-            final appName = appUsers?['name']?.toString().trim();
-            final rName = raiser['name']?.toString().trim();
-            raiserName = (appName != null && appName.isNotEmpty && appName.toLowerCase() != 'hog raiser')
-                ? appName
-                : (rName != null && rName.isNotEmpty ? rName : 'Hog Raiser');
-            pigType = raiser['pig_type']?.toString() ?? 'Fattening';
+        if (matchingAssign != null) {
+          final assignId = (matchingAssign['assignment_id'] ?? matchingAssign['id'])?.toString() ?? '';
+          hogCount = assignmentHogCounts[assignId] ?? 0;
+
+          raiserId = (matchingAssign['hog_raiser_id'] ?? '').toString();
+
+          if (raisersMap.containsKey(raiserId)) {
+            raiserName = raisersMap[raiserId]!['name'] ?? 'Hog Raiser';
+            pigType = raisersMap[raiserId]!['pig_type'] ?? 'Fattening';
           }
-          final hogs = activeAssign['hogs'] as List<dynamic>? ?? [];
-          hogCount = hogs.length;
         }
 
         parsedBatches.add({
           'batch_id': bId,
           'batch_name': bName,
-          'display_label': activeAssign != null
+          'display_label': matchingAssign != null && raiserId.isNotEmpty
               ? '$bName • $raiserName ($hogCount heads)'
-              : '$bName • Pool ($hogCount heads)',
+              : '$bName • Unassigned ($hogCount heads)',
           'raiser_id': raiserId,
           'raiser_name': raiserName,
           'pig_type': pigType,
@@ -136,14 +193,19 @@ class InvestmentDrawer {
         selectedBatchId = activeBatches.length > 1 ? activeBatches[1]['batch_id'] : 'unassigned';
         if (selectedBatchId != null && selectedBatchId != 'unassigned') {
           final matched = activeBatches.firstWhere((b) => b['batch_id'] == selectedBatchId, orElse: () => {});
-          selectedRaiserId = (matched['raiser_id'] ?? '').toString();
+          final rId = (matched['raiser_id'] ?? '').toString();
+          if (rId.isNotEmpty && activeRaisers.any((r) => r['id'] == rId)) {
+            selectedRaiserId = rId;
+          }
           final count = matched['hog_count'];
           if (count != null && count > 0) totalHogCtrl.text = count.toString();
           final pt = (matched['pig_type'] ?? 'Fattening').toString();
           if (pt.isNotEmpty) selectedHogTypes = [pt];
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error in investment drawer _fetchDropdownData: $e');
+    }
 
     if (!context.mounted) return;
 
@@ -275,7 +337,10 @@ class InvestmentDrawer {
                                   ),
                                   const SizedBox(height: 8),
                                   DropdownButtonFormField<String>(
-                                    initialValue: selectedBatchId,
+                                    key: ValueKey('drawer_batch_dropdown_${selectedBatchId}_${activeBatches.length}'),
+                                    initialValue: activeBatches.any((b) => b['batch_id'] == selectedBatchId)
+                                        ? selectedBatchId
+                                        : (activeBatches.isNotEmpty ? activeBatches.first['batch_id'] : null),
                                     isExpanded: true,
                                     hint: Text(
                                       'Select a batch to fund',

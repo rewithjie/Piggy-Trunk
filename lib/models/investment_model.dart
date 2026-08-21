@@ -25,6 +25,14 @@ class Investment {
     final rawCapital = json['initial_capital'];
     final rawTotalHog = json['total_hog'];
 
+    final rawHogType = (json['hog_type'] ?? '').toString();
+    final cleanHogType = rawHogType
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toLowerCase() != 'null')
+        .join(', ');
+    final finalHogType = cleanHogType.isNotEmpty ? cleanHogType : 'Fattening';
+
     return Investment(
       id: (json['id'] ?? '').toString(),
       hogRaiserId: (json['hog_raiser_id'] ?? '').toString(),
@@ -32,7 +40,7 @@ class Investment {
       initialCapital: rawCapital is num
           ? rawCapital.toDouble()
           : double.tryParse(rawCapital?.toString() ?? '0') ?? 0,
-      hogType: (json['hog_type'] ?? '').toString(),
+      hogType: finalHogType,
       totalHog: rawTotalHog is num
           ? rawTotalHog.toInt()
           : int.tryParse(rawTotalHog?.toString() ?? '0') ?? 0,

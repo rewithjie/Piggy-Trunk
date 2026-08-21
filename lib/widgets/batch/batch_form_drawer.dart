@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class BatchFormDrawer {
   static void show({
@@ -146,6 +147,8 @@ class BatchFormDrawer {
                                   const SizedBox(height: 8),
                                   TextField(
                                     controller: batchNameCtrl,
+                                    textCapitalization: TextCapitalization.words,
+                                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                                     onChanged: (_) {
                                       if (batchNameError != null) setDrawerState(() => batchNameError = null);
                                     },
@@ -217,7 +220,9 @@ class BatchFormDrawer {
                                             ),
                                             const SizedBox(width: 8),
                                             Text(
-                                              'No Raiser Assigned (Unassigned)',
+                                              activeRaisers.isEmpty
+                                                  ? 'No Active Raisers Available (Unassigned)'
+                                                  : 'No Raiser Assigned (Unassigned)',
                                               style: GoogleFonts.plusJakartaSans(
                                                 color: hintText,
                                                 fontWeight: FontWeight.w600,
@@ -240,7 +245,7 @@ class BatchFormDrawer {
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
-                                                  '${r['name']} (${r['phone']})',
+                                                  '${r['name']}',
                                                   overflow: TextOverflow.ellipsis,
                                                   style: GoogleFonts.plusJakartaSans(
                                                     color: fieldText,
@@ -312,48 +317,108 @@ class BatchFormDrawer {
                                                   'batch_name': batchName,
                                                 }).eq('batch_id', batchId);
                                               } else {
-                                                final batchRes = await supabase.from('batches').insert({
-                                                  'batch_name': batchName,
-                                                  'date_created': DateTime.now().toIso8601String().split('T').first,
-                                                }).select('batch_id').maybeSingle();
+                                                try {
+                                                  final batchRes = await supabase.from('batches').insert({
+                                                    'batch_name': batchName,
+                                                    'date_created': DateTime.now().toIso8601String().split('T').first,
+                                                  }).select().maybeSingle();
 
-                                                if (batchRes != null && batchRes['batch_id'] != null) {
-                                                  batchId = batchRes['batch_id'];
-                                                }
-                                              }
-
-                                              final isUnassigned = selectedRaiserId == 'unassigned';
-
-                                              if (!isUnassigned && int.tryParse(selectedRaiserId!) != null) {
-                                                final parsedRaiserId = int.parse(selectedRaiserId!);
-
-                                                // Update or Create assignment record
-                                                final existingAssign = await supabase
-                                                    .from('assignments')
-                                                    .select('assignment_id')
-                                                    .eq('hog_raiser_id', parsedRaiserId)
-                                                    .eq('status', 'active')
-                                                    .maybeSingle();
-
-                                                if (existingAssign != null) {
-                                                  if (batchId != null) {
-                                                    await supabase.from('assignments').update({
-                                                      'batch_id': batchId,
-                                                    }).eq('assignment_id', existingAssign['assignment_id']);
+                                                  if (batchRes != null) {
+                                                    batchId = batchRes['batch_id'] ?? batchRes['id'];
                                                   }
-                                                } else {
-                                                  final assignPayload = <String, dynamic>{
-                                                    'hog_raiser_id': parsedRaiserId,
-                                                    'status': 'active',
-                                                    'start_date': DateTime.now().toIso8601String().split('T').first,
-                                                  };
-                                                  if (batchId != null) assignPayload['batch_id'] = batchId;
+                                                } catch (bErr) {
+                                                  debugPrint('Batch insert with date_created failed: $bErr. Retrying with basic payload...');
+                                                  final batchRes = await supabase.from('batches').insert({
+                                                    'batch_name': batchName,
+                                                  }).select().maybeSingle();
 
-                                                  await supabase
-                                                      .from('assignments')
-                                                      .insert(assignPayload);
+                                                  if (batchRes != null) {
+                                                    batchId = batchRes['batch_id'] ?? batchRes['id'];
+                                                  }
                                                 }
                                               }
+
+                                               final isUnassigned = selectedRaiserId == 'unassigned' || selectedRaiserId == null;
+
+                                               // Check if this batch already has an assignment record
+                                               final existingAssignForBatch = batchId != null
+                                                   ? await supabase
+                                                       .from('assignments')
+                                                       .select('assignment_id, hog_type_id')
+                                                       .eq('batch_id', batchId)
+                                                       .maybeSingle()
+                                                   : null;
+
+                                               if (isUnassigned) {
+                                                 if (existingAssignForBatch != null) {
+                                                   await supabase
+                                                       .from('assignments')
+                                                       .delete()
+                                                       .eq('assignment_id', existingAssignForBatch['assignment_id']);
+                                                 }
+                                               } else if (int.tryParse(selectedRaiserId!) != null) {
+                                                 final parsedRaiserId = int.parse(selectedRaiserId!);
+
+                                                 // 1. Resolve required hog_type_id
+                                                 dynamic resolvedHogTypeId;
+                                                 try {
+                                                   final raiserInfo = await supabase
+                                                       .from('hog_raisers')
+                                                       .select('pig_type')
+                                                       .eq('hog_raiser_id', parsedRaiserId)
+                                                       .maybeSingle();
+
+                                                   final pigTypeStr = raiserInfo?['pig_type']?.toString();
+
+                                                   if (pigTypeStr != null && pigTypeStr.isNotEmpty && pigTypeStr != 'N/A' && pigTypeStr.toLowerCase() != 'unassigned') {
+                                                     final typeMatch = await supabase
+                                                         .from('hog_types')
+                                                         .select('hog_type_id')
+                                                         .ilike('type_name', '%$pigTypeStr%')
+                                                         .maybeSingle();
+                                                     if (typeMatch != null) {
+                                                       resolvedHogTypeId = typeMatch['hog_type_id'];
+                                                     }
+                                                   }
+
+                                                   if (resolvedHogTypeId == null) {
+                                                     final defaultType = await supabase
+                                                         .from('hog_types')
+                                                         .select('hog_type_id')
+                                                         .limit(1)
+                                                         .maybeSingle();
+                                                     if (defaultType != null) {
+                                                       resolvedHogTypeId = defaultType['hog_type_id'];
+                                                     }
+                                                   }
+                                                 } catch (htErr) {
+                                                   debugPrint('Notice resolving hog_type_id: $htErr');
+                                                 }
+
+                                                 final int finalHogTypeId = resolvedHogTypeId != null
+                                                     ? (resolvedHogTypeId as num).toInt()
+                                                     : 1;
+
+                                                 if (existingAssignForBatch != null) {
+                                                   final updatePayload = <String, dynamic>{
+                                                     'hog_raiser_id': parsedRaiserId,
+                                                     'status': 'active',
+                                                     'hog_type_id': finalHogTypeId,
+                                                   };
+                                                   await supabase
+                                                       .from('assignments')
+                                                       .update(updatePayload)
+                                                       .eq('assignment_id', existingAssignForBatch['assignment_id']);
+                                                 } else {
+                                                   final assignPayload = <String, dynamic>{
+                                                     'batch_id': batchId,
+                                                     'hog_raiser_id': parsedRaiserId,
+                                                     'status': 'active',
+                                                     'hog_type_id': finalHogTypeId,
+                                                   };
+                                                   await supabase.from('assignments').insert(assignPayload);
+                                                 }
+                                               }
 
                                               if (!dialogContext.mounted) return;
                                               Navigator.pop(dialogContext);

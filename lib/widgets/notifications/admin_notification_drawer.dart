@@ -425,40 +425,6 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF132238) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'System is up to date',
-                    style: AppTextStyles.jakarta(
-                      size: 11.5,
-                      weight: FontWeight.w600,
-                      color: mutedColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

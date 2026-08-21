@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
@@ -6,6 +7,7 @@ import 'package:piggytrunk/theme/app_theme.dart';
 class RequestFormScreen extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
   final Map<String, dynamic> raiserData;
+  final String initialCategory;
   final VoidCallback onBack;
   final VoidCallback onSuccess;
   final VoidCallback onViewHistory;
@@ -14,6 +16,7 @@ class RequestFormScreen extends StatefulWidget {
     super.key,
     required this.activeAssignments,
     required this.raiserData,
+    this.initialCategory = 'Feeds',
     required this.onBack,
     required this.onSuccess,
     required this.onViewHistory,
@@ -24,9 +27,9 @@ class RequestFormScreen extends StatefulWidget {
 }
 
 class _RequestFormScreenState extends State<RequestFormScreen> {
-  String _selectedCategory = 'Feeds';
+  late String _selectedCategory;
   int _quantity = 0;
-  String? _selectedFeedType = 'Booster';
+  String? _selectedFeedType;
   final TextEditingController _notesController = TextEditingController();
   BigInt? _selectedAssignmentId;
   bool _isSubmitting = false;
@@ -39,6 +42,12 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedCategory = widget.initialCategory;
+    if (_selectedCategory == 'Feeds') {
+      _selectedFeedType = 'Booster';
+    } else {
+      _selectedFeedType = null;
+    }
     if (widget.activeAssignments.isNotEmpty) {
       _selectedAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
     }
@@ -90,6 +99,24 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         'notes': _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
       });
 
+      final notesText = _notesController.text.trim();
+      final itemDesc = _selectedCategory == 'Feeds'
+          ? '$_quantity sako ng ${_selectedFeedType ?? "Feeds"}'
+          : '$_quantity pcs ng $_selectedCategory';
+      final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
+      final notifMessage = notesText.isNotEmpty
+          ? '$raiserName requested $itemDesc.\nNotes: "$notesText"'
+          : '$raiserName requested $itemDesc.';
+
+      try {
+        await Supabase.instance.client.from('admin_notifications').insert({
+          'title': 'New Stock Request',
+          'message': notifMessage,
+          'type': 'stock_request',
+          'is_read': false,
+        });
+      } catch (_) {}
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -118,7 +145,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   Widget _buildCategoryCard({
     required String name,
     required String label,
+    required String sublabel,
     required String imagePath,
+    required Color accentColor,
     required bool isSelected,
   }) {
     return Expanded(
@@ -135,7 +164,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -143,40 +172,55 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
               color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
               width: isSelected ? 2 : 1,
             ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: _brandColor.withValues(alpha: 0.08),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    )
-                  ]
-                : null,
+            boxShadow: [
+              BoxShadow(
+                color: isSelected ? _brandColor.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.03),
+                blurRadius: isSelected ? 12 : 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? _brandColor.withValues(alpha: 0.1)
-                      : const Color(0xfff7f8fb),
+                  color: accentColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Image.asset(
                   imagePath,
-                  width: 24,
-                  height: 24,
-                  color: isSelected ? _brandColor : const Color(0xffa0aec0),
+                  width: 22,
+                  height: 22,
+                  color: accentColor,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    name == 'Feeds'
+                        ? Icons.grass_rounded
+                        : (name == 'Vitamins'
+                            ? Icons.medication_liquid_rounded
+                            : Icons.medical_services_rounded),
+                    size: 22,
+                    color: accentColor,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 label,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? _brandColor : const Color(0xff5d6a7b),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? _brandColor : const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                sublabel,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w500,
+                  color: PiggyTrunkTheme.ptMuted,
                 ),
               ),
             ],
@@ -319,7 +363,13 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                   displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
                                 }
                               }
-                              final hogType = a['hog_types']?['type_name'] ?? 'N/A';
+                              final rawHogType = a['hog_types']?['type_name']?.toString() ??
+                                  a['pig_type']?.toString() ??
+                                  widget.raiserData['pig_type']?.toString() ??
+                                  'Unassigned';
+                              final hogType = (rawHogType.isEmpty || rawHogType == 'N/A' || rawHogType.toLowerCase() == 'unassigned')
+                                  ? 'Unassigned'
+                                  : rawHogType;
                               return DropdownMenuItem<BigInt>(
                                 value: BigInt.from(a['assignment_id'] as num),
                                 child: Text(
@@ -376,23 +426,29 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       children: [
                         _buildCategoryCard(
                           name: 'Feeds',
-                          label: 'Feeds (Pagkain)',
+                          label: 'Feeds',
+                          sublabel: 'Pagkain',
                           imagePath: 'assets/feeds_icon.png',
+                          accentColor: const Color(0xFF10B981),
                           isSelected: _selectedCategory == 'Feeds',
                         ),
-                        const SizedBox(width: 12),
-                        _buildCategoryCard(
-                          name: 'Vitamins',
-                          label: 'Vitamins (Bitamina)',
-                          imagePath: 'assets/vitamins_icon.png',
-                          isSelected: _selectedCategory == 'Vitamins',
-                        ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         _buildCategoryCard(
                           name: 'Medicine',
-                          label: 'Medicine (Gamot)',
+                          label: 'Medicine',
+                          sublabel: 'Gamot',
                           imagePath: 'assets/medicine_icon.png',
+                          accentColor: const Color(0xFFEF4444),
                           isSelected: _selectedCategory == 'Medicine',
+                        ),
+                        const SizedBox(width: 10),
+                        _buildCategoryCard(
+                          name: 'Vitamins',
+                          label: 'Vitamins',
+                          sublabel: 'Bitamina',
+                          imagePath: 'assets/vitamins_icon.png',
+                          accentColor: const Color(0xFF8B5CF6),
+                          isSelected: _selectedCategory == 'Vitamins',
                         ),
                       ],
                     ),
@@ -520,6 +576,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     TextField(
                       controller: _notesController,
                       maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                      inputFormatters: [
+                        SentenceCapitalizationFormatter(),
+                      ],
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         color: _brandColor,
@@ -577,6 +637,42 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 ),
               ),
             ),
+    );
+  }
+}
+
+/// Auto-capitalizes the first letter of each sentence
+class SentenceCapitalizationFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    final text = newValue.text;
+    final buffer = StringBuffer();
+    bool capitalizeNext = true;
+
+    for (int i = 0; i < text.length; i++) {
+      final char = text[i];
+      if (capitalizeNext && RegExp(r'[a-zA-Z]').hasMatch(char)) {
+        buffer.write(char.toUpperCase());
+        capitalizeNext = false;
+      } else {
+        buffer.write(char);
+        if (char == '.' || char == '?' || char == '!' || char == '\n') {
+          capitalizeNext = true;
+        } else if (char.trim().isNotEmpty) {
+          capitalizeNext = false;
+        }
+      }
+    }
+
+    final newText = buffer.toString();
+    return newValue.copyWith(
+      text: newText,
+      selection: newValue.selection,
     );
   }
 }

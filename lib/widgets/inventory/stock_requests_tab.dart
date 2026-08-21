@@ -4,7 +4,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
-import '../slide_over_confirmation_drawer.dart';
 
 class StockRequestsTab extends StatefulWidget {
   final List<Product> products;
@@ -66,34 +65,122 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     if (!mounted) return;
     setState(() => _isLoadingRequests = true);
     try {
-      final res = await _supabase
-          .from('stock_requests')
-          .select('*, hog_raisers(name, hog_raiser_id, user_id, app_users!hog_raisers_user_id_fkey(name, email))')
-          .order('created_at', ascending: false);
+      // 1. Fetch raw stock requests
+      List<dynamic> res = [];
+      try {
+        res = await _supabase
+            .from('stock_requests')
+            .select('*')
+            .order('request_date', ascending: false);
+      } catch (e1) {
+        try {
+          res = await _supabase
+              .from('stock_requests')
+              .select('*')
+              .order('created_at', ascending: false);
+        } catch (e2) {
+          res = await _supabase.from('stock_requests').select('*');
+        }
+      }
 
-      final List<Map<String, dynamic>> enriched = [];
-      for (var r in (res as List)) {
-        final rMap = Map<String, dynamic>.from(r as Map);
-        final raiser = rMap['hog_raisers'] as Map<String, dynamic>?;
-        final appUsers = raiser?['app_users'] as Map<String, dynamic>?;
+      // 2. Fetch raisers with app_users
+      List<dynamic> raisersRaw = [];
+      try {
+        raisersRaw = await _supabase
+            .from('hog_raisers')
+            .select('hog_raiser_id, name, app_users!hog_raisers_user_id_fkey(name, email)');
+      } catch (_) {
+        try {
+          raisersRaw = await _supabase.from('hog_raisers').select('hog_raiser_id, name');
+        } catch (_) {}
+      }
+
+      final Map<String, String> raisersMap = {};
+      for (var r in raisersRaw) {
+        if (r is! Map) continue;
+        final rId = (r['hog_raiser_id'] ?? r['id'])?.toString() ?? '';
+        if (rId.isEmpty) continue;
+
+        dynamic appUsersRaw = r['app_users'];
+        Map<String, dynamic>? appUsers;
+        if (appUsersRaw is Map) {
+          appUsers = Map<String, dynamic>.from(appUsersRaw);
+        } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+          appUsers = Map<String, dynamic>.from(appUsersRaw.first);
+        }
 
         final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
-        final raiserDbName = (raiser?['name'] ?? '').toString().trim();
-        final rawUserName = (rMap['user_name'] ?? '').toString().trim();
-        final rawRaiserName = (rMap['raiser_name'] ?? '').toString().trim();
+        final raiserDbName = (r['name'] ?? '').toString().trim();
+        final resolvedName = (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser')
+            ? googleOrAppName
+            : (raiserDbName.isNotEmpty ? raiserDbName : 'Hog Raiser');
+
+        raisersMap[rId] = resolvedName;
+      }
+
+      // 3. Fetch assignments and batches
+      List<dynamic> assignmentsRaw = [];
+      try {
+        assignmentsRaw = await _supabase.from('assignments').select('assignment_id, id, batch_id, hog_raiser_id');
+      } catch (_) {}
+
+      List<dynamic> batchesRaw = [];
+      try {
+        batchesRaw = await _supabase.from('batches').select('batch_id, id, batch_name, name');
+      } catch (_) {}
+
+      final Map<String, String> batchNameMap = {};
+      for (var b in batchesRaw) {
+        if (b is! Map) continue;
+        final bId = (b['batch_id'] ?? b['id'])?.toString() ?? '';
+        if (bId.isNotEmpty) {
+          batchNameMap[bId] = (b['batch_name'] ?? b['name'])?.toString() ?? 'Batch $bId';
+        }
+      }
+
+      final Map<String, String> assignToBatchMap = {};
+      final Map<String, String> assignToRaiserMap = {};
+      for (var a in assignmentsRaw) {
+        if (a is! Map) continue;
+        final aId = (a['assignment_id'] ?? a['id'])?.toString() ?? '';
+        final bId = a['batch_id']?.toString() ?? '';
+        final rId = a['hog_raiser_id']?.toString() ?? '';
+        if (aId.isNotEmpty) {
+          if (bId.isNotEmpty && batchNameMap.containsKey(bId)) {
+            assignToBatchMap[aId] = batchNameMap[bId]!;
+          }
+          if (rId.isNotEmpty) {
+            assignToRaiserMap[aId] = rId;
+          }
+        }
+      }
+
+      final List<Map<String, dynamic>> enriched = [];
+      for (var r in res) {
+        if (r is! Map) continue;
+        final rMap = Map<String, dynamic>.from(r);
+
+        final rId = (rMap['hog_raiser_id'] ?? '').toString();
+        final aId = (rMap['assignment_id'] ?? '').toString();
 
         String resolvedName = 'Hog Raiser';
-        if (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser') {
-          resolvedName = googleOrAppName;
-        } else if (raiserDbName.isNotEmpty && raiserDbName.toLowerCase() != 'hog raiser') {
-          resolvedName = raiserDbName;
-        } else if (rawUserName.isNotEmpty && rawUserName.toLowerCase() != 'hog raiser') {
-          resolvedName = rawUserName;
-        } else if (rawRaiserName.isNotEmpty && rawRaiserName.toLowerCase() != 'hog raiser') {
-          resolvedName = rawRaiserName;
+        if (rId.isNotEmpty && raisersMap.containsKey(rId)) {
+          resolvedName = raisersMap[rId]!;
+        } else if (aId.isNotEmpty && assignToRaiserMap.containsKey(aId) && raisersMap.containsKey(assignToRaiserMap[aId])) {
+          resolvedName = raisersMap[assignToRaiserMap[aId]]!;
+        } else if ((rMap['user_name'] ?? '').toString().trim().isNotEmpty) {
+          resolvedName = (rMap['user_name'] ?? '').toString().trim();
+        } else if ((rMap['raiser_name'] ?? '').toString().trim().isNotEmpty) {
+          resolvedName = (rMap['raiser_name'] ?? '').toString().trim();
+        }
+
+        String resolvedBatch = 'General Stock';
+        if (aId.isNotEmpty && assignToBatchMap.containsKey(aId)) {
+          resolvedBatch = assignToBatchMap[aId]!;
         }
 
         rMap['fetched_raiser_name'] = resolvedName;
+        rMap['fetched_batch_name'] = resolvedBatch;
         enriched.add(rMap);
       }
 
@@ -232,6 +319,16 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                       _buildRequestFilterChip('Approved', 'Approved'),
                       const SizedBox(width: 8),
                       _buildRequestFilterChip('Rejected', 'Rejected'),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _loadStockRequests,
+                        tooltip: 'Refresh requests',
+                        icon: Icon(
+                          Icons.refresh_rounded,
+                          size: 20,
+                          color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -248,24 +345,31 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           )
         else if (filteredRequests.isEmpty)
           Center(
-            child: Container(
-              padding: const EdgeInsets.all(36),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
               child: Column(
                 children: [
-                  Icon(Icons.inbox_outlined, size: 48, color: _mutedColor),
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 48,
+                    color: _mutedColor,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'No stock requests found',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
                       color: _titleColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Raiser feed and supplies requests will appear here in real-time.',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _mutedColor),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: _mutedColor,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ),
@@ -463,13 +567,42 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         ),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Text(
-            feedType,
-            style: GoogleFonts.plusJakartaSans(
-              color: _titleColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                feedType.isNotEmpty && feedType != 'N/A' ? feedType : category,
+                style: GoogleFonts.plusJakartaSans(
+                  color: _titleColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+              if (req['notes'] != null && req['notes'].toString().trim().isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.sticky_note_2_outlined, size: 13, color: Color(0xFFD97706)),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        '${req['notes']}',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: const Color(0xFFD97706),
+                          fontWeight: FontWeight.w600,
+                          fontStyle: FontStyle.italic,
+                          fontSize: 11.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ),
         Padding(
@@ -565,14 +698,28 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
     final raiserName = req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
     final requestId = req['request_id'];
+    final notes = (req['notes'] ?? '').toString().trim();
 
+    final categoryClean = category.trim().toLowerCase();
     List<Product> matchingProducts = widget.products.where((p) {
-      return p.category.toLowerCase() == category.toLowerCase();
+      final pCat = p.category.trim().toLowerCase();
+      if (categoryClean.contains('feed') || categoryClean == 'feeds' || categoryClean == 'pagkain') {
+        return pCat.contains('feed') || pCat == 'feeds';
+      } else if (categoryClean.contains('vitamin') || categoryClean == 'bitamina') {
+        return pCat.contains('vitamin') || pCat == 'vitamins';
+      } else if (categoryClean.contains('med') || categoryClean == 'gamot') {
+        return pCat.contains('med') || pCat == 'medicines' || pCat == 'medicine';
+      }
+      return pCat == categoryClean;
     }).toList();
+
+    if (matchingProducts.isEmpty) {
+      matchingProducts = widget.products;
+    }
 
     Product? selectedProduct;
     if (matchingProducts.isNotEmpty) {
-      if (category.toLowerCase() == 'feeds' && feedType.isNotEmpty) {
+      if (categoryClean.contains('feed') && feedType.isNotEmpty) {
         selectedProduct = matchingProducts.firstWhere(
           (p) => p.name.toLowerCase().contains(feedType.toLowerCase()),
           orElse: () => matchingProducts.first,
@@ -750,7 +897,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         ),
                                         const SizedBox(height: 6),
                                         Text(
-                                          'Item: $feedType',
+                                          'Item: ${feedType.isNotEmpty ? feedType : category}',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
@@ -766,6 +913,38 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                             color: const Color(0xFF10B981),
                                           ),
                                         ),
+                                        if (notes.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF111C2E) : Colors.white,
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: isDark ? const Color(0xFF2C3E55) : const Color(0xFFCBD5E1),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                const Icon(Icons.speaker_notes_outlined, size: 15, color: Color(0xFFD97706)),
+                                                const SizedBox(width: 6),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Notes: "$notes"',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontStyle: FontStyle.italic,
+                                                      color: titleColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
@@ -773,7 +952,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
                                   // Product to Deduct Stock From
                                   Text(
-                                    'SELECT PRODUCT TO DISPATCH FROM *',
+                                    'SELECT PRODUCT TO DISPATCH FROM ($category ONLY) *',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
@@ -805,11 +984,11 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                       fontSize: 13.5,
                                       fontWeight: FontWeight.w600,
                                     ),
-                                    items: widget.products.map((prod) {
+                                    items: matchingProducts.map((prod) {
                                       return DropdownMenuItem<Product>(
                                         value: prod,
                                         child: Text(
-                                          '[${prod.category}] ${prod.name} (${prod.units} in stock)',
+                                          '${prod.name} (${prod.units} in stock)',
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       );
@@ -901,65 +1080,67 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   flex: 2,
-                                  child: ElevatedButton.icon(
-                                    onPressed: (_isProcessingRequest || !hasSufficientStock)
-                                        ? null
-                                        : () async {
-                                            Navigator.of(dialogCtx).pop();
-                                            await _processApproveRequest(
-                                              requestId: requestId,
-                                              product: selectedProdInDialog,
-                                              requestedUnits: requestedQuantity,
-                                              raiserName: raiserName,
-                                            );
-                                          },
-                                    icon: _isProcessingRequest
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                          )
-                                        : const Icon(Icons.check_rounded, size: 18),
-                                    label: Text(
-                                      _isProcessingRequest ? 'Processing...' : 'Confirm Approval',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13.5,
-                                        color: Colors.white,
+                                    child: ElevatedButton.icon(
+                                      onPressed: (_isProcessingRequest || !hasSufficientStock)
+                                          ? null
+                                          : () async {
+                                              Navigator.of(dialogCtx).pop();
+                                              await _processApproveRequest(
+                                                requestId: requestId,
+                                                product: selectedProdInDialog,
+                                                requestedUnits: requestedQuantity,
+                                                raiserName: raiserName,
+                                                raiserId: req['hog_raiser_id'],
+                                              );
+                                            },
+                                      icon: _isProcessingRequest
+                                          ? const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(Icons.check_rounded, size: 18),
+                                      label: Text(
+                                        _isProcessingRequest ? 'Processing...' : 'Confirm Approval',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13.5,
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF10B981),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF10B981),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 12),
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
+          );
+        },
+      );
+    }
 
   Future<void> _processApproveRequest({
     required dynamic requestId,
     required Product product,
     required int requestedUnits,
     required String raiserName,
+    dynamic raiserId,
   }) async {
     setState(() => _isProcessingRequest = true);
     try {
@@ -973,6 +1154,18 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         'status': 'approved',
         'decision_date': DateTime.now().toIso8601String().split('T').first,
       }).eq('request_id', requestId);
+
+      if (raiserId != null) {
+        try {
+          await _supabase.from('raiser_notifications').insert({
+            'hog_raiser_id': raiserId,
+            'title': 'Stock Request Update',
+            'message': 'Your request for $requestedUnits ${product.name} has been approved.',
+            'type': 'request_approved',
+            'is_read': false,
+          });
+        } catch (_) {}
+      }
 
       await widget.onInsertLog(
         productId: product.id,
@@ -1002,34 +1195,300 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
   }
 
   void _confirmRejectRequest(Map<String, dynamic> req) async {
+    final category = req['category']?.toString() ?? 'Feeds';
+    final feedType = req['feed_type']?.toString() ?? '';
+    final requestedQuantity = (req['quantity'] as num?)?.toInt() ?? 1;
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
     final raiserName = req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
     final requestId = req['request_id'];
+    final raiserId = req['hog_raiser_id'];
+    final itemDesc = feedType.isNotEmpty ? '$requestedQuantity $feedType' : '$requestedQuantity $category';
 
-    final confirmed = await SlideOverConfirmationDrawer.show(
+    final reasonController = TextEditingController();
+
+    final isConfirmed = await showGeneralDialog<bool>(
       context: context,
-      title: 'Reject Stock Request',
-      message: 'Are you sure you want to reject the stock request from $raiserName?',
-      confirmButtonText: 'Reject Request',
-      actionType: SlideOverActionType.danger,
-      customIcon: Icons.cancel_outlined,
+      barrierDismissible: true,
+      barrierLabel: 'Reject Request Modal',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogCtx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        final curvedValue = Curves.easeOutCubic.transform(anim1.value);
+        final screenWidth = MediaQuery.of(dialogCtx).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 420.0;
+
+        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
+        final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
+        final mutedColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
+        final fieldBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
+        final fieldBorder = isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
+
+        return Transform.translate(
+          offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: drawerWidth,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: drawerBg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                      blurRadius: 24,
+                      offset: const Offset(-4, 0),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        decoration: BoxDecoration(
+                          border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.2 : 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.cancel_outlined,
+                                color: Color(0xFFEF4444),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Reject Stock Request',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: titleColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Decline supply request from $raiserName',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: mutedColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                              splashRadius: 20,
+                              onPressed: () => Navigator.of(dialogCtx).pop(false),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Body
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Dahilan ng Pag-Reject (Rejection Reason) *',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Ang mensaheng ito ay ipapadala bilang notification sa Hog Raiser upang malaman niya kung bakit hindi na-approve ang kaniyang request.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: mutedColor,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                controller: reasonController,
+                                maxLines: 4,
+                                textCapitalization: TextCapitalization.sentences,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  color: titleColor,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Hal. Kulang ang stock sa warehouse, o paki-update ang batch info...',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    color: mutedColor,
+                                  ),
+                                  filled: true,
+                                  fillColor: fieldBg,
+                                  contentPadding: const EdgeInsets.all(14),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: fieldBorder),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Footer Actions
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: drawerBg,
+                          border: Border(top: BorderSide(color: borderColor, width: 1)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(color: fieldBorder),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: titleColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: () => Navigator.of(dialogCtx).pop(true),
+                                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                                label: Text(
+                                  'Confirm Rejection',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFEF4444),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
 
-    if (confirmed == true) {
-      await _processRejectRequest(requestId);
+    if (isConfirmed == true) {
+      final reasonText = reasonController.text.trim();
+      await _processRejectRequest(
+        requestId: requestId,
+        raiserId: raiserId,
+        raiserName: raiserName,
+        itemDesc: itemDesc,
+        rejectionReason: reasonText,
+      );
     }
   }
 
-  Future<void> _processRejectRequest(dynamic requestId) async {
+  Future<void> _processRejectRequest({
+    required dynamic requestId,
+    required dynamic raiserId,
+    required String raiserName,
+    required String itemDesc,
+    required String rejectionReason,
+  }) async {
     setState(() => _isProcessingRequest = true);
     try {
-      await _supabase.from('stock_requests').update({
-        'status': 'rejected',
-        'decision_date': DateTime.now().toIso8601String().split('T').first,
-      }).eq('request_id', requestId);
+      try {
+        await _supabase.from('stock_requests').update({
+          'status': 'rejected',
+          'decision_date': DateTime.now().toIso8601String().split('T').first,
+          'rejection_reason': rejectionReason.isNotEmpty ? rejectionReason : null,
+        }).eq('request_id', requestId);
+      } catch (_) {
+        await _supabase.from('stock_requests').update({
+          'status': 'rejected',
+          'decision_date': DateTime.now().toIso8601String().split('T').first,
+        }).eq('request_id', requestId);
+      }
+
+      if (raiserId != null) {
+        final notifMsg = rejectionReason.isNotEmpty
+            ? 'Your request for $itemDesc has been rejected. Reason: "$rejectionReason"'
+            : 'Your request for $itemDesc has been rejected.';
+        try {
+          await _supabase.from('raiser_notifications').insert({
+            'hog_raiser_id': raiserId,
+            'title': 'Stock Request Update',
+            'message': notifMsg,
+            'type': 'request_rejected',
+            'is_read': false,
+          });
+        } catch (notifErr) {
+          debugPrint('Error inserting raiser notification: $notifErr');
+        }
+      }
 
       widget.onShowSnackBar(
-        'Stock request rejected.',
+        'Stock request from $raiserName has been rejected.',
         backgroundColor: Colors.orange,
       );
 

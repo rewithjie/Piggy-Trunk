@@ -50,6 +50,17 @@ class NotificationItemCard extends StatelessWidget {
     final message = notif.message.toLowerCase();
     final title = notif.title.toLowerCase();
 
+    // 0. Stock Requests -> /inventory (Raiser Stock Requests Tab)
+    if (type == 'stock_request' ||
+        type.contains('stock') ||
+        title.contains('stock request') ||
+        title.contains('stock') ||
+        message.contains('stock request') ||
+        message.contains('requested new stock') ||
+        message.contains('requested')) {
+      return '/inventory';
+    }
+
     // 1. Hog Raiser Registrations & Hog Reports -> /raisers
     if (role == 'hog_raiser' ||
         role == 'raiser' ||
@@ -75,11 +86,9 @@ class NotificationItemCard extends StatelessWidget {
 
     // 4. Feeds & Supplies Inventory -> /inventory
     if (type == 'feed_restock' ||
-        type.contains('stock') ||
         type.contains('feed') ||
         type.contains('inventory') ||
-        message.contains('feed') ||
-        message.contains('stock')) {
+        message.contains('feed')) {
       return '/inventory';
     }
 
@@ -139,9 +148,11 @@ class NotificationItemCard extends StatelessWidget {
     final int? rawUserId = meta['user_id'] is int ? meta['user_id'] as int : int.tryParse(meta['user_id']?.toString() ?? '');
     final String rawRole = (meta['role'] ?? 'hog_raiser').toString();
     final targetRoute = _resolveTargetRoute(notif);
-    final String? routeArg = (notif.type == 'user_registration' || notif.message.toLowerCase().contains('pending'))
-        ? 'pending'
-        : null;
+    final String? routeArg = targetRoute == '/inventory'
+        ? 'stock_request'
+        : ((notif.type == 'user_registration' || notif.message.toLowerCase().contains('pending'))
+            ? 'pending'
+            : null);
 
     final brandPrimary = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
     final catColor = _getCategoryColor(notif.type, notif.message, isDark);

@@ -152,7 +152,10 @@ class RaiserProfileDrawer {
     final email = (row['email'] ?? 'N/A').toString();
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
-    final pigType = (row['pig_type'] ?? 'N/A').toString();
+    final rawPigType = (row['pig_type'] ?? '').toString().trim();
+    final pigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A' || rawPigType.toUpperCase() == 'NONE')
+        ? 'Unassigned'
+        : rawPigType;
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -279,8 +282,10 @@ class RaiserProfileDrawer {
                             _drawerDetailRow('Phone', phone, hintText, titleColor),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
                             _drawerDetailRow('Address', address, hintText, titleColor),
-                            Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _drawerDetailRow('Pig Type', pigType, hintText, titleColor),
+                            if (!isPending) ...[
+                              Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                              _drawerDetailRow('Pig Type', pigType, hintText, titleColor),
+                            ],
                           ],
                         ),
                       ),
@@ -381,7 +386,10 @@ class RaiserProfileDrawer {
     final email = (row['email'] ?? 'N/A').toString();
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
-    final pigType = (row['pig_type'] ?? 'N/A').toString();
+    final rawPigType = (row['pig_type'] ?? '').toString().trim();
+    final pigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A' || rawPigType.toUpperCase() == 'NONE')
+        ? 'Unassigned'
+        : rawPigType;
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -535,8 +543,10 @@ class RaiserProfileDrawer {
                                     _drawerDetailRow('Phone', phone, hintText, titleColor),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
                                     _drawerDetailRow('Address', address, hintText, titleColor),
-                                    Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _drawerDetailRow('Pig Type', pigType, hintText, titleColor),
+                                    if (!isPending) ...[
+                                      Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                                      _drawerDetailRow('Pig Type', pigType, hintText, titleColor),
+                                    ],
                                   ],
                                 ),
                               ),
