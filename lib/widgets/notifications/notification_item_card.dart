@@ -194,140 +194,201 @@ class NotificationItemCard extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(11),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Left accent strip for unread notifications
-                if (!notif.isRead)
-                  Container(
+          child: Stack(
+            children: [
+              // Card Main Body
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Category Icon Badge
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: isDark ? 0.18 : 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: catColor.withValues(alpha: 0.25),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        catIcon,
+                        size: 16,
+                        color: catColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Notification Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Top Row: Title + Time
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  notif.title,
+                                  style: AppTextStyles.jakarta(
+                                    size: 13,
+                                    weight: notif.isRead ? FontWeight.w600 : FontWeight.w800,
+                                    color: textColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatTimeAgo(notif.createdAt),
+                                style: AppTextStyles.jakarta(
+                                  size: 11,
+                                  weight: FontWeight.w500,
+                                  color: mutedColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Message Text
+                          Text(
+                            notif.message,
+                            style: AppTextStyles.jakarta(
+                              size: 12,
+                              weight: FontWeight.w400,
+                              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                              height: 1.35,
+                            ),
+                          ),
+
+                          // Quick Approve Action (for user registrations)
+                          if (isUserRegistration && rawUserId != null) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                ElevatedButton(
+                                  onPressed: isApproving
+                                      ? null
+                                      : () => onQuickApprove(notif, rawUserId, rawRole),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  child: isApproving
+                                      ? const SizedBox(
+                                          width: 10,
+                                          height: 10,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 1.5,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Approve',
+                                              style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700),
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ],
+                            ),
+                          ],
+
+                          // Quick Approve & Reject Actions (for investment approval requests)
+                          if ((notif.type == 'investment_approval' || notif.title.toLowerCase().contains('investment approval')) &&
+                              meta['investment_id'] != null &&
+                              !notif.isRead) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () async {
+                                    final invId = meta['investment_id'] is int
+                                        ? meta['investment_id'] as int
+                                        : int.tryParse(meta['investment_id'].toString()) ?? 0;
+                                    if (invId > 0) {
+                                      await AdminNotificationService.quickRejectInvestment(invId);
+                                      await AdminNotificationService.markAsRead(notif.notificationId);
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFEF4444),
+                                    side: const BorderSide(color: Color(0xFFEF4444), width: 1),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  child: Text(
+                                    'Reject',
+                                    style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: const Color(0xFFEF4444)),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final invId = meta['investment_id'] is int
+                                        ? meta['investment_id'] as int
+                                        : int.tryParse(meta['investment_id'].toString()) ?? 0;
+                                    if (invId > 0) {
+                                      await AdminNotificationService.quickApproveInvestment(invId);
+                                      await AdminNotificationService.markAsRead(notif.notificationId);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  icon: const Icon(Icons.check_rounded, size: 13, color: Colors.white),
+                                  label: Text(
+                                    'Approve Investment',
+                                    style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Left accent strip for unread notifications
+              if (!notif.isRead)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
                     width: 3.5,
                     color: brandPrimary,
                   ),
-
-                // Card Main Body
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Category Icon Badge
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: catColor.withValues(alpha: isDark ? 0.18 : 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: catColor.withValues(alpha: 0.25),
-                              width: 1,
-                            ),
-                          ),
-                          child: Icon(
-                            catIcon,
-                            size: 16,
-                            color: catColor,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-
-                        // Notification Details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Top Row: Title + Time
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      notif.title,
-                                      style: AppTextStyles.jakarta(
-                                        size: 13,
-                                        weight: notif.isRead ? FontWeight.w600 : FontWeight.w800,
-                                        color: textColor,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _formatTimeAgo(notif.createdAt),
-                                    style: AppTextStyles.jakarta(
-                                      size: 11,
-                                      weight: FontWeight.w500,
-                                      color: mutedColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-
-                              // Message Text
-                              Text(
-                                notif.message,
-                                style: AppTextStyles.jakarta(
-                                  size: 12,
-                                  weight: FontWeight.w400,
-                                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                                  height: 1.35,
-                                ),
-                              ),
-
-                              // Quick Approve Action (for user registrations)
-                              if (isUserRegistration && rawUserId != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    ElevatedButton(
-                                      onPressed: isApproving
-                                          ? null
-                                          : () => onQuickApprove(notif, rawUserId, rawRole),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF10B981),
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                      ),
-                                      child: isApproving
-                                          ? const SizedBox(
-                                              width: 10,
-                                              height: 10,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 1.5,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                              ),
-                                            )
-                                          : Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.check_rounded, size: 13, color: Colors.white),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Approve',
-                                                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700),
-                                                ),
-                                              ],
-                                            ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),

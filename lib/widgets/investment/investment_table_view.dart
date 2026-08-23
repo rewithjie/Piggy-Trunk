@@ -6,18 +6,26 @@ import '../../utils/responsive.dart';
 
 class InvestmentTableView extends StatefulWidget {
   final List<Investment> investments;
+  final List<Map<String, dynamic>> partnerInvestments;
+  final String? initialViewMode;
   final VoidCallback onAddInvestment;
   final void Function(Investment item) onEditInvestment;
   final void Function(Investment item) onArchiveInvestment;
   final void Function(Investment item) onDeleteInvestment;
+  final void Function(int investmentId)? onApprovePartnerInvestment;
+  final void Function(int investmentId)? onRejectPartnerInvestment;
 
   const InvestmentTableView({
     super.key,
     required this.investments,
+    this.partnerInvestments = const [],
+    this.initialViewMode,
     required this.onAddInvestment,
     required this.onEditInvestment,
     required this.onArchiveInvestment,
     required this.onDeleteInvestment,
+    this.onApprovePartnerInvestment,
+    this.onRejectPartnerInvestment,
   });
 
   @override
@@ -26,8 +34,26 @@ class InvestmentTableView extends StatefulWidget {
 
 class _InvestmentTableViewState extends State<InvestmentTableView> {
   final TextEditingController _searchCtrl = TextEditingController();
+  late String _viewMode;
   String _selectedStageFilter = 'ALL';
   final String _selectedTypeFilter = 'ALL';
+
+  @override
+  void initState() {
+    super.initState();
+    _viewMode = widget.initialViewMode ??
+        (widget.partnerInvestments.any((p) => (p['status'] ?? '').toString().toLowerCase() == 'pending')
+            ? 'PARTNER'
+            : 'DIRECT');
+  }
+
+  @override
+  void didUpdateWidget(covariant InvestmentTableView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialViewMode != null && widget.initialViewMode != oldWidget.initialViewMode) {
+      _viewMode = widget.initialViewMode!;
+    }
+  }
 
   @override
   void dispose() {
@@ -68,8 +94,10 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     final totalCapital = widget.investments.fold<double>(0.0, (sum, i) => sum + i.initialCapital);
     final totalHogs = widget.investments.fold<int>(0, (sum, i) => sum + i.totalHog);
     final activeCount = widget.investments.where((i) => i.stage.toLowerCase() != 'archived' && i.stage.toLowerCase() != 'completed').length;
+    final pendingPartnerCount = widget.partnerInvestments.where((p) => (p['status'] ?? '').toString().toLowerCase() == 'pending').length;
 
-    final filtered = widget.investments.where((inv) {
+    // Filter Direct Investments
+    final filteredDirect = widget.investments.where((inv) {
       final q = _searchCtrl.text.trim().toLowerCase();
       if (q.isNotEmpty) {
         final name = inv.raiserName.toLowerCase();
@@ -85,11 +113,26 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       return true;
     }).toList();
 
+    // Filter Partner Investments
+    final filteredPartner = widget.partnerInvestments.where((p) {
+      final q = _searchCtrl.text.trim().toLowerCase();
+      if (q.isNotEmpty) {
+        final pName = (p['partner_name'] ?? '').toString().toLowerCase();
+        final bName = (p['batch_name'] ?? '').toString().toLowerCase();
+        if (!pName.contains(q) && !bName.contains(q)) return false;
+      }
+      if (_selectedStageFilter != 'ALL') {
+        final st = (p['status'] ?? 'pending').toString().toUpperCase();
+        if (st != _selectedStageFilter) return false;
+      }
+      return true;
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Top Metric Cards
-        _buildMetricsRow(totalCapital, totalHogs, activeCount, isMobile, isDark),
+        _buildMetricsRow(totalCapital, totalHogs, activeCount, pendingPartnerCount, isMobile, isDark),
         const SizedBox(height: 24),
 
         // Main Table Card
@@ -150,7 +193,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Track capital investments, raiser allocation, and lifecycle performance',
+                          'Track capital investments, partner approvals, and lifecycle performance',
                           style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: headerText),
                         ),
                       ],
@@ -168,11 +211,15 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 ),
               const SizedBox(height: 20),
 
+              // View Mode Selector (Direct Allocations vs Partner Requests)
+              _buildViewModeToggle(pendingPartnerCount, isDark),
+              const SizedBox(height: 16),
+
               // Search & Filters
               _buildSearchAndFilters(isMobile, isDark, fieldBg, fieldBorder, fieldFocus, fieldText, hintText),
               const SizedBox(height: 16),
 
-              // Table
+              // Table Content
               LayoutBuilder(
                 builder: (context, constraints) {
                   final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
@@ -184,26 +231,25 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildTableHeader(isDark, cardBorder, hintText),
-                          if (filtered.isEmpty)
-                            Container(
-                              width: tableWidth,
-                              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
-                              decoration: BoxDecoration(
-                                border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.7))),
+                          if (_viewMode == 'DIRECT') ...[
+                            _buildTableHeader(isDark, cardBorder, hintText),
+                            if (filteredDirect.isEmpty)
+                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, 'No direct investments found.')
+                            else
+                              ...List.generate(
+                                filteredDirect.length,
+                                (index) => _buildTableRow(filteredDirect[index], index, isDark, cardBorder, titleColor, hintText),
                               ),
-                              child: Center(
-                                child: Text(
-                                  'No investments found matching criteria.',
-                                  style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
-                                ),
+                          ] else ...[
+                            _buildPartnerTableHeader(isDark, cardBorder, hintText),
+                            if (filteredPartner.isEmpty)
+                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, 'No partner investment requests found.')
+                            else
+                              ...List.generate(
+                                filteredPartner.length,
+                                (index) => _buildPartnerTableRow(filteredPartner[index], index, isDark, cardBorder, titleColor, hintText),
                               ),
-                            )
-                          else
-                            ...List.generate(
-                              filtered.length,
-                              (index) => _buildTableRow(filtered[index], index, isDark, cardBorder, titleColor, hintText),
-                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -217,7 +263,107 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     );
   }
 
-  Widget _buildMetricsRow(double capital, int totalHogs, int activeCount, bool isMobile, bool isDark) {
+  Widget _buildEmptyPlaceholder(double tableWidth, Color cardBorder, Color titleColor, String message) {
+    return Container(
+      width: tableWidth,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 20),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.7))),
+      ),
+      child: Center(
+        child: Text(
+          message,
+          style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewModeToggle(int pendingCount, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16253B) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleTab(
+            label: 'Direct Allocations (${widget.investments.length})',
+            isSelected: _viewMode == 'DIRECT',
+            onTap: () => setState(() => _viewMode = 'DIRECT'),
+            isDark: isDark,
+          ),
+          const SizedBox(width: 4),
+          _buildToggleTab(
+            label: 'Partner Requests (${widget.partnerInvestments.length})',
+            badge: pendingCount > 0 ? '$pendingCount PENDING' : null,
+            isSelected: _viewMode == 'PARTNER',
+            onTap: () => setState(() => _viewMode = 'PARTNER'),
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleTab({
+    required String label,
+    String? badge,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? (isDark ? const Color(0xFF243B5B) : Colors.white) : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          boxShadow: isSelected
+              ? [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? (isDark ? Colors.white : const Color(0xFF18314F)) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+            ),
+            if (badge != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  badge,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsRow(double capital, int totalHogs, int activeCount, int pendingCount, bool isMobile, bool isDark) {
     if (isMobile) {
       return Column(
         children: [
@@ -229,7 +375,13 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
             ],
           ),
           const SizedBox(height: 10),
-          _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark),
+          Row(
+            children: [
+              Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark)),
+            ],
+          ),
         ],
       );
     }
@@ -240,6 +392,8 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark)),
         const SizedBox(width: 14),
         Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+        const SizedBox(width: 14),
+        Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark)),
       ],
     );
   }
@@ -306,7 +460,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       onChanged: (_) => setState(() {}),
       style: GoogleFonts.plusJakartaSans(color: fieldText, fontSize: 14),
       decoration: InputDecoration(
-        hintText: 'Search by raiser name or hog type...',
+        hintText: _viewMode == 'DIRECT' ? 'Search by raiser name or hog type...' : 'Search by partner or batch name...',
         hintStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14),
         prefixIcon: Icon(Icons.search_rounded, color: hintText, size: 20),
         filled: true,
@@ -328,6 +482,8 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       child: Row(
         children: [
           _buildFilterChip('ALL', 'All Stages', isDark),
+          const SizedBox(width: 8),
+          _buildFilterChip('PENDING', 'Pending', isDark),
           const SizedBox(width: 8),
           _buildFilterChip('ACTIVE', 'Active', isDark),
           const SizedBox(width: 8),
@@ -387,6 +543,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     );
   }
 
+  // DIRECT ALLOCATIONS TABLE
   Widget _buildTableHeader(bool isDark, Color cardBorder, Color hintText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -466,6 +623,173 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // PARTNER REQUESTS TABLE
+  Widget _buildPartnerTableHeader(bool isDark, Color cardBorder, Color hintText) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+        border: Border(bottom: BorderSide(color: cardBorder, width: 1.2)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 3, child: Text('PARTNER INVESTOR', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 3, child: Text('BATCH NAME', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Text('AMOUNT', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Text('DATE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Text('STATUS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartnerTableRow(Map<String, dynamic> p, int index, bool isDark, Color cardBorder, Color titleColor, Color hintText) {
+    final status = (p['status'] ?? 'pending').toString().toLowerCase();
+    final isPending = status == 'pending';
+    final isActive = status == 'active' || status == 'approved';
+    final isRejected = status == 'rejected' || status == 'declined';
+
+    final int invId = p['investment_id'] is int ? p['investment_id'] as int : (int.tryParse(p['investment_id']?.toString() ?? '') ?? 0);
+    final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+    final dateStr = p['date_invested']?.toString() ?? '';
+    final dt = DateTime.tryParse(dateStr) ?? DateTime.now();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.5))),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              p['partner_name'] ?? 'Partner Investor',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: titleColor),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              p['batch_name'] ?? 'Batch #${p['batch_id']}',
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatCurrency(amt),
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF43CB89)),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatDate(dt),
+              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: hintText),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: isPending
+                    ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                    : (isActive
+                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                        : const Color(0xFFEF4444).withValues(alpha: 0.15)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isPending
+                      ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                      : (isActive
+                          ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                          : const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isPending
+                        ? Icons.hourglass_top_rounded
+                        : (isActive ? Icons.check_circle_rounded : Icons.cancel_rounded),
+                    size: 12,
+                    color: isPending
+                        ? const Color(0xFFF59E0B)
+                        : (isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    status.toUpperCase(),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isPending
+                          ? const Color(0xFFF59E0B)
+                          : (isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: isPending
+                ? Row(
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => widget.onApprovePartnerInvestment?.call(invId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: const Size(0, 32),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          'Approve',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      OutlinedButton(
+                        onPressed: () => widget.onRejectPartnerInvestment?.call(invId),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFFEF4444),
+                          side: const BorderSide(color: Color(0xFFEF4444), width: 1),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          minimumSize: const Size(0, 32),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: Text(
+                          'Reject',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  )
+                : Text(
+                    isActive ? 'Approved ✓' : (isRejected ? 'Declined ✕' : '-'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: hintText,
+                    ),
+                  ),
           ),
         ],
       ),

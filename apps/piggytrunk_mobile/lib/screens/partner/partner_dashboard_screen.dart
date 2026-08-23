@@ -8,7 +8,6 @@ import 'package:piggytrunk/services/notification_service.dart';
 
 import 'tabs/partner_home_tab.dart';
 import 'tabs/partner_projects_tab.dart';
-import 'tabs/partner_my_projects_tab.dart';
 import 'tabs/partner_activities_tab.dart';
 import 'tabs/partner_profile_tab.dart';
 import '../../services/auth_session_service.dart';
@@ -36,6 +35,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   double _investedAmount = 0.0;
   int _activeProjectsCount = 0;
   final List<Map<String, dynamic>> _projectsList = [];
+  final List<Map<String, dynamic>> _availableBatches = [];
   final List<Map<String, dynamic>> _activitiesList = [];
   List<Map<String, dynamic>> _notificationsList = [];
   DateTime? _lastBackPressTime;
@@ -83,9 +83,16 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         } catch (_) {}
 
         try {
-          await Supabase.instance.client.from('app_users').update({
-            'avatar_url': publicUrl,
-          }).eq('supabase_user_id', user.id);
+          final pRes = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id')
+              .or('supabase_user_id.eq.${user.id},email.eq.${_partnerEmail.isNotEmpty ? _partnerEmail : user.email}')
+              .maybeSingle();
+          if (pRes != null && pRes['user_id'] != null) {
+            await Supabase.instance.client.from('partner_investors').update({
+              'avatar_url': publicUrl,
+            }).eq('user_id', pRes['user_id']);
+          }
         } catch (_) {}
 
         if (mounted) {
@@ -100,7 +107,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Matagumpay na na-update ang inyong profile picture!'),
+            content: Text('Profile picture updated successfully!'),
             backgroundColor: Color(0xFF2FB36F),
             behavior: SnackBarBehavior.floating,
           ),
@@ -116,6 +123,105 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   }
 
   Future<void> _restoreDefaultAvatar() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          surfaceTintColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Reset Profile Picture?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to restore your profile picture to the default PiggyTrunk logo?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: mutedTextColor,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: mutedTextColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18314F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Yes, Reset',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
       try {
@@ -125,9 +231,16 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       } catch (_) {}
 
       try {
-        await Supabase.instance.client.from('app_users').update({
-          'avatar_url': null,
-        }).eq('supabase_user_id', user.id);
+        final pRes = await Supabase.instance.client
+            .from('app_users')
+            .select('user_id')
+            .or('supabase_user_id.eq.${user.id},email.eq.${_partnerEmail.isNotEmpty ? _partnerEmail : user.email}')
+            .maybeSingle();
+        if (pRes != null && pRes['user_id'] != null) {
+          await Supabase.instance.client.from('partner_investors').update({
+            'avatar_url': null,
+          }).eq('user_id', pRes['user_id']);
+        }
       } catch (e) {
         debugPrint('Error clearing avatar in DB: $e');
       }
@@ -139,7 +252,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profile picture restored to default PiggyTrunk logo!'),
+          content: Text('Profile picture restored to default successfully!'),
           backgroundColor: Color(0xFF18314F),
           behavior: SnackBarBehavior.floating,
         ),
@@ -324,11 +437,36 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
                             try {
                               final user = Supabase.instance.client.auth.currentUser;
+                              final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : user?.email;
+
                               if (user != null && newName.isNotEmpty) {
                                 await Supabase.instance.client
                                     .from('app_users')
                                     .update({'name': newName})
                                     .eq('supabase_user_id', user.id);
+                              } else if (emailToUse != null && emailToUse.isNotEmpty && newName.isNotEmpty) {
+                                await Supabase.instance.client
+                                    .from('app_users')
+                                    .update({'name': newName})
+                                    .eq('email', emailToUse);
+                              }
+
+                              if (emailToUse != null && emailToUse.isNotEmpty) {
+                                final appUser = await Supabase.instance.client
+                                    .from('app_users')
+                                    .select('user_id')
+                                    .eq('email', emailToUse)
+                                    .maybeSingle();
+
+                                if (appUser != null && appUser['user_id'] != null) {
+                                  await Supabase.instance.client
+                                      .from('partner_investors')
+                                      .update({
+                                        'contact_number': newPhone.isNotEmpty ? newPhone : null,
+                                        'address': newAddr.isNotEmpty ? newAddr : null,
+                                      })
+                                      .eq('user_id', appUser['user_id']);
+                                }
                               }
                             } catch (e) {
                               debugPrint('Error updating user name in DB: $e');
@@ -416,132 +554,566 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     );
   }
 
+  String _formatRelativeTime(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inDays > 7) {
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
+    } else if (difference.inDays >= 1) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours >= 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes >= 1) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
   Future<void> _fetchPartnerData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        _partnerEmail = user.email ?? "";
+      String currentEmail = user?.email ?? "";
+      if (currentEmail.isEmpty) {
+        final savedEmail = await AuthSessionService().getSavedEmail();
+        if (savedEmail != null && savedEmail.isNotEmpty) {
+          currentEmail = savedEmail;
+        }
+      }
+      _partnerEmail = currentEmail;
 
+      if (user != null) {
         // Initialize native notification listener for Partner Investor
         NotificationService().requestPermission();
         NotificationService().startRoleRealtimeListener(role: 'partner', userId: user.id);
+      }
 
-        // 1. Fetch profile from app_users
-        Map<String, dynamic>? profile = await Supabase.instance.client
-            .from('app_users')
-            .select('user_id, name, email')
-            .eq('supabase_user_id', user.id)
-            .maybeSingle();
-
-        if (profile == null && _partnerEmail.isNotEmpty) {
-          final profileByEmail = await Supabase.instance.client
+      // 1. Fetch profile from app_users
+      Map<String, dynamic>? profile;
+      if (user != null) {
+        try {
+          profile = await Supabase.instance.client
               .from('app_users')
               .select('user_id, name, email')
-              .eq('email', _partnerEmail)
+              .eq('supabase_user_id', user.id)
+              .maybeSingle();
+        } catch (_) {}
+      }
+
+      if (profile == null && currentEmail.isNotEmpty) {
+        try {
+          profile = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id, name, email')
+              .ilike('email', currentEmail.trim())
               .maybeSingle();
 
-          if (profileByEmail != null) {
-            profile = profileByEmail;
+          if (profile != null && user != null) {
             try {
               await Supabase.instance.client
                   .from('app_users')
                   .update({'supabase_user_id': user.id})
-                  .eq('user_id', profileByEmail['user_id']);
+                  .eq('user_id', profile['user_id']);
             } catch (e) {
               debugPrint('Error linking supabase_user_id: $e');
             }
           }
-        }
+        } catch (_) {}
+      }
 
-        String resolvedName = "";
-        if (profile != null) {
-          final rawName = profile['name'] as String?;
-          if (rawName != null && rawName.trim().isNotEmpty) {
-            resolvedName = rawName.trim();
-          }
-        }
-
-        if (resolvedName.isEmpty) {
-          final metaName = (user.userMetadata?['name'] as String?) ??
-              (user.userMetadata?['full_name'] as String?);
-          if (metaName != null && metaName.trim().isNotEmpty) {
-            resolvedName = metaName.trim();
-          } else if (_partnerEmail.contains('@')) {
-            final prefix = _partnerEmail.split('@').first.trim();
-            if (prefix.isNotEmpty) {
-              resolvedName = prefix[0].toUpperCase() + prefix.substring(1);
-            }
-          }
-        }
-
-        if (resolvedName.isNotEmpty) {
-          _partnerName = resolvedName;
-        }
-
-        // 2. Fetch investments total from DB
+      if (profile == null && currentEmail.isEmpty) {
         try {
-          final List<dynamic> investmentsResponse = await Supabase.instance.client
-              .from('investments')
-              .select('amount, status');
+          profile = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id, name, email')
+              .or('role.ilike.partner,role.ilike.partner_investor,role.ilike.investor')
+              .order('created_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+        } catch (_) {}
+      }
 
-          double total = 0.0;
-          int activeCount = 0;
-          if (investmentsResponse.isNotEmpty) {
-            for (var item in investmentsResponse) {
-              final amt = (item['amount'] as num?)?.toDouble() ?? 0.0;
-              total += amt;
-              if (item['status'] == 'active' || item['status'] == 'In Progress') {
-                activeCount++;
+      String resolvedName = "";
+      if (profile != null) {
+        final rawName = (profile['name'] as String?)?.trim() ?? "";
+        if (rawName.isNotEmpty && rawName.toLowerCase() != 'partner investor' && rawName.toLowerCase() != 'partner') {
+          resolvedName = rawName;
+        }
+        if (profile['email'] != null && profile['email'].toString().isNotEmpty) {
+          _partnerEmail = profile['email'].toString();
+        }
+      }
+
+      if (resolvedName.isEmpty && user != null) {
+        final meta = user.userMetadata ?? {};
+        final metaName = (meta['full_name'] ?? meta['name'] ?? meta['display_name'])?.toString().trim();
+        if (metaName != null && metaName.isNotEmpty && metaName.toLowerCase() != 'partner investor' && metaName.toLowerCase() != 'partner') {
+          resolvedName = metaName;
+        }
+      }
+
+      if (resolvedName.isEmpty && _partnerEmail.contains('@')) {
+        final prefix = _partnerEmail.split('@').first.trim();
+        if (prefix.isNotEmpty) {
+          final parts = prefix.replaceAll(RegExp(r'[._-]'), ' ').split(' ');
+          resolvedName = parts.where((p) => p.isNotEmpty).map((p) => p[0].toUpperCase() + p.substring(1)).join(' ');
+        }
+      }
+
+      if (resolvedName.isNotEmpty) {
+        _partnerName = resolvedName;
+      }
+
+        final int? appUserId = profile?['user_id'] is int
+            ? profile!['user_id'] as int
+            : int.tryParse(profile?['user_id']?.toString() ?? '');
+
+        int? partnerInvestorId;
+        if (appUserId != null) {
+          try {
+            final partnerRecord = await Supabase.instance.client
+                .from('partner_investors')
+                .select('*')
+                .eq('user_id', appUserId)
+                .maybeSingle();
+
+            if (partnerRecord != null) {
+              partnerInvestorId = partnerRecord['partner_investor_id'] as int?;
+              if (partnerRecord['contact_number'] != null && partnerRecord['contact_number'].toString().isNotEmpty) {
+                _partnerPhone = partnerRecord['contact_number'].toString();
+              }
+              if (partnerRecord['address'] != null && partnerRecord['address'].toString().isNotEmpty) {
+                _partnerAddress = partnerRecord['address'].toString();
+              }
+              final pAvatar = partnerRecord['avatar_url']?.toString().trim();
+              if (pAvatar != null && pAvatar.isNotEmpty && (pAvatar.startsWith('http://') || pAvatar.startsWith('https://'))) {
+                _partnerAvatarUrl = pAvatar;
+              }
+            } else {
+              final inserted = await Supabase.instance.client
+                  .from('partner_investors')
+                  .insert({'user_id': appUserId})
+                  .select('partner_investor_id')
+                  .maybeSingle();
+              if (inserted != null) {
+                partnerInvestorId = inserted['partner_investor_id'] as int?;
+              }
+            }
+          } catch (e) {
+            debugPrint('Notice on partner_investors record: $e');
+          }
+        }
+
+        // Fallback to auth metadata if partner_investors had no avatar
+        if (_partnerAvatarUrl == null || _partnerAvatarUrl!.isEmpty) {
+          if (user != null) {
+            final meta = user.userMetadata ?? {};
+            final metaAvatar = (meta['avatar_url'] ?? meta['picture'] ?? meta['profile_picture'])?.toString().trim();
+            if (metaAvatar != null && metaAvatar.isNotEmpty && (metaAvatar.startsWith('http://') || metaAvatar.startsWith('https://'))) {
+              _partnerAvatarUrl = metaAvatar;
+              if (appUserId != null) {
+                try {
+                  await Supabase.instance.client.from('partner_investors').update({
+                    'avatar_url': metaAvatar,
+                  }).eq('user_id', appUserId);
+                } catch (_) {}
               }
             }
           }
-          _investedAmount = total;
-          _activeProjectsCount = activeCount;
+        }
+
+        // 2. Fetch Batches, Assignments, Hog Raisers, and Hogs
+        List<Map<String, dynamic>> allBatches = [];
+        try {
+          final List<dynamic> batchesRes = await Supabase.instance.client
+              .from('batches')
+              .select('*')
+              .order('date_created', ascending: false);
+
+          List<dynamic> assignmentsRes = [];
+          try {
+            assignmentsRes = await Supabase.instance.client
+                .from('assignments')
+                .select('*');
+          } catch (aErr) {
+            debugPrint('Notice on assignments query: $aErr');
+          }
+
+          // Fetch all hog raisers with their user details to resolve real names, addresses, and stages
+          final Map<String, Map<String, dynamic>> raiserMap = {};
+          try {
+            final List<dynamic> raisersRes = await Supabase.instance.client
+                .from('hog_raisers')
+                .select('hog_raiser_id, name, address, phone, pig_type, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(name, email, address, phone)');
+
+            for (var r in raisersRes) {
+              if (r is! Map) continue;
+              final rMap = Map<String, dynamic>.from(r);
+              final rId = (rMap['hog_raiser_id'] ?? '').toString();
+              if (rId.isEmpty) continue;
+
+              dynamic appUsersRaw = rMap['app_users'];
+              Map<String, dynamic>? appUsers;
+              if (appUsersRaw is Map) {
+                appUsers = Map<String, dynamic>.from(appUsersRaw);
+              } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+                appUsers = Map<String, dynamic>.from(appUsersRaw.first);
+              }
+
+              final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
+              final raiserName = (rMap['name'] ?? '').toString().trim();
+              final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+                  ? googleOrAppName
+                  : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
+
+              final raiserAddress = (rMap['address'] ?? appUsers?['address'] ?? '').toString().trim();
+              final raiserPhone = (rMap['phone'] ?? appUsers?['phone'] ?? '').toString().trim();
+
+              raiserMap[rId] = {
+                'name': resolvedFullName,
+                'address': raiserAddress.isNotEmpty ? raiserAddress : 'Farm Location Not Set',
+                'phone': raiserPhone.isNotEmpty ? raiserPhone : 'N/A',
+                'pig_type': rMap['pig_type'] ?? 'Fattening',
+                'lifecycle_stage': rMap['lifecycle_stage'] ?? 'Grower',
+              };
+            }
+          } catch (rErr) {
+            debugPrint('Notice fetching raisers with app_users: $rErr. Retrying simple fetch...');
+            try {
+              final List<dynamic> raisersSimple = await Supabase.instance.client
+                  .from('hog_raisers')
+                  .select('hog_raiser_id, name, address, phone, pig_type, lifecycle_stage');
+              for (var r in raisersSimple) {
+                if (r is! Map) continue;
+                final rMap = Map<String, dynamic>.from(r);
+                final rId = (rMap['hog_raiser_id'] ?? '').toString();
+                if (rId.isNotEmpty) {
+                  final raiserAddress = (rMap['address'] ?? '').toString().trim();
+                  final raiserPhone = (rMap['phone'] ?? '').toString().trim();
+                  raiserMap[rId] = {
+                    'name': (rMap['name'] ?? 'Hog Raiser').toString(),
+                    'address': raiserAddress.isNotEmpty ? raiserAddress : 'Farm Location Not Set',
+                    'phone': raiserPhone.isNotEmpty ? raiserPhone : 'N/A',
+                    'pig_type': rMap['pig_type'] ?? 'Fattening',
+                    'lifecycle_stage': rMap['lifecycle_stage'] ?? 'Grower',
+                  };
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Fetch hog types
+          final Map<String, String> hogTypeMap = {};
+          try {
+            final List<dynamic> typesRes = await Supabase.instance.client.from('hog_types').select('hog_type_id, type_name');
+            for (var t in typesRes) {
+              if (t is Map && t['hog_type_id'] != null) {
+                hogTypeMap[t['hog_type_id'].toString()] = (t['type_name'] ?? 'Fattening').toString();
+              }
+            }
+          } catch (_) {}
+
+          // Fetch investment records from admin to check total_hog allocation if hogs table rows aren't populated yet
+          final Map<String, int> raiserHogCountMap = {};
+          try {
+            final List<dynamic> invRecs = await Supabase.instance.client
+                .from('investment_records')
+                .select('hog_raiser_id, total_hog');
+            for (var r in invRecs) {
+              if (r is Map && r['hog_raiser_id'] != null && r['total_hog'] != null) {
+                final rId = r['hog_raiser_id'].toString();
+                final count = (r['total_hog'] as num).toInt();
+                raiserHogCountMap[rId] = count;
+              }
+            }
+          } catch (_) {}
+
+          List<dynamic> hogsRes = [];
+          try {
+            hogsRes = await Supabase.instance.client
+                .from('hogs')
+                .select('hog_id, assignment_id, health_status, weight');
+          } catch (_) {}
+
+          for (var b in batchesRes) {
+            final bId = b['batch_id'] ?? b['id'];
+            final bIdStr = bId.toString();
+
+            // Find matching assignment
+            Map<String, dynamic>? matchingAssign;
+            for (var a in assignmentsRes) {
+              if (a is Map && (a['batch_id']?.toString() == bIdStr || a['id']?.toString() == bIdStr)) {
+                if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
+                  matchingAssign = Map<String, dynamic>.from(a);
+                  break;
+                }
+                matchingAssign ??= Map<String, dynamic>.from(a);
+              }
+            }
+
+            String raiserName = 'Unassigned';
+            String raiserAddress = 'Farm Location Not Set';
+            String raiserPhone = 'N/A';
+            String stage = 'Grower';
+            String hogType = 'Fattening';
+            dynamic assignId = matchingAssign?['assignment_id'];
+            String? raiserIdStr;
+
+            if (matchingAssign != null) {
+              final rawRaiserId = (matchingAssign['hog_raiser_id'] ?? '').toString();
+              raiserIdStr = rawRaiserId;
+              if (rawRaiserId.isNotEmpty && raiserMap.containsKey(rawRaiserId)) {
+                final rData = raiserMap[rawRaiserId]!;
+                raiserName = rData['name'] ?? 'Hog Raiser';
+                raiserAddress = rData['address'] ?? 'Farm Location Not Set';
+                raiserPhone = rData['phone'] ?? 'N/A';
+                stage = rData['lifecycle_stage'] ?? 'Grower';
+                hogType = rData['pig_type'] ?? 'Fattening';
+              } else if (rawRaiserId.isNotEmpty) {
+                raiserName = 'Raiser #$rawRaiserId';
+              }
+
+              final rawTypeId = (matchingAssign['hog_type_id'] ?? '').toString();
+              if (rawTypeId.isNotEmpty && hogTypeMap.containsKey(rawTypeId)) {
+                hogType = hogTypeMap[rawTypeId]!;
+              }
+            } else {
+              // If unassigned directly in batch, check if there are raisers in raiserMap
+              if (raiserMap.isNotEmpty) {
+                final firstRaiser = raiserMap.values.first;
+                raiserName = firstRaiser['name'] ?? 'Hog Raiser';
+                raiserAddress = firstRaiser['address'] ?? 'Farm Location Not Set';
+                raiserPhone = firstRaiser['phone'] ?? 'N/A';
+                stage = firstRaiser['lifecycle_stage'] ?? 'Grower';
+                hogType = firstRaiser['pig_type'] ?? 'Fattening';
+              }
+            }
+
+            final batchHogs = assignId != null
+                ? hogsRes.where((h) => h['assignment_id']?.toString() == assignId.toString()).toList()
+                : [];
+
+            // Read actual hog count from hogs table; if 0, check investment_records allocation
+            int hogsCount = batchHogs.length;
+            if (hogsCount == 0 && raiserIdStr != null && raiserHogCountMap.containsKey(raiserIdStr)) {
+              hogsCount = raiserHogCountMap[raiserIdStr]!;
+            }
+
+            final int mortality = batchHogs.where((h) => (h['health_status'] ?? '').toString().toLowerCase() == 'deceased').length;
+
+            allBatches.add({
+              'batch_id': bId,
+              'batch_name': b['batch_name'] ?? b['name'] ?? 'Batch #$bId',
+              'assigned_raiser': raiserName,
+              'raiser_name': raiserName,
+              'address': raiserAddress,
+              'location': raiserAddress,
+              'phone': raiserPhone,
+              'contact': raiserPhone,
+              'hog_type': hogType,
+              'total_hogs': hogsCount,
+              'mortality': mortality,
+              'stage': stage,
+              'date_created': b['date_created'],
+              'status': 'Active',
+            });
+          }
+        } catch (e) {
+          debugPrint('Notice: Fetching batches from batches table: $e');
+        }
+
+        // Fallback: If `batches` table had no rows, fetch from `investment_records` (Admin Web investments)
+        if (allBatches.isEmpty) {
+          try {
+            final List<dynamic> invRecords = await Supabase.instance.client
+                .from('investment_records')
+                .select('*')
+                .order('investment_date', ascending: false);
+
+            for (int i = 0; i < invRecords.length; i++) {
+              final r = invRecords[i];
+              final bId = i + 1;
+              final rStage = (r['stage'] ?? 'Grower').toString().toUpperCase();
+              allBatches.add({
+                'batch_id': bId,
+                'batch_name': 'Batch ${r['raiser_name'] ?? 'Livestock'} (#$bId)',
+                'assigned_raiser': r['raiser_name'] ?? 'Assigned Raiser',
+                'raiser_name': r['raiser_name'] ?? 'Assigned Raiser',
+                'hog_type': r['hog_type'] ?? 'Fattening',
+                'total_hogs': (r['total_hog'] as num?)?.toInt() ?? 15,
+                'mortality': 0,
+                'stage': rStage == 'ACTIVE' || rStage == 'PENDING' ? 'Grower' : (r['stage'] ?? 'Grower'),
+                'date_created': r['investment_date'],
+                'status': 'Active',
+              });
+            }
+          } catch (invErr) {
+            debugPrint('Notice on investment_records fallback: $invErr');
+          }
+        }
+
+        // Fallback: If still empty, fetch from active `hog_raisers`
+        if (allBatches.isEmpty) {
+          try {
+            final List<dynamic> raisers = await Supabase.instance.client
+                .from('hog_raisers')
+                .select('hog_raiser_id, name, pig_type, lifecycle_stage, status')
+                .limit(10);
+
+            for (var r in raisers) {
+              final rId = r['hog_raiser_id'];
+              allBatches.add({
+                'batch_id': rId,
+                'batch_name': 'Batch ${r['name'] ?? 'Livestock'} (#$rId)',
+                'assigned_raiser': r['name'] ?? 'Hog Raiser',
+                'raiser_name': r['name'] ?? 'Hog Raiser',
+                'hog_type': r['pig_type'] ?? 'Fattening',
+                'total_hogs': 15,
+                'mortality': 0,
+                'stage': r['lifecycle_stage'] ?? 'Grower',
+                'status': 'Active',
+              });
+            }
+          } catch (_) {}
+        }
+
+        // 3. Fetch Investments for this Partner
+        double totalInvested = 0.0;
+        List<Map<String, dynamic>> partnerProjects = [];
+
+        try {
+          var query = Supabase.instance.client
+              .from('investments')
+              .select('investment_id, amount, date_invested, status, batch_id, partner_investor_id');
+
+          if (partnerInvestorId != null) {
+            query = query.eq('partner_investor_id', partnerInvestorId);
+          }
+
+          final investmentsRes = await query.order('date_invested', ascending: false);
+
+          if (investmentsRes.isNotEmpty) {
+            for (var inv in investmentsRes) {
+              final amt = (inv['amount'] as num?)?.toDouble() ?? 0.0;
+              final status = (inv['status'] ?? 'pending').toString().toLowerCase();
+              if (status == 'active' || status == 'approved') {
+                totalInvested += amt;
+              }
+
+              final bId = inv['batch_id'];
+              final matchingBatches = allBatches.where((b) => b['batch_id'] == bId).toList();
+              final matchingBatch = matchingBatches.isNotEmpty
+                  ? matchingBatches.first
+                  : {
+                      'batch_id': bId,
+                      'batch_name': 'Batch #$bId',
+                      'assigned_raiser': 'Farm Raiser',
+                      'raiser_name': 'Farm Raiser',
+                      'hog_type': 'Fattening',
+                      'total_hogs': 0,
+                      'mortality': 0,
+                      'stage': 'Booster',
+                      'status': 'Active',
+                    };
+
+              partnerProjects.add({
+                'investment_id': inv['investment_id'],
+                'amount': amt,
+                'date_invested': inv['date_invested'],
+                'status': status,
+                ...matchingBatch,
+                'invested_amount': amt,
+              });
+            }
+          }
         } catch (e) {
           debugPrint('Notice: Fetching investments: $e');
         }
 
-        // 3. Fetch notifications (Strictly excluding Cashier/Admin stock notifications for Partner Investor)
+        _investedAmount = totalInvested;
+        _activeProjectsCount = partnerProjects.where((p) {
+          final st = (p['status'] ?? '').toString().toLowerCase();
+          return st == 'active' || st == 'approved';
+        }).length;
+
+        _availableBatches.clear();
+        _availableBatches.addAll(allBatches);
+
+        _projectsList.clear();
+        _projectsList.addAll(partnerProjects);
+
+        // 4. Fetch Live Hog Raiser Activities from `hog_reports`
+        List<Map<String, dynamic>> liveActivities = [];
         try {
-          final List<dynamic> notifs = await Supabase.instance.client
-              .from('admin_notifications')
-              .select('*')
+          final reportsRes = await Supabase.instance.client
+              .from('hog_reports')
+              .select('report_id, report_type, description, created_at, hog_raiser_id, hog_raisers(name)')
               .order('created_at', ascending: false)
-              .limit(30);
-          if (notifs.isNotEmpty) {
-            final partnerNotifs = notifs.where((n) {
-              final type = (n['type'] as String?)?.toLowerCase() ?? '';
-              final title = (n['title'] as String?)?.toLowerCase() ?? '';
-              final msg = (n['message'] as String?)?.toLowerCase() ?? '';
+              .limit(15);
 
-              if (type.contains('stock') ||
-                  type.contains('cashier') ||
-                  type.contains('pos') ||
-                  type.contains('user') ||
-                  type.contains('registration') ||
-                  type.contains('signup') ||
-                  title.contains('cashier') ||
-                  title.contains('stock request') ||
-                  title.contains('registered') ||
-                  msg.contains('stock request') ||
-                  msg.contains('pending approval') ||
-                  msg.contains('cashier')) {
-                return false;
-              }
-              return true;
-            }).toList();
+          for (var rep in reportsRes) {
+            final rType = (rep['report_type'] ?? 'Health Check').toString();
+            final desc = rep['description'] ?? '';
+            final raiserName = rep['hog_raisers']?['name'] ?? 'Hog Raiser';
+            final createdAt = rep['created_at'] != null
+                ? DateTime.tryParse(rep['created_at'].toString()) ?? DateTime.now()
+                : DateTime.now();
 
-            _notificationsList = List<Map<String, dynamic>>.from(partnerNotifs);
+            IconData icon = Icons.assignment_outlined;
+            final lower = rType.toLowerCase();
+            if (lower.contains('sick') || lower.contains('health') || lower.contains('observation')) {
+              icon = Icons.health_and_safety_rounded;
+            } else if (lower.contains('vaccin') || lower.contains('med')) {
+              icon = Icons.medication_rounded;
+            } else if (lower.contains('feed') || lower.contains('weight')) {
+              icon = Icons.monitor_weight_rounded;
+            } else if (lower.contains('stage') || lower.contains('growth')) {
+              icon = Icons.trending_up_rounded;
+            }
+
+            liveActivities.add({
+              'report_id': rep['report_id'],
+              'title': '$rType Update',
+              'description': desc.isNotEmpty ? '$desc • By $raiserName' : 'Update submitted by $raiserName',
+              'date': _formatRelativeTime(createdAt),
+              'created_at': rep['created_at'],
+              'icon': icon,
+              'raiser_name': raiserName,
+              'type': rType,
+            });
+          }
+        } catch (e) {
+          debugPrint('Notice fetching hog reports: $e');
+        }
+
+        _activitiesList.clear();
+        _activitiesList.addAll(liveActivities);
+
+        // 5. Fetch partner notifications strictly from `partner_notifications` table
+        try {
+          var partnerNotifsQuery = Supabase.instance.client
+              .from('partner_notifications')
+              .select('*');
+
+          if (partnerInvestorId != null) {
+            partnerNotifsQuery = partnerNotifsQuery.eq('partner_investor_id', partnerInvestorId);
+          }
+
+          final List<dynamic> pNotifs = await partnerNotifsQuery
+              .order('created_at', ascending: false)
+              .limit(40);
+
+          if (pNotifs.isNotEmpty) {
+            _notificationsList = List<Map<String, dynamic>>.from(pNotifs);
           } else {
             _notificationsList = [];
           }
         } catch (_) {
           _notificationsList = [];
         }
-      }
     } catch (e) {
       debugPrint('Error fetching partner profile data: $e');
     } finally {
@@ -558,21 +1130,46 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     }
   }
 
-  void _markNotificationAsRead(int id) {
+  Future<void> _markNotificationAsRead(int id) async {
     setState(() {
-      final index = _notificationsList.indexWhere((n) => n['notification_id'] == id);
+      final index = _notificationsList.indexWhere((n) => (n['notification_id'] ?? '').toString() == id.toString());
       if (index != -1) {
         _notificationsList[index]['is_read'] = true;
       }
     });
+
+    try {
+      await Supabase.instance.client
+          .from('partner_notifications')
+          .update({'is_read': true})
+          .eq('notification_id', id);
+    } catch (e) {
+      debugPrint('Notice updating is_read for notification #$id: $e');
+    }
   }
 
-  void _markAllNotificationsRead() {
+  Future<void> _markAllNotificationsRead() async {
     setState(() {
       for (var n in _notificationsList) {
         n['is_read'] = true;
       }
     });
+
+    try {
+      final unreadIds = _notificationsList
+          .map((n) => (n['notification_id'] as num?)?.toInt())
+          .whereType<int>()
+          .toList();
+
+      if (unreadIds.isNotEmpty) {
+        await Supabase.instance.client
+            .from('partner_notifications')
+            .update({'is_read': true})
+            .inFilter('notification_id', unreadIds);
+      }
+    } catch (e) {
+      debugPrint('Notice marking all notifications read: $e');
+    }
   }
 
   @override
@@ -587,27 +1184,38 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         partnerName: _partnerName,
         investedAmount: _investedAmount,
         activeProjectsCount: _activeProjectsCount,
+        projectsList: _availableBatches,
         activitiesList: _activitiesList,
         notificationsList: _notificationsList,
         onRefresh: _fetchPartnerData,
-        onSeeAllActivities: () => setState(() => _currentIndex = 3),
+        onSeeAllActivities: () => setState(() => _currentIndex = 2),
         onViewProjects: () => setState(() => _currentIndex = 1),
+        onNavigateToTab: (idx) => setState(() => _currentIndex = idx),
         onMarkNotificationAsRead: _markNotificationAsRead,
         onMarkAllRead: _markAllNotificationsRead,
       ),
-      PartnerMyProjectsTab(
-        projectsList: _projectsList,
-        investedAmount: _investedAmount,
-        onRefresh: _fetchPartnerData,
-        onMakeInvestment: () => setState(() => _currentIndex = 2),
-      ),
       PartnerProjectsTab(
-        projectsList: _projectsList,
+        projectsList: _availableBatches,
         onRefresh: _fetchPartnerData,
       ),
       PartnerActivitiesTab(
         activitiesList: _activitiesList,
         onRefresh: _fetchPartnerData,
+        onNavigateToBatches: () => setState(() => _currentIndex = 1),
+        currentStage: (_projectsList.isNotEmpty
+                ? (_projectsList.first['stage'] ?? _projectsList.first['lifecycle_stage'])
+                : (_availableBatches.isNotEmpty
+                    ? (_availableBatches.first['stage'] ?? _availableBatches.first['lifecycle_stage'])
+                    : null) ??
+            'Booster').toString(),
+        raiserName: _projectsList.isNotEmpty
+            ? (_projectsList.first['assigned_raiser'] ?? _projectsList.first['raiser_name'])?.toString()
+            : null,
+        totalHogs: _projectsList.isNotEmpty
+            ? (int.tryParse(_projectsList.first['total_hogs']?.toString() ?? '') ??
+                int.tryParse(_projectsList.first['total_heads']?.toString() ?? '') ??
+                0)
+            : 0,
       ),
       PartnerProfileTab(
         partnerName: _partnerName,
@@ -695,11 +1303,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               icon: const Icon(Icons.grid_view_rounded),
               activeIcon: Icon(Icons.grid_view_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
               label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.work_outline_rounded),
-              activeIcon: Icon(Icons.work_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
-              label: 'Projects',
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.account_balance_wallet_outlined),

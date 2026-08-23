@@ -138,8 +138,10 @@ class NotificationService {
       tableName = 'admin_notifications';
     } else if (roleLower == 'raiser' || roleLower == 'hog_raiser') {
       tableName = 'raiser_notifications';
+    } else if (roleLower == 'partner' || roleLower == 'partner_investor') {
+      tableName = 'partner_notifications';
     } else {
-      debugPrint("Realtime notification channel skipped for non-admin/raiser role: $role");
+      debugPrint("Realtime notification channel skipped for unhandled role: $role");
       return;
     }
 
@@ -157,10 +159,13 @@ class NotificationService {
               final newRecord = payload.newRecord;
               if (newRecord.isEmpty) return;
 
-              final notifUserId = newRecord['user_id']?.toString() ?? newRecord['raiser_id']?.toString();
+              final notifUserId = newRecord['partner_investor_id']?.toString() ??
+                  newRecord['user_id']?.toString() ??
+                  newRecord['raiser_id']?.toString() ??
+                  newRecord['hog_raiser_id']?.toString();
               
-              // If user ID matches or if broadcast notification
-              if (notifUserId == null || notifUserId == userId || role == 'admin') {
+              // If user ID matches or if broadcast/admin/partner notification
+              if (notifUserId == null || notifUserId == userId || roleLower == 'admin' || roleLower == 'partner' || roleLower == 'partner_investor') {
                 final title = newRecord['title']?.toString() ?? 'PiggyTrunk Alert';
                 final body = newRecord['message']?.toString() ??
                     newRecord['content']?.toString() ??

@@ -122,13 +122,25 @@ class CashierProfileTab extends StatelessWidget {
                     color: _brandColor,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Cashier',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: PiggyTrunkTheme.ptMuted,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    'Cashier Staff',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF64748B),
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ],

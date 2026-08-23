@@ -117,4 +117,30 @@ class AdminNotificationService {
       return false;
     }
   }
+
+  /// Quick approve an investment directly from notifications
+  static Future<bool> quickApproveInvestment(int investmentId) async {
+    try {
+      await _supabase
+          .from('investments')
+          .update({'status': 'active'})
+          .eq('investment_id', investmentId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Quick reject an investment directly from notifications
+  static Future<bool> quickRejectInvestment(int investmentId) async {
+    try {
+      await _supabase
+          .from('investments')
+          .update({'status': 'rejected'})
+          .eq('investment_id', investmentId);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }

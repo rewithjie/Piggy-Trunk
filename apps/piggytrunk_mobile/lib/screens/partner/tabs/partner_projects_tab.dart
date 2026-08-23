@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../widgets/batch_raiser_details_drawer.dart';
 
 class PartnerProjectsTab extends StatefulWidget {
   final List<Map<String, dynamic>> projectsList;
@@ -20,7 +21,8 @@ class PartnerProjectsTab extends StatefulWidget {
 
 class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
   static const Color _brandColor = Color(0xFF18314F);
-  static const Color _greenBtnColor = Color(0xFF34D399);
+  static const Color _brandAccent = Color(0xFF2FB36F);
+  static const Color _brandBlue = Color(0xFF2563EB);
 
   bool _isInvesting = false;
   Map<String, dynamic>? _selectedBatch;
@@ -70,8 +72,10 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
       return;
     }
     setState(() {
-      _selectedBatch = batch;
+      _selectedBatch = batch ?? (widget.projectsList.isNotEmpty ? widget.projectsList.first : null);
       _isInvesting = true;
+      _amountController.text = '';
+      _parsedAmount = 0.0;
     });
   }
 
@@ -79,15 +83,32 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
     setState(() {
       _isInvesting = false;
       _selectedBatch = null;
+      _amountController.clear();
+      _parsedAmount = 0.0;
     });
+  }
+
+  Color _getStageColor(String stage) {
+    final s = stage.toLowerCase();
+    if (s.contains('finisher') || s.contains('harvest')) {
+      return const Color(0xFF10B981);
+    } else if (s.contains('grower')) {
+      return const Color(0xFF3B82F6);
+    } else if (s.contains('starter')) {
+      return const Color(0xFFF59E0B);
+    } else if (s.contains('booster') || s.contains('pre')) {
+      return const Color(0xFF8B5CF6);
+    }
+    return const Color(0xFF10B981);
   }
 
   Future<void> _confirmInvestment() async {
     if (_parsedAmount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid investment amount.'),
+          content: Text('Please enter a valid investment amount (e.g. ₱1,000).'),
           backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -98,15 +119,52 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
-        // Try recording investment in database
         try {
-          await Supabase.instance.client.from('investments').insert({
-            'user_id': user.id,
-            'batch_id': _selectedBatch?['batch_id'] ?? 1,
-            'amount': _parsedAmount,
-            'status': 'active',
-            'created_at': DateTime.now().toIso8601String(),
-          });
+          // Resolve partner_investor_id
+          final profile = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id')
+              .eq('supabase_user_id', user.id)
+              .maybeSingle();
+
+          final appUserId = profile != null ? profile['user_id'] : null;
+          int? partnerInvestorId;
+
+          if (appUserId != null) {
+            final partnerRec = await Supabase.instance.client
+                .from('partner_investors')
+                .select('partner_investor_id')
+                .eq('user_id', appUserId)
+                .maybeSingle();
+
+            if (partnerRec != null) {
+              partnerInvestorId = partnerRec['partner_investor_id'] as int?;
+            } else {
+              final ins = await Supabase.instance.client
+                  .from('partner_investors')
+                  .insert({'user_id': appUserId})
+                  .select('partner_investor_id')
+                  .maybeSingle();
+              if (ins != null) {
+                partnerInvestorId = ins['partner_investor_id'] as int?;
+              }
+            }
+          }
+
+          if (partnerInvestorId != null) {
+            final rawBatchId = _selectedBatch?['batch_id'];
+            final int batchId = rawBatchId is int
+                ? rawBatchId
+                : (int.tryParse(rawBatchId?.toString() ?? '') ?? 1);
+
+            await Supabase.instance.client.from('investments').insert({
+              'partner_investor_id': partnerInvestorId,
+              'batch_id': batchId,
+              'amount': _parsedAmount,
+              'status': 'pending',
+              'date_invested': DateTime.now().toIso8601String().split('T').first,
+            });
+          }
         } catch (e) {
           debugPrint('Notice: Investment DB insertion: $e');
         }
@@ -116,8 +174,8 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Successfully invested ₱${_formatCurrency(_parsedAmount)}!'),
-          backgroundColor: const Color(0xFF2FB36F),
+          content: Text('Investment of ₱${_formatCurrency(_parsedAmount)} submitted! Pending Admin approval.'),
+          backgroundColor: const Color(0xFF18314F),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -127,6 +185,8 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
       setState(() {
         _isInvesting = false;
         _selectedBatch = null;
+        _amountController.clear();
+        _parsedAmount = 0.0;
       });
     } catch (e) {
       debugPrint('Error confirming investment: $e');
@@ -135,6 +195,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
           SnackBar(
             content: Text('Investment recorded: ₱${_formatCurrency(_parsedAmount)}'),
             backgroundColor: const Color(0xFF2FB36F),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -167,261 +228,330 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
       onRefresh: widget.onRefresh,
       color: _brandColor,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Screen Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Row(
-                  children: [
-                    if (_isInvesting) ...[
-                      IconButton(
-                        onPressed: _cancelInvestmentFlow,
-                        icon: Icon(
-                          Icons.arrow_back_rounded,
-                          color: primaryTextColor,
-                          size: fit.dp(24),
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      SizedBox(width: fit.dp(10)),
-                    ],
-                    Text(
-                      'Investment',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: titleFontSize,
-                        fontWeight: FontWeight.w800,
-                        color: primaryTextColor,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {},
-                      icon: Icon(
-                        Icons.search_rounded,
-                        color: primaryTextColor,
-                        size: fit.dp(24),
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    SizedBox(width: fit.dp(16)),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          Icons.notifications_none_rounded,
-                          color: primaryTextColor,
-                          size: fit.dp(24),
-                        ),
-                        Positioned(
-                          right: -1,
-                          top: -1,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFEF5B6C),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: fit.dp(20.0)),
-
-            // View 1: How Much Would You Like to Invest View
+            // Header shown only during active investment flow with back button
             if (_isInvesting) ...[
-              Text(
-                'How much would you like to\ninvest?',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: fit.sp(18.0),
-                  fontWeight: FontWeight.w800,
-                  color: primaryTextColor,
-                  height: 1.25,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              SizedBox(height: fit.dp(16.0)),
-
-              // Input Field Container
-              Text(
-                'ENTER AMOUNT (PHP)',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: fit.sp(10.0),
-                  fontWeight: FontWeight.w800,
-                  color: mutedTextColor,
-                  letterSpacing: 0.6,
-                ),
-              ),
-              SizedBox(height: fit.dp(6.0)),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  textSelectionTheme: TextSelectionThemeData(
-                    cursorColor: _brandColor,
-                    selectionColor: _brandColor.withValues(alpha: 0.2),
-                    selectionHandleColor: _brandColor,
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: _cancelInvestmentFlow,
+                    child: Container(
+                      padding: EdgeInsets.all(fit.dp(8)),
+                      margin: EdgeInsets.only(right: fit.dp(10)),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: cardBorderColor, width: 1),
+                      ),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        color: primaryTextColor,
+                        size: fit.dp(20),
+                      ),
+                    ),
                   ),
-                ),
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: fit.dp(14), vertical: fit.dp(6)),
-                  decoration: BoxDecoration(
-                    color: cardBgColor,
-                    borderRadius: BorderRadius.circular(fit.dp(14)),
-                    border: Border.all(color: cardBorderColor, width: 1.5),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '₱',
+                        'Fund a Batch',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(18.0),
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.w800,
                           color: primaryTextColor,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                      SizedBox(width: fit.dp(8)),
+                      SizedBox(height: fit.dp(3)),
+                      Text(
+                        'Select amount to allocate for this hog batch',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: fit.sp(12.5),
+                          fontWeight: FontWeight.w500,
+                          color: mutedTextColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: fit.dp(18.0)),
+            ],
+
+            // View 1: Active Investment Form
+            if (_isInvesting) ...[
+              // Selected Batch Summary Card
+              if (_selectedBatch != null) ...[
+                Container(
+                  padding: EdgeInsets.all(fit.dp(16)),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF131F33) : const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(fit.dp(18)),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF1E3A5F) : const Color(0xFFBBF7D0),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(fit.dp(10)),
+                        decoration: BoxDecoration(
+                          color: _brandAccent.withValues(alpha: isDark ? 0.25 : 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_rounded,
+                          color: _brandAccent,
+                          size: fit.dp(22),
+                        ),
+                      ),
+                      SizedBox(width: fit.dp(12)),
                       Expanded(
-                        child: TextField(
-                          controller: _amountController,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(16.0),
-                            fontWeight: FontWeight.w700,
-                            color: primaryTextColor,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: '0.00',
-                            hintStyle: GoogleFonts.plusJakartaSans(
-                              fontSize: fit.sp(16.0),
-                              fontWeight: FontWeight.w500,
-                              color: mutedTextColor.withValues(alpha: 0.5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedBatch?['batch_name'] ?? _selectedBatch?['title'] ?? 'Batch Project',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: fit.sp(15.0),
+                                fontWeight: FontWeight.w800,
+                                color: primaryTextColor,
+                              ),
                             ),
-                            fillColor: Colors.transparent,
-                            filled: true,
-                            isDense: true,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.zero,
-                          ),
+                            SizedBox(height: fit.dp(2)),
+                            Text(
+                              'Raiser: ${_selectedBatch?['assigned_raiser'] ?? _selectedBatch?['raiser_name'] ?? "Assigned Raiser"} • ${_selectedBatch?['stage'] ?? "Grower"}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: fit.sp(12.0),
+                                fontWeight: FontWeight.w600,
+                                color: mutedTextColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-              SizedBox(height: fit.dp(18.0)),
+                SizedBox(height: fit.dp(18.0)),
+              ],
 
-              Divider(color: cardBorderColor, height: 1),
+              // Amount Input Card
+              Container(
+                padding: EdgeInsets.all(fit.dp(18)),
+                decoration: BoxDecoration(
+                  color: cardBgColor,
+                  borderRadius: BorderRadius.circular(fit.dp(20)),
+                  border: Border.all(color: cardBorderColor, width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INVESTMENT AMOUNT (PHP)',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: fit.sp(11.0),
+                        fontWeight: FontWeight.w800,
+                        color: mutedTextColor,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    SizedBox(height: fit.dp(12)),
+                    TextField(
+                      controller: _amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: fit.sp(22.0),
+                        fontWeight: FontWeight.w800,
+                        color: primaryTextColor,
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.only(left: fit.dp(16), right: fit.dp(10)),
+                          child: Text(
+                            '₱',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: fit.sp(22.0),
+                              fontWeight: FontWeight.w800,
+                              color: _brandAccent,
+                            ),
+                          ),
+                        ),
+                        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                        hintText: '0.00',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: fit.sp(22.0),
+                          fontWeight: FontWeight.w600,
+                          color: mutedTextColor.withValues(alpha: 0.4),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(16)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(fit.dp(14)),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(fit.dp(14)),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(fit.dp(14)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF10B981),
+                            width: 1.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               SizedBox(height: fit.dp(16.0)),
 
-              // Total Commitment Row
+              // Total Invest Amount Summary Card
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: fit.dp(18), vertical: fit.dp(16)),
+                decoration: BoxDecoration(
+                  color: statsBoxBg,
+                  borderRadius: BorderRadius.circular(fit.dp(16)),
+                  border: Border.all(color: statsBoxBorder, width: 1.2),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total Invest Amount',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: fit.sp(13.5),
+                        fontWeight: FontWeight.w700,
+                        color: mutedTextColor,
+                      ),
+                    ),
+                    Text(
+                      '₱${_formatCurrency(_parsedAmount)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: fit.sp(18.0),
+                        fontWeight: FontWeight.w800,
+                        color: _parsedAmount > 0 ? _brandAccent : primaryTextColor,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: fit.dp(22.0)),
+
+              // Action Buttons
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Total Commitment',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(13.0),
-                      fontWeight: FontWeight.w600,
-                      color: primaryTextColor,
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _cancelInvestmentFlow,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: cardBorderColor, width: 1.2),
+                        padding: EdgeInsets.symmetric(vertical: fit.dp(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(fit.dp(14)),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: fit.sp(13.5),
+                          fontWeight: FontWeight.w700,
+                          color: mutedTextColor,
+                        ),
+                      ),
                     ),
                   ),
-                  Text(
-                    '₱${_formatCurrency(_parsedAmount)}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(16.0),
-                      fontWeight: FontWeight.w800,
-                      color: primaryTextColor,
-                      letterSpacing: -0.3,
+                  SizedBox(width: fit.dp(12)),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _confirmInvestment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _brandColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: EdgeInsets.symmetric(vertical: fit.dp(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(fit.dp(14)),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.0,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Confirm Investment',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(14.0),
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: fit.dp(6)),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: fit.dp(18),
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: fit.dp(20.0)),
-
-              // Confirm Investment Button (Same UI Color Theme - Brand Navy)
-              SizedBox(
-                width: double.infinity,
-                height: fit.dp(44),
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _confirmInvestment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(fit.dp(14)),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.0,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Confirm Investment',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(14.0),
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(width: fit.dp(6)),
-                            Icon(
-                              Icons.check_rounded,
-                              size: fit.dp(18),
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                ),
-              ),
             ] else ...[
-              // View 2: Select Active Batch List
+              // View 2: Browse & Select Active Batches
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    'Select Active Batch',
+                    'Available Batches',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(18.0),
+                      fontSize: fit.sp(16.5),
                       fontWeight: FontWeight.w800,
                       color: primaryTextColor,
                       letterSpacing: -0.3,
                     ),
                   ),
-                  Text(
-                    '$openBatchesCount BATCHES OPEN',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(11.0),
-                      fontWeight: FontWeight.w800,
-                      color: mutedTextColor,
-                      letterSpacing: 0.5,
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4)),
+                    decoration: BoxDecoration(
+                      color: _brandAccent.withValues(alpha: isDark ? 0.2 : 0.12),
+                      borderRadius: BorderRadius.circular(fit.dp(12)),
+                    ),
+                    child: Text(
+                      '$openBatchesCount BATCHES OPEN',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: fit.sp(11.0),
+                        fontWeight: FontWeight.w800,
+                        color: _brandAccent,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   ),
                 ],
@@ -429,50 +559,66 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
               SizedBox(height: fit.dp(14.0)),
 
               if (batchesList.isEmpty)
+                // Modern Empty State Card
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.symmetric(horizontal: fit.dp(20), vertical: fit.dp(28)),
+                  padding: EdgeInsets.symmetric(horizontal: fit.dp(24), vertical: fit.dp(36)),
                   decoration: BoxDecoration(
                     color: cardBgColor,
-                    borderRadius: BorderRadius.circular(fit.dp(22)),
-                    border: Border.all(color: cardBorderColor, width: 1),
+                    borderRadius: BorderRadius.circular(fit.dp(24)),
+                    border: Border.all(color: cardBorderColor, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: fit.dp(38),
-                        color: isDark ? const Color(0xff9cb0c9) : _brandColor,
+                      Container(
+                        padding: EdgeInsets.all(fit.dp(20)),
+                        decoration: BoxDecoration(
+                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: fit.dp(44),
+                          color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                        ),
                       ),
-                      SizedBox(height: fit.dp(10)),
+                      SizedBox(height: fit.dp(16)),
                       Text(
                         'No Active Batches Available',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(15.0),
+                          fontSize: fit.sp(17.0),
                           fontWeight: FontWeight.w800,
                           color: primaryTextColor,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: fit.dp(4)),
+                      SizedBox(height: fit.dp(6)),
                       Text(
-                        'There are currently no open batches available for investment. Please check back later.',
+                        'There are currently no open batches available for investment. Please check back later or refresh.',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(12.0),
+                          fontSize: fit.sp(12.5),
                           fontWeight: FontWeight.w500,
                           color: mutedTextColor,
+                          height: 1.4,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: fit.dp(16)),
+                      SizedBox(height: fit.dp(20)),
                       ElevatedButton.icon(
                         onPressed: widget.onRefresh,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _brandColor,
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          padding: EdgeInsets.symmetric(horizontal: fit.dp(18), vertical: fit.dp(12)),
+                          padding: EdgeInsets.symmetric(horizontal: fit.dp(20), vertical: fit.dp(12)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(fit.dp(14)),
                           ),
@@ -492,150 +638,110 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                 )
               else
                 ...batchesList.map((batch) {
-                  final String batchName = batch['batch_name'] ?? batch['title'] ?? 'Batch 2024-B';
-                  final String batchCode = batch['batch_code'] ?? '#B2024-B';
-                  final String status = batch['status'] ?? 'IN PROGRESS';
-                  final int totalRaisers = (batch['total_raisers'] as num?)?.toInt() ?? 3;
-                  final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? 42;
+                  final String batchName = batch['batch_name'] ?? batch['title'] ?? 'Batch Project';
+                  final String batchCode = batch['batch_code'] ?? '#BATCH-${batch['batch_id'] ?? '1'}';
+                  final String stage = batch['stage'] ?? 'Grower';
+                  final String hogType = batch['hog_type'] ?? 'Fattening';
+                  final String raiserName = batch['assigned_raiser'] ?? batch['raiser_name'] ?? 'Assigned Hog Raiser';
+                  final int totalRaisers = (batch['total_raisers'] as num?)?.toInt() ?? 1;
+                  final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? 0;
                   final int mortality = (batch['mortality'] as num?)?.toInt() ?? 0;
+
+                  final stageColor = _getStageColor(stage);
 
                   return Container(
                     margin: EdgeInsets.only(bottom: fit.dp(16)),
-                    padding: EdgeInsets.all(fit.dp(20.0)),
                     decoration: BoxDecoration(
                       color: cardBgColor,
                       borderRadius: BorderRadius.circular(fit.dp(22)),
-                      border: Border.all(color: cardBorderColor, width: 1),
+                      border: Border.all(color: cardBorderColor, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: fit.dp(12), vertical: fit.dp(6)),
-                              decoration: BoxDecoration(
-                                color: _greenBtnColor,
-                                borderRadius: BorderRadius.circular(fit.dp(20)),
-                              ),
-                              child: Text(
-                                status.toUpperCase(),
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: fit.sp(11.0),
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              batchCode,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(13.0),
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: fit.dp(12)),
-                        Text(
-                          batchName,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(20.0),
-                            fontWeight: FontWeight.w800,
-                            color: primaryTextColor,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        SizedBox(height: fit.dp(16)),
-                        Container(
-                          padding: EdgeInsets.symmetric(vertical: fit.dp(14), horizontal: fit.dp(12)),
-                          decoration: BoxDecoration(
-                            color: statsBoxBg,
-                            borderRadius: BorderRadius.circular(fit.dp(16)),
-                            border: Border.all(color: statsBoxBorder, width: 1),
-                          ),
-                          child: Row(
+                        // Batch Card Header: Code, Hog Type & Stage Pill
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(fit.dp(16), fit.dp(16), fit.dp(16), 0),
+                          child: Wrap(
+                            spacing: fit.dp(8),
+                            runSpacing: fit.dp(6),
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'TOTAL RAISER',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(height: fit.dp(4)),
-                                    Text(
-                                      '$totalRaisers',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: primaryTextColor,
-                                      ),
-                                    ),
-                                  ],
+                              // 1. Batch Code Pill
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(fit.dp(20)),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  batchCode,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(11.0),
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
                                 ),
                               ),
+
+                              // 2. Hog Type Badge (e.g. Fattening)
                               Container(
-                                height: fit.dp(30),
-                                width: 1,
-                                color: statsBoxBorder,
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'TOTAL HOG',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(height: fit.dp(4)),
-                                    Text(
-                                      '$totalHogs',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: primaryTextColor,
-                                      ),
-                                    ),
-                                  ],
+                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1A365D) : const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(fit.dp(20)),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF2B6CB0) : const Color(0xFFBFDBFE),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  hogType,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(11.0),
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                  ),
                                 ),
                               ),
+
+                              // 3. Stage Badge (e.g. Booster Stage)
                               Container(
-                                height: fit.dp(30),
-                                width: 1,
-                                color: statsBoxBorder,
-                              ),
-                              Expanded(
-                                child: Column(
+                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
+                                decoration: BoxDecoration(
+                                  color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                                  borderRadius: BorderRadius.circular(fit.dp(20)),
+                                  border: Border.all(color: stageColor.withValues(alpha: 0.35), width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(
-                                      'MORTALITY',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
+                                    Container(
+                                      width: fit.dp(5.5),
+                                      height: fit.dp(5.5),
+                                      decoration: BoxDecoration(
+                                        color: stageColor,
+                                        shape: BoxShape.circle,
                                       ),
                                     ),
-                                    SizedBox(height: fit.dp(4)),
+                                    SizedBox(width: fit.dp(4)),
                                     Text(
-                                      '$mortality',
+                                      '$stage Stage',
                                       style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: const Color(0xFFEF4444),
+                                        fontSize: fit.sp(11.0),
+                                        fontWeight: FontWeight.w700,
+                                        color: stageColor,
                                       ),
                                     ),
                                   ],
@@ -644,34 +750,151 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                             ],
                           ),
                         ),
-                        SizedBox(height: fit.dp(16)),
-                        SizedBox(
-                          width: double.infinity,
-                          height: fit.dp(44),
-                          child: ElevatedButton.icon(
-                            onPressed: () => _startInvestmentFlow(batch),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _brandColor,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(fit.dp(14)),
+
+                        // Batch Title & Assigned Raiser
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(10)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                batchName,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: fit.sp(18.0),
+                                  fontWeight: FontWeight.w800,
+                                  color: primaryTextColor,
+                                  letterSpacing: -0.3,
+                                ),
                               ),
-                            ),
-                            icon: Icon(
-                              Icons.insert_chart_outlined_rounded,
-                              size: fit.dp(18),
-                              color: Colors.white,
-                            ),
-                            label: Text(
-                              'INVEST',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(14.0),
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: 0.8,
+                              SizedBox(height: fit.dp(4)),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_outline_rounded,
+                                    size: fit.dp(14),
+                                    color: mutedTextColor,
+                                  ),
+                                  SizedBox(width: fit.dp(4)),
+                                  Text(
+                                    'Assigned Raiser: $raiserName',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(12.5),
+                                      fontWeight: FontWeight.w600,
+                                      color: mutedTextColor,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
+                            ],
+                          ),
+                        ),
+
+                        // 3-Column Positive Investment Metrics Grid
+                        Container(
+                          margin: EdgeInsets.symmetric(horizontal: fit.dp(18)),
+                          padding: EdgeInsets.symmetric(vertical: fit.dp(12), horizontal: fit.dp(10)),
+                          decoration: BoxDecoration(
+                            color: statsBoxBg,
+                            borderRadius: BorderRadius.circular(fit.dp(14)),
+                            border: Border.all(color: statsBoxBorder, width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              _buildMetricColumn(fit, 'RAISERS', '$totalRaisers', primaryTextColor, isDark),
+                              Container(height: fit.dp(26), width: 1, color: statsBoxBorder),
+                              _buildMetricColumn(fit, 'TOTAL HOGS', '$totalHogs', primaryTextColor, isDark),
+                              Container(height: fit.dp(26), width: 1, color: statsBoxBorder),
+                              _buildMetricColumn(
+                                fit,
+                                'HEALTH STATUS',
+                                'Healthy',
+                                const Color(0xFF10B981),
+                                isDark,
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: fit.dp(14)),
+
+                        // Dual Action Buttons: [ View Raiser Info ] & [ Invest Now ]
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(fit.dp(18), 0, fit.dp(18), fit.dp(16)),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: SizedBox(
+                                  height: fit.dp(44),
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => showBatchRaiserDetailsDrawer(
+                                      context: context,
+                                      batch: batch,
+                                      onInvestNow: () => _startInvestmentFlow(batch),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: BorderSide(color: cardBorderColor, width: 1.2),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(fit.dp(14)),
+                                      ),
+                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(8)),
+                                    ),
+                                    icon: Icon(
+                                      Icons.person_search_rounded,
+                                      size: fit.dp(16),
+                                      color: primaryTextColor,
+                                    ),
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'Raiser Info',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: fit.sp(12.5),
+                                          fontWeight: FontWeight.w700,
+                                          color: primaryTextColor,
+                                        ),
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: fit.dp(10)),
+                              Expanded(
+                                flex: 3,
+                                child: SizedBox(
+                                  height: fit.dp(44),
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _startInvestmentFlow(batch),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _brandColor,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(fit.dp(14)),
+                                      ),
+                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(12)),
+                                    ),
+                                    icon: Icon(
+                                      Icons.add_card_rounded,
+                                      size: fit.dp(17),
+                                      color: Colors.white,
+                                    ),
+                                    label: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'Invest Now',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: fit.sp(13.0),
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -681,6 +904,35 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+
+
+  Widget _buildMetricColumn(ScreenFit fit, String label, String value, Color valueColor, bool isDark) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: fit.sp(9.5),
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              letterSpacing: 0.3,
+            ),
+          ),
+          SizedBox(height: fit.dp(3)),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: fit.sp(16.0),
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+            ),
+          ),
+        ],
       ),
     );
   }

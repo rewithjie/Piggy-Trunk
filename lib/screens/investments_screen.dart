@@ -22,6 +22,7 @@ class InvestmentsScreen extends StatefulWidget {
 class _InvestmentsScreenState extends State<InvestmentsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   List<Investment> investments = [];
+  List<Map<String, dynamic>> partnerInvestments = [];
   bool _isLoading = true;
   bool _showInvestmentForm = false;
   Investment? _editingInvestment;
@@ -89,12 +90,66 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         loaded.add(Investment.fromJson(rMap));
       }
 
+      // Fetch partner investor submissions from `investments` table
+      List<Map<String, dynamic>> loadedPartnerInv = [];
+      try {
+        final pRes = await _supabase
+            .from('investments')
+            .select('investment_id, amount, date_invested, status, batch_id, partner_investor_id, partner_investors(user_id, contact_number, app_users(name, email)), batches(batch_name)')
+            .order('date_invested', ascending: false);
+
+        for (var row in (pRes as List? ?? [])) {
+          final pMap = Map<String, dynamic>.from(row as Map);
+          final pInv = pMap['partner_investors'] as Map<String, dynamic>?;
+          final appUsers = pInv?['app_users'] as Map<String, dynamic>?;
+          final batch = pMap['batches'] as Map<String, dynamic>?;
+
+          final partnerName = (appUsers?['name'] ?? 'Partner Investor').toString();
+          final batchName = (batch?['batch_name'] ?? 'Batch #${pMap['batch_id']}').toString();
+
+          pMap['partner_name'] = partnerName;
+          pMap['batch_name'] = batchName;
+          loadedPartnerInv.add(pMap);
+        }
+      } catch (pErr) {
+        debugPrint('Notice loading partner investments: $pErr');
+      }
+
       if (!mounted) return;
-      setState(() => investments = loaded);
+      setState(() {
+        investments = loaded;
+        partnerInvestments = loadedPartnerInv;
+      });
     } catch (e) {
       debugPrint('Error loading investments: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _approvePartnerInvestment(int investmentId) async {
+    try {
+      await _supabase
+          .from('investments')
+          .update({'status': 'active'})
+          .eq('investment_id', investmentId);
+      _showThemedSnackBar('Partner Investment approved and activated!');
+      _loadInvestments();
+    } catch (e) {
+      _showThemedSnackBar('Approval failed: $e', isError: true);
+    }
+  }
+
+  Future<void> _rejectPartnerInvestment(int investmentId) async {
+    try {
+      await _supabase
+          .from('investments')
+          .update({'status': 'rejected'})
+          .eq('investment_id', investmentId);
+      _showThemedSnackBar('Partner Investment declined.');
+      _loadInvestments();
+    } catch (e) {
+      _showThemedSnackBar('Decline failed: $e', isError: true);
     }
   }
 
@@ -200,6 +255,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                   ),
                                   child: InvestmentTableView(
                                     investments: investments,
+                                    partnerInvestments: partnerInvestments,
                                     onAddInvestment: () => setState(() {
                                       _showInvestmentForm = true;
                                       _editingInvestment = null;
@@ -210,6 +266,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                     }),
                                     onArchiveInvestment: _archiveInvestment,
                                     onDeleteInvestment: _deleteInvestment,
+                                    onApprovePartnerInvestment: _approvePartnerInvestment,
+                                    onRejectPartnerInvestment: _rejectPartnerInvestment,
                                   ),
                                 ),
                               ),

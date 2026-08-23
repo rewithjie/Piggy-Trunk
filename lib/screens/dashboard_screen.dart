@@ -96,6 +96,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
+      // Load active/approved partner investments from investments table
+      int partnerActiveCount = 0;
+      try {
+        final partnerInvRes = await _supabase
+            .from('investments')
+            .select('amount, status')
+            .or('status.ilike.active,status.ilike.approved');
+
+        for (var pInv in (partnerInvRes as List? ?? [])) {
+          if (pInv is! Map) continue;
+          final amt = (pInv['amount'] as num?)?.toDouble() ?? 0.0;
+          calculatedTotalCapital += amt;
+          calculatedFatteningCapital += amt;
+          partnerActiveCount++;
+        }
+      } catch (pErr) {
+        debugPrint('Notice loading partner investments for dashboard: $pErr');
+      }
+
       if (mounted) {
         final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
           final copy = Map<String, dynamic>.from(r);
@@ -109,7 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         setState(() {
           _activeRaisers = list.length;
-          _batchCount = invList.length;
+          _batchCount = invList.length + partnerActiveCount;
           _totalCapital = calculatedTotalCapital;
           _fatteningCapital = calculatedFatteningCapital;
           _sowCapital = calculatedSowCapital;
@@ -169,9 +188,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
+      int partnerActiveCount = 0;
+      try {
+        final pRes = await _supabase.from('investments').select('amount').or('status.ilike.active,status.ilike.approved');
+        for (var p in (pRes as List? ?? [])) {
+          final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
+          totalCapital += amt;
+          fatteningCapital += amt;
+          partnerActiveCount++;
+        }
+      } catch (_) {}
+
       setState(() {
         _activeRaisers = raisers.length;
-        _batchCount = batches.length;
+        _batchCount = batches.length + partnerActiveCount;
         _totalCapital = totalCapital;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;

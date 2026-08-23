@@ -218,7 +218,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
             try {
               await Supabase.instance.client.from('partner_investors').insert({
                 'user_id': newUserId,
-                'status': 'Pending',
               });
             } catch (e) {
               debugPrint('Partner investor auto-create notice: $e');

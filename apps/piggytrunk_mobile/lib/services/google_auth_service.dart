@@ -188,7 +188,6 @@ class GoogleAuthService {
             try {
               await _supabase.from('partner_investors').insert({
                 'user_id': newUserId,
-                'status': 'Pending',
               });
             } catch (partnerErr) {
               debugPrint('Partner investor auto-create notice: $partnerErr');

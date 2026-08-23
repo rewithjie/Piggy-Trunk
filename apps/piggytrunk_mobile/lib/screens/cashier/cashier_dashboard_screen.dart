@@ -508,6 +508,105 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   }
 
   Future<void> _restoreDefaultAvatar() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          surfaceTintColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Reset Profile Picture?',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to restore your profile picture to the default PiggyTrunk logo?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: mutedTextColor,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: mutedTextColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18314F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      'Yes, Reset',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
@@ -533,7 +632,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
       } catch (_) {}
 
       setState(() => _cashierAvatarUrl = null);
-      _showSnackBar('Default profile picture restored.');
+      _showSnackBar('Profile picture restored to default successfully!');
       await _fetchProfile();
     } catch (e) {
       _showSnackBar('Error restoring default picture: $e', isError: true);

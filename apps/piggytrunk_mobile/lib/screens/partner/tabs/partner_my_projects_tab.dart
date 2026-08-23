@@ -24,9 +24,10 @@ class PartnerMyProjectsTab extends StatefulWidget {
 
 class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
   static const Color _brandColor = Color(0xFF18314F);
-  static const Color _greenBtnColor = Color(0xFF34D399);
+  static const Color _brandAccent = Color(0xFF2FB36F);
+  static const Color _brandBlue = Color(0xFF2563EB);
 
-  int _selectedSubTab = 0; // 0: RECENT PROJECTS, 1: HISTORY
+  int _selectedSubTab = 0; // 0: Active Projects, 1: History
   Map<String, dynamic>? _selectedProjectForUpdates;
 
   String _formatCurrency(double amount) {
@@ -42,12 +43,37 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
     });
   }
 
+  Color _getStageColor(String stage) {
+    final s = stage.toLowerCase();
+    if (s.contains('finisher') || s.contains('harvest')) {
+      return const Color(0xFF10B981);
+    } else if (s.contains('grower')) {
+      return const Color(0xFF3B82F6);
+    } else if (s.contains('starter')) {
+      return const Color(0xFFF59E0B);
+    } else if (s.contains('booster') || s.contains('pre')) {
+      return const Color(0xFF8B5CF6);
+    }
+    return const Color(0xFF10B981);
+  }
+
+  int _getStageProgressIndex(String stage) {
+    final s = stage.toLowerCase();
+    if (s.contains('booster')) return 0;
+    if (s.contains('pre-starter') || s.contains('pre starter')) return 1;
+    if (s.contains('starter')) return 2;
+    if (s.contains('grower')) return 3;
+    if (s.contains('finisher')) return 4;
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // If a project is selected for live updates, show the updates screen with a back button
     if (_selectedProjectForUpdates != null) {
       final proj = _selectedProjectForUpdates!;
-      final raiserName = proj['raiser_name'] ?? proj['assigned_raiser'] ?? "Juan Dela Cruz";
-      final int hogs = (proj['total_hogs'] as num?)?.toInt() ?? 120;
+      final raiserName = proj['raiser_name'] ?? proj['assigned_raiser'] ?? "Assigned Hog Raiser";
+      final int hogs = (proj['total_hogs'] as num?)?.toInt() ?? 15;
       final int mortality = (proj['mortality'] as num?)?.toInt() ?? 0;
       final String stage = proj['stage'] ?? "Grower";
 
@@ -79,19 +105,24 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
         ? widget.projectsList
         : <Map<String, dynamic>>[];
 
+    // Calculate total summary metrics
+    int totalHogsFunded = 0;
+    for (var p in activeProjects) {
+      totalHogsFunded += (p['total_hogs'] as num?)?.toInt() ?? 15;
+    }
+
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
       color: _brandColor,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Header Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            // 1. Clean Modern Header (No search icon, no notification bell)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Projects',
@@ -99,183 +130,225 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                     fontSize: titleFontSize,
                     fontWeight: FontWeight.w800,
                     color: primaryTextColor,
-                    letterSpacing: -0.4,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () {},
-                      icon: Icon(
-                        Icons.search_rounded,
-                        color: primaryTextColor,
-                        size: fit.dp(24),
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    SizedBox(width: fit.dp(16)),
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          Icons.notifications_none_rounded,
-                          color: primaryTextColor,
-                          size: fit.dp(24),
+                SizedBox(height: fit.dp(3)),
+                Text(
+                  'Track and monitor your funded hog batches and raisers',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: fit.sp(12.5),
+                    fontWeight: FontWeight.w500,
+                    color: mutedTextColor,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: fit.dp(16.0)),
+
+            // 2. Modern Segmented Tab Switcher (Pill Style)
+            Container(
+              padding: EdgeInsets.all(fit.dp(4)),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(fit.dp(16)),
+                border: Border.all(color: cardBorderColor, width: 1),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedSubTab = 0),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(vertical: fit.dp(10)),
+                        decoration: BoxDecoration(
+                          color: _selectedSubTab == 0
+                              ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(fit.dp(12)),
+                          boxShadow: _selectedSubTab == 0
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
-                        Positioned(
-                          right: -1,
-                          top: -1,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFEF5B6C),
-                              shape: BoxShape.circle,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.folder_special_rounded,
+                              size: fit.dp(16),
+                              color: _selectedSubTab == 0
+                                  ? (isDark ? const Color(0xFF93C5FD) : _brandColor)
+                                  : mutedTextColor,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: fit.dp(16.0)),
-
-            // 2. Sub-navigation Tabs (RECENT PROJECTS | HISTORY)
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedSubTab = 0),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: fit.dp(10)),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: _selectedSubTab == 0 ? _brandColor : Colors.transparent,
-                            width: 2.5,
-                          ),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'RECENT PROJECTS',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(12.0),
-                            fontWeight: FontWeight.w800,
-                            color: _selectedSubTab == 0 ? primaryTextColor : mutedTextColor,
-                            letterSpacing: 0.5,
-                          ),
+                            SizedBox(width: fit.dp(6)),
+                            Text(
+                              'Active Projects',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: fit.sp(12.5),
+                                fontWeight: _selectedSubTab == 0 ? FontWeight.w800 : FontWeight.w600,
+                                color: _selectedSubTab == 0 ? primaryTextColor : mutedTextColor,
+                              ),
+                            ),
+                            if (activeProjects.isNotEmpty) ...[
+                              SizedBox(width: fit.dp(6)),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: fit.dp(6), vertical: fit.dp(2)),
+                                decoration: BoxDecoration(
+                                  color: _brandAccent.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${activeProjects.length}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(10.5),
+                                    fontWeight: FontWeight.w800,
+                                    color: _brandAccent,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: InkWell(
-                    onTap: () => setState(() => _selectedSubTab = 1),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(vertical: fit.dp(10)),
-                      decoration: BoxDecoration(
-                        border: Border(
-                          bottom: BorderSide(
-                            color: _selectedSubTab == 1 ? _brandColor : Colors.transparent,
-                            width: 2.5,
-                          ),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedSubTab = 1),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: EdgeInsets.symmetric(vertical: fit.dp(10)),
+                        decoration: BoxDecoration(
+                          color: _selectedSubTab == 1
+                              ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(fit.dp(12)),
+                          boxShadow: _selectedSubTab == 1
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'HISTORY',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(12.0),
-                            fontWeight: FontWeight.w800,
-                            color: _selectedSubTab == 1 ? primaryTextColor : mutedTextColor,
-                            letterSpacing: 0.5,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.history_rounded,
+                              size: fit.dp(16),
+                              color: _selectedSubTab == 1
+                                  ? (isDark ? const Color(0xFF93C5FD) : _brandColor)
+                                  : mutedTextColor,
+                            ),
+                            SizedBox(width: fit.dp(6)),
+                            Text(
+                              'History',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: fit.sp(12.5),
+                                fontWeight: _selectedSubTab == 1 ? FontWeight.w800 : FontWeight.w600,
+                                color: _selectedSubTab == 1 ? primaryTextColor : mutedTextColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            SizedBox(height: fit.dp(16.0)),
+            SizedBox(height: fit.dp(18.0)),
 
-            // 3. Tab Content
+            // 3. Tab Contents
             if (_selectedSubTab == 0) ...[
-              // RECENT PROJECTS TAB
+              // ==================== ACTIVE PROJECTS TAB ====================
               if (activeProjects.isEmpty)
+                // Modern Empty State Card
                 Container(
                   width: double.infinity,
-                  padding: EdgeInsets.symmetric(horizontal: fit.dp(20), vertical: fit.dp(28)),
+                  padding: EdgeInsets.symmetric(horizontal: fit.dp(24), vertical: fit.dp(36)),
                   decoration: BoxDecoration(
                     color: cardBgColor,
-                    borderRadius: BorderRadius.circular(fit.dp(22)),
-                    border: Border.all(color: cardBorderColor, width: 1),
+                    borderRadius: BorderRadius.circular(fit.dp(24)),
+                    border: Border.all(color: cardBorderColor, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.work_outline_rounded,
-                        size: fit.dp(38),
-                        color: isDark ? const Color(0xff9cb0c9) : _brandColor,
+                      Container(
+                        padding: EdgeInsets.all(fit.dp(20)),
+                        decoration: BoxDecoration(
+                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.folder_open_rounded,
+                          size: fit.dp(44),
+                          color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                        ),
                       ),
-                      SizedBox(height: fit.dp(10)),
+                      SizedBox(height: fit.dp(16)),
                       Text(
-                        'No Active Projects',
+                        'No Active Projects Yet',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(15.0),
+                          fontSize: fit.sp(17.0),
                           fontWeight: FontWeight.w800,
                           color: primaryTextColor,
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: fit.dp(4)),
+                      SizedBox(height: fit.dp(6)),
                       Text(
-                        'You have not invested in any hog raiser projects yet. Make your first investment to start tracking!',
+                        'You have not funded any hog raiser projects yet. Explore active batches to start earning returns and tracking live growth.',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(12.0),
+                          fontSize: fit.sp(12.5),
                           fontWeight: FontWeight.w500,
                           color: mutedTextColor,
+                          height: 1.4,
                         ),
                         textAlign: TextAlign.center,
                       ),
                       if (widget.onMakeInvestment != null) ...[
-                        SizedBox(height: fit.dp(16)),
+                        SizedBox(height: fit.dp(20)),
                         ElevatedButton.icon(
-                          onPressed: () {
-                            if (widget.projectsList.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('No active batches available for investment at the moment.'),
-                                  backgroundColor: Color(0xFFEF4444),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                              return;
-                            }
-                            widget.onMakeInvestment?.call();
-                          },
+                          onPressed: () => widget.onMakeInvestment?.call(),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _brandColor,
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark ? Colors.white : _brandColor,
+                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                             elevation: 0,
-                            padding: EdgeInsets.symmetric(horizontal: fit.dp(18), vertical: fit.dp(12)),
+                            padding: EdgeInsets.symmetric(horizontal: fit.dp(22), vertical: fit.dp(13)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(fit.dp(14)),
                             ),
                           ),
-                          icon: Icon(Icons.add_circle_outline_rounded, size: fit.dp(18), color: Colors.white),
+                          icon: Icon(
+                            Icons.add_card_rounded,
+                            size: fit.dp(18),
+                            color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                          ),
                           label: Text(
-                            'Make First Investment',
+                            'Explore Batches to Invest',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: fit.sp(13.0),
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              fontSize: fit.sp(13.5),
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFF0F172A) : Colors.white,
                             ),
                           ),
                         ),
@@ -283,269 +356,444 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                     ],
                   ),
                 )
-              else
+              else ...[
+                // Metric Strip Summary Bar
+                Container(
+                  margin: EdgeInsets.only(bottom: fit.dp(16)),
+                  padding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(14)),
+                  decoration: BoxDecoration(
+                    color: statsBoxBg,
+                    borderRadius: BorderRadius.circular(fit.dp(16)),
+                    border: Border.all(color: statsBoxBorder, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildSummaryItem(
+                        fit,
+                        'TOTAL INVESTED',
+                        '₱${_formatCurrency(widget.investedAmount)}',
+                        isDark,
+                        primaryTextColor,
+                      ),
+                      Container(height: fit.dp(28), width: 1, color: statsBoxBorder),
+                      _buildSummaryItem(
+                        fit,
+                        'BATCHES',
+                        '${activeProjects.length}',
+                        isDark,
+                        primaryTextColor,
+                      ),
+                      Container(height: fit.dp(28), width: 1, color: statsBoxBorder),
+                      _buildSummaryItem(
+                        fit,
+                        'TOTAL HOGS',
+                        '$totalHogsFunded',
+                        isDark,
+                        primaryTextColor,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Active Project Cards
                 ...activeProjects.map((project) {
-                  final String title = project['title'] ?? project['batch_name'] ?? 'Batch 2024-B';
-                  final String batchCode = project['batch_code'] ?? '#B2024-B';
-                  final String status = project['status'] ?? 'IN PROGRESS';
-                  final double amount = (project['amount'] as num?)?.toDouble() ?? (widget.investedAmount > 0 ? widget.investedAmount : 10000.0);
-                  final int totalRaisers = (project['total_raisers'] as num?)?.toInt() ?? 3;
-                  final int totalHogs = (project['total_hogs'] as num?)?.toInt() ?? 42;
+                  final String title = project['title'] ?? project['batch_name'] ?? 'Batch Project';
+                  final String batchCode = project['batch_code'] ?? '#BATCH-${project['batch_id'] ?? '1'}';
+                  final String status = project['status'] ?? 'Active';
+                  final String stage = project['stage'] ?? 'Grower';
+                  final String hogType = project['hog_type'] ?? 'Fattening';
+                  final String raiserName = project['raiser_name'] ?? project['assigned_raiser'] ?? 'Assigned Hog Raiser';
+                  final double amount = (project['invested_amount'] ?? project['amount'] as num?)?.toDouble() ??
+                      (widget.investedAmount > 0 ? widget.investedAmount : 10000.0);
+                  final int totalRaisers = (project['total_raisers'] as num?)?.toInt() ?? 1;
+                  final int totalHogs = (project['total_hogs'] as num?)?.toInt() ?? 15;
                   final int mortality = (project['mortality'] as num?)?.toInt() ?? 0;
+
+                  final stageColor = _getStageColor(stage);
+                  final progressStep = _getStageProgressIndex(stage);
 
                   return Container(
                     margin: EdgeInsets.only(bottom: fit.dp(16)),
-                    padding: EdgeInsets.all(fit.dp(20.0)),
                     decoration: BoxDecoration(
                       color: cardBgColor,
                       borderRadius: BorderRadius.circular(fit.dp(22)),
-                      border: Border.all(color: cardBorderColor, width: 1),
+                      border: Border.all(color: cardBorderColor, width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Top Row: Badge & Code
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: fit.dp(12), vertical: fit.dp(6)),
-                              decoration: BoxDecoration(
-                                color: _greenBtnColor,
-                                borderRadius: BorderRadius.circular(fit.dp(20)),
-                              ),
-                              child: Text(
-                                status.toUpperCase(),
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: fit.sp(11.0),
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 0.3,
+                        // Card Header: Code, Hog Type & Stage Pill
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(fit.dp(16), fit.dp(16), fit.dp(16), 0),
+                          child: Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: fit.dp(8),
+                            runSpacing: fit.dp(8),
+                            children: [
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4)),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(fit.dp(8)),
+                                ),
+                                child: Text(
+                                  batchCode,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(11.5),
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              batchCode,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(13.0),
-                                fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Hog Type Badge (e.g. Fattening)
+                                  Container(
+                                    padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
+                                    margin: EdgeInsets.only(right: fit.dp(6)),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1A365D) : const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(fit.dp(20)),
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF2B6CB0) : const Color(0xFFBFDBFE),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.pets_rounded,
+                                          size: fit.dp(11),
+                                          color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB),
+                                        ),
+                                        SizedBox(width: fit.dp(4)),
+                                        Text(
+                                          hogType,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: fit.sp(10.5),
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // Status Badge (Pending Approval vs Stage)
+                                  if (status.toLowerCase() == 'pending')
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.2 : 0.12),
+                                        borderRadius: BorderRadius.circular(fit.dp(20)),
+                                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4), width: 1),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.hourglass_top_rounded,
+                                            size: fit.dp(11),
+                                            color: const Color(0xFFF59E0B),
+                                          ),
+                                          SizedBox(width: fit.dp(4)),
+                                          Text(
+                                            'Pending Approval',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: fit.sp(10.5),
+                                              fontWeight: FontWeight.w800,
+                                              color: const Color(0xFFF59E0B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
+                                      decoration: BoxDecoration(
+                                        color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                                        borderRadius: BorderRadius.circular(fit.dp(20)),
+                                        border: Border.all(color: stageColor.withValues(alpha: 0.3), width: 1),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: fit.dp(6),
+                                            height: fit.dp(6),
+                                            decoration: BoxDecoration(
+                                              color: stageColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          SizedBox(width: fit.dp(5)),
+                                          Text(
+                                            '$stage Stage',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: fit.sp(10.5),
+                                              fontWeight: FontWeight.w800,
+                                              color: stageColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+
+                        // Batch Title & Raiser Name
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(10)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: fit.sp(18.0),
+                                  fontWeight: FontWeight.w800,
+                                  color: primaryTextColor,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              SizedBox(height: fit.dp(5)),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_outline_rounded,
+                                    size: fit.dp(14),
+                                    color: mutedTextColor,
+                                  ),
+                                  SizedBox(width: fit.dp(4)),
+                                  Text(
+                                    'Raiser: $raiserName',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(12.5),
+                                      fontWeight: FontWeight.w600,
+                                      color: mutedTextColor,
+                                    ),
+                                  ),
+                                  SizedBox(width: fit.dp(8)),
+                                  Container(
+                                    width: 3,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      color: mutedTextColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  SizedBox(width: fit.dp(8)),
+                                  Text(
+                                    hogType,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(12.0),
+                                      fontWeight: FontWeight.w600,
+                                      color: mutedTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Lifecycle Step Progress Bar (5 stages)
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: fit.dp(18), vertical: fit.dp(4)),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'LIFECYCLE PROGRESS',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(10.0),
+                                      fontWeight: FontWeight.w700,
+                                      color: mutedTextColor,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Step ${progressStep + 1} of 5',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(10.5),
+                                      fontWeight: FontWeight.w700,
+                                      color: stageColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: fit.dp(6)),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(fit.dp(6)),
+                                child: LinearProgressIndicator(
+                                  value: (progressStep + 1) / 5.0,
+                                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                  valueColor: AlwaysStoppedAnimation<Color>(stageColor),
+                                  minHeight: fit.dp(6),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         SizedBox(height: fit.dp(12)),
 
-                        // Batch Title
-                        Text(
-                          title,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(20.0),
-                            fontWeight: FontWeight.w800,
-                            color: primaryTextColor,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        SizedBox(height: fit.dp(14)),
-
-                        // Stats Table Box
+                        // Stats Grid Box
                         Container(
-                          padding: EdgeInsets.symmetric(vertical: fit.dp(14), horizontal: fit.dp(12)),
+                          margin: EdgeInsets.symmetric(horizontal: fit.dp(18)),
+                          padding: EdgeInsets.symmetric(vertical: fit.dp(12), horizontal: fit.dp(10)),
                           decoration: BoxDecoration(
                             color: statsBoxBg,
-                            borderRadius: BorderRadius.circular(fit.dp(16)),
+                            borderRadius: BorderRadius.circular(fit.dp(14)),
                             border: Border.all(color: statsBoxBorder, width: 1),
                           ),
                           child: Row(
                             children: [
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'TOTAL RAISER',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(height: fit.dp(4)),
-                                    Text(
-                                      '$totalRaisers',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: primaryTextColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                height: fit.dp(30),
-                                width: 1,
-                                color: statsBoxBorder,
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'TOTAL HOG',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(height: fit.dp(4)),
-                                    Text(
-                                      '$totalHogs',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: primaryTextColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                height: fit.dp(30),
-                                width: 1,
-                                color: statsBoxBorder,
-                              ),
-                              Expanded(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      'MORTALITY',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(10.0),
-                                        fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    ),
-                                    SizedBox(height: fit.dp(4)),
-                                    Text(
-                                      '$mortality',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: fit.sp(20.0),
-                                        fontWeight: FontWeight.w800,
-                                        color: const Color(0xFFEF4444),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              _buildMetricColumn(fit, 'RAISERS', '$totalRaisers', primaryTextColor, isDark),
+                              Container(height: fit.dp(26), width: 1, color: statsBoxBorder),
+                              _buildMetricColumn(fit, 'TOTAL HOGS', '$totalHogs', primaryTextColor, isDark),
+                              Container(height: fit.dp(26), width: 1, color: statsBoxBorder),
+                              _buildMetricColumn(
+                                fit,
+                                'MORTALITY',
+                                '$mortality',
+                                mortality > 0 ? const Color(0xFFEF4444) : primaryTextColor,
+                                isDark,
                               ),
                             ],
                           ),
                         ),
                         SizedBox(height: fit.dp(14)),
 
-                        // Investment Amount Row
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'INVESTMENT:',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(12.0),
-                                fontWeight: FontWeight.w800,
-                                color: mutedTextColor,
-                                letterSpacing: 0.5,
+                        // Investment Amount & View Button Row
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(fit.dp(18), 0, fit.dp(18), fit.dp(16)),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'YOUR INVESTMENT',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(10.5),
+                                      fontWeight: FontWeight.w700,
+                                      color: mutedTextColor,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                  SizedBox(height: fit.dp(2)),
+                                  Text(
+                                    '₱${_formatCurrency(amount)}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: fit.sp(16.0),
+                                      fontWeight: FontWeight.w800,
+                                      color: primaryTextColor,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Text(
-                              '₱${_formatCurrency(amount)}',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: fit.sp(16.0),
-                                fontWeight: FontWeight.w800,
-                                color: primaryTextColor,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: fit.dp(14)),
-
-                        // VIEW Action Button (Brand Navy Theme)
-                        SizedBox(
-                          width: double.infinity,
-                          height: fit.dp(44),
-                          child: ElevatedButton(
-                            onPressed: () => _openProjectHogUpdates(project),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _brandColor,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(fit.dp(14)),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'VIEW',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: fit.sp(14.0),
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                    letterSpacing: 0.8,
+                              ElevatedButton.icon(
+                                onPressed: () => _openProjectHogUpdates(project),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _brandColor,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(10)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(fit.dp(12)),
                                   ),
                                 ),
-                                SizedBox(width: fit.dp(6)),
-                                Icon(
+                                icon: Text(
+                                  'Live Updates',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: fit.sp(12.5),
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                label: Icon(
                                   Icons.chevron_right_rounded,
-                                  size: fit.dp(20),
+                                  size: fit.dp(18),
                                   color: Colors.white,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   );
                 }),
+              ],
             ] else ...[
-              // HISTORY TAB
+              // ==================== HISTORY TAB ====================
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.symmetric(horizontal: fit.dp(20), vertical: fit.dp(28)),
+                padding: EdgeInsets.symmetric(horizontal: fit.dp(24), vertical: fit.dp(36)),
                 decoration: BoxDecoration(
                   color: cardBgColor,
-                  borderRadius: BorderRadius.circular(fit.dp(22)),
-                  border: Border.all(color: cardBorderColor, width: 1),
+                  borderRadius: BorderRadius.circular(fit.dp(24)),
+                  border: Border.all(color: cardBorderColor, width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.history_rounded,
-                      size: fit.dp(38),
-                      color: isDark ? const Color(0xff9cb0c9) : _brandColor,
+                    Container(
+                      padding: EdgeInsets.all(fit.dp(20)),
+                      decoration: BoxDecoration(
+                        color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.history_toggle_off_rounded,
+                        size: fit.dp(44),
+                        color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                      ),
                     ),
-                    SizedBox(height: fit.dp(10)),
+                    SizedBox(height: fit.dp(16)),
                     Text(
                       'No Project History',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: fit.sp(15.0),
+                        fontSize: fit.sp(17.0),
                         fontWeight: FontWeight.w800,
                         color: primaryTextColor,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: fit.dp(4)),
+                    SizedBox(height: fit.dp(6)),
                     Text(
-                      'Completed or closed project investments will appear here.',
+                      'Completed, harvested, or closed project investments will appear here.',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: fit.sp(12.0),
+                        fontSize: fit.sp(12.5),
                         fontWeight: FontWeight.w500,
                         color: mutedTextColor,
+                        height: 1.4,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -555,6 +803,58 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem(ScreenFit fit, String label, String value, bool isDark, Color textColor) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: fit.sp(10.0),
+            fontWeight: FontWeight.w700,
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+            letterSpacing: 0.3,
+          ),
+        ),
+        SizedBox(height: fit.dp(3)),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: fit.sp(15.0),
+            fontWeight: FontWeight.w800,
+            color: textColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricColumn(ScreenFit fit, String label, String value, Color valueColor, bool isDark) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: fit.sp(9.5),
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              letterSpacing: 0.3,
+            ),
+          ),
+          SizedBox(height: fit.dp(3)),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: fit.sp(17.0),
+              fontWeight: FontWeight.w800,
+              color: valueColor,
+            ),
+          ),
+        ],
       ),
     );
   }

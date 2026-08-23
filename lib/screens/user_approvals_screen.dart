@@ -106,14 +106,70 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     try {
       dynamic query = _supabase
           .from('app_users')
-          .select('user_id, name, email, role, status, created_at');
+          .select('*');
 
       if (keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,email.ilike.%$keyword%');
       }
 
-      final response = await query.order('user_id', ascending: false);
-      final list = (response as List).cast<Map<String, dynamic>>();
+      final dynamic response = await query.order('user_id', ascending: false);
+      final List<Map<String, dynamic>> list = [];
+      if (response is List) {
+        for (var item in response) {
+          if (item is Map) {
+            list.add(Map<String, dynamic>.from(item));
+          }
+        }
+      }
+
+      // Fetch partner_investors and hog_raisers in parallel to enrich phone, address, and avatar safely
+      try {
+        final dynamic partnersRes = await _supabase.from('partner_investors').select('*');
+        final Map<int, Map<String, dynamic>> partnerMap = {};
+        if (partnersRes is List) {
+          for (var p in partnersRes) {
+            if (p is Map) {
+              final uid = (p['user_id'] as num?)?.toInt();
+              if (uid != null) partnerMap[uid] = Map<String, dynamic>.from(p);
+            }
+          }
+        }
+
+        final dynamic raisersRes = await _supabase.from('hog_raisers').select('*');
+        final Map<int, Map<String, dynamic>> raiserMap = {};
+        if (raisersRes is List) {
+          for (var r in raisersRes) {
+            if (r is Map) {
+              final uid = (r['user_id'] as num?)?.toInt();
+              if (uid != null) raiserMap[uid] = Map<String, dynamic>.from(r);
+            }
+          }
+        }
+
+        for (var u in list) {
+          final uid = (u['user_id'] as num?)?.toInt();
+          if (uid != null) {
+            if (partnerMap.containsKey(uid)) {
+              u['contact_number'] = partnerMap[uid]?['contact_number'];
+              u['address'] = partnerMap[uid]?['address'];
+              final pAvatar = partnerMap[uid]?['avatar_url']?.toString().trim();
+              if (pAvatar != null && pAvatar.isNotEmpty && pAvatar != 'null') {
+                u['avatar_url'] = pAvatar;
+              }
+            } else if (raiserMap.containsKey(uid)) {
+              u['phone'] = raiserMap[uid]?['phone'];
+              u['address'] = raiserMap[uid]?['address'];
+              final rAvatar = raiserMap[uid]?['avatar_url']?.toString().trim();
+              if (rAvatar != null && rAvatar.isNotEmpty && rAvatar != 'null') {
+                u['avatar_url'] = rAvatar;
+              }
+            }
+          }
+        }
+      } catch (enrichErr) {
+        debugPrint('Notice enriching user phone/address/avatar: $enrichErr');
+      }
+
       debugPrint('UserApprovalsScreen loaded ${list.length} app_users: $list');
 
       if (mounted) {
@@ -841,11 +897,11 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         shape: BoxShape.circle,
-        border: Border.all(color: borderColor, width: 2),
+        border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: (isDark ? Colors.white : const Color(0xFF18314F)).withValues(alpha: isDark ? 0.25 : 0.12),
-            blurRadius: 10,
+            blurRadius: 8,
             spreadRadius: 1,
           ),
         ],
@@ -854,37 +910,42 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
           ? Image.network(
               avatarUrl,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Center(
-                child: Text(
-                  initials,
-                  style: AppTextStyles.jakarta(
-                    size: fontSize,
-                    weight: FontWeight.w800,
-                    color: textColor,
+              errorBuilder: (context, error, stackTrace) => Padding(
+                padding: EdgeInsets.all(size * 0.14),
+                child: Image.asset(
+                  'assets/piggytrunk_logo.png',
+                  width: size,
+                  height: size,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Center(
+                    child: Text(
+                      initials,
+                      style: AppTextStyles.jakarta(
+                        size: fontSize,
+                        weight: FontWeight.w800,
+                        color: textColor,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Center(
-                  child: SizedBox(
-                    width: size * 0.35,
-                    height: size * 0.35,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(textColor),
+            )
+          : Padding(
+              padding: EdgeInsets.all(size * 0.14),
+              child: Image.asset(
+                'assets/piggytrunk_logo.png',
+                width: size,
+                height: size,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => Center(
+                  child: Text(
+                    initials,
+                    style: AppTextStyles.jakarta(
+                      size: fontSize,
+                      weight: FontWeight.w800,
+                      color: textColor,
                     ),
                   ),
-                );
-              },
-            )
-          : Center(
-              child: Text(
-                initials,
-                style: AppTextStyles.jakarta(
-                  size: fontSize,
-                  weight: FontWeight.w800,
-                  color: textColor,
                 ),
               ),
             ),
@@ -914,6 +975,48 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final initials = name.trim().isNotEmpty
         ? name.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
         : 'US';
+
+    String phone = (row['phone'] ?? row['contact_number'] ?? '').toString().trim();
+    String address = (row['address'] ?? row['farm_location'] ?? '').toString().trim();
+
+    final partnerList = row['partner_investors'];
+    if (partnerList is List && partnerList.isNotEmpty) {
+      final p = partnerList.first;
+      if (p['contact_number'] != null && p['contact_number'].toString().trim().isNotEmpty) {
+        phone = p['contact_number'].toString().trim();
+      }
+      if (p['address'] != null && p['address'].toString().trim().isNotEmpty) {
+        address = p['address'].toString().trim();
+      }
+    } else if (partnerList is Map) {
+      if (partnerList['contact_number'] != null && partnerList['contact_number'].toString().trim().isNotEmpty) {
+        phone = partnerList['contact_number'].toString().trim();
+      }
+      if (partnerList['address'] != null && partnerList['address'].toString().trim().isNotEmpty) {
+        address = partnerList['address'].toString().trim();
+      }
+    }
+
+    final raiserList = row['hog_raisers'];
+    if (raiserList is List && raiserList.isNotEmpty) {
+      final r = raiserList.first;
+      if (r['phone'] != null && r['phone'].toString().trim().isNotEmpty) {
+        phone = r['phone'].toString().trim();
+      }
+      if (r['address'] != null && r['address'].toString().trim().isNotEmpty) {
+        address = r['address'].toString().trim();
+      }
+    } else if (raiserList is Map) {
+      if (raiserList['phone'] != null && raiserList['phone'].toString().trim().isNotEmpty) {
+        phone = raiserList['phone'].toString().trim();
+      }
+      if (raiserList['address'] != null && raiserList['address'].toString().trim().isNotEmpty) {
+        address = raiserList['address'].toString().trim();
+      }
+    }
+
+    if (phone.isEmpty || phone == 'null') phone = 'Not set';
+    if (address.isEmpty || address == 'null') address = 'Not set';
 
     showModalBottomSheet(
       context: context,
@@ -954,7 +1057,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 child: Row(
                   children: [
                     Text(
-                      'User Account Profile',
+                      'User Profile',
                       style: AppTextStyles.jakarta(
                         size: 17,
                         weight: FontWeight.w800,
@@ -1016,11 +1119,15 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: Column(
                           children: [
-                            _drawerDetailRow('Full Name', name),
+                            _drawerDetailRow('Name', name),
                             _drawerDivider(),
-                            _drawerDetailRow('Email Address', email),
+                            _drawerDetailRow('Email', email),
                             _drawerDivider(),
-                            _drawerDetailRow('Role Type', roleDisplay),
+                            _drawerDetailRow('Phone', phone),
+                            _drawerDivider(),
+                            _drawerDetailRow('Address', address),
+                            _drawerDivider(),
+                            _drawerDetailRow('Role', roleDisplay),
                             _drawerDivider(),
                             _drawerDetailRow('Registered', createdAt),
                           ],
@@ -1161,6 +1268,48 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         ? name.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
         : 'US';
 
+    String phone = (row['phone'] ?? row['contact_number'] ?? '').toString().trim();
+    String address = (row['address'] ?? row['farm_location'] ?? '').toString().trim();
+
+    final partnerList = row['partner_investors'];
+    if (partnerList is List && partnerList.isNotEmpty) {
+      final p = partnerList.first;
+      if (p['contact_number'] != null && p['contact_number'].toString().trim().isNotEmpty) {
+        phone = p['contact_number'].toString().trim();
+      }
+      if (p['address'] != null && p['address'].toString().trim().isNotEmpty) {
+        address = p['address'].toString().trim();
+      }
+    } else if (partnerList is Map) {
+      if (partnerList['contact_number'] != null && partnerList['contact_number'].toString().trim().isNotEmpty) {
+        phone = partnerList['contact_number'].toString().trim();
+      }
+      if (partnerList['address'] != null && partnerList['address'].toString().trim().isNotEmpty) {
+        address = partnerList['address'].toString().trim();
+      }
+    }
+
+    final raiserList = row['hog_raisers'];
+    if (raiserList is List && raiserList.isNotEmpty) {
+      final r = raiserList.first;
+      if (r['phone'] != null && r['phone'].toString().trim().isNotEmpty) {
+        phone = r['phone'].toString().trim();
+      }
+      if (r['address'] != null && r['address'].toString().trim().isNotEmpty) {
+        address = r['address'].toString().trim();
+      }
+    } else if (raiserList is Map) {
+      if (raiserList['phone'] != null && raiserList['phone'].toString().trim().isNotEmpty) {
+        phone = raiserList['phone'].toString().trim();
+      }
+      if (raiserList['address'] != null && raiserList['address'].toString().trim().isNotEmpty) {
+        address = raiserList['address'].toString().trim();
+      }
+    }
+
+    if (phone.isEmpty || phone == 'null') phone = 'Not set';
+    if (address.isEmpty || address == 'null') address = 'Not set';
+
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -1201,7 +1350,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                         child: Row(
                           children: [
                             Text(
-                              'User Account Profile',
+                              'User Profile',
                               style: AppTextStyles.jakarta(
                                 size: 17,
                                 weight: FontWeight.w800,
@@ -1271,7 +1420,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                               ),
                               const SizedBox(height: 28),
                               Text(
-                                'ACCOUNT INFORMATION',
+                                'PROFILE DETAILS',
                                 style: AppTextStyles.jakarta(
                                   size: 11,
                                   weight: FontWeight.w800,
@@ -1289,11 +1438,15 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 child: Column(
                                   children: [
-                                    _drawerDetailRow('Full Name', name),
+                                    _drawerDetailRow('Name', name),
                                     _drawerDivider(),
-                                    _drawerDetailRow('Email Address', email),
+                                    _drawerDetailRow('Email', email),
                                     _drawerDivider(),
-                                    _drawerDetailRow('Role Type', roleDisplay),
+                                    _drawerDetailRow('Phone', phone),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Address', address),
+                                    _drawerDivider(),
+                                    _drawerDetailRow('Role', roleDisplay),
                                     _drawerDivider(),
                                     _drawerDetailRow('Registered', createdAt),
                                   ],
