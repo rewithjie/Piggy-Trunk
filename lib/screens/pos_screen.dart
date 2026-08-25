@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/pos_model.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/app_toast.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
@@ -54,28 +55,25 @@ class _POSScreenState extends State<POSScreen> {
     _loadProductsFromInventory();
   }
 
-  void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration}) {
+  void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration, String? title}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: backgroundColor ?? const Color(0xFF315C8F),
-        behavior: SnackBarBehavior.floating,
-        duration: duration ?? const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.only(bottom: 24, left: 32, right: 32),
-      ),
-    );
+    final isError = backgroundColor == Colors.red || backgroundColor == const Color(0xFFE53E3E);
+    final isWarning = backgroundColor == Colors.orange || backgroundColor == const Color(0xFFF59E0B);
+    final isSuccess = backgroundColor == Colors.green ||
+        backgroundColor == const Color(0xFF10B981) ||
+        message.toLowerCase().contains('added') ||
+        message.toLowerCase().contains('success') ||
+        message.toLowerCase().contains('completed');
+
+    if (isError) {
+      AppToast.error(context, message, title: title, duration: duration);
+    } else if (isWarning) {
+      AppToast.warning(context, message, title: title, duration: duration);
+    } else if (isSuccess) {
+      AppToast.success(context, message, title: title, duration: duration);
+    } else {
+      AppToast.info(context, message, title: title, duration: duration);
+    }
   }
 
   Future<void> _loadProductsFromInventory() async {
@@ -680,6 +678,15 @@ class _POSScreenState extends State<POSScreen> {
                     onPressed: isOutOfStock
                         ? null
                         : () {
+                            final currentQty = currentOrder.quantityFor(product.id);
+                            if (currentQty >= product.units) {
+                              _showThemedSnackBar(
+                                'Cannot add more. Only ${product.units} units in stock.',
+                                backgroundColor: const Color(0xFFE53E3E),
+                                duration: const Duration(milliseconds: 1000),
+                              );
+                              return;
+                            }
                             setState(() {
                               _orderItemCounter++;
                               currentOrder.addItem(
@@ -957,6 +964,12 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildOrderItemRow(OrderItem item, int index) {
+    final product = _products.cast<POSProduct?>().firstWhere(
+      (p) => p?.id == item.productId,
+      orElse: () => null,
+    );
+    final int maxStock = product?.units ?? 999;
+
     return Padding(
       padding: EdgeInsets.only(bottom: index == currentOrder.items.length - 1 ? 0 : 12),
       child: Container(
@@ -983,6 +996,7 @@ class _POSScreenState extends State<POSScreen> {
                 ),
                 IconButton(
                   icon: Icon(Icons.close, size: 16, color: _muted),
+                  tooltip: 'Remove item',
                   onPressed: () {
                     setState(() {
                       currentOrder.removeItem(item.productId);
@@ -993,17 +1007,83 @@ class _POSScreenState extends State<POSScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  '${item.quantity}x PHP ${item.price.toStringAsFixed(2)}',
-                  style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w500, color: _muted),
+                  'PHP ${item.price.toStringAsFixed(2)}',
+                  style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w600, color: _muted),
                 ),
-                Text(
-                  'PHP ${item.subtotal.toStringAsFixed(2)}',
-                  style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w700, color: _text),
+                Container(
+                  decoration: BoxDecoration(
+                    color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _border, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            currentOrder.decrementQuantity(item.productId);
+                          });
+                        },
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(7)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Icon(
+                            item.quantity == 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+                            size: 16,
+                            color: item.quantity == 1
+                                ? const Color(0xFFE53E3E)
+                                : (_isDark ? Colors.white70 : const Color(0xFF475569)),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 28),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          '${item.quantity}',
+                          style: AppTextStyles.jakarta(
+                            size: 13,
+                            weight: FontWeight.w700,
+                            color: _text,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          if (item.quantity < maxStock) {
+                            setState(() {
+                              currentOrder.incrementQuantity(item.productId);
+                            });
+                          } else {
+                            _showThemedSnackBar(
+                              'Cannot add more. Only $maxStock units in stock.',
+                              backgroundColor: const Color(0xFFE53E3E),
+                              duration: const Duration(milliseconds: 1000),
+                            );
+                          }
+                        },
+                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(7)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Icon(
+                            Icons.add_rounded,
+                            size: 16,
+                            color: item.quantity >= maxStock
+                                ? (_isDark ? Colors.white24 : Colors.black26)
+                                : (_isDark ? Colors.white70 : const Color(0xFF475569)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

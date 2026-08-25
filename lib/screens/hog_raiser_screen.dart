@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../main.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/admin_sidebar.dart';
@@ -212,12 +213,11 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
   void _showThemedSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: AppTextStyles.body(Colors.white)),
-        backgroundColor: isError ? Colors.red : PiggyTrunkTheme.ptSuccess,
-      ),
-    );
+    if (isError) {
+      AppToast.error(context, message);
+    } else {
+      AppToast.success(context, message);
+    }
   }
 
   @override

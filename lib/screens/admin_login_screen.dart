@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
@@ -30,6 +31,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
   bool _isLoading = false;
+  bool _hasAuthCredentialError = false;
   String? _errorMessage;
   String? _successMessage;
   String? _emailError;
@@ -57,6 +59,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
         curve: Curves.easeInOutSine,
       ),
     );
+
+    _passwordController.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     _loadRememberedCredentials();
 
@@ -93,12 +99,17 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   void _clearMessages() {
-    if (_errorMessage != null || _successMessage != null || _emailError != null || _passwordError != null) {
+    if (_errorMessage != null ||
+        _successMessage != null ||
+        _emailError != null ||
+        _passwordError != null ||
+        _hasAuthCredentialError) {
       setState(() {
         _errorMessage = null;
         _successMessage = null;
         _emailError = null;
         _passwordError = null;
+        _hasAuthCredentialError = false;
       });
     }
   }
@@ -114,6 +125,23 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
 
     if (email.isEmpty) {
       emailErr = 'Please enter your email or username.';
+    } else if (!email.contains('@') && (email.contains('.') || RegExp(r'\.[a-zA-Z]{2,}$').hasMatch(email))) {
+      emailErr = "Please include an '@' in the email address (e.g. admin@piggytrunk.com).";
+    } else if (email.contains('@')) {
+      if (email.startsWith('@')) {
+        emailErr = "Please enter the part before '@'.";
+      } else if (email.endsWith('@')) {
+        emailErr = "Please enter a domain after '@' (e.g. piggytrunk.com).";
+      } else if (!email.split('@').last.contains('.')) {
+        emailErr = "Please enter a complete domain after '@' (e.g. piggytrunk.com).";
+      } else {
+        final emailRegex = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$');
+        if (!emailRegex.hasMatch(email)) {
+          emailErr = 'Please enter a valid email address.';
+        }
+      }
+    } else if (email.length < 3) {
+      emailErr = 'Username must be at least 3 characters.';
     }
 
     if (password.isEmpty) {
@@ -153,14 +181,26 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           }
         });
       } else {
-        final msg = (result['message'] ?? 'Invalid email or password. Please check your credentials.').toString();
-        setState(() {
-          _passwordError = msg;
-        });
+        final msg = (result['message'] ?? 'Invalid email/username or password. Please check your credentials.').toString();
+        if (result['errorField'] == 'email') {
+          setState(() {
+            _emailError = msg;
+          });
+        } else if (result['errorField'] == 'password') {
+          setState(() {
+            _passwordError = msg;
+          });
+        } else {
+          setState(() {
+            _hasAuthCredentialError = true;
+            _passwordError = msg;
+          });
+        }
       }
     } catch (e) {
       setState(() {
-        _passwordError = 'Invalid email or password. Please check your credentials.';
+        _hasAuthCredentialError = true;
+        _passwordError = 'Invalid email/username or password. Please check your credentials.';
       });
     } finally {
       if (mounted) {
@@ -397,18 +437,27 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   Widget _buildLoginForm() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        children: [
-          _buildEmailField(),
-          const SizedBox(height: 20),
-          _buildPasswordField(),
-          const SizedBox(height: 18),
-          _buildFormMeta(),
-          const SizedBox(height: 29),
-          _buildSignInButton(),
-        ],
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): () {
+          if (!_isLoading) {
+            _handleLogin();
+          }
+        },
+      },
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _buildEmailField(),
+            const SizedBox(height: 20),
+            _buildPasswordField(),
+            const SizedBox(height: 18),
+            _buildFormMeta(),
+            const SizedBox(height: 29),
+            _buildSignInButton(),
+          ],
+        ),
       ),
     );
   }
@@ -426,23 +475,34 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           controller: _emailController,
           focusNode: _emailFocus,
           keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
           enabled: !_isLoading,
+          textAlignVertical: TextAlignVertical.center,
+          cursorHeight: 18,
           style: GoogleFonts.poppins(
             fontSize: 15,
             color: LoginStyles.brandText,
             fontWeight: FontWeight.w500,
+            height: 1.2,
           ),
           decoration: LoginStyles.emailFieldDecoration(
             hintText: 'admin@piggytrunk.com or username',
-            hasError: _emailError != null,
+            hasError: _emailError != null || _hasAuthCredentialError,
             prefixIcon: const Icon(
               Icons.person_outline_rounded,
               size: 20,
               color: LoginStyles.fieldIconColor,
             ),
           ),
+          onFieldSubmitted: (_) {
+            if (_passwordController.text.isEmpty) {
+              _passwordFocus.requestFocus();
+            } else if (!_isLoading) {
+              _handleLogin();
+            }
+          },
           onChanged: (_) {
-            if (_emailError != null || _passwordError != null) {
+            if (_emailError != null || _passwordError != null || _hasAuthCredentialError) {
               _clearMessages();
             }
           },
@@ -453,6 +513,31 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   Widget _buildPasswordField() {
+    final bool isPasswordEmpty = _passwordController.text.isEmpty;
+    final TextStyle fieldStyle = isPasswordEmpty
+        ? GoogleFonts.poppins(
+            fontSize: 15,
+            color: LoginStyles.brandText,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.0,
+            height: 1.2,
+          )
+        : (_isPasswordVisible
+            ? GoogleFonts.poppins(
+                fontSize: 15,
+                color: LoginStyles.brandText,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.0,
+                height: 1.2,
+              )
+            : GoogleFonts.poppins(
+                fontSize: 18,
+                color: LoginStyles.brandText,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 2.5,
+                height: 1.2,
+              ));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -464,16 +549,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
         TextFormField(
           controller: _passwordController,
           focusNode: _passwordFocus,
+          enabled: !_isLoading,
           obscureText: !_isPasswordVisible,
-          obscuringCharacter: '*',
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            color: LoginStyles.brandText,
-            fontWeight: FontWeight.w500,
-          ),
+          obscuringCharacter: '•',
+          textAlignVertical: TextAlignVertical.center,
+          textInputAction: TextInputAction.done,
+          cursorHeight: 18,
+          style: fieldStyle,
           decoration: LoginStyles.passwordFieldDecoration(
             hintText: 'Enter your password',
-            hasError: _passwordError != null,
+            hasError: _passwordError != null || _hasAuthCredentialError,
             suffixIcon: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
@@ -495,8 +580,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
               ),
             ),
           ),
+          onFieldSubmitted: (_) {
+            if (!_isLoading) {
+              _handleLogin();
+            }
+          },
           onChanged: (_) {
-            if (_emailError != null || _passwordError != null) {
+            if (_emailError != null || _passwordError != null || _hasAuthCredentialError) {
               _clearMessages();
             }
           },

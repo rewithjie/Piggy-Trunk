@@ -298,8 +298,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           ),
           const SizedBox(width: 4),
           _buildToggleTab(
-            label: 'Partner Requests (${widget.partnerInvestments.length})',
-            badge: pendingCount > 0 ? '$pendingCount PENDING' : null,
+            label: 'Partner Investments (${widget.partnerInvestments.length})',
             isSelected: _viewMode == 'PARTNER',
             onTap: () => setState(() => _viewMode = 'PARTNER'),
             isDark: isDark,
@@ -311,7 +310,6 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
 
   Widget _buildToggleTab({
     required String label,
-    String? badge,
     required bool isSelected,
     required VoidCallback onTap,
     required bool isDark,
@@ -328,36 +326,13 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               ? [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05), blurRadius: 4, offset: const Offset(0, 2))]
               : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? (isDark ? Colors.white : const Color(0xFF18314F)) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-              ),
-            ),
-            if (badge != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  badge,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ],
+        child: Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? (isDark ? Colors.white : const Color(0xFF18314F)) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+          ),
         ),
       ),
     );
@@ -629,7 +604,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     );
   }
 
-  // PARTNER REQUESTS TABLE
+  // PARTNER INVESTMENTS TABLE
   Widget _buildPartnerTableHeader(bool isDark, Color cardBorder, Color hintText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -645,19 +620,15 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           Expanded(flex: 2, child: Text('AMOUNT', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('DATE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('STATUS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
         ],
       ),
     );
   }
 
   Widget _buildPartnerTableRow(Map<String, dynamic> p, int index, bool isDark, Color cardBorder, Color titleColor, Color hintText) {
-    final status = (p['status'] ?? 'pending').toString().toLowerCase();
-    final isPending = status == 'pending';
+    final status = (p['status'] ?? 'active').toString().toLowerCase();
     final isActive = status == 'active' || status == 'approved';
-    final isRejected = status == 'rejected' || status == 'declined';
 
-    final int invId = p['investment_id'] is int ? p['investment_id'] as int : (int.tryParse(p['investment_id']?.toString() ?? '') ?? 0);
     final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
     final dateStr = p['date_invested']?.toString() ?? '';
     final dt = DateTime.tryParse(dateStr) ?? DateTime.now();
@@ -703,18 +674,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: isPending
-                    ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                    : (isActive
-                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : const Color(0xFFEF4444).withValues(alpha: 0.15)),
+                color: isActive
+                    ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                    : const Color(0xFF3B82F6).withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isPending
-                      ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-                      : (isActive
-                          ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                          : const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                  color: isActive
+                      ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                      : const Color(0xFF3B82F6).withValues(alpha: 0.4),
                   width: 0.8,
                 ),
               ),
@@ -722,74 +689,22 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isPending
-                        ? Icons.hourglass_top_rounded
-                        : (isActive ? Icons.check_circle_rounded : Icons.cancel_rounded),
+                    isActive ? Icons.check_circle_rounded : Icons.info_outline_rounded,
                     size: 12,
-                    color: isPending
-                        ? const Color(0xFFF59E0B)
-                        : (isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                    color: isActive ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    status.toUpperCase(),
+                    isActive ? 'ACTIVE' : status.toUpperCase(),
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: isPending
-                          ? const Color(0xFFF59E0B)
-                          : (isActive ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                      color: isActive ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: isPending
-                ? Row(
-                    children: [
-                      ElevatedButton(
-                        onPressed: () => widget.onApprovePartnerInvestment?.call(invId),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF10B981),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          minimumSize: const Size(0, 32),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: Text(
-                          'Approve',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      OutlinedButton(
-                        onPressed: () => widget.onRejectPartnerInvestment?.call(invId),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFEF4444),
-                          side: const BorderSide(color: Color(0xFFEF4444), width: 1),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          minimumSize: const Size(0, 32),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: Text(
-                          'Reject',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ],
-                  )
-                : Text(
-                    isActive ? 'Approved ✓' : (isRejected ? 'Declined ✕' : '-'),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: hintText,
-                    ),
-                  ),
           ),
         ],
       ),

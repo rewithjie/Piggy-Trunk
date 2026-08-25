@@ -28,6 +28,12 @@ class AuthService {
 
           if (userRecord != null && userRecord['email'] != null) {
             resolvedEmail = userRecord['email'].toString().trim().toLowerCase();
+          } else {
+            return {
+              'success': false,
+              'errorField': 'email',
+              'message': 'Username "$email" was not found.',
+            };
           }
         } catch (_) {
           // If query fails, fall back to input as-is

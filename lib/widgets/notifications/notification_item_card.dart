@@ -309,67 +309,6 @@ class NotificationItemCard extends StatelessWidget {
                               ],
                             ),
                           ],
-
-                          // Quick Approve & Reject Actions (for investment approval requests)
-                          if ((notif.type == 'investment_approval' || notif.title.toLowerCase().contains('investment approval')) &&
-                              meta['investment_id'] != null &&
-                              !notif.isRead) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () async {
-                                    final invId = meta['investment_id'] is int
-                                        ? meta['investment_id'] as int
-                                        : int.tryParse(meta['investment_id'].toString()) ?? 0;
-                                    if (invId > 0) {
-                                      await AdminNotificationService.quickRejectInvestment(invId);
-                                      await AdminNotificationService.markAsRead(notif.notificationId);
-                                    }
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFEF4444),
-                                    side: const BorderSide(color: Color(0xFFEF4444), width: 1),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
-                                  child: Text(
-                                    'Reject',
-                                    style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: const Color(0xFFEF4444)),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final invId = meta['investment_id'] is int
-                                        ? meta['investment_id'] as int
-                                        : int.tryParse(meta['investment_id'].toString()) ?? 0;
-                                    if (invId > 0) {
-                                      await AdminNotificationService.quickApproveInvestment(invId);
-                                      await AdminNotificationService.markAsRead(notif.notificationId);
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
-                                  icon: const Icon(Icons.check_rounded, size: 13, color: Colors.white),
-                                  label: Text(
-                                    'Approve Investment',
-                                    style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                     ),

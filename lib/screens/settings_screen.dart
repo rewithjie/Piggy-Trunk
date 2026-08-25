@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../providers/admin_profile_provider.dart';
@@ -1076,25 +1077,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _showThemedSnackBar(String message, {Color? backgroundColor, Duration? duration}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: backgroundColor ?? const Color(0xFF315C8F),
-        behavior: SnackBarBehavior.floating,
-        duration: duration ?? const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.only(bottom: 24, left: 32, right: 32),
-      ),
-    );
+    final isError = backgroundColor == Colors.red ||
+        backgroundColor == const Color(0xFFEF4444) ||
+        message.toLowerCase().contains('failed') ||
+        message.toLowerCase().contains('error') ||
+        message.toLowerCase().contains('invalid');
+    final isWarning = backgroundColor == Colors.orange || backgroundColor == const Color(0xFFF59E0B);
+
+    if (isError) {
+      AppToast.error(context, message, duration: duration);
+    } else if (isWarning) {
+      AppToast.warning(context, message, duration: duration);
+    } else {
+      AppToast.success(context, message, duration: duration);
+    }
   }
 }

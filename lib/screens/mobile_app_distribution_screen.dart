@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../utils/responsive.dart';
@@ -33,32 +34,7 @@ class _MobileAppDistributionScreenState extends State<MobileAppDistributionScree
     final text = _urlCtrl.text.trim();
     if (text.isEmpty) return;
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                'Download link copied to clipboard!',
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF10B981),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        width: 380,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    AppToast.success(context, 'Download link copied to clipboard!');
   }
 
   @override

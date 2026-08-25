@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_toast.dart';
 import '../../models/admin_notification_model.dart';
 import '../../providers/admin_notifications_provider.dart';
 import '../slide_over_confirmation_drawer.dart';
@@ -72,35 +73,9 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'User approved and activated successfully!',
-                  style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w600, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      AppToast.success(context, 'User approved and activated successfully!');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Failed to approve user. Please try again.'),
-          backgroundColor: const Color(0xFFE53935),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      AppToast.error(context, 'Failed to approve user. Please try again.');
     }
   }
 

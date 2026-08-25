@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/product_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
@@ -189,21 +190,20 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   void _showThemedSnackBar(String message, {Color? backgroundColor}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        backgroundColor: backgroundColor ?? PiggyTrunkTheme.ptSuccess,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    final isError = backgroundColor == Colors.red ||
+        backgroundColor == const Color(0xFFEF4444) ||
+        backgroundColor == Colors.redAccent ||
+        message.toLowerCase().contains('failed') ||
+        message.toLowerCase().contains('error');
+    final isWarning = backgroundColor == Colors.orange || backgroundColor == const Color(0xFFF59E0B);
+
+    if (isError) {
+      AppToast.error(context, message);
+    } else if (isWarning) {
+      AppToast.warning(context, message);
+    } else {
+      AppToast.success(context, message);
+    }
   }
 
 

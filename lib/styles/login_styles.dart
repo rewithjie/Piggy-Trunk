@@ -73,17 +73,20 @@ class LoginStyles {
         : const BorderSide(color: fieldBorder, width: 1);
 
     return InputDecoration(
+      isDense: true,
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(
         color: const Color(0xFFAEB8C5),
         fontWeight: FontWeight.w400,
         fontSize: 15,
+        letterSpacing: 0.0,
+        height: 1.2,
       ),
       prefixIcon: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 8),
+        padding: const EdgeInsets.only(left: 14, right: 8),
         child: prefixIcon,
       ),
-      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      prefixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
       filled: true,
       fillColor: fieldBackground,
       border: OutlineInputBorder(
@@ -100,7 +103,7 @@ class LoginStyles {
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: fieldPaddingHorizontal,
-        vertical: fieldPaddingVertical,
+        vertical: 14,
       ),
       errorStyle: const TextStyle(height: 0, fontSize: 0),
     );
@@ -109,6 +112,7 @@ class LoginStyles {
   static InputDecoration passwordFieldDecoration({
     required String hintText,
     required Widget suffixIcon,
+    Widget? prefixIcon,
     bool hasError = false,
   }) {
     final borderSide = hasError
@@ -119,12 +123,24 @@ class LoginStyles {
         : const BorderSide(color: fieldBorder, width: 1);
 
     return InputDecoration(
+      isDense: true,
       hintText: hintText,
       hintStyle: GoogleFonts.poppins(
         color: const Color(0xFFAEB8C5),
         fontWeight: FontWeight.w400,
         fontSize: 15,
+        letterSpacing: 0.0,
+        height: 1.2,
       ),
+      prefixIcon: prefixIcon != null
+          ? Padding(
+              padding: const EdgeInsets.only(left: 14, right: 8),
+              child: prefixIcon,
+            )
+          : null,
+      prefixIconConstraints: prefixIcon != null
+          ? const BoxConstraints(minWidth: 42, minHeight: 42)
+          : null,
       filled: true,
       fillColor: fieldBackground,
       border: OutlineInputBorder(
@@ -141,12 +157,13 @@ class LoginStyles {
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: fieldPaddingHorizontal,
-        vertical: fieldPaddingVertical,
+        vertical: 14,
       ),
       suffixIcon: Padding(
         padding: const EdgeInsets.only(right: 8),
         child: suffixIcon,
       ),
+      suffixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 42),
       errorStyle: const TextStyle(height: 0, fontSize: 0),
     );
   }

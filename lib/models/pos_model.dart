@@ -72,6 +72,45 @@ class Order {
     items.removeWhere((item) => item.productId == productId);
   }
 
+  void incrementQuantity(String productId) {
+    final existingIndex = items.indexWhere(
+      (existing) => existing.productId == productId,
+    );
+    if (existingIndex != -1) {
+      items[existingIndex] = items[existingIndex].copyWith(
+        quantity: items[existingIndex].quantity + 1,
+      );
+    }
+  }
+
+  void decrementQuantity(String productId) {
+    final existingIndex = items.indexWhere(
+      (existing) => existing.productId == productId,
+    );
+    if (existingIndex != -1) {
+      if (items[existingIndex].quantity > 1) {
+        items[existingIndex] = items[existingIndex].copyWith(
+          quantity: items[existingIndex].quantity - 1,
+        );
+      } else {
+        items.removeAt(existingIndex);
+      }
+    }
+  }
+
+  void updateQuantity(String productId, int quantity) {
+    final existingIndex = items.indexWhere(
+      (existing) => existing.productId == productId,
+    );
+    if (existingIndex != -1) {
+      if (quantity <= 0) {
+        items.removeAt(existingIndex);
+      } else {
+        items[existingIndex] = items[existingIndex].copyWith(quantity: quantity);
+      }
+    }
+  }
+
   void clearOrder() {
     items.clear();
   }

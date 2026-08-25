@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 import '../services/google_auth_service.dart';
@@ -373,10 +374,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     // Universal ScreenFit Auto-Scaling
     final fit = ScreenFit(context);
-    final double logoHeight = fit.dp(84.0);
-    final double logoScale = 1.0;
+    final double logoHeight = fit.dp(96.0);
+    final double logoScale = 1.15;
     final double titleFontSize = fit.sp(22.0);
-    final double subtitleFontSize = fit.sp(14.0);
+    final double subtitleFontSize = fit.sp(13.5);
     final double fieldSpacing = fit.dp(8.0);
     final double labelFontSize = fit.sp(14.0);
     final double inputPaddingV = fit.dp(10.0);
@@ -388,13 +389,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final String role =
         (ModalRoute.of(context)?.settings.arguments as String?) ?? 'hog_raiser';
+    final bool isTagalog = role == 'hog_raiser' || role == 'raiser';
     final String displayRole = role == 'hog_raiser'
-        ? 'Hog Raiser'
+        ? (isTagalog ? 'Hog Raiser' : 'Hog Raiser')
         : role == 'partner'
         ? 'Partner Investor'
         : role == 'cashier'
         ? 'Cashier'
         : 'Admin';
+
+    final String backText = isTagalog ? 'Bumalik' : 'Back';
+    final String actionTitle = isTagalog ? 'Mag-Sign In' : 'Sign In';
+    final String subtitleText = isTagalog ? 'Mag-login bilang $displayRole' : 'Sign in as $displayRole';
 
     return Scaffold(
       body: Container(
@@ -420,7 +426,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Bumalik Button Top Left
+                    // Back / Bumalik Button Top Left
                     Align(
                       alignment: Alignment.centerLeft,
                       child: InkWell(
@@ -455,21 +461,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.arrow_back_rounded,
                                 size: 18,
                                 color: Color(0xFF18314F),
                               ),
-                              SizedBox(width: 6),
+                              const SizedBox(width: 6),
                               Text(
-                                'Bumalik',
-                                style: TextStyle(
-                                  fontSize: 13.5,
+                                backText,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF18314F),
+                                  color: const Color(0xFF18314F),
                                 ),
                               ),
                             ],
@@ -511,7 +517,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Brand Name Text: "Piggy Trunk"
                           Text(
                             'Piggy Trunk',
-                            style: TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: titleFontSize + 2,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF18314F),
@@ -520,10 +526,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Action Title "Mag-Sign In"
+                          // Action Title "Sign In" / "Mag-Sign In"
                           Text(
-                            'Mag-Sign In',
-                            style: TextStyle(
+                            actionTitle,
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: titleFontSize - 1,
                               fontWeight: FontWeight.w700,
                               color: const Color(0xFF18314F),
@@ -532,11 +538,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Subtitle: Mag-login bilang Hog Raiser
+                          // Subtitle: "Sign in as Partner Investor" / "Mag-login bilang Hog Raiser"
                           Text(
-                            'Mag-login bilang $displayRole',
+                            subtitleText,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: subtitleFontSize,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF6F8096),
@@ -627,8 +633,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               // Username/Email Label
                               Text(
-                                'Username o Email Address',
-                                style: TextStyle(
+                                isTagalog ? 'Username o Email Address' : 'Username or Email Address',
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -650,7 +656,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 child: TextField(
                                   controller: _usernameController,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -666,8 +672,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'hal. juan@gmail.com',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'hal. juan@gmail.com' : 'e.g. john@example.com',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -686,7 +692,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Password Label
                               Text(
                                 'Password',
-                                style: TextStyle(
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -709,7 +715,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: TextField(
                                   controller: _passwordController,
                                   obscureText: _obscurePassword,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -725,8 +731,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'Ilagay ang iyong password',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'Ilagay ang iyong password' : 'Enter your password',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -762,17 +768,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: GestureDetector(
                                   onTap: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                      SnackBar(
                                         content: Text(
-                                          'Kontakin ang Admin para sa pag-reset ng password.',
+                                          isTagalog
+                                              ? 'Kontakin ang Admin para sa pag-reset ng password.'
+                                              : 'Please contact the Admin to reset your password.',
                                         ),
-                                        backgroundColor: Color(0xFF18314F),
+                                        backgroundColor: const Color(0xFF18314F),
                                       ),
                                     );
                                   },
                                   child: Text(
-                                    'Nakalimutan ang Password?',
-                                    style: TextStyle(
+                                    isTagalog ? 'Nakalimutan ang Password?' : 'Forgot Password?',
+                                    style: GoogleFonts.plusJakartaSans(
                                       fontSize: labelFontSize - 0.5,
                                       fontWeight: FontWeight.w600,
                                       color: const Color(0xFF2366CC),
@@ -832,9 +840,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                             strokeWidth: 2.5,
                                           ),
                                         )
-                                      : const Text(
-                                          'Mag-Sign In Na',
-                                          style: TextStyle(
+                                      : Text(
+                                          isTagalog ? 'Mag-Sign In Na' : 'Sign In Now',
+                                          style: GoogleFonts.plusJakartaSans(
                                             fontSize: 15.0,
                                             fontWeight: FontWeight.w700,
                                             color: Colors.white,
@@ -845,7 +853,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Divider with "o kaya gamitin ang"
+                              // Divider with "o kaya gamitin ang" / "or continue with"
                               Row(
                                 children: [
                                   Expanded(
@@ -854,16 +862,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: const Color(0xFFE2E8F0),
                                     ),
                                   ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 12.0,
                                     ),
                                     child: Text(
-                                      'o kaya gamitin ang',
-                                      style: TextStyle(
+                                      isTagalog ? 'o kaya gamitin ang' : 'or continue with',
+                                      style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
-                                        color: Color(0xFF94A3B8),
+                                        color: const Color(0xFF94A3B8),
                                       ),
                                     ),
                                   ),
@@ -914,18 +922,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                             strokeWidth: 2.2,
                                           ),
                                         )
-                                      : const Row(
+                                      : Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
-                                            OfficialGoogleLogo(size: 22),
-                                            SizedBox(width: 12),
+                                            const OfficialGoogleLogo(size: 22),
+                                            const SizedBox(width: 12),
                                             Text(
-                                              'Mag-Sign in gamit ang Google',
-                                              style: TextStyle(
+                                              isTagalog ? 'Mag-Sign in gamit ang Google' : 'Sign in with Google',
+                                              style: GoogleFonts.plusJakartaSans(
                                                 fontSize: 14.5,
                                                 fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F1F1F),
+                                                color: const Color(0xFF1F1F1F),
                                                 letterSpacing: 0.1,
                                               ),
                                             ),
@@ -946,19 +954,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                     );
                                   },
                                   child: RichText(
-                                    text: const TextSpan(
-                                      style: TextStyle(
+                                    text: TextSpan(
+                                      style: GoogleFonts.plusJakartaSans(
                                         fontSize: 13.5,
-                                        color: Color(0xFF64748B),
-                                        fontFamily: 'Plus Jakarta Sans',
+                                        color: const Color(0xFF64748B),
                                       ),
                                       children: [
                                         TextSpan(
-                                          text: 'Wala ka pang account? ',
+                                          text: isTagalog ? 'Wala ka pang account? ' : "Don't have an account? ",
                                         ),
                                         TextSpan(
-                                          text: 'Gumawa ng Account',
-                                          style: TextStyle(
+                                          text: isTagalog ? 'Gumawa ng Account' : 'Create Account',
+                                          style: const TextStyle(
                                             color: Color(0xFF18314F),
                                             fontWeight: FontWeight.w700,
                                             decoration:

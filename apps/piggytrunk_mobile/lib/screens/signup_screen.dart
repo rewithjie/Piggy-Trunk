@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/services/email_service.dart';
 import '../services/google_auth_service.dart';
@@ -479,10 +480,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     // Universal ScreenFit Auto-Scaling
     final fit = ScreenFit(context);
-    final double logoHeight = fit.dp(84.0);
-    final double logoScale = 1.0;
+    final double logoHeight = fit.dp(96.0);
+    final double logoScale = 1.15;
     final double titleFontSize = fit.sp(22.0);
-    final double subtitleFontSize = fit.sp(14.0);
+    final double subtitleFontSize = fit.sp(13.5);
     final double fieldSpacing = fit.dp(8.0);
     final double labelFontSize = fit.sp(14.0);
     final double inputPaddingV = fit.dp(10.0);
@@ -494,13 +495,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     final String role =
         (ModalRoute.of(context)?.settings.arguments as String?) ?? 'hog_raiser';
+    final bool isTagalog = role == 'hog_raiser' || role == 'raiser';
     final String displayRole = role == 'hog_raiser'
-        ? 'Hog Raiser'
+        ? (isTagalog ? 'Hog Raiser' : 'Hog Raiser')
         : role == 'partner'
         ? 'Partner Investor'
         : role == 'cashier'
         ? 'Cashier'
         : 'Admin';
+
+    final String backText = isTagalog ? 'Bumalik' : 'Back';
+    final String actionTitle = isTagalog ? 'Gumawa ng Account' : 'Create Account';
+    final String subtitleText = isTagalog ? 'Mag-rehistro bilang $displayRole' : 'Register as $displayRole';
 
     return Scaffold(
       body: Container(
@@ -526,7 +532,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Bumalik Button Top Left
+                    // Back / Bumalik Button Top Left
                     Align(
                       alignment: Alignment.centerLeft,
                       child: InkWell(
@@ -561,21 +567,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.arrow_back_rounded,
                                 size: 18,
                                 color: Color(0xFF18314F),
                               ),
-                              SizedBox(width: 6),
+                              const SizedBox(width: 6),
                               Text(
-                                'Bumalik',
-                                style: TextStyle(
-                                  fontSize: 13.5,
+                                backText,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.0,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF18314F),
+                                  color: const Color(0xFF18314F),
                                 ),
                               ),
                             ],
@@ -617,7 +623,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           // Brand Name Text: "Piggy Trunk"
                           Text(
                             'Piggy Trunk',
-                            style: TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: titleFontSize + 2,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF18314F),
@@ -626,10 +632,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Action Title "Gumawa ng Account"
+                          // Action Title "Create Account" / "Gumawa ng Account"
                           Text(
-                            'Gumawa ng Account',
-                            style: TextStyle(
+                            actionTitle,
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: titleFontSize - 1,
                               fontWeight: FontWeight.w700,
                               color: const Color(0xFF18314F),
@@ -638,11 +644,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Subtitle: Mag-rehistro bilang Hog Raiser
+                          // Subtitle: "Register as Partner Investor" / "Mag-rehistro bilang Hog Raiser"
                           Text(
-                            'Mag-rehistro bilang $displayRole',
+                            subtitleText,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: subtitleFontSize,
                               fontWeight: FontWeight.w600,
                               color: const Color(0xFF6F8096),
@@ -733,8 +739,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             children: [
                               // Full Name Label
                               Text(
-                                'Buong Pangalan',
-                                style: TextStyle(
+                                isTagalog ? 'Buong Pangalan' : 'Full Name',
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -756,7 +762,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                                 child: TextField(
                                   controller: _fullNameController,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -772,8 +778,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'hal. Juan Dela Cruz',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'hal. Juan Dela Cruz' : 'e.g. John Doe',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -791,8 +797,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                               // Username / Email Label
                               Text(
-                                'Email Address',
-                                style: TextStyle(
+                                isTagalog ? 'Email Address' : 'Email Address',
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -815,7 +821,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 child: TextField(
                                   controller: _emailController,
                                   keyboardType: TextInputType.emailAddress,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -831,8 +837,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'hal. juan@gmail.com',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'hal. juan@gmail.com' : 'e.g. john@example.com',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -851,7 +857,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               // Password Label
                               Text(
                                 'Password',
-                                style: TextStyle(
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -874,7 +880,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 child: TextField(
                                   controller: _passwordController,
                                   obscureText: _obscurePassword,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -890,8 +896,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'Gumawa ng iyong password',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'Gumawa ng iyong password' : 'Create a password',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -923,8 +929,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                               // Confirm Password Label
                               Text(
-                                'Kumpirmahin ang Password',
-                                style: TextStyle(
+                                isTagalog ? 'Kumpirmahin ang Password' : 'Confirm Password',
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFF18314F),
@@ -947,7 +953,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 child: TextField(
                                   controller: _confirmPasswordController,
                                   obscureText: _obscureConfirmPassword,
-                                  style: TextStyle(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
@@ -963,8 +969,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       vertical: inputPaddingV,
                                     ),
                                     border: InputBorder.none,
-                                    hintText: 'Ulitin ang iyong password',
-                                    hintStyle: TextStyle(
+                                    hintText: isTagalog ? 'Ulitin ang iyong password' : 'Confirm your password',
+                                    hintStyle: GoogleFonts.plusJakartaSans(
                                       color: const Color(0xFF94A3B8),
                                       fontSize: labelFontSize,
                                       fontWeight: FontWeight.w400,
@@ -1045,9 +1051,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                             strokeWidth: 2.5,
                                           ),
                                         )
-                                      : const Text(
-                                          'Gumawa ng Account',
-                                          style: TextStyle(
+                                      : Text(
+                                          isTagalog ? 'Gumawa ng Account' : 'Create Account',
+                                          style: GoogleFonts.plusJakartaSans(
                                             fontSize: 15.0,
                                             fontWeight: FontWeight.w700,
                                             color: Colors.white,
@@ -1058,7 +1064,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Divider with "o kaya gamitin ang"
+                              // Divider with "o kaya gamitin ang" / "or continue with"
                               Row(
                                 children: [
                                   Expanded(
@@ -1067,16 +1073,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       color: const Color(0xFFE2E8F0),
                                     ),
                                   ),
-                                  const Padding(
-                                    padding: EdgeInsets.symmetric(
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 12.0,
                                     ),
                                     child: Text(
-                                      'o kaya gamitin ang',
-                                      style: TextStyle(
+                                      isTagalog ? 'o kaya gamitin ang' : 'or continue with',
+                                      style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
-                                        color: Color(0xFF94A3B8),
+                                        color: const Color(0xFF94A3B8),
                                       ),
                                     ),
                                   ),
@@ -1127,18 +1133,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                             strokeWidth: 2.2,
                                           ),
                                         )
-                                      : const Row(
+                                      : Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
-                                            OfficialGoogleLogo(size: 22),
-                                            SizedBox(width: 12),
+                                            const OfficialGoogleLogo(size: 22),
+                                            const SizedBox(width: 12),
                                             Text(
-                                              'Mag-Sign up gamit ang Google',
-                                              style: TextStyle(
+                                              isTagalog ? 'Mag-Sign up gamit ang Google' : 'Sign up with Google',
+                                              style: GoogleFonts.plusJakartaSans(
                                                 fontSize: 14.5,
                                                 fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F1F1F),
+                                                color: const Color(0xFF1F1F1F),
                                                 letterSpacing: 0.1,
                                               ),
                                             ),
@@ -1159,19 +1165,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     );
                                   },
                                   child: RichText(
-                                    text: const TextSpan(
-                                      style: TextStyle(
+                                    text: TextSpan(
+                                      style: GoogleFonts.plusJakartaSans(
                                         fontSize: 13.5,
-                                        color: Color(0xFF64748B),
-                                        fontFamily: 'Plus Jakarta Sans',
+                                        color: const Color(0xFF64748B),
                                       ),
                                       children: [
                                         TextSpan(
-                                          text: 'May account ka na ba? ',
+                                          text: isTagalog ? 'May account ka na ba? ' : 'Already have an account? ',
                                         ),
                                         TextSpan(
-                                          text: 'Mag-Sign In Dito',
-                                          style: TextStyle(
+                                          text: isTagalog ? 'Mag-Sign In Dito' : 'Sign In Here',
+                                          style: const TextStyle(
                                             color: Color(0xFF18314F),
                                             fontWeight: FontWeight.w700,
                                             decoration:

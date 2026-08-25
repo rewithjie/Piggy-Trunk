@@ -25,7 +25,6 @@ class PartnerMyProjectsTab extends StatefulWidget {
 class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _brandAccent = Color(0xFF2FB36F);
-  static const Color _brandBlue = Color(0xFF2563EB);
 
   int _selectedSubTab = 0; // 0: Active Projects, 1: History
   Map<String, dynamic>? _selectedProjectForUpdates;
@@ -489,66 +488,37 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                       ],
                                     ),
                                   ),
-                                  // Status Badge (Pending Approval vs Stage)
-                                  if (status.toLowerCase() == 'pending')
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.2 : 0.12),
-                                        borderRadius: BorderRadius.circular(fit.dp(20)),
-                                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4), width: 1),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.hourglass_top_rounded,
-                                            size: fit.dp(11),
-                                            color: const Color(0xFFF59E0B),
-                                          ),
-                                          SizedBox(width: fit.dp(4)),
-                                          Text(
-                                            'Pending Approval',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: fit.sp(10.5),
-                                              fontWeight: FontWeight.w800,
-                                              color: const Color(0xFFF59E0B),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  else
-                                    Container(
-                                      padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
-                                      decoration: BoxDecoration(
-                                        color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
-                                        borderRadius: BorderRadius.circular(fit.dp(20)),
-                                        border: Border.all(color: stageColor.withValues(alpha: 0.3), width: 1),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: fit.dp(6),
-                                            height: fit.dp(6),
-                                            decoration: BoxDecoration(
-                                              color: stageColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          SizedBox(width: fit.dp(5)),
-                                          Text(
-                                            '$stage Stage',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: fit.sp(10.5),
-                                              fontWeight: FontWeight.w800,
-                                              color: stageColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                  // Stage Badge (e.g. Grower Stage)
+                                  Container(
+                                    padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
+                                    decoration: BoxDecoration(
+                                      color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                                      borderRadius: BorderRadius.circular(fit.dp(20)),
+                                      border: Border.all(color: stageColor.withValues(alpha: 0.3), width: 1),
                                     ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: fit.dp(6),
+                                          height: fit.dp(6),
+                                          decoration: BoxDecoration(
+                                            color: stageColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        SizedBox(width: fit.dp(5)),
+                                        Text(
+                                          status.toLowerCase() == 'pending' ? 'Pending Approval' : '$stage Stage',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: fit.sp(10.5),
+                                            fontWeight: FontWeight.w800,
+                                            color: stageColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],

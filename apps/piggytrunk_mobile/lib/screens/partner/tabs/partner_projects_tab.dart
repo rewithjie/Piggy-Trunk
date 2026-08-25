@@ -22,7 +22,6 @@ class PartnerProjectsTab extends StatefulWidget {
 class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _brandAccent = Color(0xFF2FB36F);
-  static const Color _brandBlue = Color(0xFF2563EB);
 
   bool _isInvesting = false;
   Map<String, dynamic>? _selectedBatch;
@@ -161,7 +160,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
               'partner_investor_id': partnerInvestorId,
               'batch_id': batchId,
               'amount': _parsedAmount,
-              'status': 'pending',
+              'status': 'active',
               'date_invested': DateTime.now().toIso8601String().split('T').first,
             });
           }
@@ -174,8 +173,8 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Investment of ₱${_formatCurrency(_parsedAmount)} submitted! Pending Admin approval.'),
-          backgroundColor: const Color(0xFF18314F),
+          content: Text('Investment of ₱${_formatCurrency(_parsedAmount)} confirmed successfully!'),
+          backgroundColor: const Color(0xFF2FB36F),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -645,7 +644,6 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                   final String raiserName = batch['assigned_raiser'] ?? batch['raiser_name'] ?? 'Assigned Hog Raiser';
                   final int totalRaisers = (batch['total_raisers'] as num?)?.toInt() ?? 1;
                   final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? 0;
-                  final int mortality = (batch['mortality'] as num?)?.toInt() ?? 0;
 
                   final stageColor = _getStageColor(stage);
 

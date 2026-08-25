@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/app_toast.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
@@ -273,20 +274,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       await _loadUsers(keyword: _searchCtrl.text);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('User "$name" approved successfully.', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: PiggyTrunkTheme.ptSuccess,
-        ),
-      );
+      AppToast.success(context, 'User "$name" approved successfully.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Approval failed: $e', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Approval failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -301,7 +292,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     final confirm = await SlideOverConfirmationDrawer.show(
       context: context,
       title: 'Confirm Rejection',
-      message: 'Are you sure you want to reject the registration for "$name"? This will delete their pending registration record.',
+      message: 'Are you sure you want to reject the registration for "$name"? This user will not be able to log in.',
       actionType: SlideOverActionType.danger,
       userName: name,
       userEmail: userEmail,
@@ -315,18 +306,12 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await _supabase.from('app_users').delete().eq('user_id', userId);
-      try {
-        await _supabase.from('cashiers').delete().eq('user_id', userId);
-      } catch (_) {}
-      try {
-        await _supabase.from('partner_investors').delete().eq('user_id', userId);
-      } catch (_) {}
-      try {
-        await _supabase.from('hog_raisers').delete().eq('user_id', userId);
-      } catch (_) {}
+      await _supabase
+          .from('app_users')
+          .update({'status': 'rejected'})
+          .eq('user_id', userId);
 
-      // Clear pending registration notification for this user
+      // Clean up any lingering admin notifications for this pending registration
       try {
         if (userEmail.isNotEmpty) {
           await _supabase
@@ -340,20 +325,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       await _loadUsers(keyword: _searchCtrl.text);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Registration for "$name" rejected successfully.', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      AppToast.success(context, 'Registration for "$name" rejected successfully.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Rejection failed: $e', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Rejection failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -390,20 +365,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       await _loadUsers(keyword: _searchCtrl.text);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('User "$name" suspended successfully.', style: AppTextStyles.body(Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.success(context, 'User "$name" suspended successfully.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Suspend failed: $e', style: GoogleFonts.plusJakartaSans(color: Colors.white)),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Suspend failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

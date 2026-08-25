@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/pos_model.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_toast.dart';
 import '../utils/inventory_data_adapter.dart';
 import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
@@ -55,12 +56,7 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
       setState(() => _products = rows);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load best sellers: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppToast.error(context, 'Failed to load best sellers: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
