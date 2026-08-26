@@ -173,7 +173,14 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
     final borderColor = isDark ? const Color(0xff28354a) : PiggyTrunkTheme.ptBorder;
     final textColor = isDark ? const Color(0xffecf2ff) : PiggyTrunkTheme.ptText;
     final isExpanded = widget.isDrawer || ref.watch(sidebarExpandedProvider);
-    final targetWidth = widget.isDrawer ? null : (isExpanded ? 300.0 : 112.0);
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isUltraCompact = screenHeight < 640;
+    final isCompactHeight = screenHeight < 840;
+
+    final targetWidth = widget.isDrawer
+        ? null
+        : (isExpanded ? (isCompactHeight ? 255.0 : 275.0) : 88.0);
 
     return Container(
       width: targetWidth,
@@ -188,17 +195,22 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final showExpandedContent = widget.isDrawer || constraints.maxWidth >= 240;
+          final showExpandedContent = widget.isDrawer || constraints.maxWidth >= 200;
 
           Widget buildMainItems() {
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              padding: EdgeInsets.symmetric(
+                vertical: isUltraCompact ? 2 : (isCompactHeight ? 4 : 8),
+                horizontal: isCompactHeight ? 6 : 8,
+              ),
               child: Column(
                 children: mainItems
                     .map((item) => _buildNavItem(
                           item,
                           widget.currentRoute == item.route,
                           showExpandedContent,
+                          isCompactHeight,
+                          isUltraCompact,
                         ))
                     .toList(),
               ),
@@ -207,27 +219,39 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
 
           Widget buildFooterItems() {
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              padding: EdgeInsets.symmetric(
+                vertical: isUltraCompact ? 2 : (isCompactHeight ? 4 : 8),
+                horizontal: isCompactHeight ? 6 : 8,
+              ),
               child: Column(
                 children: footerItems
                     .map((item) => _buildNavItem(
                           item,
                           false,
                           showExpandedContent,
+                          isCompactHeight,
+                          isUltraCompact,
                         ))
                     .toList(),
               ),
             );
           }
 
+          final headerMinHeight = isUltraCompact
+              ? 56.0
+              : (isCompactHeight ? 66.0 : 74.0);
+          final logoSize = showExpandedContent
+              ? (isUltraCompact ? 44.0 : (isCompactHeight ? 50.0 : 56.0))
+              : (isUltraCompact ? 38.0 : (isCompactHeight ? 42.0 : 46.0));
+
           return Column(
             children: [
-              /// Sidebar Header with Hamburger / Close Toggle
+              /// Sidebar Header with Logo and Collapse/Expand Toggle (Side by Side)
               Container(
-                constraints: const BoxConstraints(minHeight: 82),
+                constraints: BoxConstraints(minHeight: headerMinHeight),
                 padding: EdgeInsets.symmetric(
-                  horizontal: showExpandedContent ? 12 : 4,
-                  vertical: 8,
+                  horizontal: showExpandedContent ? 14 : 4,
+                  vertical: isCompactHeight ? 8 : 10,
                 ),
                 decoration: BoxDecoration(
                   color: surfaceColor,
@@ -238,70 +262,99 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                     ),
                   ),
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: showExpandedContent
-                          ? MainAxisAlignment.start
-                          : MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 56,
-                            height: 56,
-                            child: Image.asset(
-                              'assets/piggytrunk_logo.png',
-                              fit: BoxFit.contain,
+                child: showExpandedContent
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: SizedBox(
+                              width: logoSize,
+                              height: logoSize,
+                              child: Image.asset(
+                                'assets/piggytrunk_logo.png',
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
-                        ),
-                        SizedBox(width: showExpandedContent ? 10 : 2),
-                        if (showExpandedContent) ...[
-                          Flexible(
+                          const SizedBox(width: 10),
+                          Expanded(
                             child: Text(
                               'PiggyTrunk',
-                              style: AppTextStyles.sidebarBrand(textColor),
+                              style: AppTextStyles.sidebarBrand(textColor).copyWith(
+                                fontSize: isCompactHeight ? 18.5 : 20.5,
+                              ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
+                          if (widget.isDrawer)
+                            IconButton(
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: textColor,
+                                size: isCompactHeight ? 20 : 24,
+                              ),
+                              tooltip: 'Close menu',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => Navigator.of(context).pop(),
+                            )
+                          else
+                            _buildSidebarToggle(isExpanded, isCompactHeight),
                         ],
-                        if (widget.isDrawer)
-                          IconButton(
-                            icon: Icon(Icons.close_rounded, color: textColor),
-                            tooltip: 'Close menu',
-                            onPressed: () => Navigator.of(context).pop(),
-                          )
-                        else
-                          _buildSidebarToggle(isExpanded),
-                      ],
-                    ),
-                  ],
+                      )
+                    : Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  width: logoSize,
+                                  height: logoSize,
+                                  child: Image.asset(
+                                    'assets/piggytrunk_logo.png',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              _buildSidebarToggle(isExpanded, isCompactHeight),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+
+              /// Main Navigation (Fills available space in the middle, zero scroll on 14" screens)
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: const ScrollBehavior().copyWith(scrollbars: false),
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    physics: const ClampingScrollPhysics(),
+                    children: [
+                      buildMainItems(),
+                    ],
+                  ),
                 ),
               ),
 
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.zero,
-                        children: [
-                          buildMainItems(),
-                        ],
-                      ),
-                    ),
-                    Divider(
-                      color: borderColor,
-                      thickness: 1,
-                      height: 1,
-                    ),
-                    buildFooterItems(),
-                  ],
-                ),
+              /// Divider before Footer
+              Divider(
+                color: borderColor,
+                thickness: 1,
+                height: 1,
               ),
+
+              /// Footer (Theme, Settings, Sign out) PINNED TO BOTTOM
+              buildFooterItems(),
             ],
           );
         },
@@ -334,49 +387,66 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
     }
   }
 
-  /// Build individual navigation item with hover effects
+  /// Build individual navigation item with hover effects & adaptive height
   Widget _buildNavItem(
     SidebarItem item,
     bool isActive,
     bool isExpanded,
+    bool isCompactHeight,
+    bool isUltraCompact,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? const Color(0xff28354a) : PiggyTrunkTheme.ptBorder;
     final textColor = isDark ? const Color(0xffecf2ff) : PiggyTrunkTheme.ptText;
     final mutedColor = isDark ? const Color(0xff9cb0c9) : PiggyTrunkTheme.ptMuted;
+
+    final itemVerticalMargin = isUltraCompact
+        ? 1.0
+        : (isCompactHeight ? 1.5 : 3.0);
+    final itemVerticalPadding = isUltraCompact
+        ? 5.5
+        : (isCompactHeight ? 6.5 : 9.5);
+    final iconSize = isCompactHeight ? 18.0 : 20.0;
+    final fontSize = isCompactHeight ? 12.5 : 13.5;
+
     return MouseRegion(
       onEnter: (_) {
+        if (!mounted) return;
         setState(() {
           _hoveredRoute = item.route;
         });
       },
       onExit: (_) {
+        if (!mounted) return;
         setState(() {
           _hoveredRoute = null;
         });
       },
       cursor: SystemMouseCursors.click,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive
-              ? borderColor.withValues(alpha: 0.5)
-              : _hoveredRoute == item.route
-                  ? borderColor.withValues(alpha: 0.3)
-                  : Colors.transparent,
-          border: Border.all(
-            color: isActive
-                ? borderColor
-                : _hoveredRoute == item.route
-                    ? borderColor.withValues(alpha: 0.5)
-                    : Colors.transparent,
-            width: 1,
+      child: GestureDetector(
+        onTap: () => _navigate(item.route),
+        child: Container(
+          margin: EdgeInsets.symmetric(vertical: itemVerticalMargin),
+          padding: EdgeInsets.symmetric(
+            horizontal: isExpanded ? 10 : 8,
+            vertical: itemVerticalPadding,
           ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: GestureDetector(
-          onTap: () => _navigate(item.route),
+          decoration: BoxDecoration(
+            color: isActive
+                ? borderColor.withValues(alpha: 0.5)
+                : _hoveredRoute == item.route
+                    ? borderColor.withValues(alpha: 0.25)
+                    : Colors.transparent,
+            border: Border.all(
+              color: isActive
+                  ? borderColor
+                  : _hoveredRoute == item.route
+                      ? borderColor.withValues(alpha: 0.5)
+                      : Colors.transparent,
+              width: 1,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment:
@@ -385,29 +455,34 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
               /// Icon
               Tooltip(
                 message: item.label,
-                child: item.iconAsset.isNotEmpty
-                    ? SvgPicture.asset(
-                        item.iconAsset,
-                        width: 20,
-                        height: 20,
-                        colorFilter: ColorFilter.mode(
-                          isActive ? textColor : mutedColor,
-                          BlendMode.srcIn,
-                        ),
-                        placeholderBuilder: (context) => Icon(
+                waitDuration: const Duration(milliseconds: 300),
+                child: SizedBox(
+                  width: iconSize,
+                  height: iconSize,
+                  child: item.iconAsset.isNotEmpty
+                      ? SvgPicture.asset(
+                          item.iconAsset,
+                          width: iconSize,
+                          height: iconSize,
+                          colorFilter: ColorFilter.mode(
+                            isActive ? textColor : mutedColor,
+                            BlendMode.srcIn,
+                          ),
+                          placeholderBuilder: (context) => Icon(
+                            item.fallbackIcon,
+                            size: iconSize,
+                            color: isActive ? textColor : mutedColor,
+                          ),
+                        )
+                      : Icon(
                           item.fallbackIcon,
-                          size: 20,
+                          size: iconSize,
                           color: isActive ? textColor : mutedColor,
                         ),
-                      )
-                    : Icon(
-                        item.fallbackIcon,
-                        size: 20,
-                        color: isActive ? textColor : mutedColor,
-                      ),
+                ),
               ),
               if (isExpanded) ...[
-                const SizedBox(width: 16),
+                SizedBox(width: isCompactHeight ? 12 : 14),
 
                 /// Label
                 Expanded(
@@ -415,6 +490,9 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
                     item.label,
                     style: AppTextStyles.sidebarLabel(
                       isActive ? textColor : mutedColor,
+                    ).copyWith(
+                      fontSize: fontSize,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -427,7 +505,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
     );
   }
 
-  Widget _buildSidebarToggle(bool isExpanded) {
+  Widget _buildSidebarToggle(bool isExpanded, bool isCompactHeight) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? const Color(0xffecf2ff) : PiggyTrunkTheme.ptText;
     return MouseRegion(
@@ -436,16 +514,19 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         onTap: () {
           ref.read(sidebarExpandedProvider.notifier).state = !isExpanded;
         },
-        child: Container(
-          padding: EdgeInsets.all(isExpanded ? 6 : 2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            color: Colors.transparent,
-          ),
-          child: Icon(
-            isExpanded ? Icons.menu_open_outlined : Icons.menu_outlined,
-            color: textColor,
-            size: 18,
+        child: Tooltip(
+          message: isExpanded ? 'Collapse sidebar' : 'Expand sidebar',
+          child: Container(
+            padding: EdgeInsets.all(isCompactHeight ? 5 : 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              color: Colors.transparent,
+            ),
+            child: Icon(
+              isExpanded ? Icons.menu_open_outlined : Icons.menu_outlined,
+              color: textColor,
+              size: isCompactHeight ? 18 : 20,
+            ),
           ),
         ),
       ),

@@ -65,7 +65,7 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
-      title: 'PiggyTrunk Admin',
+      title: 'Piggy Trunk Admin',
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
