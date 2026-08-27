@@ -119,10 +119,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
           final copy = Map<String, dynamic>.from(r);
           final idStr = (copy['hog_raiser_id'] ?? '').toString();
-          final rawType = (copy['pig_type'] ?? '').toString().trim();
+          String rawType = (copy['pig_type'] ?? '').toString().trim();
           if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') && raiserInvestmentTypeMap.containsKey(idStr)) {
-            copy['pig_type'] = raiserInvestmentTypeMap[idStr];
+            rawType = raiserInvestmentTypeMap[idStr]!;
           }
+
+          // Clean, filter, and deduplicate hog types (e.g. removes "N/A, Fattening, Fattening, Sow / Breeding")
+          final cleanParts = rawType
+              .split(RegExp(r'[,;]'))
+              .map((p) => p.trim())
+              .where((p) =>
+                  p.isNotEmpty &&
+                  p.toUpperCase() != 'N/A' &&
+                  p.toLowerCase() != 'null' &&
+                  p.toUpperCase() != 'NONE' &&
+                  p.toUpperCase() != 'UNASSIGNED')
+              .toSet()
+              .toList();
+
+          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+          copy['pig_type'] = cleanedType;
+
+          // Auto-heal database record if duplicates or N/A was previously concatenated
+          if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.toUpperCase().contains('N/A'))) {
+            _supabase
+                .from('hog_raisers')
+                .update({'pig_type': cleanedType})
+                .eq('hog_raiser_id', copy['hog_raiser_id'])
+                .then((_) {})
+                .catchError((_) {});
+          }
+
           return copy;
         }).toList();
 
@@ -199,13 +226,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       } catch (_) {}
 
+      final cleanedActiveRaisers = activeRaisers.map((r) {
+        final copy = Map<String, dynamic>.from(r);
+        final rawType = (copy['pig_type'] ?? '').toString().trim();
+        final cleanParts = rawType
+            .split(RegExp(r'[,;]'))
+            .map((p) => p.trim())
+            .where((p) =>
+                p.isNotEmpty &&
+                p.toUpperCase() != 'N/A' &&
+                p.toLowerCase() != 'null' &&
+                p.toUpperCase() != 'NONE' &&
+                p.toUpperCase() != 'UNASSIGNED')
+            .toSet()
+            .toList();
+        copy['pig_type'] = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+        return copy;
+      }).toList();
+
       setState(() {
         _activeRaisers = raisers.length;
         _batchCount = batches.length + partnerActiveCount;
         _totalCapital = totalCapital;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;
-        _activeRaisersList = activeRaisers;
+        _activeRaisersList = cleanedActiveRaisers;
       });
     } catch (_) {
       // Leave defaults at 0 if fallback also fails

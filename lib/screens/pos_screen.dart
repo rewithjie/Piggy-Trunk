@@ -446,15 +446,15 @@ class _POSScreenState extends State<POSScreen> {
                   int crossAxisCount;
                   double childAspectRatio;
 
-                  if (width > 850) {
+                  if (width > 1000) {
                     crossAxisCount = 2;
-                    childAspectRatio = 1.9;
+                    childAspectRatio = 1.95;
                   } else if (width > 550) {
                     crossAxisCount = 2;
-                    childAspectRatio = 1.7;
+                    childAspectRatio = 1.82;
                   } else {
                     crossAxisCount = 1;
-                    childAspectRatio = 1.9;
+                    childAspectRatio = 1.95;
                   }
 
                   return GridView.builder(
@@ -482,7 +482,7 @@ class _POSScreenState extends State<POSScreen> {
     final isOutOfStock = product.units <= 0;
     final isTopSeller = _isProductTopSeller(product);
     final isMobile = Responsive.isMobile(context);
-    final double imgSize = isMobile ? 85.0 : 110.0;
+    final double imgSize = isMobile ? 85.0 : 102.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -560,7 +560,6 @@ class _POSScreenState extends State<POSScreen> {
                 // Top Row: Title + Stock Status Badge
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
                       child: Text(
@@ -576,7 +575,7 @@ class _POSScreenState extends State<POSScreen> {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: isMobile ? 3 : 4),
+                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 7, vertical: isMobile ? 3 : 3.5),
                       decoration: BoxDecoration(
                         color: isOutOfStock
                             ? Colors.red.withValues(alpha: 0.18)
@@ -590,7 +589,7 @@ class _POSScreenState extends State<POSScreen> {
                             ? 'OUT OF STOCK'
                             : (product.units <= 5 ? 'LOW STOCK' : 'IN STOCK'),
                         style: AppTextStyles.jakarta(
-                          size: isMobile ? 9 : 10,
+                          size: isMobile ? 8.5 : 9.5,
                           weight: FontWeight.w800,
                           color: isOutOfStock
                               ? Colors.redAccent
@@ -600,77 +599,76 @@ class _POSScreenState extends State<POSScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 // Description
                 Text(
                   product.description.isEmpty ? 'No description' : product.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.jakarta(
-                    size: isMobile ? 11 : 12,
+                    size: isMobile ? 11 : 11.5,
                     weight: FontWeight.w500,
                     color: _muted,
                   ),
                 ),
-                SizedBox(height: isMobile ? 5 : 6),
-                // Price & Stock Row
+                const SizedBox(height: 6),
+                // Price & Stock Row - Original 1-line side-by-side style with auto-scaling to prevent overflow
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 5 : 6),
                   decoration: BoxDecoration(
                     color: _bg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: isMobile
-                      ? Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('PRICE:', style: AppTextStyles.jakarta(size: 10, weight: FontWeight.w700, color: _muted)),
-                                Text('₱${product.price.toStringAsFixed(2)}', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w800, color: _text)),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Stock:', style: AppTextStyles.jakarta(size: 10, weight: FontWeight.w700, color: _muted)),
-                                Text('${product.units} units', style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text)),
-                              ],
-                            ),
-                          ],
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'PRICE: ',
-                                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                                ),
-                                Text(
-                                  '₱${product.price.toStringAsFixed(2)}',
-                                  style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w800, color: _text),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  'Stock: ',
-                                  style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
-                                ),
-                                Text(
-                                  '${product.units} units',
-                                  style: AppTextStyles.jakarta(size: 12, weight: FontWeight.w700, color: _text),
-                                ),
-                              ],
-                            ),
-                          ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'PRICE: ',
+                                style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                              ),
+                              Text(
+                                '₱${product.price.toStringAsFixed(2)}',
+                                style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w800, color: _text),
+                              ),
+                            ],
+                          ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Stock: ',
+                                style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700, color: _muted),
+                              ),
+                              Text(
+                                '${product.units} units',
+                                style: AppTextStyles.jakarta(
+                                  size: 12,
+                                  weight: FontWeight.w700,
+                                  color: isOutOfStock ? Colors.redAccent : (product.units <= 5 ? Colors.orangeAccent : _text),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(height: isMobile ? 6 : 8),
+                const SizedBox(height: 8),
                 // Action Button: Add to Cart
                 SizedBox(
                   width: double.infinity,

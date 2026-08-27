@@ -308,9 +308,17 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             )['name'] ?? 'Unassigned');
 
       final cleanTypes = _selectedHogTypes
-          .where((s) => s.trim().isNotEmpty && s.toUpperCase() != 'N/A' && s.toLowerCase() != 'null')
+          .expand((s) => s.split(RegExp(r'[,;]')))
+          .map((s) => s.trim())
+          .where((s) =>
+              s.isNotEmpty &&
+              s.toUpperCase() != 'N/A' &&
+              s.toLowerCase() != 'null' &&
+              s.toUpperCase() != 'NONE' &&
+              s.toUpperCase() != 'UNASSIGNED')
+          .toSet()
           .toList();
-      final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.join(', ') : 'Fattening';
+      final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.first : 'Fattening';
       final payload = {
         'hog_raiser_id': isUnassigned ? '' : _selectedRaiserId,
         'raiser_name': raiserName,

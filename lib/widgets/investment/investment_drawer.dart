@@ -610,7 +610,18 @@ class InvestmentDrawer {
                                                       orElse: () => {'name': ''},
                                                     )['name'] ?? 'Unassigned');
 
-                                              final hogTypeStr = selectedHogTypes.join(', ');
+                                               final cleanTypes = selectedHogTypes
+                                                   .expand((s) => s.split(RegExp(r'[,;]')))
+                                                   .map((s) => s.trim())
+                                                   .where((s) =>
+                                                       s.isNotEmpty &&
+                                                       s.toUpperCase() != 'N/A' &&
+                                                       s.toLowerCase() != 'null' &&
+                                                       s.toUpperCase() != 'NONE' &&
+                                                       s.toUpperCase() != 'UNASSIGNED')
+                                                   .toSet()
+                                                   .toList();
+                                               final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.first : 'Fattening';
                                               final payload = {
                                                 'hog_raiser_id': isUnassigned ? '' : selectedRaiserId,
                                                 'raiser_name': raiserName,
