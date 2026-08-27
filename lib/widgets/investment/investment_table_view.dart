@@ -286,19 +286,21 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildToggleTab(
-            label: 'Direct Allocations (${widget.investments.length})',
+            label: 'Direct Allocations',
+            count: widget.investments.length,
             isSelected: _viewMode == 'DIRECT',
             onTap: () => setState(() => _viewMode = 'DIRECT'),
             isDark: isDark,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           _buildToggleTab(
-            label: 'Partner Investments (${widget.partnerInvestments.length})',
+            label: 'Partner Investments',
+            count: widget.partnerInvestments.length,
             isSelected: _viewMode == 'PARTNER',
             onTap: () => setState(() => _viewMode = 'PARTNER'),
             isDark: isDark,
@@ -310,6 +312,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
 
   Widget _buildToggleTab({
     required String label,
+    required int count,
     required bool isSelected,
     required VoidCallback onTap,
     required bool isDark,
@@ -317,22 +320,61 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(9),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? const Color(0xFF243B5B) : Colors.white) : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
           boxShadow: isSelected
-              ? [BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05), blurRadius: 4, offset: const Offset(0, 2))]
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ]
               : null,
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.5,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            color: isSelected ? (isDark ? Colors.white : const Color(0xFF18314F)) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected
+                    ? (isDark ? Colors.white : const Color(0xFF18314F))
+                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isDark
+                        ? const Color(0xFF60A5FA).withValues(alpha: 0.2)
+                        : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.1))
+                    : (isDark
+                        ? const Color(0xFF28405D).withValues(alpha: 0.5)
+                        : const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected
+                      ? (isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary)
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -572,28 +614,31 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           Expanded(
             flex: 2,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: Icon(Icons.edit_outlined, size: 18, color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    size: 19,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281),
+                  ),
                   tooltip: 'Edit investment',
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(),
+                  splashRadius: 18,
                   onPressed: () => widget.onEditInvestment(inv),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 14),
                 IconButton(
-                  icon: Icon(Icons.archive_outlined, size: 18, color: const Color(0xFFFF758C)),
-                  tooltip: 'Archive investment',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => widget.onArchiveInvestment(inv),
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: const Color(0xFFFF758C)),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 19,
+                    color: Color(0xFFFF6B81),
+                  ),
                   tooltip: 'Delete investment',
-                  padding: EdgeInsets.zero,
+                  padding: const EdgeInsets.all(6),
                   constraints: const BoxConstraints(),
+                  splashRadius: 18,
                   onPressed: () => widget.onDeleteInvestment(inv),
                 ),
               ],
@@ -628,10 +673,13 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
   Widget _buildPartnerTableRow(Map<String, dynamic> p, int index, bool isDark, Color cardBorder, Color titleColor, Color hintText) {
     final status = (p['status'] ?? 'active').toString().toLowerCase();
     final isActive = status == 'active' || status == 'approved';
+    final isPending = status == 'pending';
 
     final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
     final dateStr = p['date_invested']?.toString() ?? '';
     final dt = DateTime.tryParse(dateStr) ?? DateTime.now();
+    final rawInvId = p['investment_id'] ?? p['id'];
+    final investmentId = rawInvId is int ? rawInvId : int.tryParse(rawInvId?.toString() ?? '');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -671,39 +719,80 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           ),
           Expanded(
             flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                    : const Color(0xFF3B82F6).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isActive
-                      ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                      : const Color(0xFF3B82F6).withValues(alpha: 0.4),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isActive ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                    size: 12,
-                    color: isActive ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isActive ? 'ACTIVE' : status.toUpperCase(),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: isActive ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                        : isPending
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                            : const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isActive
+                          ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                          : isPending
+                              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                              : const Color(0xFFEF4444).withValues(alpha: 0.4),
+                      width: 0.8,
                     ),
                   ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isActive
+                            ? Icons.check_circle_rounded
+                            : isPending
+                                ? Icons.hourglass_top_rounded
+                                : Icons.cancel_rounded,
+                        size: 13,
+                        color: isActive
+                            ? const Color(0xFF10B981)
+                            : isPending
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFFEF4444),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isActive ? 'ACTIVE' : status.toUpperCase(),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: isActive
+                              ? const Color(0xFF10B981)
+                              : isPending
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isPending && investmentId != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 20, color: Color(0xFF10B981)),
+                    tooltip: 'Approve Investment',
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    splashRadius: 16,
+                    onPressed: () => widget.onApprovePartnerInvestment?.call(investmentId),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    icon: const Icon(Icons.cancel_outlined, size: 20, color: Color(0xFFFF758C)),
+                    tooltip: 'Decline Investment',
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    splashRadius: 16,
+                    onPressed: () => widget.onRejectPartnerInvestment?.call(investmentId),
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ],

@@ -166,9 +166,7 @@ class InvestmentDrawer {
         parsedBatches.add({
           'batch_id': bId,
           'batch_name': bName,
-          'display_label': matchingAssign != null && raiserId.isNotEmpty
-              ? '$bName • $raiserName ($hogCount heads)'
-              : '$bName • Unassigned ($hogCount heads)',
+          'display_label': bName,
           'raiser_id': raiserId,
           'raiser_name': raiserName,
           'pig_type': pigType,
@@ -179,8 +177,8 @@ class InvestmentDrawer {
       activeBatches = [
         {
           'batch_id': 'unassigned',
-          'batch_name': 'No Specific Batch (General Pool)',
-          'display_label': 'General Investment Pool (No Batch Assigned)',
+          'batch_name': 'No Specific Batch (General Fund)',
+          'display_label': 'General Fund (No Batch)',
           'raiser_id': '',
           'raiser_name': 'Unassigned',
           'pig_type': 'Fattening',

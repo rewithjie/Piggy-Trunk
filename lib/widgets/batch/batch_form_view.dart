@@ -62,52 +62,93 @@ class _BatchFormViewState extends State<BatchFormView> {
             : 'unassigned')
         : 'unassigned';
 
-    if (_activeRaisers.isEmpty) {
-      _loadActiveRaisers();
-    }
+    _loadActiveRaisers();
   }
 
   Future<void> _loadActiveRaisers() async {
     try {
-      final res = await _supabase
-          .from('hog_raisers')
-          .select('hog_raiser_id, name, phone, status, account_status, user_id, app_users!hog_raisers_user_id_fkey(name, email)');
+      List<dynamic> res = [];
+      try {
+        res = await _supabase
+            .from('hog_raisers')
+            .select('hog_raiser_id, name, phone, status, account_status, user_id, app_users!hog_raisers_user_id_fkey(name, email)');
+      } catch (_) {
+        res = await _supabase.from('hog_raisers').select('hog_raiser_id, name, phone');
+      }
+
+      // Fetch active assignments to check which raisers are already assigned to active batches
+      List<dynamic> activeAssignments = [];
+      try {
+        activeAssignments = await _supabase
+            .from('assignments')
+            .select('*');
+      } catch (aErr) {
+        debugPrint('Notice loading assignments for raisers check: $aErr');
+      }
+
+      List<dynamic> batchesRaw = [];
+      try {
+        batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
+      } catch (_) {}
+
+      final Map<String, String> batchNamesMap = {
+        for (var b in batchesRaw)
+          (b['batch_id'] ?? b['id'] ?? '').toString(): (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString()
+      };
+
+      final currentBatchId = _isEdit && widget.existingBatch != null
+          ? widget.existingBatch!['batch_id']?.toString()
+          : null;
+      final Map<String, String> assignedToBatchMap = {};
+      for (var a in activeAssignments) {
+        if (a is! Map) continue;
+        final st = (a['status'] ?? 'active').toString().toLowerCase();
+        if (st == 'completed' || st == 'archived') continue;
+
+        final rId = (a['hog_raiser_id'] ?? '').toString();
+        final bId = (a['batch_id'] ?? '').toString();
+        final bName = batchNamesMap[bId] ?? 'Batch #$bId';
+
+        if (bId != currentBatchId && rId.isNotEmpty) {
+          assignedToBatchMap[rId] = bName;
+        }
+      }
+
       final list = <Map<String, dynamic>>[];
-      for (var r in (res as List)) {
-        final rMap = Map<String, dynamic>.from(r as Map);
-        final pk = rMap['hog_raiser_id'];
-        if (pk != null) {
-          final appUsers = rMap['app_users'] as Map<String, dynamic>?;
+      for (var r in res) {
+        if (r is! Map) continue;
+        final rMap = Map<String, dynamic>.from(r);
+        final pk = (rMap['hog_raiser_id'] ?? rMap['id'])?.toString();
+        if (pk != null && pk.isNotEmpty) {
+          dynamic appUsersRaw = rMap['app_users'];
+          Map<String, dynamic>? appUsers;
+          if (appUsersRaw is Map) {
+            appUsers = Map<String, dynamic>.from(appUsersRaw);
+          } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+            appUsers = Map<String, dynamic>.from(appUsersRaw.first);
+          }
+
           final gName = (appUsers?['name'] ?? '').toString().trim();
           final rName = (rMap['name'] ?? '').toString().trim();
           final resolvedName = (gName.isNotEmpty && gName.toLowerCase() != 'hog raiser')
               ? gName
               : (rName.isNotEmpty ? rName : 'Hog Raiser');
+
+          final isAssignedElsewhere = assignedToBatchMap.containsKey(pk);
+          final assignedBatchName = assignedToBatchMap[pk];
+
           list.add({
             'id': pk,
             'name': resolvedName,
             'phone': rMap['phone'] ?? 'N/A',
+            'is_assigned_elsewhere': isAssignedElsewhere,
+            'assigned_batch_name': assignedBatchName,
           });
         }
       }
       if (mounted) setState(() => _activeRaisers = list);
-    } catch (_) {
-      try {
-        final res = await _supabase.from('hog_raisers').select('hog_raiser_id, name, phone');
-        final list = <Map<String, dynamic>>[];
-        for (var r in (res as List)) {
-          final rMap = Map<String, dynamic>.from(r as Map);
-          final pk = rMap['hog_raiser_id'];
-          if (pk != null) {
-            list.add({
-              'id': pk,
-              'name': (rMap['name'] ?? 'Hog Raiser').toString(),
-              'phone': rMap['phone'] ?? 'N/A',
-            });
-          }
-        }
-        if (mounted) setState(() => _activeRaisers = list);
-      } catch (_) {}
+    } catch (err) {
+      debugPrint('Error in _loadActiveRaisers: $err');
     }
   }
 
@@ -124,6 +165,23 @@ class _BatchFormViewState extends State<BatchFormView> {
     if (batchName.isEmpty) {
       setState(() => _batchNameError = 'Please enter a batch name or code.');
       return;
+    }
+
+    final isUnassigned = _selectedRaiserId == 'unassigned' || _selectedRaiserId == null;
+    if (!isUnassigned) {
+      final matched = _activeRaisers.firstWhere(
+        (r) => r['id'].toString() == _selectedRaiserId,
+        orElse: () => {},
+      );
+      if (matched['is_assigned_elsewhere'] == true) {
+        final bName = matched['assigned_batch_name'] ?? 'another Batch';
+        setState(() => _isSubmitting = false);
+        widget.onShowSnackBar(
+          '${matched['name']} is already assigned to $bName. A Hog Raiser can only be assigned to one active batch at a time.',
+          isError: true,
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -430,23 +488,31 @@ class _BatchFormViewState extends State<BatchFormView> {
                           ),
                         ),
                         ..._activeRaisers.map((r) {
+                          final isAssignedElsewhere = r['is_assigned_elsewhere'] == true;
+                          final assignedBatchName = r['assigned_batch_name'] ?? 'another Batch';
                           return DropdownMenuItem<String>(
                             value: r['id'].toString(),
+                            enabled: !isAssignedElsewhere,
                             child: Row(
                               children: [
                                 Icon(
-                                  Icons.person_outline_rounded,
+                                  isAssignedElsewhere ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
                                   size: 16,
-                                  color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                                  color: isAssignedElsewhere
+                                      ? _mutedColor
+                                      : (_isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    '${r['name']}',
+                                    isAssignedElsewhere
+                                        ? '${r['name']} (Already Assigned to $assignedBatchName)'
+                                        : '${r['name']}',
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.plusJakartaSans(
-                                      color: _fieldText,
-                                      fontWeight: FontWeight.w600,
+                                      color: isAssignedElsewhere ? _mutedColor.withValues(alpha: 0.6) : _fieldText,
+                                      fontWeight: isAssignedElsewhere ? FontWeight.w500 : FontWeight.w600,
+                                      fontStyle: isAssignedElsewhere ? FontStyle.italic : FontStyle.normal,
                                       fontSize: 13.5,
                                     ),
                                   ),
@@ -457,7 +523,20 @@ class _BatchFormViewState extends State<BatchFormView> {
                         }),
                       ],
                       onChanged: (val) {
-                        if (val != null) setState(() => _selectedRaiserId = val);
+                        if (val == null) return;
+                        final matched = _activeRaisers.firstWhere(
+                          (r) => r['id'].toString() == val,
+                          orElse: () => {},
+                        );
+                        if (matched['is_assigned_elsewhere'] == true) {
+                          final bName = matched['assigned_batch_name'] ?? 'another Batch';
+                          widget.onShowSnackBar(
+                            '${matched['name']} is already assigned to $bName. A Hog Raiser can only be assigned to one active batch.',
+                            isError: true,
+                          );
+                          return;
+                        }
+                        setState(() => _selectedRaiserId = val);
                       },
                     ),
                   ],

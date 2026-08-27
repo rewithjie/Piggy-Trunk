@@ -90,29 +90,62 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         loaded.add(Investment.fromJson(rMap));
       }
 
-      // Fetch partner investor submissions from `investments` table
+      // Fetch partner investor submissions from `investments` table with resilient lookup
       List<Map<String, dynamic>> loadedPartnerInv = [];
       try {
-        final pRes = await _supabase
+        final rawInvestments = await _supabase
             .from('investments')
-            .select('investment_id, amount, date_invested, status, batch_id, partner_investor_id, partner_investors(user_id, contact_number, app_users(name, email)), batches(batch_name)')
+            .select('*')
             .order('date_invested', ascending: false);
 
-        for (var row in (pRes as List? ?? [])) {
-          final pMap = Map<String, dynamic>.from(row as Map);
-          final pInv = pMap['partner_investors'] as Map<String, dynamic>?;
-          final appUsers = pInv?['app_users'] as Map<String, dynamic>?;
-          final batch = pMap['batches'] as Map<String, dynamic>?;
+        List<dynamic> partnerInvestorsRaw = [];
+        try {
+          partnerInvestorsRaw = await _supabase.from('partner_investors').select('*');
+        } catch (_) {}
 
-          final partnerName = (appUsers?['name'] ?? 'Partner Investor').toString();
-          final batchName = (batch?['batch_name'] ?? 'Batch #${pMap['batch_id']}').toString();
+        List<dynamic> appUsersRaw = [];
+        try {
+          appUsersRaw = await _supabase.from('app_users').select('user_id, name, email');
+        } catch (_) {}
+
+        List<dynamic> batchesRaw = [];
+        try {
+          batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
+        } catch (_) {}
+
+        final Map<String, Map<String, dynamic>> usersMap = {
+          for (var u in appUsersRaw)
+            (u['user_id'] ?? '').toString(): Map<String, dynamic>.from(u)
+        };
+
+        final Map<String, Map<String, dynamic>> partnersMap = {
+          for (var p in partnerInvestorsRaw)
+            (p['partner_investor_id'] ?? p['id'] ?? '').toString(): Map<String, dynamic>.from(p)
+        };
+
+        final Map<String, String> batchesMap = {
+          for (var b in batchesRaw)
+            (b['batch_id'] ?? b['id'] ?? '').toString(): (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString()
+        };
+
+        for (var row in (rawInvestments as List? ?? [])) {
+          final pMap = Map<String, dynamic>.from(row as Map);
+          final pInvId = (pMap['partner_investor_id'] ?? '').toString();
+          final bId = (pMap['batch_id'] ?? '').toString();
+
+          final partnerRec = partnersMap[pInvId];
+          final userId = (partnerRec?['user_id'] ?? '').toString();
+          final userRec = usersMap[userId];
+
+          final partnerName = (userRec?['name'] ?? userRec?['email'] ?? 'Partner Investor #$pInvId').toString();
+          final batchName = batchesMap[bId] ?? 'Batch #$bId';
 
           pMap['partner_name'] = partnerName;
           pMap['batch_name'] = batchName;
           loadedPartnerInv.add(pMap);
         }
       } catch (pErr) {
-        debugPrint('Notice loading partner investments: $pErr');
+        debugPrint('Error loading partner investments: $pErr');
       }
 
       if (!mounted) return;

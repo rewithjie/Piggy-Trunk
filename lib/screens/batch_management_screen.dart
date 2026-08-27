@@ -95,6 +95,25 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
         debugPrint('Error fetching raisers: $e');
       }
 
+      final Map<String, String> batchNamesMap = {
+        for (var b in batchesData)
+          (b['batch_id'] ?? b['id'] ?? '').toString(): (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString()
+      };
+
+      final Map<String, String> assignedToBatchMap = {};
+      for (var a in assignmentsData) {
+        if (a is! Map) continue;
+        final st = (a['status'] ?? 'active').toString().toLowerCase();
+        if (st == 'completed' || st == 'archived') continue;
+
+        final rId = (a['hog_raiser_id'] ?? '').toString();
+        final bId = (a['batch_id'] ?? '').toString();
+        final bName = batchNamesMap[bId] ?? 'Batch #$bId';
+        if (rId.isNotEmpty) {
+          assignedToBatchMap[rId] = bName;
+        }
+      }
+
       final Map<String, String> raiserMap = {};
       final List<Map<String, dynamic>> parsedRaisers = [];
       for (var r in raisersData) {
@@ -118,12 +137,17 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
               ? gName
               : (rName.isNotEmpty ? rName : 'Hog Raiser');
 
+          final isAssignedElsewhere = assignedToBatchMap.containsKey(pkStr);
+          final assignedBatchName = assignedToBatchMap[pkStr];
+
           raiserMap[pkStr] = resolvedName;
           parsedRaisers.add({
             'id': realPk,
             'name': resolvedName,
             'phone': rMap['phone'] ?? 'N/A',
             'email': appUsers?['email'] ?? '',
+            'is_assigned_elsewhere': isAssignedElsewhere,
+            'assigned_batch_name': assignedBatchName,
           });
         }
       }
