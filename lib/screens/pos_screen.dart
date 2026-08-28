@@ -25,6 +25,7 @@ class _POSScreenState extends State<POSScreen> {
   final Order currentOrder = Order(items: []);
 
   List<POSProduct> _products = [];
+  final Map<String, int> _productQuantities = {};
   bool _isLoading = true;
   int _orderItemCounter = 0;
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
@@ -34,6 +35,37 @@ class _POSScreenState extends State<POSScreen> {
   Color get _border => _isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFD7E3F3);
   Color get _text => _isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F);
   Color get _muted => _isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF6F8096);
+
+  int _getQuantity(String productId) {
+    return _productQuantities[productId] ?? 1;
+  }
+
+  void _incrementProductQuantity(POSProduct product) {
+    if (product.units <= 0) return;
+    final current = _getQuantity(product.id);
+    final inCart = currentOrder.quantityFor(product.id);
+    final available = product.units - inCart;
+    if (current < available && current < product.units) {
+      setState(() {
+        _productQuantities[product.id] = current + 1;
+      });
+    } else {
+      _showThemedSnackBar(
+        'Cannot exceed available stock (${product.units} units).',
+        backgroundColor: const Color(0xFFE53E3E),
+        duration: const Duration(milliseconds: 900),
+      );
+    }
+  }
+
+  void _decrementProductQuantity(String productId) {
+    final current = _getQuantity(productId);
+    if (current > 1) {
+      setState(() {
+        _productQuantities[productId] = current - 1;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -448,13 +480,13 @@ class _POSScreenState extends State<POSScreen> {
 
                   if (width > 1000) {
                     crossAxisCount = 2;
-                    childAspectRatio = 1.95;
+                    childAspectRatio = 1.62;
                   } else if (width > 550) {
                     crossAxisCount = 2;
-                    childAspectRatio = 1.82;
+                    childAspectRatio = 1.48;
                   } else {
                     crossAxisCount = 1;
-                    childAspectRatio = 1.95;
+                    childAspectRatio = 1.65;
                   }
 
                   return GridView.builder(
@@ -482,7 +514,8 @@ class _POSScreenState extends State<POSScreen> {
     final isOutOfStock = product.units <= 0;
     final isTopSeller = _isProductTopSeller(product);
     final isMobile = Responsive.isMobile(context);
-    final double imgSize = isMobile ? 85.0 : 102.0;
+    final double imgSize = isMobile ? 85.0 : 105.0;
+    final selectedQty = _getQuantity(product.id);
 
     return Container(
       decoration: BoxDecoration(
@@ -612,7 +645,7 @@ class _POSScreenState extends State<POSScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                // Price & Stock Row - Original 1-line side-by-side style with auto-scaling to prevent overflow
+                // Price & Stock Row - 1-line side-by-side style with auto-scaling to prevent overflow
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 5 : 6),
                   decoration: BoxDecoration(
@@ -668,7 +701,87 @@ class _POSScreenState extends State<POSScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
+                // Quantity Stepper Row
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 4 : 5),
+                  decoration: BoxDecoration(
+                    color: _bg,
+                    border: Border.all(color: _border.withValues(alpha: 0.7), width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Quantity:',
+                        style: AppTextStyles.jakarta(
+                          size: isMobile ? 11 : 12,
+                          weight: FontWeight.w700,
+                          color: _muted,
+                        ),
+                      ),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: _surface,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: _border, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: isOutOfStock || selectedQty <= 1
+                                  ? null
+                                  : () => _decrementProductQuantity(product.id),
+                              borderRadius: const BorderRadius.horizontal(left: Radius.circular(5)),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                child: Icon(
+                                  Icons.remove_rounded,
+                                  size: 15,
+                                  color: (isOutOfStock || selectedQty <= 1)
+                                      ? (_isDark ? Colors.white24 : Colors.black26)
+                                      : (_isDark ? Colors.white : const Color(0xFF18314F)),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 26),
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '$selectedQty',
+                                style: AppTextStyles.jakarta(
+                                  size: 12.5,
+                                  weight: FontWeight.w800,
+                                  color: isOutOfStock ? _muted : _text,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: isOutOfStock || selectedQty >= product.units
+                                  ? null
+                                  : () => _incrementProductQuantity(product),
+                              borderRadius: const BorderRadius.horizontal(right: Radius.circular(5)),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                child: Icon(
+                                  Icons.add_rounded,
+                                  size: 15,
+                                  color: (isOutOfStock || selectedQty >= product.units)
+                                      ? (_isDark ? Colors.white24 : Colors.black26)
+                                      : (_isDark ? Colors.white : const Color(0xFF18314F)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
                 // Action Button: Add to Cart
                 SizedBox(
                   width: double.infinity,
@@ -676,12 +789,13 @@ class _POSScreenState extends State<POSScreen> {
                     onPressed: isOutOfStock
                         ? null
                         : () {
-                            final currentQty = currentOrder.quantityFor(product.id);
-                            if (currentQty >= product.units) {
+                            final qtyToAdd = _getQuantity(product.id);
+                            final currentQtyInCart = currentOrder.quantityFor(product.id);
+                            if (currentQtyInCart + qtyToAdd > product.units) {
                               _showThemedSnackBar(
-                                'Cannot add more. Only ${product.units} units in stock.',
+                                'Cannot add $qtyToAdd item(s). Only ${product.units - currentQtyInCart} remaining in stock.',
                                 backgroundColor: const Color(0xFFE53E3E),
-                                duration: const Duration(milliseconds: 1000),
+                                duration: const Duration(milliseconds: 1200),
                               );
                               return;
                             }
@@ -693,12 +807,13 @@ class _POSScreenState extends State<POSScreen> {
                                   productId: product.id,
                                   productName: product.name,
                                   price: product.price,
-                                  quantity: 1,
+                                  quantity: qtyToAdd,
                                 ),
                               );
+                              _productQuantities[product.id] = 1;
                             });
                             _showThemedSnackBar(
-                              '${product.name} added to order',
+                              '${qtyToAdd}x ${product.name} added to order',
                               backgroundColor: const Color(0xFF315C8F),
                               duration: const Duration(milliseconds: 800),
                             );
@@ -827,20 +942,6 @@ class _POSScreenState extends State<POSScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Subtotal',
-                      style: AppTextStyles.caption(PiggyTrunkTheme.ptMutedDark),
-                    ),
-                    Text(
-                      'PHP ${currentOrder.subtotal.toStringAsFixed(2)}',
-                      style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w700, color: _text),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
                       'Total',
                       style: AppTextStyles.bodyStrong(_text),
                     ),
@@ -962,12 +1063,6 @@ class _POSScreenState extends State<POSScreen> {
   }
 
   Widget _buildOrderItemRow(OrderItem item, int index) {
-    final product = _products.cast<POSProduct?>().firstWhere(
-      (p) => p?.id == item.productId,
-      orElse: () => null,
-    );
-    final int maxStock = product?.units ?? 999;
-
     return Padding(
       padding: EdgeInsets.only(bottom: index == currentOrder.items.length - 1 ? 0 : 12),
       child: Container(
@@ -1015,72 +1110,19 @@ class _POSScreenState extends State<POSScreen> {
                   style: AppTextStyles.jakarta(size: 13, weight: FontWeight.w600, color: _muted),
                 ),
                 Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
+                    color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFEDF4FC),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: _border, width: 1),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          setState(() {
-                            currentOrder.decrementQuantity(item.productId);
-                          });
-                        },
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(7)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Icon(
-                            item.quantity == 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
-                            size: 16,
-                            color: item.quantity == 1
-                                ? const Color(0xFFE53E3E)
-                                : (_isDark ? Colors.white70 : const Color(0xFF475569)),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        constraints: const BoxConstraints(minWidth: 28),
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          '${item.quantity}',
-                          style: AppTextStyles.jakarta(
-                            size: 13,
-                            weight: FontWeight.w700,
-                            color: _text,
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () {
-                          if (item.quantity < maxStock) {
-                            setState(() {
-                              currentOrder.incrementQuantity(item.productId);
-                            });
-                          } else {
-                            _showThemedSnackBar(
-                              'Cannot add more. Only $maxStock units in stock.',
-                              backgroundColor: const Color(0xFFE53E3E),
-                              duration: const Duration(milliseconds: 1000),
-                            );
-                          }
-                        },
-                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(7)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Icon(
-                            Icons.add_rounded,
-                            size: 16,
-                            color: item.quantity >= maxStock
-                                ? (_isDark ? Colors.white24 : Colors.black26)
-                                : (_isDark ? Colors.white70 : const Color(0xFF475569)),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'Qty: ${item.quantity}',
+                    style: AppTextStyles.jakarta(
+                      size: 12.5,
+                      weight: FontWeight.w800,
+                      color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                    ),
                   ),
                 ),
               ],

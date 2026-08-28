@@ -102,7 +102,8 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       if (q.isNotEmpty) {
         final name = inv.raiserName.toLowerCase();
         final type = inv.hogType.toLowerCase();
-        if (!name.contains(q) && !type.contains(q)) return false;
+        final batch = (inv.batchName ?? '').toLowerCase();
+        if (!name.contains(q) && !type.contains(q) && !batch.contains(q)) return false;
       }
       if (_selectedStageFilter != 'ALL') {
         if (inv.stage.toUpperCase() != _selectedStageFilter) return false;
@@ -477,7 +478,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       onChanged: (_) => setState(() {}),
       style: GoogleFonts.plusJakartaSans(color: fieldText, fontSize: 14),
       decoration: InputDecoration(
-        hintText: _viewMode == 'DIRECT' ? 'Search by raiser name or hog type...' : 'Search by partner or batch name...',
+        hintText: _viewMode == 'DIRECT' ? 'Search by raiser, batch, or hog type...' : 'Search by partner or batch name...',
         hintStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14),
         prefixIcon: Icon(Icons.search_rounded, color: hintText, size: 20),
         filled: true,
@@ -572,6 +573,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       child: Row(
         children: [
           Expanded(flex: 3, child: Text('HOG RAISER', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 3, child: Text('BATCH NAME', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('CAPITAL', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('HOG TYPE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('HEADS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
@@ -583,6 +585,9 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
   }
 
   Widget _buildTableRow(Investment inv, int index, bool isDark, Color cardBorder, Color titleColor, Color hintText) {
+    final batchName = (inv.batchName != null && inv.batchName!.isNotEmpty) ? inv.batchName! : 'Unassigned';
+    final hasBatch = batchName != 'Unassigned' && batchName != 'No Batch';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -594,6 +599,20 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           Expanded(
             flex: 3,
             child: Text(inv.raiserName, style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: titleColor)),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              batchName,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: hasBatch
+                    ? (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
+                    : hintText,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           Expanded(
             flex: 2,

@@ -307,7 +307,7 @@ class BatchTableView extends StatelessWidget {
       onChanged: onSearchChanged,
       style: GoogleFonts.plusJakartaSans(color: fieldText, fontSize: 14),
       decoration: InputDecoration(
-        hintText: 'Search by batch name, code, or raiser...',
+        hintText: 'Search by batch name or code...',
         hintStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14),
         prefixIcon: Icon(Icons.search_rounded, color: hintText, size: 20),
         filled: true,
@@ -404,9 +404,8 @@ class BatchTableView extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(flex: 3, child: Text('BATCH NAME / CODE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 3, child: Text('ASSIGNED RAISER', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('DATE CREATED', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 4, child: Text('BATCH NAME / CODE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 3, child: Text('DATE CREATED', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('STATUS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
         ],
@@ -416,7 +415,6 @@ class BatchTableView extends StatelessWidget {
 
   Widget _buildTableRow(Map<String, dynamic> batch, int index, bool isDark, Color cardBorder, Color titleColor, Color hintText) {
     final batchName = batch['batch_name']?.toString() ?? 'Batch';
-    final raiserName = batch['raiser_name']?.toString() ?? 'Unassigned';
     final dateCreated = batch['date_created']?.toString() ?? 'N/A';
     final status = batch['status']?.toString().toUpperCase() ?? 'ACTIVE';
 
@@ -442,15 +440,11 @@ class BatchTableView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            flex: 3,
+            flex: 4,
             child: Text(batchName, style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: titleColor)),
           ),
           Expanded(
             flex: 3,
-            child: Text(raiserName, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor)),
-          ),
-          Expanded(
-            flex: 2,
             child: Text(dateCreated, style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: hintText)),
           ),
           Expanded(

@@ -53,9 +53,40 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     _loadInvestments();
   }
 
+  String _cleanBatchName(String raw) {
+    final clean = raw.trim();
+    final uuidRegex = RegExp(r'\s*\([0-9a-fA-F-]{10,}\)\s*$');
+    if (uuidRegex.hasMatch(clean)) {
+      return clean.replaceAll(uuidRegex, '').trim();
+    }
+    return clean;
+  }
+
   Future<void> _loadInvestments() async {
     setState(() => _isLoading = true);
     try {
+      // 1. Fetch Batches
+      List<dynamic> batchesRaw = [];
+      try {
+        batchesRaw = await _supabase.from('batches').select('batch_id, batch_name, date_created');
+      } catch (bErr) {
+        debugPrint('Error fetching batches: $bErr');
+      }
+
+      final Map<String, String> batchesMap = {
+        for (var b in batchesRaw)
+          (b['batch_id'] ?? b['id'] ?? '').toString(): _cleanBatchName((b['batch_name'] ?? 'Batch #${b['batch_id']}').toString())
+      };
+
+      // 2. Fetch Assignments
+      List<dynamic> assignmentsRaw = [];
+      try {
+        assignmentsRaw = await _supabase.from('assignments').select('assignment_id, batch_id, hog_raiser_id, status, assigned_date');
+      } catch (aErr) {
+        debugPrint('Error fetching assignments: $aErr');
+      }
+
+      // 3. Fetch Direct Investment Records
       dynamic response;
       try {
         response = await _supabase
@@ -87,6 +118,57 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           rMap['raiser_name'] = raiserName;
         }
 
+        final recId = (rMap['id'] ?? '').toString();
+        final raiserId = (rMap['hog_raiser_id'] ?? '').toString();
+        final invDate = (rMap['investment_date'] ?? '').toString();
+
+        String? matchedBatchName;
+
+        // A. Direct batch_name / batch_id
+        if (rMap['batch_name'] != null && rMap['batch_name'].toString().isNotEmpty) {
+          matchedBatchName = _cleanBatchName(rMap['batch_name'].toString());
+        } else if (rMap['batch_id'] != null) {
+          matchedBatchName = batchesMap[rMap['batch_id'].toString()];
+        }
+
+        // B. Auto-generated batch matching record UUID
+        if (matchedBatchName == null && recId.isNotEmpty) {
+          for (var b in batchesRaw) {
+            final bName = (b['batch_name'] ?? '').toString();
+            if (bName.contains('($recId)')) {
+              matchedBatchName = _cleanBatchName(bName);
+              break;
+            }
+          }
+        }
+
+        // C. Match from assignments for this raiser
+        if (matchedBatchName == null && raiserId.isNotEmpty) {
+          Map<String, dynamic>? bestAssign;
+          for (var a in assignmentsRaw) {
+            if (a is! Map) continue;
+            final aRaiserId = (a['hog_raiser_id'] ?? '').toString();
+            if (aRaiserId == raiserId) {
+              final aDate = (a['assigned_date'] ?? '').toString();
+              if (invDate.isNotEmpty && aDate.startsWith(invDate.split('T').first)) {
+                bestAssign = Map<String, dynamic>.from(a);
+                break;
+              }
+              if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
+                bestAssign ??= Map<String, dynamic>.from(a);
+              } else {
+                bestAssign ??= Map<String, dynamic>.from(a);
+              }
+            }
+          }
+
+          if (bestAssign != null) {
+            final bId = (bestAssign['batch_id'] ?? '').toString();
+            matchedBatchName = batchesMap[bId];
+          }
+        }
+
+        rMap['batch_name'] = matchedBatchName ?? 'Unassigned';
         loaded.add(Investment.fromJson(rMap));
       }
 
@@ -108,11 +190,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           appUsersRaw = await _supabase.from('app_users').select('user_id, name, email');
         } catch (_) {}
 
-        List<dynamic> batchesRaw = [];
-        try {
-          batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
-        } catch (_) {}
-
         final Map<String, Map<String, dynamic>> usersMap = {
           for (var u in appUsersRaw)
             (u['user_id'] ?? '').toString(): Map<String, dynamic>.from(u)
@@ -121,11 +198,6 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         final Map<String, Map<String, dynamic>> partnersMap = {
           for (var p in partnerInvestorsRaw)
             (p['partner_investor_id'] ?? p['id'] ?? '').toString(): Map<String, dynamic>.from(p)
-        };
-
-        final Map<String, String> batchesMap = {
-          for (var b in batchesRaw)
-            (b['batch_id'] ?? b['id'] ?? '').toString(): (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString()
         };
 
         for (var row in (rawInvestments as List? ?? [])) {
