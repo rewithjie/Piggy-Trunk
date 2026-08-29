@@ -217,17 +217,17 @@ class BatchTableView extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark)),
+              Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
               const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+              Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
             ],
           ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark)),
+              Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
               const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark)),
+              Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
             ],
           ),
         ],
@@ -235,18 +235,18 @@ class BatchTableView extends StatelessWidget {
     }
     return Row(
       children: [
-        Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark)),
+        Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+        Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark)),
+        Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark)),
+        Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
       ],
     );
   }
 
-  Widget _buildMetricCard(String label, String value, IconData icon, Color color, bool isDark) {
+  Widget _buildMetricCard(String label, String value, IconData icon, Color color, bool isDark, bool isMobile) {
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
     final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
     final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
@@ -256,20 +256,20 @@ class BatchTableView extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         border: Border.all(color: cardBorder, width: 1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 16),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: isMobile ? 12 : 14),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: isDark ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: isMobile ? 18 : 22),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: isMobile ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +278,7 @@ class BatchTableView extends StatelessWidget {
                 Text(
                   label,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
+                    fontSize: isMobile ? 11 : 12,
                     fontWeight: FontWeight.w600,
                     color: hintText,
                   ),
@@ -288,7 +288,7 @@ class BatchTableView extends StatelessWidget {
                 Text(
                   value,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
+                    fontSize: isMobile ? 15 : 18,
                     fontWeight: FontWeight.w800,
                     color: titleColor,
                   ),

@@ -10,6 +10,7 @@ class Investment {
   final DateTime investmentDate;
   final String stage;
   final String? batchName;
+  final String? batchId;
 
   Investment({
     required this.id,
@@ -21,6 +22,7 @@ class Investment {
     required this.investmentDate,
     required this.stage,
     this.batchName,
+    this.batchId,
   });
 
   factory Investment.fromJson(Map<String, dynamic> json) {
@@ -51,6 +53,7 @@ class Investment {
           : DateTime.now(),
       stage: (json['stage'] ?? 'pending').toString(),
       batchName: json['batch_name']?.toString(),
+      batchId: json['batch_id']?.toString(),
     );
   }
 
@@ -65,6 +68,7 @@ class Investment {
       'investment_date': investmentDate.toIso8601String(),
       'stage': stage,
       if (batchName != null) 'batch_name': batchName,
+      if (batchId != null) 'batch_id': batchId,
     };
   }
 }

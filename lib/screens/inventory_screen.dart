@@ -360,12 +360,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
               const SizedBox(height: 20),
 
               // Tabs Row
-              Row(
-                children: [
-                  _buildTabButton(0, 'Products Catalog', _products.length),
-                  const SizedBox(width: 10),
-                  _buildTabButton(1, 'Raiser Stock Requests', null),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildTabButton(0, 'Products Catalog', _products.length, isMobile: isMobile),
+                    const SizedBox(width: 8),
+                    _buildTabButton(1, 'Raiser Stock Requests', null, isMobile: isMobile),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -444,13 +447,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Row(children: buttons);
   }
 
-  Widget _buildTabButton(int index, String label, int? count) {
+  Widget _buildTabButton(int index, String label, int? count, {bool isMobile = false}) {
     final isSelected = _activeTab == index;
     return InkWell(
       onTap: () => setState(() => _activeTab = index),
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 14 : 18,
+          vertical: isMobile ? 8 : 10,
+        ),
         decoration: BoxDecoration(
           color: isSelected
               ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
@@ -458,11 +465,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               count != null ? '$label ($count)' : label,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
+                fontSize: isMobile ? 12.5 : 13.5,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected
                     ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)

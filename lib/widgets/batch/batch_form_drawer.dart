@@ -8,16 +8,12 @@ class BatchFormDrawer {
   static void show({
     required BuildContext context,
     Map<String, dynamic>? existingBatch,
-    required List<Map<String, dynamic>> activeRaisers,
+    List<Map<String, dynamic>>? activeRaisers,
     required VoidCallback onBatchSaved,
     required void Function(String msg, {bool isError}) onShowSnackBar,
   }) {
     final isEdit = existingBatch != null;
     final batchNameCtrl = TextEditingController(text: isEdit ? existingBatch['batch_name']?.toString() ?? '' : '');
-
-    String? selectedRaiserId = isEdit
-        ? (existingBatch['raiser_id'] != null ? existingBatch['raiser_id'].toString() : 'unassigned')
-        : 'unassigned';
 
     String? batchNameError;
     bool isDrawerSaving = false;
@@ -105,7 +101,7 @@ class BatchFormDrawer {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        isEdit ? 'Update batch name and assigned raiser' : 'Define batch code and assign an authorized raiser',
+                                        isEdit ? 'Update batch name and code' : 'Define batch code identifier',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
@@ -178,91 +174,6 @@ class BatchFormDrawer {
                                     const SizedBox(height: 4),
                                     Text(batchNameError!, style: const TextStyle(color: Color(0xFFE53E3E), fontSize: 11.5)),
                                   ],
-                                  const SizedBox(height: 20),
-
-                                  // Assigned Raiser
-                                  Text(
-                                    'ASSIGN HOG RAISER',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: hintText,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    initialValue: selectedRaiserId,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: fieldBg,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        borderSide: BorderSide(color: fieldBorder),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        borderSide: BorderSide(color: fieldFocus, width: 1.5),
-                                      ),
-                                    ),
-                                    dropdownColor: fieldBg,
-                                    items: [
-                                      DropdownMenuItem<String>(
-                                        value: 'unassigned',
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.person_off_outlined,
-                                              size: 16,
-                                              color: hintText,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              activeRaisers.isEmpty
-                                                  ? 'No Active Raisers Available (Unassigned)'
-                                                  : 'No Raiser Assigned (Unassigned)',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                color: hintText,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13.5,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      ...activeRaisers.map((r) {
-                                        return DropdownMenuItem<String>(
-                                          value: r['id'].toString(),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.person_outline_rounded,
-                                                size: 16,
-                                                color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  '${r['name']}',
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    color: fieldText,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13.5,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) setDrawerState(() => selectedRaiserId = val);
-                                    },
-                                  ),
                                 ],
                               ),
                             ),
@@ -271,7 +182,7 @@ class BatchFormDrawer {
                           // Footer Actions
                           Divider(color: cardBorder.withValues(alpha: 0.5), height: 1),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            padding: const EdgeInsets.all(20),
                             child: Row(
                               children: [
                                 Expanded(
@@ -286,7 +197,7 @@ class BatchFormDrawer {
                                       'Cancel',
                                       style: GoogleFonts.plusJakartaSans(
                                         color: fieldText,
-                                        fontSize: 14,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -294,136 +205,41 @@ class BatchFormDrawer {
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  flex: 2,
                                   child: ElevatedButton.icon(
                                     onPressed: isDrawerSaving
                                         ? null
                                         : () async {
-                                            final batchName = batchNameCtrl.text.trim();
-
-                                            if (batchName.isEmpty) {
-                                              setDrawerState(() => batchNameError = 'Please enter a batch name or code.');
+                                            final name = batchNameCtrl.text.trim();
+                                            if (name.isEmpty) {
+                                              setDrawerState(() => batchNameError = 'Please enter batch name');
                                               return;
                                             }
 
                                             setDrawerState(() => isDrawerSaving = true);
                                             try {
                                               final supabase = Supabase.instance.client;
-                                              dynamic batchId;
-
                                               if (isEdit) {
-                                                batchId = existingBatch['batch_id'];
-                                                await supabase.from('batches').update({
-                                                  'batch_name': batchName,
-                                                }).eq('batch_id', batchId);
+                                                final bId = existingBatch['batch_id'] ?? existingBatch['id'];
+                                                await supabase.from('batches').update({'batch_name': name}).eq(
+                                                  existingBatch['batch_id'] != null ? 'batch_id' : 'id',
+                                                  bId,
+                                                );
                                               } else {
                                                 try {
-                                                  final batchRes = await supabase.from('batches').insert({
-                                                    'batch_name': batchName,
+                                                  await supabase.from('batches').insert({
+                                                    'batch_name': name,
                                                     'date_created': DateTime.now().toIso8601String().split('T').first,
-                                                  }).select().maybeSingle();
-
-                                                  if (batchRes != null) {
-                                                    batchId = batchRes['batch_id'] ?? batchRes['id'];
-                                                  }
-                                                } catch (bErr) {
-                                                  debugPrint('Batch insert with date_created failed: $bErr. Retrying with basic payload...');
-                                                  final batchRes = await supabase.from('batches').insert({
-                                                    'batch_name': batchName,
-                                                  }).select().maybeSingle();
-
-                                                  if (batchRes != null) {
-                                                    batchId = batchRes['batch_id'] ?? batchRes['id'];
-                                                  }
+                                                    'status': 'Active',
+                                                  });
+                                                } catch (_) {
+                                                  await supabase.from('batches').insert({'batch_name': name});
                                                 }
                                               }
 
-                                               final isUnassigned = selectedRaiserId == 'unassigned' || selectedRaiserId == null;
-
-                                               // Check if this batch already has an assignment record
-                                               final existingAssignForBatch = batchId != null
-                                                   ? await supabase
-                                                       .from('assignments')
-                                                       .select('assignment_id, hog_type_id')
-                                                       .eq('batch_id', batchId)
-                                                       .maybeSingle()
-                                                   : null;
-
-                                               if (isUnassigned) {
-                                                 if (existingAssignForBatch != null) {
-                                                   await supabase
-                                                       .from('assignments')
-                                                       .delete()
-                                                       .eq('assignment_id', existingAssignForBatch['assignment_id']);
-                                                 }
-                                               } else if (int.tryParse(selectedRaiserId!) != null) {
-                                                 final parsedRaiserId = int.parse(selectedRaiserId!);
-
-                                                 // 1. Resolve required hog_type_id
-                                                 dynamic resolvedHogTypeId;
-                                                 try {
-                                                   final raiserInfo = await supabase
-                                                       .from('hog_raisers')
-                                                       .select('pig_type')
-                                                       .eq('hog_raiser_id', parsedRaiserId)
-                                                       .maybeSingle();
-
-                                                   final pigTypeStr = raiserInfo?['pig_type']?.toString();
-
-                                                   if (pigTypeStr != null && pigTypeStr.isNotEmpty && pigTypeStr != 'N/A' && pigTypeStr.toLowerCase() != 'unassigned') {
-                                                     final typeMatch = await supabase
-                                                         .from('hog_types')
-                                                         .select('hog_type_id')
-                                                         .ilike('type_name', '%$pigTypeStr%')
-                                                         .maybeSingle();
-                                                     if (typeMatch != null) {
-                                                       resolvedHogTypeId = typeMatch['hog_type_id'];
-                                                     }
-                                                   }
-
-                                                   if (resolvedHogTypeId == null) {
-                                                     final defaultType = await supabase
-                                                         .from('hog_types')
-                                                         .select('hog_type_id')
-                                                         .limit(1)
-                                                         .maybeSingle();
-                                                     if (defaultType != null) {
-                                                       resolvedHogTypeId = defaultType['hog_type_id'];
-                                                     }
-                                                   }
-                                                 } catch (htErr) {
-                                                   debugPrint('Notice resolving hog_type_id: $htErr');
-                                                 }
-
-                                                 final int finalHogTypeId = resolvedHogTypeId != null
-                                                     ? (resolvedHogTypeId as num).toInt()
-                                                     : 1;
-
-                                                 if (existingAssignForBatch != null) {
-                                                   final updatePayload = <String, dynamic>{
-                                                     'hog_raiser_id': parsedRaiserId,
-                                                     'status': 'active',
-                                                     'hog_type_id': finalHogTypeId,
-                                                   };
-                                                   await supabase
-                                                       .from('assignments')
-                                                       .update(updatePayload)
-                                                       .eq('assignment_id', existingAssignForBatch['assignment_id']);
-                                                 } else {
-                                                   final assignPayload = <String, dynamic>{
-                                                     'batch_id': batchId,
-                                                     'hog_raiser_id': parsedRaiserId,
-                                                     'status': 'active',
-                                                     'hog_type_id': finalHogTypeId,
-                                                   };
-                                                   await supabase.from('assignments').insert(assignPayload);
-                                                 }
-                                               }
-
                                               if (!dialogContext.mounted) return;
                                               Navigator.pop(dialogContext);
+                                              onShowSnackBar(isEdit ? 'Batch updated successfully.' : 'Batch created successfully.');
                                               onBatchSaved();
-                                              onShowSnackBar(isEdit ? 'Batch updated successfully.' : 'Batch created and assigned successfully.');
                                             } catch (e) {
                                               setDrawerState(() => isDrawerSaving = false);
                                               onShowSnackBar('Operation failed: $e', isError: true);
@@ -431,15 +247,15 @@ class BatchFormDrawer {
                                           },
                                     icon: isDrawerSaving
                                         ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
+                                            width: 16,
+                                            height: 16,
                                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                           )
                                         : Icon(isEdit ? Icons.save_rounded : Icons.add_rounded, size: 18),
                                     label: Text(
                                       isDrawerSaving ? 'Saving...' : (isEdit ? 'Save Changes' : 'Create Batch'),
                                       style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
+                                        fontSize: 13.5,
                                         fontWeight: FontWeight.bold,
                                         color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                       ),

@@ -882,7 +882,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   width: size,
                   height: size,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => Center(
+                  errorBuilder: (_, _, _) => Center(
                     child: Text(
                       initials,
                       style: AppTextStyles.jakarta(
@@ -902,7 +902,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 width: size,
                 height: size,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Center(
+                errorBuilder: (_, _, _) => Center(
                   child: Text(
                     initials,
                     style: AppTextStyles.jakarta(

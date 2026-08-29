@@ -213,7 +213,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               const SizedBox(height: 20),
 
               // View Mode Selector (Direct Allocations vs Partner Requests)
-              _buildViewModeToggle(pendingPartnerCount, isDark),
+              _buildViewModeToggle(pendingPartnerCount, isDark, isMobile),
               const SizedBox(height: 16),
 
               // Search & Filters
@@ -280,32 +280,57 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     );
   }
 
-  Widget _buildViewModeToggle(int pendingCount, bool isDark) {
+  Widget _buildViewModeToggle(int pendingCount, bool isDark, bool isMobile) {
     return Container(
+      width: isMobile ? double.infinity : null,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16253B) : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          _buildToggleTab(
-            label: 'Direct Allocations',
-            count: widget.investments.length,
-            isSelected: _viewMode == 'DIRECT',
-            onTap: () => setState(() => _viewMode = 'DIRECT'),
-            isDark: isDark,
-          ),
-          const SizedBox(width: 6),
-          _buildToggleTab(
-            label: 'Partner Investments',
-            count: widget.partnerInvestments.length,
-            isSelected: _viewMode == 'PARTNER',
-            onTap: () => setState(() => _viewMode = 'PARTNER'),
-            isDark: isDark,
-          ),
+          isMobile
+              ? Expanded(
+                  child: _buildToggleTab(
+                    label: 'Direct Allocations',
+                    count: widget.investments.length,
+                    isSelected: _viewMode == 'DIRECT',
+                    onTap: () => setState(() => _viewMode = 'DIRECT'),
+                    isDark: isDark,
+                    isMobile: isMobile,
+                  ),
+                )
+              : _buildToggleTab(
+                  label: 'Direct Allocations',
+                  count: widget.investments.length,
+                  isSelected: _viewMode == 'DIRECT',
+                  onTap: () => setState(() => _viewMode = 'DIRECT'),
+                  isDark: isDark,
+                  isMobile: isMobile,
+                ),
+          const SizedBox(width: 4),
+          isMobile
+              ? Expanded(
+                  child: _buildToggleTab(
+                    label: 'Partner Investments',
+                    count: widget.partnerInvestments.length,
+                    isSelected: _viewMode == 'PARTNER',
+                    onTap: () => setState(() => _viewMode = 'PARTNER'),
+                    isDark: isDark,
+                    isMobile: isMobile,
+                  ),
+                )
+              : _buildToggleTab(
+                  label: 'Partner Investments',
+                  count: widget.partnerInvestments.length,
+                  isSelected: _viewMode == 'PARTNER',
+                  onTap: () => setState(() => _viewMode = 'PARTNER'),
+                  isDark: isDark,
+                  isMobile: isMobile,
+                ),
         ],
       ),
     );
@@ -317,13 +342,17 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     required bool isSelected,
     required VoidCallback onTap,
     required bool isDark,
+    required bool isMobile,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(9),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 8 : 18,
+          vertical: isMobile ? 9 : 10,
+        ),
         decoration: BoxDecoration(
           color: isSelected ? (isDark ? const Color(0xFF243B5B) : Colors.white) : Colors.transparent,
           borderRadius: BorderRadius.circular(9),
@@ -338,22 +367,26 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               : null,
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
           children: [
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected
-                    ? (isDark ? Colors.white : const Color(0xFF18314F))
-                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: isMobile ? 12 : 13,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF18314F))
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected
                     ? (isDark
@@ -367,7 +400,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               child: Text(
                 '$count',
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
+                  fontSize: isMobile ? 10.5 : 11.5,
                   fontWeight: FontWeight.w800,
                   color: isSelected
                       ? (isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary)
@@ -387,17 +420,17 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         children: [
           Row(
             children: [
-              Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark)),
+              Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
               const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark)),
+              Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
             ],
           ),
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+              Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
               const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark)),
+              Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark, isMobile)),
             ],
           ),
         ],
@@ -405,18 +438,18 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     }
     return Row(
       children: [
-        Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark)),
+        Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark)),
+        Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark)),
+        Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
         const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark)),
+        Expanded(child: _buildMetricCard('Pending Approvals', '$pendingCount pending', Icons.hourglass_top_rounded, const Color(0xFFF59E0B), isDark, isMobile)),
       ],
     );
   }
 
-  Widget _buildMetricCard(String label, String value, IconData icon, Color color, bool isDark) {
+  Widget _buildMetricCard(String label, String value, IconData icon, Color color, bool isDark, bool isMobile) {
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
     final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
     final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
@@ -426,20 +459,20 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       decoration: BoxDecoration(
         color: cardBg,
         border: Border.all(color: cardBorder, width: 1),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 16),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16, vertical: isMobile ? 12 : 14),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: isDark ? 0.2 : 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: color, size: 22),
+            child: Icon(icon, color: color, size: isMobile ? 18 : 22),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: isMobile ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,7 +481,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 Text(
                   label,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
+                    fontSize: isMobile ? 11 : 12,
                     fontWeight: FontWeight.w600,
                     color: hintText,
                   ),
@@ -458,7 +491,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 Text(
                   value,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
+                    fontSize: isMobile ? 15 : 18,
                     fontWeight: FontWeight.w800,
                     color: titleColor,
                   ),

@@ -123,12 +123,15 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         final invDate = (rMap['investment_date'] ?? '').toString();
 
         String? matchedBatchName;
+        String? matchedBatchId;
 
         // A. Direct batch_name / batch_id
         if (rMap['batch_name'] != null && rMap['batch_name'].toString().isNotEmpty) {
           matchedBatchName = _cleanBatchName(rMap['batch_name'].toString());
-        } else if (rMap['batch_id'] != null) {
-          matchedBatchName = batchesMap[rMap['batch_id'].toString()];
+        }
+        if (rMap['batch_id'] != null && rMap['batch_id'].toString().isNotEmpty) {
+          matchedBatchId = rMap['batch_id'].toString();
+          matchedBatchName ??= batchesMap[matchedBatchId];
         }
 
         // B. Auto-generated batch matching record UUID
@@ -137,6 +140,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             final bName = (b['batch_name'] ?? '').toString();
             if (bName.contains('($recId)')) {
               matchedBatchName = _cleanBatchName(bName);
+              matchedBatchId = (b['batch_id'] ?? b['id'])?.toString();
               break;
             }
           }
@@ -164,11 +168,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
           if (bestAssign != null) {
             final bId = (bestAssign['batch_id'] ?? '').toString();
+            matchedBatchId = bId;
             matchedBatchName = batchesMap[bId];
           }
         }
 
         rMap['batch_name'] = matchedBatchName ?? 'Unassigned';
+        rMap['batch_id'] = matchedBatchId;
         loaded.add(Investment.fromJson(rMap));
       }
 
