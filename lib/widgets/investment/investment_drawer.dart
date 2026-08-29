@@ -22,10 +22,10 @@ class InvestmentDrawer {
         ? (existingInvestment.hogRaiserId.isEmpty ? 'unassigned' : existingInvestment.hogRaiserId)
         : 'unassigned';
 
-    List<String> selectedHogTypes = ['Fattening'];
+    String selectedHogType = 'Fattening';
     if (isEdit && existingInvestment.hogType.isNotEmpty) {
-      final types = existingInvestment.hogType.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      if (types.isNotEmpty) selectedHogTypes = types;
+      final t = existingInvestment.hogType.split(RegExp(r'[,;]')).first.trim();
+      if (t.isNotEmpty) selectedHogType = t;
     }
 
     String? selectedBatchId = 'unassigned';
@@ -198,7 +198,7 @@ class InvestmentDrawer {
           final count = matched['hog_count'];
           if (count != null && count > 0) totalHogCtrl.text = count.toString();
           final pt = (matched['pig_type'] ?? 'Fattening').toString();
-          if (pt.isNotEmpty) selectedHogTypes = [pt];
+          if (pt.isNotEmpty) selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
         }
       }
     } catch (e) {
@@ -396,7 +396,7 @@ class InvestmentDrawer {
                                           final count = matched['hog_count'];
                                           if (count != null && count > 0) totalHogCtrl.text = count.toString();
                                           final pt = (matched['pig_type'] ?? 'Fattening').toString();
-                                          if (pt.isNotEmpty) selectedHogTypes = [pt];
+                                          if (pt.isNotEmpty) selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
                                         }
                                       });
                                     },
@@ -521,34 +521,23 @@ class InvestmentDrawer {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      _buildCheckbox(
-                                        title: 'Fattening',
-                                        isSelected: selectedHogTypes.contains('Fattening'),
-                                        isDark: isDark,
-                                        onChanged: (val) {
-                                          setDrawerState(() {
-                                            if (val == true) {
-                                              if (!selectedHogTypes.contains('Fattening')) selectedHogTypes.add('Fattening');
-                                            } else {
-                                              if (selectedHogTypes.length > 1) selectedHogTypes.remove('Fattening');
-                                            }
-                                          });
-                                        },
-                                      ),
                                       const SizedBox(height: 8),
-                                      _buildCheckbox(
-                                        title: 'Sow / Breeding',
-                                        isSelected: selectedHogTypes.contains('Sow / Breeding'),
-                                        isDark: isDark,
-                                        onChanged: (val) {
-                                          setDrawerState(() {
-                                            if (val == true) {
-                                              if (!selectedHogTypes.contains('Sow / Breeding')) selectedHogTypes.add('Sow / Breeding');
-                                            } else {
-                                              if (selectedHogTypes.length > 1) selectedHogTypes.remove('Sow / Breeding');
-                                            }
-                                          });
-                                        },
+                                      Row(
+                                        children: [
+                                          _buildRadioOption(
+                                            title: 'Fattening',
+                                            isSelected: selectedHogType == 'Fattening',
+                                            isDark: isDark,
+                                            onSelect: () => setDrawerState(() => selectedHogType = 'Fattening'),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          _buildRadioOption(
+                                            title: 'Sow / Breeding',
+                                            isSelected: selectedHogType == 'Sow / Breeding',
+                                            isDark: isDark,
+                                            onSelect: () => setDrawerState(() => selectedHogType = 'Sow / Breeding'),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -610,18 +599,7 @@ class InvestmentDrawer {
                                                       orElse: () => {'name': ''},
                                                     )['name'] ?? 'Unassigned');
 
-                                               final cleanTypes = selectedHogTypes
-                                                   .expand((s) => s.split(RegExp(r'[,;]')))
-                                                   .map((s) => s.trim())
-                                                   .where((s) =>
-                                                       s.isNotEmpty &&
-                                                       s.toUpperCase() != 'N/A' &&
-                                                       s.toLowerCase() != 'null' &&
-                                                       s.toUpperCase() != 'NONE' &&
-                                                       s.toUpperCase() != 'UNASSIGNED')
-                                                   .toSet()
-                                                   .toList();
-                                               final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.first : 'Fattening';
+                                               final hogTypeStr = selectedHogType.isNotEmpty ? selectedHogType : 'Fattening';
                                               final payload = {
                                                 'hog_raiser_id': isUnassigned ? '' : selectedRaiserId,
                                                 'raiser_name': raiserName,
@@ -703,36 +681,40 @@ class InvestmentDrawer {
     );
   }
 
-  static Widget _buildCheckbox({
+  static Widget _buildRadioOption({
     required String title,
     required bool isSelected,
     required bool isDark,
-    required ValueChanged<bool?> onChanged,
+    required VoidCallback onSelect,
   }) {
+    final activeColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final inactiveBorder = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+
     return InkWell(
-      onTap: () => onChanged(!isSelected),
+      onTap: onSelect,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Checkbox(
-              value: isSelected,
-              onChanged: onChanged,
-              activeColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-              checkColor: isDark ? const Color(0xFF132238) : Colors.white,
-              side: BorderSide(
-                color: isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096),
-                width: 1.5,
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? activeColor : inactiveBorder,
+                  width: isSelected ? 5.5 : 1.8,
+                ),
               ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
             ),
+            const SizedBox(width: 10),
             Text(
               title,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                 color: isDark ? Colors.white : const Color(0xFF18314F),
               ),
             ),

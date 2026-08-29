@@ -120,7 +120,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       // 3. Fetch assignments and batches
       List<dynamic> assignmentsRaw = [];
       try {
-        assignmentsRaw = await _supabase.from('assignments').select('assignment_id, id, batch_id, hog_raiser_id');
+        assignmentsRaw = await _supabase.from('assignments').select('assignment_id, batch_id, hog_raiser_id');
       } catch (_) {}
 
       List<dynamic> batchesRaw = [];

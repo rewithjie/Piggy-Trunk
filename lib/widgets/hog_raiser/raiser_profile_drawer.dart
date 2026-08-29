@@ -153,9 +153,12 @@ class RaiserProfileDrawer {
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
     final rawPigType = (row['pig_type'] ?? '').toString().trim();
-    final pigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A' || rawPigType.toUpperCase() == 'NONE')
-        ? 'Unassigned'
-        : rawPigType;
+    final cleanParts = rawPigType
+        .split(RegExp(r'[,;]'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
+        .toList();
+    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.first;
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -387,9 +390,12 @@ class RaiserProfileDrawer {
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
     final rawPigType = (row['pig_type'] ?? '').toString().trim();
-    final pigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A' || rawPigType.toUpperCase() == 'NONE')
-        ? 'Unassigned'
-        : rawPigType;
+    final cleanParts = rawPigType
+        .split(RegExp(r'[,;]'))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
+        .toList();
+    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.first;
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);

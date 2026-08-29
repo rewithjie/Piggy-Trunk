@@ -30,12 +30,12 @@ class Investment {
     final rawTotalHog = json['total_hog'];
 
     final rawHogType = (json['hog_type'] ?? '').toString();
-    final cleanHogType = rawHogType
-        .split(',')
+    final cleanList = rawHogType
+        .split(RegExp(r'[,;]'))
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toLowerCase() != 'null')
-        .join(', ');
-    final finalHogType = cleanHogType.isNotEmpty ? cleanHogType : 'Fattening';
+        .toList();
+    final finalHogType = cleanList.isNotEmpty ? cleanList.first : 'Fattening';
 
     return Investment(
       id: (json['id'] ?? '').toString(),

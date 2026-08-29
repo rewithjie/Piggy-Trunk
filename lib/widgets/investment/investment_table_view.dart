@@ -672,7 +672,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                   icon: Icon(
                     Icons.edit_outlined,
                     size: 19,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281),
+                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                   ),
                   tooltip: 'Edit investment',
                   padding: const EdgeInsets.all(6),

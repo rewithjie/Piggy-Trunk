@@ -467,7 +467,7 @@ class BatchTableView extends StatelessWidget {
                   icon: Icon(
                     Icons.visibility_outlined,
                     size: 18,
-                    color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                   ),
                   tooltip: 'View Details',
                   padding: EdgeInsets.zero,
@@ -479,7 +479,7 @@ class BatchTableView extends StatelessWidget {
                   icon: Icon(
                     Icons.edit_outlined,
                     size: 18,
-                    color: isDark ? const Color(0xFF9AB1CB) : const Color(0xFF4B6281),
+                    color: isDark ? Colors.white : const Color(0xFF4B6281),
                   ),
                   tooltip: 'Edit Batch',
                   padding: EdgeInsets.zero,

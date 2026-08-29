@@ -137,11 +137,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .toSet()
               .toList();
 
-          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.first;
           copy['pig_type'] = cleanedType;
 
-          // Auto-heal database record if duplicates or N/A was previously concatenated
-          if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.toUpperCase().contains('N/A'))) {
+          // Auto-heal database record if duplicates or concatenated types exist
+          if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.contains(';') || rawType.toUpperCase().contains('N/A'))) {
             _supabase
                 .from('hog_raisers')
                 .update({'pig_type': cleanedType})
@@ -240,7 +240,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 p.toUpperCase() != 'UNASSIGNED')
             .toSet()
             .toList();
-        copy['pig_type'] = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+        final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.first;
+        copy['pig_type'] = cleanedType;
+
+        if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.contains(';') || rawType.toUpperCase().contains('N/A'))) {
+          _supabase
+              .from('hog_raisers')
+              .update({'pig_type': cleanedType})
+              .eq('hog_raiser_id', copy['hog_raiser_id'])
+              .then((_) {})
+              .catchError((_) {});
+        }
         return copy;
       }).toList();
 
@@ -684,11 +694,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final raiser = _activeRaisersList[index];
                 final name = (raiser['name'] ?? 'Hog Raiser').toString();
                 final rawPigType = (raiser['pig_type'] ?? '').toString().trim();
-                final bool isUnassigned = rawPigType.isEmpty ||
-                    rawPigType.toUpperCase() == 'N/A' ||
-                    rawPigType.toUpperCase() == 'NONE' ||
-                    rawPigType.toUpperCase() == 'UNASSIGNED';
-                final String displayBadge = isUnassigned ? 'UNASSIGNED' : rawPigType.toUpperCase();
+                final cleanList = rawPigType
+                    .split(RegExp(r'[,;]'))
+                    .map((s) => s.trim())
+                    .where((s) =>
+                        s.isNotEmpty &&
+                        s.toUpperCase() != 'N/A' &&
+                        s.toLowerCase() != 'null' &&
+                        s.toUpperCase() != 'NONE' &&
+                        s.toUpperCase() != 'UNASSIGNED')
+                    .toList();
+                final bool isUnassigned = cleanList.isEmpty;
+                final singlePigType = cleanList.isNotEmpty ? cleanList.first : 'Unassigned';
+                final String displayBadge = isUnassigned ? 'UNASSIGNED' : singlePigType.toUpperCase();
                 final currentStage = isUnassigned ? 'Unassigned' : (raiser['lifecycle_stage'] ?? 'Booster').toString();
 
                 return Column(
