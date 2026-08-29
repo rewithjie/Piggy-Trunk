@@ -139,17 +139,24 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
       final Map<String, String> assignToBatchMap = {};
       final Map<String, String> assignToRaiserMap = {};
+      final Map<String, String> raiserToActiveBatchMap = {};
       for (var a in assignmentsRaw) {
         if (a is! Map) continue;
         final aId = (a['assignment_id'] ?? a['id'])?.toString() ?? '';
         final bId = a['batch_id']?.toString() ?? '';
         final rId = a['hog_raiser_id']?.toString() ?? '';
+        final status = (a['status'] ?? '').toString().toLowerCase();
         if (aId.isNotEmpty) {
           if (bId.isNotEmpty && batchNameMap.containsKey(bId)) {
             assignToBatchMap[aId] = batchNameMap[bId]!;
           }
           if (rId.isNotEmpty) {
             assignToRaiserMap[aId] = rId;
+          }
+        }
+        if (rId.isNotEmpty && bId.isNotEmpty && batchNameMap.containsKey(bId)) {
+          if (status == 'active' || !raiserToActiveBatchMap.containsKey(rId)) {
+            raiserToActiveBatchMap[rId] = batchNameMap[bId]!;
           }
         }
       }
@@ -173,9 +180,11 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           resolvedName = (rMap['raiser_name'] ?? '').toString().trim();
         }
 
-        String resolvedBatch = 'General Stock';
+        String resolvedBatch = 'Unassigned';
         if (aId.isNotEmpty && assignToBatchMap.containsKey(aId)) {
           resolvedBatch = assignToBatchMap[aId]!;
+        } else if (rId.isNotEmpty && raiserToActiveBatchMap.containsKey(rId)) {
+          resolvedBatch = raiserToActiveBatchMap[rId]!;
         }
 
         rMap['fetched_raiser_name'] = resolvedName;
@@ -413,8 +422,8 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               _tableHeaderCell('CATEGORY'),
                               _tableHeaderCell('FEED TYPE'),
                               _tableHeaderCell('QUANTITY'),
-                              _tableHeaderCell('STATUS'),
-                              _tableHeaderCell('ACTIONS'),
+                              _tableHeaderCell('STATUS', isCenter: true),
+                              _tableHeaderCell('ACTIONS', isCenter: true),
                             ],
                           ),
                           ...filteredRequests.map((req) => _buildRequestRow(req)),
@@ -430,11 +439,12 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     );
   }
 
-  Widget _tableHeaderCell(String label) {
+  Widget _tableHeaderCell(String label, {bool isCenter = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Text(
         label,
+        textAlign: isCenter ? TextAlign.center : TextAlign.start,
         style: GoogleFonts.plusJakartaSans(
           color: _titleColor,
           fontWeight: FontWeight.w800,
@@ -588,94 +598,98 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         ),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              status,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                color: statusFg,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                status,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  color: statusFg,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
         ),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => _showRequestDetailsModal(req),
-                icon: Icon(
-                  Icons.visibility_outlined,
-                  size: 14,
-                  color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                ),
-                label: Text(
-                  'Details',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showRequestDetailsModal(req),
+                  icon: Icon(
+                    Icons.visibility_outlined,
+                    size: 14,
                     color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                   ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC),
-                  ),
-                  backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
-                  minimumSize: const Size(78, 34),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              if (status == 'PENDING') ...[
-                const SizedBox(width: 6),
-                ElevatedButton(
-                  onPressed: _isProcessingRequest ? null : () => _showApproveDialog(req),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: PiggyTrunkTheme.ptSuccess,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(76, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Approve',
+                  label: Text(
+                    'Details',
                     style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w700,
                       fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                OutlinedButton(
-                  onPressed: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFEF4444),
-                    side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
-                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                    minimumSize: const Size(66, 34),
+                    side: BorderSide(
+                      color: _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC),
+                    ),
+                    backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                    minimumSize: const Size(78, 34),
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: Text(
-                    'Reject',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
+                ),
+                if (status == 'PENDING') ...[
+                  const SizedBox(width: 6),
+                  ElevatedButton(
+                    onPressed: _isProcessingRequest ? null : () => _showApproveDialog(req),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PiggyTrunkTheme.ptSuccess,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(76, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'Approve',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  OutlinedButton(
+                    onPressed: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFEF4444),
+                      side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
+                      backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      minimumSize: const Size(66, 34),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: Text(
+                      'Reject',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],

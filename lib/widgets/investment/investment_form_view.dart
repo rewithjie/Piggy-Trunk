@@ -32,7 +32,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
 
   String? _selectedRaiserId;
   String? _selectedBatchId;
-  String _selectedHogType = 'Fattening';
+  List<String> _selectedHogTypes = ['Fattening'];
 
   List<Map<String, dynamic>> _activeBatches = [];
   List<Map<String, dynamic>> _activeRaisers = [];
@@ -80,8 +80,14 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         : 'unassigned';
 
     if (_isEdit && widget.existingInvestment!.hogType.isNotEmpty) {
-      final t = widget.existingInvestment!.hogType.split(RegExp(r'[,;]')).first.trim();
-      if (t.isNotEmpty) _selectedHogType = t;
+      final types = widget.existingInvestment!.hogType
+          .split(RegExp(r'[,;]'))
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .map((s) => s.toLowerCase().contains('sow') || s.toLowerCase().contains('breed') ? 'Sow / Breeding' : 'Fattening')
+          .toSet()
+          .toList();
+      if (types.isNotEmpty) _selectedHogTypes = types;
     }
 
     _fetchDropdownData();
@@ -370,7 +376,11 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
               orElse: () => {'batch_name': 'Batch'},
             )['batch_name'] ?? 'Batch');
 
-      final hogTypeStr = _selectedHogType.isNotEmpty ? _selectedHogType : 'Fattening';
+      final cleanTypes = _selectedHogTypes
+          .map((s) => s.toLowerCase().contains('sow') || s.toLowerCase().contains('breed') ? 'Sow' : 'Fattening')
+          .toSet()
+          .toList();
+      final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.join(', ') : 'Fattening';
 
       // Strict 1-is-to-1 validation before saving
       if (!isRaiserUnassigned && !isBatchUnassigned && int.tryParse(_selectedRaiserId!) != null) {
@@ -532,16 +542,17 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
     }
   }
 
-  Widget _buildRadioOption({
+  Widget _buildCheckboxOption({
     required String title,
     required bool isSelected,
-    required VoidCallback onSelect,
+    required VoidCallback onToggle,
   }) {
     final activeColor = _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final checkColor = _isDark ? const Color(0xFF132238) : Colors.white;
     final inactiveBorder = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
     return InkWell(
-      onTap: onSelect,
+      onTap: onToggle,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -549,15 +560,23 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 18,
-              height: 18,
+              width: 19,
+              height: 19,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(5),
+                color: isSelected ? activeColor : Colors.transparent,
                 border: Border.all(
                   color: isSelected ? activeColor : inactiveBorder,
-                  width: isSelected ? 5.5 : 1.8,
+                  width: 1.8,
                 ),
               ),
+              child: isSelected
+                  ? Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: checkColor,
+                    )
+                  : null,
             ),
             const SizedBox(width: 10),
             Text(
@@ -793,7 +812,8 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                             }
                             final pt = (matched['pig_type'] ?? '').toString().trim();
                             if (pt.isNotEmpty && pt != 'N/A') {
-                              _selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
+                              final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
+                              if (parsed.isNotEmpty) _selectedHogTypes = parsed;
                             }
                           }
                         });
@@ -897,7 +917,8 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                             }
                             final pt = (matched['pig_type'] ?? 'Fattening').toString().trim();
                             if (pt.isNotEmpty && pt != 'N/A') {
-                              _selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
+                              final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
+                              if (parsed.isNotEmpty) _selectedHogTypes = parsed;
                             }
                           }
                         });
@@ -1033,15 +1054,31 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                       spacing: 24,
                       runSpacing: 10,
                       children: [
-                        _buildRadioOption(
+                        _buildCheckboxOption(
                           title: 'Fattening',
-                          isSelected: _selectedHogType == 'Fattening',
-                          onSelect: () => setState(() => _selectedHogType = 'Fattening'),
+                          isSelected: _selectedHogTypes.contains('Fattening'),
+                          onToggle: () {
+                            setState(() {
+                              if (_selectedHogTypes.contains('Fattening')) {
+                                if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Fattening');
+                              } else {
+                                _selectedHogTypes.add('Fattening');
+                              }
+                            });
+                          },
                         ),
-                        _buildRadioOption(
+                        _buildCheckboxOption(
                           title: 'Sow / Breeding',
-                          isSelected: _selectedHogType == 'Sow / Breeding',
-                          onSelect: () => setState(() => _selectedHogType = 'Sow / Breeding'),
+                          isSelected: _selectedHogTypes.contains('Sow / Breeding'),
+                          onToggle: () {
+                            setState(() {
+                              if (_selectedHogTypes.contains('Sow / Breeding')) {
+                                if (_selectedHogTypes.length > 1) _selectedHogTypes.remove('Sow / Breeding');
+                              } else {
+                                _selectedHogTypes.add('Sow / Breeding');
+                              }
+                            });
+                          },
                         ),
                       ],
                     ),

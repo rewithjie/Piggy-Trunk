@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import 'investment_detail_modal.dart';
 
 class InvestmentTableView extends StatefulWidget {
   final List<Investment> investments;
@@ -235,7 +236,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                           if (_viewMode == 'DIRECT') ...[
                             _buildTableHeader(isDark, cardBorder, hintText),
                             if (filteredDirect.isEmpty)
-                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, 'No direct investments found.')
+                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getDirectEmptyMessage())
                             else
                               ...List.generate(
                                 filteredDirect.length,
@@ -244,7 +245,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                           ] else ...[
                             _buildPartnerTableHeader(isDark, cardBorder, hintText),
                             if (filteredPartner.isEmpty)
-                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, 'No partner investment requests found.')
+                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getPartnerEmptyMessage())
                             else
                               ...List.generate(
                                 filteredPartner.length,
@@ -262,6 +263,44 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         ),
       ],
     );
+  }
+
+  String _getDirectEmptyMessage() {
+    final query = _searchCtrl.text.trim();
+    if (query.isNotEmpty) {
+      return 'No investments matching "$query" found.';
+    }
+    switch (_selectedStageFilter) {
+      case 'PENDING':
+        return 'No pending investments found.';
+      case 'ACTIVE':
+        return 'No active investments found.';
+      case 'COMPLETED':
+        return 'No completed investments found.';
+      case 'ARCHIVED':
+        return 'No archived investments found.';
+      default:
+        return 'No direct investments found.';
+    }
+  }
+
+  String _getPartnerEmptyMessage() {
+    final query = _searchCtrl.text.trim();
+    if (query.isNotEmpty) {
+      return 'No partner investments matching "$query" found.';
+    }
+    switch (_selectedStageFilter) {
+      case 'PENDING':
+        return 'No pending partner investments found.';
+      case 'ACTIVE':
+        return 'No active partner investments found.';
+      case 'COMPLETED':
+        return 'No completed partner investments found.';
+      case 'ARCHIVED':
+        return 'No archived partner investments found.';
+      default:
+        return 'No partner investments found.';
+    }
   }
 
   Widget _buildEmptyPlaceholder(double tableWidth, Color cardBorder, Color titleColor, String message) {
@@ -606,12 +645,12 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       child: Row(
         children: [
           Expanded(flex: 3, child: Text('HOG RAISER', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 3, child: Text('BATCH NAME', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 3, child: Text('BATCH ASSIGN', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('CAPITAL', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('HOG TYPE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('HEADS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('DATE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Center(child: Text('HEADS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText)))),
+          Expanded(flex: 2, child: Center(child: Text('DATE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText)))),
+          Expanded(flex: 2, child: Center(child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText)))),
         ],
       ),
     );
@@ -657,43 +696,53 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           ),
           Expanded(
             flex: 2,
-            child: Text('${inv.totalHog} heads', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: titleColor)),
+            child: Center(
+              child: Text('${inv.totalHog} heads', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: titleColor)),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text(_formatDate(inv.investmentDate), style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: hintText)),
+            child: Center(
+              child: Text(_formatDate(inv.investmentDate), style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: hintText)),
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.edit_outlined,
-                    size: 19,
-                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+            child: Center(
+              child: InkWell(
+                onTap: () => InvestmentDetailModal.show(context: context, investment: inv),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
+                      width: 1,
+                    ),
                   ),
-                  tooltip: 'Edit investment',
-                  padding: const EdgeInsets.all(6),
-                  constraints: const BoxConstraints(),
-                  splashRadius: 18,
-                  onPressed: () => widget.onEditInvestment(inv),
-                ),
-                const SizedBox(width: 14),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 19,
-                    color: Color(0xFFFF6B81),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.visibility_outlined,
+                        size: 14,
+                        color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Details',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-                  tooltip: 'Delete investment',
-                  padding: const EdgeInsets.all(6),
-                  constraints: const BoxConstraints(),
-                  splashRadius: 18,
-                  onPressed: () => widget.onDeleteInvestment(inv),
                 ),
-              ],
+              ),
             ),
           ),
         ],
@@ -826,22 +875,66 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 ),
                 if (isPending && investmentId != null) ...[
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 20, color: Color(0xFF10B981)),
-                    tooltip: 'Approve Investment',
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(),
-                    splashRadius: 16,
-                    onPressed: () => widget.onApprovePartnerInvestment?.call(investmentId),
+                  InkWell(
+                    onTap: () => widget.onApprovePartnerInvestment?.call(investmentId),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, size: 13, color: Color(0xFF10B981)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Approve',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.cancel_outlined, size: 20, color: Color(0xFFFF758C)),
-                    tooltip: 'Decline Investment',
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(),
-                    splashRadius: 16,
-                    onPressed: () => widget.onRejectPartnerInvestment?.call(investmentId),
+                  InkWell(
+                    onTap: () => widget.onRejectPartnerInvestment?.call(investmentId),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF758C).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: const Color(0xFFFF758C).withValues(alpha: 0.35),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cancel_outlined, size: 13, color: Color(0xFFFF758C)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Decline',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFFF758C),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ],

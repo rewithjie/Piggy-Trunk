@@ -179,7 +179,11 @@ class BatchTableView extends StatelessWidget {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'No batches found matching criteria.',
+                                      selectedStatusFilter == 'ACTIVE'
+                                          ? 'No active batches found.'
+                                          : (selectedStatusFilter == 'COMPLETED'
+                                              ? 'No completed batches found.'
+                                              : 'No batches found matching criteria.'),
                                       style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
                                     ),
                                     if (errorMessage != null) ...[
@@ -406,8 +410,8 @@ class BatchTableView extends StatelessWidget {
         children: [
           Expanded(flex: 4, child: Text('BATCH NAME / CODE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 3, child: Text('DATE CREATED', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('STATUS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 2, child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Center(child: Text('STATUS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText)))),
+          Expanded(flex: 2, child: Center(child: Text('ACTIONS', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText)))),
         ],
       ),
     );
@@ -449,10 +453,9 @@ class BatchTableView extends StatelessWidget {
           ),
           Expanded(
             flex: 2,
-            child: Align(
-              alignment: Alignment.centerLeft,
+            child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
                 child: Text(status, style: GoogleFonts.plusJakartaSans(color: statusFg, fontSize: 10.5, fontWeight: FontWeight.w800)),
               ),
@@ -460,45 +463,41 @@ class BatchTableView extends StatelessWidget {
           ),
           Expanded(
             flex: 2,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.visibility_outlined,
-                    size: 18,
-                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+            child: Center(
+              child: InkWell(
+                onTap: () => onViewDetails(batch),
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
+                      width: 1,
+                    ),
                   ),
-                  tooltip: 'View Details',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => onViewDetails(batch),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: Icon(
-                    Icons.edit_outlined,
-                    size: 18,
-                    color: isDark ? Colors.white : const Color(0xFF4B6281),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.visibility_outlined,
+                        size: 14,
+                        color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Details',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-                  tooltip: 'Edit Batch',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => onEditBatch(batch),
                 ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 18,
-                    color: Color(0xFFFF758C),
-                  ),
-                  tooltip: 'Delete Batch',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => onDeleteBatch(batch),
-                ),
-              ],
+              ),
             ),
           ),
         ],

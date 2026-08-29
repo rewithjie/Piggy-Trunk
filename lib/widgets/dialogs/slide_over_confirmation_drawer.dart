@@ -136,28 +136,28 @@ class SlideOverConfirmationDrawer extends StatelessWidget {
 
     switch (actionType) {
       case SlideOverActionType.danger:
-        actionAccent = const Color(0xFFEF4444);
-        actionLightBg = isDark ? const Color(0xFF450A0A) : const Color(0xFFFEE2E2);
+        actionAccent = isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent;
+        actionLightBg = (isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent).withValues(alpha: isDark ? 0.18 : 0.1);
         defaultIcon = Icons.warning_amber_rounded;
         break;
       case SlideOverActionType.success:
-        actionAccent = const Color(0xFF10B981);
-        actionLightBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFD1FAE5);
+        actionAccent = isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
+        actionLightBg = (isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess).withValues(alpha: isDark ? 0.18 : 0.1);
         defaultIcon = Icons.check_circle_outline_rounded;
         break;
       case SlideOverActionType.warning:
-        actionAccent = const Color(0xFFF59E0B);
-        actionLightBg = isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7);
+        actionAccent = isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress;
+        actionLightBg = (isDark ? PiggyTrunkTheme.ptInProgressDark : PiggyTrunkTheme.ptInProgress).withValues(alpha: isDark ? 0.18 : 0.1);
         defaultIcon = Icons.info_outline_rounded;
         break;
       case SlideOverActionType.info:
-        actionAccent = const Color(0xFF2563EB);
-        actionLightBg = isDark ? const Color(0xFF1E3A8A) : const Color(0xFFDBEAFE);
+        actionAccent = isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptPrimary;
+        actionLightBg = (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08);
         defaultIcon = Icons.help_outline_rounded;
         break;
       case SlideOverActionType.primary:
         actionAccent = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
-        actionLightBg = isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD);
+        actionLightBg = (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08);
         defaultIcon = Icons.archive_outlined;
         break;
     }

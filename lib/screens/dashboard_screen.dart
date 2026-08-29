@@ -124,7 +124,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             rawType = raiserInvestmentTypeMap[idStr]!;
           }
 
-          // Clean, filter, and deduplicate hog types (e.g. removes "N/A, Fattening, Fattening, Sow / Breeding")
           final cleanParts = rawType
               .split(RegExp(r'[,;]'))
               .map((p) => p.trim())
@@ -134,21 +133,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   p.toLowerCase() != 'null' &&
                   p.toUpperCase() != 'NONE' &&
                   p.toUpperCase() != 'UNASSIGNED')
+              .map((s) {
+                final l = s.toLowerCase();
+                if (l.contains('sow') || l.contains('breed')) return 'Sow';
+                if (l.contains('fatten')) return 'Fattening';
+                return s;
+              })
               .toSet()
               .toList();
 
-          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.first;
+          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
           copy['pig_type'] = cleanedType;
-
-          // Auto-heal database record if duplicates or concatenated types exist
-          if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.contains(';') || rawType.toUpperCase().contains('N/A'))) {
-            _supabase
-                .from('hog_raisers')
-                .update({'pig_type': cleanedType})
-                .eq('hog_raiser_id', copy['hog_raiser_id'])
-                .then((_) {})
-                .catchError((_) {});
-          }
 
           return copy;
         }).toList();
@@ -238,19 +233,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 p.toLowerCase() != 'null' &&
                 p.toUpperCase() != 'NONE' &&
                 p.toUpperCase() != 'UNASSIGNED')
+            .map((s) {
+              final l = s.toLowerCase();
+              if (l.contains('sow') || l.contains('breed')) return 'Sow';
+              if (l.contains('fatten')) return 'Fattening';
+              return s;
+            })
             .toSet()
             .toList();
-        final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.first;
+        final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
         copy['pig_type'] = cleanedType;
-
-        if (cleanParts.isNotEmpty && (rawType.contains(',') || rawType.contains(';') || rawType.toUpperCase().contains('N/A'))) {
-          _supabase
-              .from('hog_raisers')
-              .update({'pig_type': cleanedType})
-              .eq('hog_raiser_id', copy['hog_raiser_id'])
-              .then((_) {})
-              .catchError((_) {});
-        }
         return copy;
       }).toList();
 
@@ -703,10 +695,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         s.toLowerCase() != 'null' &&
                         s.toUpperCase() != 'NONE' &&
                         s.toUpperCase() != 'UNASSIGNED')
+                    .map((s) {
+                      final l = s.toLowerCase();
+                      if (l.contains('sow') || l.contains('breed')) return 'SOW';
+                      if (l.contains('fatten')) return 'FATTENING';
+                      return s.toUpperCase();
+                    })
+                    .toSet()
                     .toList();
                 final bool isUnassigned = cleanList.isEmpty;
-                final singlePigType = cleanList.isNotEmpty ? cleanList.first : 'Unassigned';
-                final String displayBadge = isUnassigned ? 'UNASSIGNED' : singlePigType.toUpperCase();
+                final String displayBadge = isUnassigned ? 'UNASSIGNED' : cleanList.join(', ');
                 final currentStage = isUnassigned ? 'Unassigned' : (raiser['lifecycle_stage'] ?? 'Booster').toString();
 
                 return Column(

@@ -354,7 +354,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
       title: 'Archive Hog Batch',
       message: 'Are you sure you want to archive "$batchName"?',
       confirmButtonText: 'Archive Batch',
-      actionType: SlideOverActionType.warning,
+      actionType: SlideOverActionType.danger,
       customIcon: Icons.archive_outlined,
     );
 

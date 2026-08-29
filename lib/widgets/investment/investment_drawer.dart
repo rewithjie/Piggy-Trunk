@@ -22,10 +22,16 @@ class InvestmentDrawer {
         ? (existingInvestment.hogRaiserId.isEmpty ? 'unassigned' : existingInvestment.hogRaiserId)
         : 'unassigned';
 
-    String selectedHogType = 'Fattening';
+    List<String> selectedHogTypes = ['Fattening'];
     if (isEdit && existingInvestment.hogType.isNotEmpty) {
-      final t = existingInvestment.hogType.split(RegExp(r'[,;]')).first.trim();
-      if (t.isNotEmpty) selectedHogType = t;
+      final types = existingInvestment.hogType
+          .split(RegExp(r'[,;]'))
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .map((s) => s.toLowerCase().contains('sow') || s.toLowerCase().contains('breed') ? 'Sow / Breeding' : 'Fattening')
+          .toSet()
+          .toList();
+      if (types.isNotEmpty) selectedHogTypes = types;
     }
 
     String? selectedBatchId = 'unassigned';
@@ -198,7 +204,10 @@ class InvestmentDrawer {
           final count = matched['hog_count'];
           if (count != null && count > 0) totalHogCtrl.text = count.toString();
           final pt = (matched['pig_type'] ?? 'Fattening').toString();
-          if (pt.isNotEmpty) selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
+          if (pt.isNotEmpty) {
+            final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
+            if (parsed.isNotEmpty) selectedHogTypes = parsed;
+          }
         }
       }
     } catch (e) {
@@ -396,7 +405,10 @@ class InvestmentDrawer {
                                           final count = matched['hog_count'];
                                           if (count != null && count > 0) totalHogCtrl.text = count.toString();
                                           final pt = (matched['pig_type'] ?? 'Fattening').toString();
-                                          if (pt.isNotEmpty) selectedHogType = pt.split(RegExp(r'[,;]')).first.trim();
+                                          if (pt.isNotEmpty) {
+                                            final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
+                                            if (parsed.isNotEmpty) selectedHogTypes = parsed;
+                                          }
                                         }
                                       });
                                     },
@@ -524,18 +536,34 @@ class InvestmentDrawer {
                                       const SizedBox(height: 8),
                                       Row(
                                         children: [
-                                          _buildRadioOption(
+                                          _buildCheckboxOption(
                                             title: 'Fattening',
-                                            isSelected: selectedHogType == 'Fattening',
+                                            isSelected: selectedHogTypes.contains('Fattening'),
                                             isDark: isDark,
-                                            onSelect: () => setDrawerState(() => selectedHogType = 'Fattening'),
+                                            onToggle: () {
+                                              setDrawerState(() {
+                                                if (selectedHogTypes.contains('Fattening')) {
+                                                  if (selectedHogTypes.length > 1) selectedHogTypes.remove('Fattening');
+                                                } else {
+                                                  selectedHogTypes.add('Fattening');
+                                                }
+                                              });
+                                            },
                                           ),
                                           const SizedBox(width: 16),
-                                          _buildRadioOption(
+                                          _buildCheckboxOption(
                                             title: 'Sow / Breeding',
-                                            isSelected: selectedHogType == 'Sow / Breeding',
+                                            isSelected: selectedHogTypes.contains('Sow / Breeding'),
                                             isDark: isDark,
-                                            onSelect: () => setDrawerState(() => selectedHogType = 'Sow / Breeding'),
+                                            onToggle: () {
+                                              setDrawerState(() {
+                                                if (selectedHogTypes.contains('Sow / Breeding')) {
+                                                  if (selectedHogTypes.length > 1) selectedHogTypes.remove('Sow / Breeding');
+                                                } else {
+                                                  selectedHogTypes.add('Sow / Breeding');
+                                                }
+                                              });
+                                            },
                                           ),
                                         ],
                                       ),
@@ -599,7 +627,11 @@ class InvestmentDrawer {
                                                       orElse: () => {'name': ''},
                                                     )['name'] ?? 'Unassigned');
 
-                                               final hogTypeStr = selectedHogType.isNotEmpty ? selectedHogType : 'Fattening';
+                                                final cleanTypes = selectedHogTypes
+                                                    .map((s) => s.toLowerCase().contains('sow') || s.toLowerCase().contains('breed') ? 'Sow' : 'Fattening')
+                                                    .toSet()
+                                                    .toList();
+                                                final hogTypeStr = cleanTypes.isNotEmpty ? cleanTypes.join(', ') : 'Fattening';
                                               final payload = {
                                                 'hog_raiser_id': isUnassigned ? '' : selectedRaiserId,
                                                 'raiser_name': raiserName,
@@ -681,17 +713,18 @@ class InvestmentDrawer {
     );
   }
 
-  static Widget _buildRadioOption({
+  static Widget _buildCheckboxOption({
     required String title,
     required bool isSelected,
     required bool isDark,
-    required VoidCallback onSelect,
+    required VoidCallback onToggle,
   }) {
     final activeColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final checkColor = isDark ? const Color(0xFF132238) : Colors.white;
     final inactiveBorder = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
     return InkWell(
-      onTap: onSelect,
+      onTap: onToggle,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
@@ -699,15 +732,23 @@ class InvestmentDrawer {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 18,
-              height: 18,
+              width: 19,
+              height: 19,
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(5),
+                color: isSelected ? activeColor : Colors.transparent,
                 border: Border.all(
                   color: isSelected ? activeColor : inactiveBorder,
-                  width: isSelected ? 5.5 : 1.8,
+                  width: 1.8,
                 ),
               ),
+              child: isSelected
+                  ? Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: checkColor,
+                    )
+                  : null,
             ),
             const SizedBox(width: 10),
             Text(

@@ -33,9 +33,21 @@ class Investment {
     final cleanList = rawHogType
         .split(RegExp(r'[,;]'))
         .map((s) => s.trim())
-        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toLowerCase() != 'null')
+        .where((s) =>
+            s.isNotEmpty &&
+            s.toUpperCase() != 'N/A' &&
+            s.toLowerCase() != 'null' &&
+            s.toUpperCase() != 'NONE' &&
+            s.toUpperCase() != 'UNASSIGNED')
+        .map((s) {
+          final l = s.toLowerCase();
+          if (l.contains('sow') || l.contains('breed')) return 'Sow';
+          if (l.contains('fatten')) return 'Fattening';
+          return s;
+        })
+        .toSet()
         .toList();
-    final finalHogType = cleanList.isNotEmpty ? cleanList.first : 'Fattening';
+    final finalHogType = cleanList.isNotEmpty ? cleanList.join(', ') : 'Fattening';
 
     return Investment(
       id: (json['id'] ?? '').toString(),

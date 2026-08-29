@@ -157,8 +157,15 @@ class RaiserProfileDrawer {
         .split(RegExp(r'[,;]'))
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
+        .map((s) {
+          final l = s.toLowerCase();
+          if (l.contains('sow') || l.contains('breed')) return 'Sow';
+          if (l.contains('fatten')) return 'Fattening';
+          return s;
+        })
+        .toSet()
         .toList();
-    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.first;
+    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.join(', ');
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -309,8 +316,8 @@ class RaiserProfileDrawer {
                             onDelete(row);
                           },
                           style: OutlinedButton.styleFrom(
-                            backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                            side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                            backgroundColor: (isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent).withValues(alpha: 0.1),
+                            side: BorderSide(color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent, width: 1.2),
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
@@ -319,7 +326,7 @@ class RaiserProfileDrawer {
                             style: AppTextStyles.jakarta(
                               size: 13,
                               weight: FontWeight.w800,
-                              color: const Color(0xFFDC2626),
+                              color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent,
                             ),
                           ),
                         ),
@@ -332,7 +339,7 @@ class RaiserProfileDrawer {
                             onApprove(row);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF16A34A),
+                            backgroundColor: isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -353,8 +360,8 @@ class RaiserProfileDrawer {
                         child: ElevatedButton(
                           onPressed: () => Navigator.pop(sheetContext),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: PiggyTrunkTheme.ptPrimary,
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                            foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             elevation: 0,
@@ -364,7 +371,7 @@ class RaiserProfileDrawer {
                             style: AppTextStyles.jakarta(
                               size: 13,
                               weight: FontWeight.w800,
-                              color: Colors.white,
+                              color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                             ),
                           ),
                         ),
@@ -394,8 +401,15 @@ class RaiserProfileDrawer {
         .split(RegExp(r'[,;]'))
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
+        .map((s) {
+          final l = s.toLowerCase();
+          if (l.contains('sow') || l.contains('breed')) return 'Sow';
+          if (l.contains('fatten')) return 'Fattening';
+          return s;
+        })
+        .toSet()
         .toList();
-    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.first;
+    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.join(', ');
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -573,8 +587,8 @@ class RaiserProfileDrawer {
                                     onDelete(row);
                                   },
                                   style: OutlinedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                                    side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                    backgroundColor: (isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent).withValues(alpha: 0.1),
+                                    side: BorderSide(color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent, width: 1.2),
                                     padding: const EdgeInsets.symmetric(vertical: 13),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
@@ -583,7 +597,7 @@ class RaiserProfileDrawer {
                                     style: AppTextStyles.jakarta(
                                       size: 13,
                                       weight: FontWeight.w800,
-                                      color: const Color(0xFFDC2626),
+                                      color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent,
                                     ),
                                   ),
                                 ),
@@ -596,7 +610,7 @@ class RaiserProfileDrawer {
                                     onApprove(row);
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF16A34A),
+                                    backgroundColor: isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess,
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(vertical: 13),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -617,8 +631,8 @@ class RaiserProfileDrawer {
                                 child: ElevatedButton(
                                   onPressed: () => Navigator.pop(dialogContext),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: PiggyTrunkTheme.ptPrimary,
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                    foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                     padding: const EdgeInsets.symmetric(vertical: 13),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     elevation: 0,
@@ -628,7 +642,7 @@ class RaiserProfileDrawer {
                                     style: AppTextStyles.jakarta(
                                       size: 13,
                                       weight: FontWeight.w800,
-                                      color: Colors.white,
+                                      color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                     ),
                                   ),
                                 ),

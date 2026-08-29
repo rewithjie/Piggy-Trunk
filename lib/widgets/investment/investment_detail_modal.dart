@@ -1,40 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 
-class BatchDetailDrawer {
+class InvestmentDetailModal {
   static void show({
     required BuildContext context,
-    required Map<String, dynamic> batch,
-    required VoidCallback onEdit,
-    required VoidCallback onArchive,
-    required VoidCallback onDelete,
+    required Investment investment,
   }) {
     final isMobile = MediaQuery.of(context).size.width < 720;
     if (isMobile) {
-      _showBottomSheet(context, batch, onEdit, onArchive, onDelete);
+      _showBottomSheet(context, investment);
     } else {
-      _showSideDrawer(context, batch, onEdit, onArchive, onDelete);
+      _showSideDrawer(context, investment);
     }
   }
 
-  static void _showBottomSheet(
-    BuildContext context,
-    Map<String, dynamic> batch,
-    VoidCallback onEdit,
-    VoidCallback onArchive,
-    VoidCallback onDelete,
-  ) {
+  static String _formatCurrency(double amount) {
+    final parts = amount.toStringAsFixed(0);
+    final formatted = parts.replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '₱$formatted';
+  }
+
+  static String _formatDate(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final monthName = months[date.month - 1];
+    return '$monthName ${date.day.toString().padLeft(2, '0')}, ${date.year}';
+  }
+
+  static void _showBottomSheet(BuildContext context, Investment inv) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
     final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
     final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
     final hintText = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
 
-    final batchName = batch['batch_name']?.toString() ?? 'Batch Details';
-    final raiserName = batch['raiser_name']?.toString() ?? 'Unassigned';
-    final dateCreated = batch['date_created']?.toString() ?? 'N/A';
-    final status = batch['status']?.toString().toUpperCase() ?? 'ACTIVE';
+    final batchName = (inv.batchName != null && inv.batchName!.isNotEmpty) ? inv.batchName! : 'Unassigned';
+    final stage = inv.stage.toUpperCase();
 
     showModalBottomSheet(
       context: context,
@@ -68,7 +73,7 @@ class BatchDetailDrawer {
                 child: Row(
                   children: [
                     Text(
-                      'Batch Details',
+                      'Investment Details',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
@@ -100,13 +105,19 @@ class BatchDetailDrawer {
                         ),
                         child: Column(
                           children: [
-                            _detailRow('Batch Name', batchName, hintText, titleColor),
+                            _detailRow('Hog Raiser', inv.raiserName, hintText, titleColor),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _detailRow('Assigned Raiser', raiserName, hintText, titleColor),
+                            _detailRow('Batch Assigned', batchName, hintText, isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _detailRow('Status', status, hintText, titleColor),
+                            _detailRow('Capital Amount', _formatCurrency(inv.initialCapital), hintText, const Color(0xFF43CB89)),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _detailRow('Date Created', dateCreated, hintText, titleColor),
+                            _detailRow('Hog Type', inv.hogType, hintText, titleColor),
+                            Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                            _detailRow('Total Hogs', '${inv.totalHog} heads', hintText, titleColor),
+                            Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                            _detailRow('Investment Date', _formatDate(inv.investmentDate), hintText, titleColor),
+                            Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                            _detailRow('Status / Stage', stage, hintText, titleColor),
                           ],
                         ),
                       ),
@@ -125,7 +136,7 @@ class BatchDetailDrawer {
                       backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                       foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
                     child: Text(
@@ -146,33 +157,32 @@ class BatchDetailDrawer {
     );
   }
 
-  static void _showSideDrawer(
-    BuildContext context,
-    Map<String, dynamic> batch,
-    VoidCallback onEdit,
-    VoidCallback onArchive,
-    VoidCallback onDelete,
-  ) {
+  static void _showSideDrawer(BuildContext context, Investment inv) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
     final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
     final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
     final hintText = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
 
-    final batchName = batch['batch_name']?.toString() ?? 'Batch Details';
-    final raiserName = batch['raiser_name']?.toString() ?? 'Unassigned';
-    final dateCreated = batch['date_created']?.toString() ?? 'N/A';
-    final status = batch['status']?.toString().toUpperCase() ?? 'ACTIVE';
+    final batchName = (inv.batchName != null && inv.batchName!.isNotEmpty) ? inv.batchName! : 'Unassigned';
+    final stage = inv.stage.toUpperCase();
 
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Batch Details',
-      barrierColor: Colors.black.withValues(alpha: 0.45),
+      barrierLabel: 'Investment Details',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       transitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) => const SizedBox.shrink(),
-      transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-        final curvedAnimation = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      pageBuilder: (dialogContext, anim1, anim2) {
+        return const SizedBox.shrink();
+      },
+      transitionBuilder: (dialogContext, anim, secondaryAnim, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(1.0, 0.0),
@@ -183,7 +193,7 @@ class BatchDetailDrawer {
             child: Material(
               color: Colors.transparent,
               child: Container(
-                width: 420,
+                width: 440,
                 height: double.infinity,
                 decoration: BoxDecoration(
                   color: cardBg,
@@ -203,8 +213,25 @@ class BatchDetailDrawer {
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                         child: Row(
                           children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.monetization_on_outlined,
+                                size: 18,
+                                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             Text(
-                              'Batch Profile',
+                              'Investment Details',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w800,
@@ -230,7 +257,7 @@ class BatchDetailDrawer {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(18),
                                 decoration: BoxDecoration(
                                   color: isDark ? const Color(0xFF1B2E48) : const Color(0xFFF6F9FD),
                                   borderRadius: BorderRadius.circular(14),
@@ -238,13 +265,19 @@ class BatchDetailDrawer {
                                 ),
                                 child: Column(
                                   children: [
-                                    _detailRow('Batch Name', batchName, hintText, titleColor),
+                                    _detailRow('Hog Raiser', inv.raiserName, hintText, titleColor),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _detailRow('Assigned Raiser', raiserName, hintText, titleColor),
+                                    _detailRow('Batch Assigned', batchName, hintText, isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _detailRow('Status', status, hintText, titleColor),
+                                    _detailRow('Capital Amount', _formatCurrency(inv.initialCapital), hintText, const Color(0xFF43CB89)),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _detailRow('Date Created', dateCreated, hintText, titleColor),
+                                    _detailRow('Hog Type', inv.hogType, hintText, titleColor),
+                                    Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                                    _detailRow('Total Hogs', '${inv.totalHog} heads', hintText, titleColor),
+                                    Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                                    _detailRow('Investment Date', _formatDate(inv.investmentDate), hintText, titleColor),
+                                    Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
+                                    _detailRow('Status / Stage', stage, hintText, titleColor),
                                   ],
                                 ),
                               ),
@@ -303,13 +336,13 @@ class BatchDetailDrawer {
               color: labelColor,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               value,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.end,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
+                fontSize: 13,
                 fontWeight: FontWeight.w700,
                 color: valueColor,
               ),

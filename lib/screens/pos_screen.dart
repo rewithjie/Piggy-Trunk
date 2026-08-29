@@ -611,22 +611,22 @@ class _POSScreenState extends State<POSScreen> {
                       padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 7, vertical: isMobile ? 3 : 3.5),
                       decoration: BoxDecoration(
                         color: isOutOfStock
-                            ? Colors.red.withValues(alpha: 0.18)
-                            : (product.units <= 5
-                                ? Colors.orange.withValues(alpha: 0.18)
+                            ? const Color(0x33FFAA00)
+                            : (product.units <= 10
+                                ? const Color(0x33FF758C)
                                 : const Color(0x3343CB89)),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         isOutOfStock
                             ? 'OUT OF STOCK'
-                            : (product.units <= 5 ? 'LOW STOCK' : 'IN STOCK'),
+                            : (product.units <= 10 ? 'LOW STOCK' : 'IN STOCK'),
                         style: AppTextStyles.jakarta(
                           size: isMobile ? 8.5 : 9.5,
                           weight: FontWeight.w800,
                           color: isOutOfStock
-                              ? Colors.redAccent
-                              : (product.units <= 5 ? Colors.orangeAccent : const Color(0xFF43CB89)),
+                              ? const Color(0xFFFFAA00)
+                              : (product.units <= 10 ? const Color(0xFFFF758C) : const Color(0xFF43CB89)),
                         ),
                       ),
                     ),
@@ -691,7 +691,7 @@ class _POSScreenState extends State<POSScreen> {
                                 style: AppTextStyles.jakarta(
                                   size: 12,
                                   weight: FontWeight.w700,
-                                  color: isOutOfStock ? Colors.redAccent : (product.units <= 5 ? Colors.orangeAccent : _text),
+                                  color: isOutOfStock ? const Color(0xFFFFAA00) : (product.units <= 10 ? const Color(0xFFFF758C) : _text),
                                 ),
                               ),
                             ],

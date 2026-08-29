@@ -69,12 +69,13 @@ class EditRaiserDrawer {
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (dialogContext, anim1, anim2) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final surfaceColor = isDark ? const Color(0xFF0F172A) : Colors.white;
-        final borderColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-        final titleTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
-        final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-        final fieldBgColor = isDark ? const Color(0xFF131F33) : const Color(0xFFF8FAFC);
-        final fieldBorderColor = isDark ? const Color(0xFF223552) : const Color(0xFFCBD5E1);
+        final surfaceColor = isDark ? const Color(0xFF132238) : Colors.white;
+        final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final titleTextColor = isDark ? Colors.white : const Color(0xFF18314F);
+        final mutedTextColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
+        final fieldBgColor = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF8FAFC);
+        final fieldBorderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final fieldFocusColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
 
         final screenWidth = MediaQuery.of(context).size.width;
         final isMobile = screenWidth < 600;
@@ -121,16 +122,16 @@ class EditRaiserDrawer {
                               Container(
                                 padding: const EdgeInsets.all(9),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF112240) : const Color(0xFFDBEAFE),
+                                  color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFBFDBFE),
+                                    color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
                                     width: 1,
                                   ),
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.edit_note_rounded,
-                                  color: Color(0xFF2563EB),
+                                  color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                   size: 22,
                                 ),
                               ),
@@ -167,9 +168,9 @@ class EditRaiserDrawer {
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF131F33) : const Color(0xFFF8FAFC),
+                                color: isDark ? const Color(0xFF1A2B44) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: isDark ? const Color(0xFF223552) : const Color(0xFFE2E8F0), width: 1),
+                                border: Border.all(color: borderColor, width: 1),
                               ),
                               child: Row(
                                 children: [
@@ -178,10 +179,10 @@ class EditRaiserDrawer {
                                     height: 44,
                                     clipBehavior: Clip.antiAlias,
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                      color: isDark ? const Color(0xFF132238) : Colors.white,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: isDark ? const Color(0xFF3B82F6).withValues(alpha: 0.6) : const Color(0xFF93C5FD),
+                                        color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                         width: 1.5,
                                       ),
                                     ),
@@ -197,7 +198,7 @@ class EditRaiserDrawer {
                                                 style: AppTextStyles.jakarta(
                                                   size: 15,
                                                   weight: FontWeight.w800,
-                                                  color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                                  color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                                 ),
                                               ),
                                             ),
@@ -208,7 +209,7 @@ class EditRaiserDrawer {
                                               style: AppTextStyles.jakarta(
                                                 size: 15,
                                                 weight: FontWeight.w800,
-                                                color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                               ),
                                             ),
                                           ),
@@ -258,17 +259,18 @@ class EditRaiserDrawer {
                             Text(
                               'Full Name',
                               style: AppTextStyles.jakarta(
-                                size: 12.5,
+                                size: 13,
                                 weight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                color: titleTextColor,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             TextField(
                               controller: nameCtrl,
+                              inputFormatters: const [CapitalizeWordsInputFormatter()],
                               style: AppTextStyles.body(titleTextColor),
                               decoration: InputDecoration(
-                                hintText: 'Enter raiser full name',
+                                hintText: 'Enter full name',
                                 hintStyle: AppTextStyles.body(mutedTextColor),
                                 prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: mutedTextColor),
                                 filled: true,
@@ -280,7 +282,7 @@ class EditRaiserDrawer {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                  borderSide: BorderSide(color: fieldFocusColor, width: 1.5),
                                 ),
                               ),
                             ),
@@ -290,12 +292,12 @@ class EditRaiserDrawer {
                             Text(
                               'Phone Number',
                               style: AppTextStyles.jakarta(
-                                size: 12.5,
+                                size: 13,
                                 weight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                color: titleTextColor,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             TextField(
                               controller: phoneCtrl,
                               keyboardType: TextInputType.phone,
@@ -317,33 +319,32 @@ class EditRaiserDrawer {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                  borderSide: BorderSide(color: fieldFocusColor, width: 1.5),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 18),
 
-                            // Address / Farm Location Field
+                            // Address Field
                             Text(
                               'Address / Farm Location',
                               style: AppTextStyles.jakarta(
-                                size: 12.5,
+                                size: 13,
                                 weight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                                color: titleTextColor,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             TextField(
                               controller: addressCtrl,
-                              maxLines: 3,
-                              textCapitalization: TextCapitalization.words,
+                              maxLines: 2,
                               inputFormatters: const [CapitalizeWordsInputFormatter()],
                               style: AppTextStyles.body(titleTextColor),
                               decoration: InputDecoration(
                                 hintText: 'Enter complete street address / barangay / municipality',
                                 hintStyle: AppTextStyles.body(mutedTextColor),
                                 prefixIcon: Padding(
-                                  padding: const EdgeInsets.only(bottom: 36),
+                                  padding: const EdgeInsets.only(bottom: 24),
                                   child: Icon(Icons.location_on_outlined, size: 18, color: mutedTextColor),
                                 ),
                                 filled: true,
@@ -355,7 +356,7 @@ class EditRaiserDrawer {
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                  borderSide: BorderSide(color: fieldFocusColor, width: 1.5),
                                 ),
                               ),
                             ),
@@ -380,10 +381,10 @@ class EditRaiserDrawer {
                             child: OutlinedButton(
                               onPressed: () => Navigator.pop(dialogContext),
                               style: OutlinedButton.styleFrom(
-                                backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                backgroundColor: isDark ? const Color(0xFF1E2D42) : Colors.white,
                                 foregroundColor: isDark ? Colors.white : const Color(0xFF334155),
                                 side: BorderSide(
-                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                  color: isDark ? const Color(0xFF28405D) : const Color(0xFFCBD5E1),
                                   width: 1,
                                 ),
                                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -429,21 +430,25 @@ class EditRaiserDrawer {
                                 }
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2563EB),
-                                foregroundColor: Colors.white,
+                                backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                 elevation: 0,
                                 padding: const EdgeInsets.symmetric(vertical: 13),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                              icon: Icon(
+                                Icons.check_rounded,
+                                size: 16,
+                                color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                              ),
                               label: Text(
                                 'Save Changes',
                                 style: AppTextStyles.jakarta(
                                   size: 13.5,
                                   weight: FontWeight.w700,
-                                  color: Colors.white,
+                                  color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                 ),
                               ),
                             ),

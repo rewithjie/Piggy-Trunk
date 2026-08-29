@@ -565,7 +565,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               const SizedBox(height: 18),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
+                  final tableWidth = constraints.maxWidth > 900 ? constraints.maxWidth : 900.0;
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
@@ -670,9 +670,8 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
+            flex: 3,
+            child: Center(
               child: Text('ACTIONS', style: AppTextStyles.tableHeader(_hintText)),
             ),
           ),
@@ -744,7 +743,9 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   decoration: BoxDecoration(
                     color: status == 'ACTIVE' 
                         ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15) 
-                        : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.15),
+                        : (status == 'SUSPENDED' 
+                            ? const Color(0xFFFF758C).withValues(alpha: 0.15)
+                            : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.15)),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -752,7 +753,9 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: status == 'ACTIVE' ? PiggyTrunkTheme.ptSuccess : PiggyTrunkTheme.ptAccent,
+                      color: status == 'ACTIVE' 
+                          ? PiggyTrunkTheme.ptSuccess 
+                          : (status == 'SUSPENDED' ? const Color(0xFFFF758C) : PiggyTrunkTheme.ptAccent),
                     ),
                   ),
                 ),
@@ -760,42 +763,192 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
             ),
           ),
           Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
+            flex: 3,
+            child: Center(
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    onPressed: () => _showUserDetails(row),
-                    icon: Icon(Icons.visibility_outlined, size: 20, color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF4B6281)),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    tooltip: 'View Details',
-                  ),
-                  const SizedBox(width: 10),
-                  if (status == 'PENDING') ...[
-                    IconButton(
-                      onPressed: () => _approveUser(userId, name, email: email, role: role),
-                      icon: const Icon(Icons.check_circle_outline_rounded, size: 21, color: PiggyTrunkTheme.ptSuccess),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Approve User',
+                  // View Action Button
+                  InkWell(
+                    onTap: () => _showUserDetails(row),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            size: 14,
+                            color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Details',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    IconButton(
-                      onPressed: () => _rejectUser(userId, name, email: email, role: role),
-                      icon: const Icon(Icons.cancel_outlined, size: 21, color: Color(0xFFFF758C)),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Reject Registration',
+                  ),
+                  const SizedBox(width: 8),
+
+                  if (status == 'PENDING') ...[
+                    // Approve Action Button
+                    InkWell(
+                      onTap: () => _approveUser(userId, name, email: email, role: role),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 14,
+                              color: PiggyTrunkTheme.ptSuccess,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Approve',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: PiggyTrunkTheme.ptSuccess,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Reject Action Button
+                    InkWell(
+                      onTap: () => _rejectUser(userId, name, email: email, role: role),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF758C).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFFFF758C).withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cancel_outlined,
+                              size: 14,
+                              color: Color(0xFFFF758C),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Reject',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFFF758C),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ] else if (status == 'ACTIVE')
-                    IconButton(
-                      onPressed: () => _suspendUser(userId, name, email: email, role: role),
-                      icon: const Icon(Icons.block_rounded, size: 20, color: Color(0xFFFF758C)),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Suspend User',
+                    // Suspend Action Button
+                    InkWell(
+                      onTap: () => _suspendUser(userId, name, email: email, role: role),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFF758C).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: const Color(0xFFFF758C).withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.block_rounded,
+                              size: 14,
+                              color: Color(0xFFFF758C),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Suspend',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFFF758C),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (status == 'SUSPENDED')
+                    // Activate Action Button
+                    InkWell(
+                      onTap: () => _approveUser(userId, name, email: email, role: role),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.lock_open_rounded,
+                              size: 14,
+                              color: PiggyTrunkTheme.ptSuccess,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Activate',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: PiggyTrunkTheme.ptSuccess,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                 ],
               ),

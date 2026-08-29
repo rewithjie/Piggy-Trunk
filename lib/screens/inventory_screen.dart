@@ -1043,9 +1043,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Widget _buildStockBadge(Product product, {bool isMobile = false}) {
-    final lowStock = product.units <= 10;
-    final bg = lowStock ? const Color(0x33FF758C) : const Color(0x3343CB89);
-    final fg = lowStock ? const Color(0xFFFF758C) : const Color(0xFF43CB89);
+    final isOutOfStock = product.units <= 0;
+    final lowStock = product.units > 0 && product.units <= 10;
+    final bg = isOutOfStock
+        ? const Color(0x33FFAA00)
+        : (lowStock ? const Color(0x33FF758C) : const Color(0x3343CB89));
+    final fg = isOutOfStock
+        ? const Color(0xFFFFAA00)
+        : (lowStock ? const Color(0xFFFF758C) : const Color(0xFF43CB89));
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: isMobile ? 3 : 6),
@@ -1054,7 +1059,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        lowStock ? 'LOW STOCK' : 'IN STOCK',
+        isOutOfStock
+            ? 'OUT OF STOCK'
+            : (lowStock ? 'LOW STOCK' : 'IN STOCK'),
         style: GoogleFonts.plusJakartaSans(
           color: fg,
           fontSize: isMobile ? 9 : 11,
@@ -1073,7 +1080,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ? 'Are you sure you want to restore "${product.name}" back to active inventory?'
           : 'Are you sure you want to archive "${product.name}"? It will be hidden from active inventory.',
       confirmButtonText: isRestore ? 'Restore Product' : 'Archive Product',
-      actionType: isRestore ? SlideOverActionType.success : SlideOverActionType.primary,
+      actionType: isRestore ? SlideOverActionType.success : SlideOverActionType.danger,
       customIcon: isRestore ? Icons.unarchive_outlined : Icons.archive_outlined,
     );
 
