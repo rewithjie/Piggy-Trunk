@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/raiser_empty_state.dart';
 
 class RaiserHogsTab extends StatefulWidget {
@@ -15,6 +16,7 @@ class RaiserHogsTab extends StatefulWidget {
   final Function(int notificationId) onMarkNotificationAsRead;
   final VoidCallback onMarkAllRead;
   final Future<void> Function(BigInt hogId, String reportType, String notes) onSubmitHogReport;
+  final Function(String targetStage)? onUpdateLifecycleStage;
 
   const RaiserHogsTab({
     super.key,
@@ -29,6 +31,7 @@ class RaiserHogsTab extends StatefulWidget {
     required this.onMarkNotificationAsRead,
     required this.onMarkAllRead,
     required this.onSubmitHogReport,
+    this.onUpdateLifecycleStage,
   });
 
   @override
@@ -38,7 +41,6 @@ class RaiserHogsTab extends StatefulWidget {
 class _RaiserHogsTabState extends State<RaiserHogsTab> {
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _successGreen = Color(0xFF10B981);
-  static const Color _warningAmber = Color(0xFFF59E0B);
   static const Color _dangerRed = Color(0xFFEF4444);
 
   String _selectedTab = 'Hogs'; // 'Hogs' or 'Reports'
@@ -83,8 +85,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
             final isDark = Theme.of(ctx).brightness == Brightness.dark;
-            final bg = isDark ? const Color(0xFF132238) : Colors.white;
+            final bg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
             final textColor = isDark ? Colors.white : _brandColor;
+            final inputBg = isDark ? const Color(0xFF1E2D42) : const Color(0xFFF8FAFC);
+            final inputBorder = isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0);
+            final dropdownBg = isDark ? const Color(0xFF1E2D42) : Colors.white;
 
             return Container(
               decoration: BoxDecoration(
@@ -92,7 +97,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
                     blurRadius: 20,
                     offset: const Offset(0, -4),
                   ),
@@ -116,7 +121,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         height: 4,
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -128,7 +133,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: const Icon(Icons.medical_services_rounded, color: _dangerRed, size: 22),
@@ -151,7 +156,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                 'Mag-report ng obserbasyon sa kalusugan ng baboy',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -159,7 +164,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                          icon: Icon(Icons.close_rounded, color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF64748B)),
                           onPressed: () => Navigator.pop(modalCtx),
                         ),
                       ],
@@ -181,15 +186,15 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: inputBg,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(color: inputBorder),
                             ),
                             child: Text(
                               'Walang nakatalagang baboy sa kasalukuyan.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                color: PiggyTrunkTheme.ptMuted,
+                                color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -197,25 +202,25 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         : DropdownButtonFormField<BigInt>(
                             initialValue: selectedHogId,
                             isExpanded: true,
-                            dropdownColor: Colors.white,
+                            dropdownColor: dropdownBg,
                             borderRadius: BorderRadius.circular(14),
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _brandColor),
+                            icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white70 : _brandColor),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
-                              color: _brandColor,
+                              color: textColor,
                               fontWeight: FontWeight.w600,
                             ),
                             decoration: InputDecoration(
-                              fillColor: const Color(0xFFF8FAFC),
+                              fillColor: inputBg,
                               filled: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: BorderSide(color: inputBorder),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                borderSide: BorderSide(color: inputBorder),
                               ),
                             ),
                             items: List.generate(filteredHogs.length, (index) {
@@ -248,25 +253,25 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                     DropdownButtonFormField<String>(
                       initialValue: selectedReportType,
                       isExpanded: true,
-                      dropdownColor: Colors.white,
+                      dropdownColor: dropdownBg,
                       borderRadius: BorderRadius.circular(14),
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _brandColor),
+                      icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white70 : _brandColor),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
-                        color: _brandColor,
+                        color: textColor,
                         fontWeight: FontWeight.w600,
                       ),
                       decoration: InputDecoration(
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: inputBg,
                         filled: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: BorderSide(color: inputBorder),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: BorderSide(color: inputBorder),
                         ),
                       ),
                       items: const [
@@ -300,19 +305,19 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       controller: notesController,
                       maxLines: 3,
                       textCapitalization: TextCapitalization.sentences,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandColor),
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: textColor),
                       decoration: InputDecoration(
                         hintText: 'Isulat ang obserbasyon sa baboy...',
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: PiggyTrunkTheme.ptMuted),
-                        fillColor: const Color(0xFFF8FAFC),
+                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted),
+                        fillColor: inputBg,
                         filled: true,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: BorderSide(color: inputBorder),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          borderSide: BorderSide(color: inputBorder),
                         ),
                       ),
                     ),
@@ -326,13 +331,13 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                             onPressed: () => Navigator.pop(modalCtx),
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              side: BorderSide(color: isDark ? const Color(0xFF3B506D) : const Color(0xFFCBD5E1)),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
                             child: Text(
                               'Kanselahin',
                               style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFF64748B),
+                                color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF64748B),
                                 fontWeight: FontWeight.w700,
                                 fontSize: 14,
                               ),
@@ -354,8 +359,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                     );
                                   },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _brandColor,
-                              foregroundColor: Colors.white,
+                              backgroundColor: isDark ? Colors.white : _brandColor,
+                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -363,7 +368,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                             child: Text(
                               'I-submit ang Ulat',
                               style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
                               ),
@@ -386,6 +390,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _brandColor;
+    final strings = AppStrings.of(context);
 
     final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
     final bool hasInvestment = widget.investedAmount > 0;
@@ -399,18 +404,18 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
 
     final String assignedType = (hasActiveBatch && widget.activeAssignments[0]['hog_types']?['type_name'] != null)
         ? widget.activeAssignments[0]['hog_types']['type_name'].toString()
-        : (isRaiserTypeSet ? rawPigType : 'Unassigned');
+        : (isRaiserTypeSet ? rawPigType : strings.unassigned);
 
     final String displayPigType = isFundedAndActive
         ? (assignedType.toLowerCase() == 'sow' ? 'Sow' : 'Fattening')
-        : 'Unassigned';
+        : strings.unassigned;
 
     final String rawStage = (widget.raiserData['lifecycle_stage'] ?? '').toString().trim();
     final String activeStage = (rawStage.isNotEmpty && rawStage != 'N/A' && rawStage != 'None' && rawStage.toLowerCase() != 'unassigned')
         ? rawStage
         : (hasActiveBatch ? (widget.activeAssignments[0]['lifecycle_stage'] ?? 'Booster').toString() : 'Booster');
 
-    final String displayStage = isFundedAndActive ? activeStage : 'Unassigned';
+    final String displayStage = isFundedAndActive ? activeStage : strings.unassigned;
 
     final int totalHogs = widget.hogsList.length;
     final int sickHogsCount = widget.hogsList.where((h) {
@@ -432,11 +437,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
             Row(
               children: [
                 Expanded(
-                  child: _buildFilterChip('Hogs', 'Mga Alaga', totalHogs),
+                  child: _buildFilterChip('Hogs', strings.isFilipino ? 'Mga Baboy' : 'My Hogs', totalHogs),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _buildFilterChip('Reports', 'Health Reports', widget.reportsList.length, color: _dangerRed),
+                  child: _buildFilterChip('Reports', strings.isFilipino ? 'Mga Ulat' : 'Health Reports', widget.reportsList.length, color: _dangerRed),
                 ),
               ],
             ),
@@ -458,7 +463,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       const Icon(Icons.assignment_late_outlined, size: 40, color: Color(0xFFA0AEC0)),
                       const SizedBox(height: 12),
                       Text(
-                        'Walang nakatalagang alagang baboy.',
+                        strings.isFilipino ? 'Walang nakatalagang alagang baboy.' : 'No hogs assigned yet.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -467,7 +472,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'I-aassign ng Farm Admin ang iyong batch dito.',
+                        strings.isFilipino ? 'I-aassign ng Farm Admin ang iyong batch dito.' : 'Farm Admin will assign your batch here.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.8),
@@ -480,7 +485,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
             ] else ...[
               // ==================== FEEDS STAGES TIMELINE CARD ====================
               _buildFeedsCard(
-                title: 'Feeds Stages',
+                title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
                 badgeText: displayPigType,
                 stages: (isFundedAndActive && displayPigType == 'Sow')
                     ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
@@ -495,7 +500,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Listahan ng Alaga',
+                      strings.isFilipino ? 'Listahan ng Alaga' : 'Hogs Inventory',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -503,7 +508,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       ),
                     ),
                     Text(
-                      '$totalHogs Heads ($healthyHogsCount Healthy)',
+                      '$totalHogs ${strings.hogs} ($healthyHogsCount ${strings.healthy})',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -517,8 +522,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 if (widget.hogsList.isEmpty) ...[
                   RaiserEmptyState(
                     icon: Icons.pets_outlined,
-                    message: 'Walang alagang baboy sa listahan.',
-                    subtitle: 'Ang mga nakatalagang baboy mula kay Admin ay lalabas dito.',
+                    message: strings.noHogsFound,
+                    subtitle: strings.noHogsSubtitle,
                   ),
                 ] else ...[
                   ...widget.hogsList.asMap().entries.map((entry) {
@@ -530,97 +535,100 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                     final tagNumber = hog['tag_number'] ?? '#${index + 1}';
                     final weight = hog['current_weight'] != null ? '${hog['current_weight']} kg' : null;
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: PiggyTrunkTheme.ptBorder),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: isHealthy ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
-                              borderRadius: BorderRadius.circular(12),
+                    return GestureDetector(
+                      onTap: () => _showAddReportDialog(context, hogId),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
-                            child: Icon(
-                              Icons.pets_rounded,
-                              color: isHealthy ? _successGreen : _warningAmber,
-                              size: 22,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Hog $tagNumber',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: _brandColor,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  weight != null ? 'Timbang: $weight' : 'Walang tala ng timbang',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    color: PiggyTrunkTheme.ptMuted,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () => _showAddReportDialog(context, hogId),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
                               decoration: BoxDecoration(
-                                color: isHealthy ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                color: isHealthy
+                                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
+                                    : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isHealthy
-                                      ? _successGreen.withValues(alpha: 0.3)
-                                      : _dangerRed.withValues(alpha: 0.3),
-                                ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
+                              child: Icon(
+                                Icons.pets_rounded,
+                                color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                                size: 22,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    isHealthy ? Icons.check_circle_outline_rounded : Icons.report_problem_rounded,
-                                    size: 13,
-                                    color: isHealthy ? _successGreen : _dangerRed,
-                                  ),
-                                  const SizedBox(width: 4),
                                   Text(
-                                    isHealthy ? 'HEALTHY' : rawStatus.toUpperCase(),
+                                    'Hog $tagNumber',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: isHealthy ? _successGreen : _dangerRed,
-                                      letterSpacing: 0.3,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    weight ?? (strings.isFilipino ? 'Walang tala ng timbang' : 'No weight recorded'),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      color: PiggyTrunkTheme.ptMuted,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isHealthy
+                                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
+                                    : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isHealthy ? Icons.check_circle_outline : Icons.error_outline,
+                                    size: 14,
+                                    color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    rawStatus.toUpperCase(),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 14,
+                              color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFFCBD5E1),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   }),
@@ -631,7 +639,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Health Reports Activity',
+                      strings.healthReportsActivity,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -643,11 +651,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: _brandColor,
+                          color: isDark ? Colors.white : _brandColor,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: _brandColor.withValues(alpha: 0.25),
+                              color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.25),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -656,14 +664,14 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                            Icon(Icons.add_rounded, size: 16, color: isDark ? const Color(0xFF0F172A) : Colors.white),
                             const SizedBox(width: 5),
                             Text(
-                              'Add Report',
+                              strings.addReportButton,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: isDark ? const Color(0xFF0F172A) : Colors.white,
                               ),
                             ),
                           ],
@@ -677,8 +685,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 if (widget.reportsList.isEmpty) ...[
                   RaiserEmptyState(
                     icon: Icons.health_and_safety_outlined,
-                    message: 'Walang naitalang ulat sa kalusugan.',
-                    subtitle: 'Lahat ng baboy ay malusog. Pindutin ang "+ Add Report" kung may obserbasyong medikal.',
+                    message: strings.noHealthReports,
+                    subtitle: strings.noHealthReportsSubtitle,
                   ),
                 ] else ...[
                   ...widget.reportsList.map((report) {
@@ -690,12 +698,12 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                        border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
+                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -710,7 +718,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                 width: 42,
                                 height: 42,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFEF2F2),
+                                  color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
@@ -729,7 +737,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w700,
-                                        color: _brandColor,
+                                        color: textColor,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
@@ -737,7 +745,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                       timeAgo,
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 11.5,
-                                        color: PiggyTrunkTheme.ptMuted,
+                                        color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -752,15 +760,15 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                               width: double.infinity,
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                               ),
                               child: Text(
                                 notes,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -780,29 +788,36 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   }
 
   Widget _buildFilterChip(String key, String label, int count, {Color? color}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedTab == key;
+    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedTab = key),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : Colors.white,
+          color: isSelected ? selectedBg : inactiveBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
+            color: isSelected ? selectedBg : inactiveBorder,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _brandColor.withValues(alpha: 0.22),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.22),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -817,7 +832,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : _brandColor,
+                color: isSelected ? selectedText : inactiveText,
               ),
             ),
             const SizedBox(width: 6),
@@ -825,8 +840,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withValues(alpha: 0.22)
-                    : (color?.withValues(alpha: 0.12) ?? PiggyTrunkTheme.ptBg),
+                    ? (isDark ? const Color(0xFF0F172A).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.22))
+                    : (color?.withValues(alpha: isDark ? 0.2 : 0.12) ?? (isDark ? const Color(0xFF1E293B) : PiggyTrunkTheme.ptBg)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -834,7 +849,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : (color ?? _brandColor),
+                  color: isSelected ? selectedText : (color ?? inactiveText),
                 ),
               ),
             ),
@@ -850,17 +865,22 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     required List<String> stages,
     required String activeStage,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isUnassigned = badgeText.toLowerCase() == 'unassigned';
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -877,22 +897,28 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: _brandColor,
+                  color: textColor,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isUnassigned ? const Color(0xFFF1F5F9) : const Color(0xFFEFF6FF),
+                  color: isUnassigned
+                      ? (isDark ? const Color(0xFF1E2D42) : const Color(0xFFF1F5F9))
+                      : (isDark ? const Color(0xFF1E2D42) : const Color(0xFFEFF6FF)),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isUnassigned ? const Color(0xFFE2E8F0) : const Color(0xFFDBEAFE)),
+                  border: Border.all(
+                    color: isUnassigned
+                        ? (isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0))
+                        : (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFDBEAFE)),
+                  ),
                 ),
                 child: Text(
                   badgeText,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isUnassigned ? const Color(0xFF64748B) : const Color(0xFF2563EB),
+                    color: isUnassigned ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)) : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)),
                   ),
                 ),
               ),
@@ -906,6 +932,10 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   }
 
   Widget _buildTimeline(List<String> stages, String activeStage) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
+    final bool hasInvestment = widget.investedAmount > 0;
+    final bool isFundedAndActive = hasActiveBatch && hasInvestment;
     final bool isUnassigned = activeStage.toLowerCase() == 'unassigned';
     int activeIndex = isUnassigned
         ? -1
@@ -919,18 +949,19 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
         return Stack(
           alignment: Alignment.topCenter,
           children: [
+            // Connecting line
             Positioned(
               top: 16,
               left: stepWidth / 2,
               right: stepWidth / 2,
               child: Row(
                 children: List.generate(stages.length - 1, (index) {
-                  final isPassed = activeIndex >= 0 && index < activeIndex;
+                  final isPassed = index < activeIndex;
                   return Expanded(
                     child: Container(
                       height: 3,
                       decoration: BoxDecoration(
-                        color: isPassed ? _successGreen : const Color(0xFFE2E8F0),
+                        color: isPassed ? _successGreen : (isDark ? const Color(0xFF334A66) : const Color(0xFFE2E8F0)),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -938,67 +969,169 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 }),
               ),
             ),
+
+            // Nodes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(stages.length, (index) {
-                final isPassed = activeIndex >= 0 && index < activeIndex;
-                final isActive = activeIndex >= 0 && index == activeIndex;
+                final isPassed = index < activeIndex;
+                final isActive = index == activeIndex;
 
                 Color circleColor;
                 Widget iconWidget;
+                BoxBorder? nodeBorder;
 
                 if (isPassed) {
                   circleColor = _successGreen;
-                  iconWidget = const Icon(Icons.check_rounded, size: 15, color: Colors.white);
+                  iconWidget = const Icon(Icons.check_rounded, size: 16, color: Colors.white);
                 } else if (isActive) {
-                  circleColor = _brandColor;
-                  iconWidget = const Icon(Icons.priority_high_rounded, size: 17, color: Colors.white);
+                  circleColor = isDark ? Colors.white : _brandColor;
+                  iconWidget = Icon(
+                    Icons.priority_high_rounded,
+                    size: 18,
+                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  );
                 } else {
-                  circleColor = const Color(0xFFF1F5F9);
-                  iconWidget = const Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFFA0AEC0));
+                  circleColor = isDark ? const Color(0xFF1E2D42) : const Color(0xFFF1F5F9);
+                  nodeBorder = isDark ? Border.all(color: const Color(0xFF3B506D), width: 1.2) : null;
+                  iconWidget = Icon(
+                    Icons.lock_outline_rounded,
+                    size: 13,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFA0AEC0),
+                  );
                 }
 
-                return SizedBox(
-                  width: stepWidth,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: isActive ? 34 : 30,
-                        height: isActive ? 34 : 30,
-                        decoration: BoxDecoration(
-                          color: circleColor,
-                          shape: BoxShape.circle,
-                          boxShadow: isActive
-                              ? [
-                                  BoxShadow(
-                                    color: _brandColor.withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ]
-                              : null,
+                final isFuture = !hasInvestment || index > activeIndex;
+
+                return GestureDetector(
+                  onTap: () {
+                    if (isFundedAndActive && isFuture) {
+                      _showStageProgressionDialog(context, stages[index]);
+                    }
+                  },
+                  child: SizedBox(
+                    width: stepWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: isActive ? 34 : 30,
+                          height: isActive ? 34 : 30,
+                          decoration: BoxDecoration(
+                            color: circleColor,
+                            shape: BoxShape.circle,
+                            border: nodeBorder,
+                            boxShadow: isActive
+                                ? [
+                                    BoxShadow(
+                                      color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.35 : 0.3),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Center(child: iconWidget),
                         ),
-                        child: Center(child: iconWidget),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        stages[index],
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: isActive ? FontWeight.w800 : (isPassed ? FontWeight.w700 : FontWeight.w500),
-                          color: isActive
-                              ? _brandColor
-                              : (isPassed ? _successGreen : const Color(0xFFA0AEC0)),
+                        const SizedBox(height: 8),
+                        Text(
+                          stages[index],
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            fontWeight: isActive ? FontWeight.w800 : (isPassed ? FontWeight.w700 : FontWeight.w600),
+                            color: isActive
+                                ? (isDark ? Colors.white : _brandColor)
+                                : (isPassed ? _successGreen : (isDark ? const Color(0xFF94A3B8) : const Color(0xFFA0AEC0))),
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               }),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showStageProgressionDialog(BuildContext context, String targetStage) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Stage Progression',
+            style: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w800,
+              fontSize: 18,
+              color: isDark ? Colors.white : _brandColor,
+            ),
+          ),
+          content: Text(
+            'Nais mo bang i-advance ang growth stage ng batch patungong $targetStage?',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      'Kanselahin',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      if (widget.onUpdateLifecycleStage != null) {
+                        widget.onUpdateLifecycleStage!(targetStage);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : _brandColor,
+                      foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      'Kumpirmahin',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );

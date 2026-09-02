@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../services/locale_provider.dart';
+import '../../../utils/app_strings.dart';
 
 class RaiserProfileTab extends StatelessWidget {
   final Map<String, dynamic> raiserData;
@@ -24,26 +26,44 @@ class RaiserProfileTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : _brandColor;
+    final cardColor = isDark ? const Color(0xFF1B2638) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF28354A) : PiggyTrunkTheme.ptBorder;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final labelColor = isDark ? Colors.white : _brandColor;
+    final strings = AppStrings.of(context);
+    final settingsProvider = SettingsProvider.of(context);
+    final currentLocale = settingsProvider?.currentLocale ?? 'en';
+    final currentThemeMode = settingsProvider?.themeMode ?? ThemeMode.light;
 
     final name = (raiserData['name'] ?? '').toString().trim().isNotEmpty
         ? (raiserData['name'] as String)
-        : 'Hog Raiser';
+        : strings.hogRaiserRole;
     final email = (raiserData['email'] ?? '').toString().trim().isNotEmpty
         ? (raiserData['email'] as String)
         : 'N/A';
     final phone = (raiserData['phone'] != null && raiserData['phone'] != 'N/A' && raiserData['phone'].toString().trim().isNotEmpty)
         ? raiserData['phone'].toString()
-        : 'Not set';
+        : strings.notSet;
     final address = (raiserData['address'] != null && raiserData['address'] != 'N/A' && raiserData['address'].toString().trim().isNotEmpty)
         ? raiserData['address'].toString()
-        : 'Not set';
+        : strings.notSet;
     final type = (raiserData['pig_type'] != null && raiserData['pig_type'] != 'N/A' && raiserData['pig_type'] != 'None')
         ? raiserData['pig_type'].toString()
-        : 'Unassigned';
+        : strings.unassigned;
     final stage = (raiserData['lifecycle_stage'] != null && raiserData['lifecycle_stage'] != 'N/A' && raiserData['lifecycle_stage'] != 'None')
         ? raiserData['lifecycle_stage'].toString()
-        : 'Not set';
-    final avatarUrl = raiserData['avatar_url'] as String?;
+        : strings.notSet;
+    final rawAvatar = raiserData['avatar_url'] as String?;
+    final avatarUrl = (rawAvatar != null &&
+            rawAvatar.trim().isNotEmpty &&
+            rawAvatar.trim() != 'N/A' &&
+            rawAvatar.trim() != 'null' &&
+            !rawAvatar.toLowerCase().contains('googleusercontent.com') &&
+            !rawAvatar.toLowerCase().contains('ggpht.com') &&
+            !rawAvatar.toLowerCase().contains('google.com') &&
+            !rawAvatar.toLowerCase().contains('graph.facebook.com'))
+        ? rawAvatar.trim()
+        : null;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -64,8 +84,8 @@ class RaiserProfileTab extends StatelessWidget {
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: _brandColor, width: 2.5),
-                          color: Colors.white,
+                          border: Border.all(color: isDark ? Colors.white54 : _brandColor, width: 2.5),
+                          color: isDark ? const Color(0xFF1B2638) : Colors.white,
                           boxShadow: [
                             BoxShadow(
                               color: _brandColor.withValues(alpha: 0.12),
@@ -150,7 +170,7 @@ class RaiserProfileTab extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Hog Raiser',
+                    strings.hogRaiserRole,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
@@ -169,7 +189,7 @@ class RaiserProfileTab extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Account Details',
+                strings.accountDetails,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -182,14 +202,14 @@ class RaiserProfileTab extends StatelessWidget {
                     onTap: onRestoreDefaultAvatar,
                     child: Row(
                       children: [
-                        const Icon(Icons.refresh_rounded, size: 16, color: _brandColor),
+                        Icon(Icons.refresh_rounded, size: 16, color: titleColor),
                         const SizedBox(width: 4),
                         Text(
-                          'I-reset',
+                          strings.reset,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: _brandColor,
+                            color: titleColor,
                           ),
                         ),
                       ],
@@ -200,14 +220,14 @@ class RaiserProfileTab extends StatelessWidget {
                     onTap: onShowEditProfileDialog,
                     child: Row(
                       children: [
-                        const Icon(Icons.edit_outlined, size: 16, color: _brandColor),
+                        Icon(Icons.edit_outlined, size: 16, color: titleColor),
                         const SizedBox(width: 4),
                         Text(
-                          'Edit',
+                          strings.edit,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: _brandColor,
+                            color: titleColor,
                           ),
                         ),
                       ],
@@ -223,12 +243,12 @@ class RaiserProfileTab extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardColor,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder),
+              border: Border.all(color: cardBorder),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -236,19 +256,214 @@ class RaiserProfileTab extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildProfileRow(Icons.email_outlined, 'Email Address', email),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.phone_iphone_rounded, 'Phone Number', phone),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.location_on_outlined, 'Farm Address', address),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.pets_outlined, 'Pig Type Assignment', type),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.restaurant_rounded, 'Current Feeds Stage', stage),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.security_rounded, 'System Access', 'Hog Raiser'),
-                const Divider(height: 24, color: PiggyTrunkTheme.ptBorder),
-                _buildProfileRow(Icons.verified_user_outlined, 'Account Status', 'Active'),
+                _buildProfileRow(Icons.email_outlined, strings.emailAddress, email, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.phone_iphone_rounded, strings.phoneNumber, phone, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.location_on_outlined, strings.farmAddress, address, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.pets_outlined, strings.pigTypeAssignment, type, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.restaurant_rounded, strings.currentFeedsStage, stage, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.security_rounded, strings.systemAccess, strings.hogRaiserRole, isDark),
+                Divider(height: 24, color: cardBorder),
+                _buildProfileRow(Icons.verified_user_outlined, strings.accountStatus, strings.activeStatus, isDark),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+
+          // ==================== SETTINGS / LANGUAGE PREFERENCE SECTION ====================
+          Text(
+            strings.settings,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: titleColor,
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ---- Language Preference Card ----
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.language_rounded,
+                        color: isDark ? Colors.white : _brandColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.languagePreference,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: labelColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            strings.languageSubtitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Language Toggle Option Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildToggleOption(
+                        context: context,
+                        isDark: isDark,
+                        title: 'English',
+                        emoji: '🇺🇸',
+                        isSelected: currentLocale == 'en',
+                        onTap: () => settingsProvider?.setLocale('en'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildToggleOption(
+                        context: context,
+                        isDark: isDark,
+                        title: 'Filipino',
+                        emoji: '🇵🇭',
+                        isSelected: currentLocale == 'fil',
+                        onTap: () => settingsProvider?.setLocale('fil'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // ---- App Theme Card ----
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.palette_outlined,
+                        color: isDark ? Colors.white : _brandColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.themePreference,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: labelColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            strings.themeSubtitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Theme Toggle Option Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildToggleOption(
+                        context: context,
+                        isDark: isDark,
+                        title: strings.lightMode,
+                        icon: Icons.wb_sunny_rounded,
+                        isSelected: currentThemeMode == ThemeMode.light,
+                        onTap: () => settingsProvider?.setThemeMode(ThemeMode.light),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildToggleOption(
+                        context: context,
+                        isDark: isDark,
+                        title: strings.darkMode,
+                        icon: Icons.nights_stay_rounded,
+                        isSelected: currentThemeMode == ThemeMode.dark,
+                        onTap: () => settingsProvider?.setThemeMode(ThemeMode.dark),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -261,7 +476,7 @@ class RaiserProfileTab extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onHandleSignOut,
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: _brandColor, width: 1.5),
+                side: BorderSide(color: isDark ? const Color(0xFFEF4444).withValues(alpha: 0.6) : _brandColor, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -270,15 +485,15 @@ class RaiserProfileTab extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Sign Out',
+                    strings.signOut,
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w700,
-                      color: _brandColor,
+                      color: isDark ? const Color(0xFFFCA5A5) : _brandColor,
                       fontSize: 15,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.logout_rounded, color: _brandColor, size: 20),
+                  Icon(Icons.logout_rounded, color: isDark ? const Color(0xFFFCA5A5) : _brandColor, size: 20),
                 ],
               ),
             ),
@@ -288,11 +503,84 @@ class RaiserProfileTab extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileRow(IconData icon, String label, String value) {
+  /// Unified toggle option for both Language and Theme cards.
+  Widget _buildToggleOption({
+    required BuildContext context,
+    required bool isDark,
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+    String? emoji,
+    IconData? icon,
+  }) {
+    final activeColor = isDark ? Colors.white : _brandColor;
+    final activeTextColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final inactiveBg = isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC);
+    final inactiveBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
+    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveIconColor = isDark ? PiggyTrunkTheme.ptMutedDark : _brandColor;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : inactiveBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? activeColor : inactiveBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (emoji != null) ...[
+              Text(emoji, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+            ],
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: isSelected ? activeTextColor : inactiveIconColor),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? activeTextColor : inactiveText,
+              ),
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.check_circle_rounded, color: activeTextColor, size: 16),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileRow(IconData icon, String label, String value, bool isDark) {
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final valueColor = isDark ? Colors.white : _brandColor;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: PiggyTrunkTheme.ptMuted, size: 20),
+        Icon(icon, color: mutedColor, size: 20),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -302,7 +590,7 @@ class RaiserProfileTab extends StatelessWidget {
                 label,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
-                  color: PiggyTrunkTheme.ptMuted,
+                  color: mutedColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -311,7 +599,7 @@ class RaiserProfileTab extends StatelessWidget {
                 value,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
-                  color: _brandColor,
+                  color: valueColor,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -322,3 +610,4 @@ class RaiserProfileTab extends StatelessWidget {
     );
   }
 }
+

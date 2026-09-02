@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import '../request_form_screen.dart';
 import '../request_history_screen.dart';
 import '../widgets/raiser_empty_state.dart';
@@ -27,7 +28,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
   String _requestView = 'home';
   String? _previousRequestView;
   String _selectedCategoryForForm = 'Feeds';
-  String _selectedFilter = 'Lahat'; // 'Lahat', 'Pending', 'Approved'
+  String _selectedFilter = 'All'; // 'All', 'Pending', 'Approved'
   final TextEditingController _searchCtrl = TextEditingController();
   bool _isSearching = false;
 
@@ -94,6 +95,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _brandColor;
+    final strings = AppStrings.of(context);
 
     if (_requestView == 'form') {
       return RequestFormScreen(
@@ -153,34 +155,48 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
             children: [
               // ==================== TOP ACTION ICONS & HEADER BAR ====================
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Stock Requests',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: textColor,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          strings.stockRequestsTitle,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: textColor,
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      Text(
-                        'Humiling ng feeds, gamot, o bitamina',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: PiggyTrunkTheme.ptMuted,
+                        const SizedBox(height: 2),
+                        Text(
+                          strings.isFilipino ? 'Humiling ng pakain, gamot, o bitamina' : 'Request feeds, medicine, or vitamins',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: PiggyTrunkTheme.ptMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded, color: textColor),
-                        tooltip: 'Search Requests',
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        icon: Icon(_isSearching ? Icons.close_rounded : Icons.search_rounded, color: textColor, size: 20),
+                        tooltip: strings.searchRequests,
                         onPressed: () {
                           setState(() {
                             _isSearching = !_isSearching;
@@ -189,8 +205,11 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                         },
                       ),
                       IconButton(
-                        icon: Icon(Icons.history_rounded, color: textColor),
-                        tooltip: 'Request History',
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        icon: Icon(Icons.history_rounded, color: textColor, size: 20),
+                        tooltip: strings.requestHistory,
                         onPressed: () {
                           setState(() {
                             _previousRequestView = 'home';
@@ -201,19 +220,21 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                       const SizedBox(width: 4),
                       ElevatedButton.icon(
                         onPressed: () => _openRequestForm('Feeds'),
-                        icon: const Icon(Icons.add_rounded, size: 16),
+                        icon: const Icon(Icons.add_rounded, size: 15),
                         label: Text(
-                          'Request',
+                          strings.request,
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.w800,
-                            fontSize: 12.5,
+                            fontSize: 12,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark ? Colors.white : _brandColor,
                           foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                           elevation: 0,
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
@@ -228,18 +249,22 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                    border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
                   ),
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                    ),
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
-                      hintText: 'Maghanap ng batch, feeds, o status...',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: PiggyTrunkTheme.ptMuted),
-                      prefixIcon: const Icon(Icons.search, size: 20, color: PiggyTrunkTheme.ptMuted),
+                      hintText: strings.isFilipino ? 'Maghanap ng batch, pakain, o status...' : 'Search batch, feeds, or status...',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted),
+                      prefixIcon: Icon(Icons.search, size: 20, color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -252,8 +277,8 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 children: [
                   Expanded(
                     child: _buildQuickCategoryCard(
-                      label: 'Feeds',
-                      sublabel: 'Pagkain',
+                      label: strings.isFilipino ? 'Pakain' : 'Feeds',
+                      sublabel: strings.isFilipino ? 'Nutrisyon' : 'Nutrition',
                       imagePath: 'assets/feeds_icon.png',
                       accentColor: const Color(0xFF10B981),
                       onTap: () => _openRequestForm('Feeds'),
@@ -262,8 +287,8 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildQuickCategoryCard(
-                      label: 'Medicine',
-                      sublabel: 'Gamot',
+                      label: strings.isFilipino ? 'Gamot' : 'Medicine',
+                      sublabel: strings.isFilipino ? 'Panggagamot' : 'Treatments',
                       imagePath: 'assets/medicine_icon.png',
                       accentColor: const Color(0xFFEF4444),
                       onTap: () => _openRequestForm('Medicine'),
@@ -272,8 +297,8 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _buildQuickCategoryCard(
-                      label: 'Vitamins',
-                      sublabel: 'Bitamina',
+                      label: strings.isFilipino ? 'Bitamina' : 'Vitamins',
+                      sublabel: strings.isFilipino ? 'Suplemento' : 'Supplements',
                       imagePath: 'assets/vitamins_icon.png',
                       accentColor: const Color(0xFF8B5CF6),
                       onTap: () => _openRequestForm('Vitamins'),
@@ -287,15 +312,15 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
               Row(
                 children: [
                   Expanded(
-                    child: _buildFilterChip('Lahat', widget.requestsList.length),
+                    child: _buildFilterChip(strings.filterAll, widget.requestsList.length, filterKey: 'All'),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildFilterChip('Pending', pendingCount, color: _warningAmber),
+                    child: _buildFilterChip(strings.filterPending, pendingCount, color: _warningAmber, filterKey: 'Pending'),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildFilterChip('Approved', approvedCount, color: _successGreen),
+                    child: _buildFilterChip(strings.filterApproved, approvedCount, color: _successGreen, filterKey: 'Approved'),
                   ),
                 ],
               ),
@@ -306,7 +331,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Requests Activity',
+                    strings.isFilipino ? 'Aktibidad ng Kahilingan' : 'Requests Activity',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15.5,
                       fontWeight: FontWeight.w800,
@@ -314,11 +339,11 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                     ),
                   ),
                   Text(
-                    '${displayList.length} items',
+                    '${displayList.length} ${strings.isFilipino ? 'aytem' : 'items'}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: PiggyTrunkTheme.ptMuted,
+                      color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                     ),
                   ),
                 ],
@@ -329,21 +354,22 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
               Expanded(
                 child: displayList.isEmpty
                     ? SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        child: RaiserEmptyState(
-                          icon: Icons.assignment_outlined,
-                          message: _searchCtrl.text.isNotEmpty
-                              ? 'Walang nahanap na request.'
-                              : 'Walang kamakailang aktibidad.',
-                          subtitle: _searchCtrl.text.isNotEmpty
-                              ? 'Subukang maghanap ng ibang keyword.'
-                              : 'Pumili sa mga kategorya sa itaas o pindutin ang "+ Request" sa itaas upang humiling ng feeds, gamot, o bitamina.',
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 24.0),
+                          child: RaiserEmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            message: strings.isFilipino ? 'Walang kahilingan.' : 'No requests found.',
+                            subtitle: strings.isFilipino
+                                ? 'Pindutin ang "+ Humiling" upang mag-request.'
+                                : 'Tap "+ Request" above to request supplies.',
+                          ),
                         ),
                       )
                     : ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        padding: const EdgeInsets.only(bottom: 24),
                         itemCount: displayList.length,
-                        padding: const EdgeInsets.only(bottom: 80),
                         itemBuilder: (context, index) {
                           final req = displayList[index];
                           final dateStr = _formatDate(req['request_date']);
@@ -351,7 +377,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                           final quantity = req['quantity'] ?? 1;
                           final category = (req['category'] ?? 'Feeds').toString();
                           final feedType = req['feed_type'];
-                          final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? 'Batch').toString();
+                          final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? 'N/A').toString();
                           
                           String batchName = rawBatchName;
                           if (rawBatchName.contains('(')) {
@@ -366,27 +392,30 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                           final lowerStatus = status.toLowerCase();
                           if (lowerStatus == 'approved') {
                             statusColor = _successGreen;
-                            statusBg = const Color(0xFFECFDF5);
+                            statusBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
+                          } else if (lowerStatus == 'pending' || lowerStatus == 'for_approval') {
+                            statusColor = _warningAmber;
+                            statusBg = isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB);
                           } else if (lowerStatus == 'rejected' || lowerStatus == 'cancelled') {
                             statusColor = _dangerRed;
-                            statusBg = const Color(0xFFFEF2F2);
+                            statusBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
                           } else {
-                            statusColor = _warningAmber;
-                            statusBg = const Color(0xFFFFFBEB);
+                            statusColor = const Color(0xFF6366F1);
+                            statusBg = isDark ? const Color(0xFF312E81) : const Color(0xFFEEF2FF);
                           }
 
                           IconData itemIcon = Icons.grass_rounded;
                           Color itemColor = const Color(0xFF10B981);
-                          Color itemBg = const Color(0xFFECFDF5);
+                          Color itemBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
 
                           if (category.toLowerCase() == 'vitamins') {
                             itemIcon = Icons.medication_liquid_rounded;
                             itemColor = const Color(0xFF8B5CF6);
-                            itemBg = const Color(0xFFF3E8FF);
+                            itemBg = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF3E8FF);
                           } else if (category.toLowerCase() == 'medicine') {
                             itemIcon = Icons.medical_services_rounded;
                             itemColor = const Color(0xFFEF4444);
-                            itemBg = const Color(0xFFFEE2E2);
+                            itemBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2);
                           }
 
                           String titleText = '$quantity Sacks of $category';
@@ -400,12 +429,12 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                              border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.02),
+                                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
@@ -432,7 +461,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
-                                          color: _brandColor,
+                                          color: textColor,
                                         ),
                                       ),
                                       const SizedBox(height: 3),
@@ -440,14 +469,14 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                                         '$batchName • $dateStr',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
-                                          color: PiggyTrunkTheme.ptMuted,
+                                          color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                       if (lowerStatus == 'rejected' && (req['rejection_reason'] != null && req['rejection_reason'].toString().trim().isNotEmpty)) ...[
                                         const SizedBox(height: 3),
                                         Text(
-                                          'Dahilan: "${req['rejection_reason']}"',
+                                          'Reason: "${req['rejection_reason']}"',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
@@ -497,8 +526,14 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     required Color accentColor,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return Material(
-      color: Colors.white,
+      color: cardBg,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -507,10 +542,10 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: PiggyTrunkTheme.ptBorder),
+            border: Border.all(color: cardBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -521,7 +556,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.1),
+                  color: accentColor.withValues(alpha: isDark ? 0.2 : 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Image.asset(
@@ -530,7 +565,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                   height: 22,
                   color: accentColor,
                   errorBuilder: (context, error, stackTrace) => Icon(
-                    label == 'Feeds' ? Icons.grass_rounded : (label == 'Vitamins' ? Icons.medication_liquid_rounded : Icons.medical_services_rounded),
+                    label == 'Feeds' || label == 'Pakain' ? Icons.grass_rounded : (label == 'Vitamins' || label == 'Bitamina' ? Icons.medication_liquid_rounded : Icons.medical_services_rounded),
                     size: 22,
                     color: accentColor,
                   ),
@@ -542,7 +577,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: _brandColor,
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 2),
@@ -551,7 +586,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w500,
-                  color: PiggyTrunkTheme.ptMuted,
+                  color: mutedColor,
                 ),
               ),
             ],
@@ -561,30 +596,38 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     );
   }
 
-  Widget _buildFilterChip(String label, int count, {Color? color}) {
-    final isSelected = _selectedFilter == label;
+  Widget _buildFilterChip(String label, int count, {Color? color, String? filterKey}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final key = filterKey ?? label;
+    final isSelected = _selectedFilter == key;
+    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
+
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
+      onTap: () => setState(() => _selectedFilter = key),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : Colors.white,
+          color: isSelected ? selectedBg : inactiveBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
+            color: isSelected ? selectedBg : inactiveBorder,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _brandColor.withValues(alpha: 0.22),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.22),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -599,7 +642,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : _brandColor,
+                color: isSelected ? selectedText : inactiveText,
               ),
             ),
             const SizedBox(width: 6),
@@ -607,8 +650,8 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withValues(alpha: 0.22)
-                    : (color?.withValues(alpha: 0.12) ?? PiggyTrunkTheme.ptBg),
+                    ? (isDark ? const Color(0xFF0F172A).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.22))
+                    : (color?.withValues(alpha: isDark ? 0.2 : 0.12) ?? (isDark ? const Color(0xFF1E293B) : PiggyTrunkTheme.ptBg)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -616,7 +659,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : (color ?? _brandColor),
+                  color: isSelected ? selectedText : (color ?? inactiveText),
                 ),
               ),
             ),

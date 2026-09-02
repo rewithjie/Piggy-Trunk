@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/batch_raiser_details_drawer.dart';
 
 class PartnerProjectsTab extends StatefulWidget {
@@ -87,19 +88,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
     });
   }
 
-  Color _getStageColor(String stage) {
-    final s = stage.toLowerCase();
-    if (s.contains('finisher') || s.contains('harvest')) {
-      return const Color(0xFF10B981);
-    } else if (s.contains('grower')) {
-      return const Color(0xFF3B82F6);
-    } else if (s.contains('starter')) {
-      return const Color(0xFFF59E0B);
-    } else if (s.contains('booster') || s.contains('pre')) {
-      return const Color(0xFF8B5CF6);
-    }
-    return const Color(0xFF10B981);
-  }
+
 
   Future<void> _confirmInvestment() async {
     if (_parsedAmount <= 0) {
@@ -208,12 +197,13 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
   @override
   Widget build(BuildContext context) {
     final fit = ScreenFit(context);
+    final strings = AppStrings.of(context);
     final double paddingH = fit.dp(20.0);
     final double paddingV = fit.dp(16.0);
     final double titleFontSize = fit.sp(24.0);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryTextColor = isDark ? const Color(0xffecf2ff) : _brandColor;
+    final primaryTextColor = isDark ? Colors.white : _brandColor;
     final mutedTextColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
     final cardBgColor = isDark ? const Color(0xff151f2e) : Colors.white;
     final cardBorderColor = isDark ? const Color(0xff28354a) : const Color(0xffe6ebf2);
@@ -225,7 +215,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
-      color: _brandColor,
+      color: isDark ? Colors.white : _brandColor,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.symmetric(horizontal: paddingH, vertical: paddingV),
@@ -257,7 +247,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Fund a Batch',
+                        strings.fundBatch,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w800,
@@ -267,7 +257,9 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                       ),
                       SizedBox(height: fit.dp(3)),
                       Text(
-                        'Select amount to allocate for this hog batch',
+                        strings.isFilipino
+                            ? 'Piliin ang halagang ipupuhunan sa batch na ito'
+                            : 'Select amount to allocate for this hog batch',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(12.5),
                           fontWeight: FontWeight.w500,
@@ -467,7 +459,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        strings.cancel,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(13.5),
                           fontWeight: FontWeight.w700,
@@ -503,7 +495,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Confirm Investment',
+                                  strings.isFilipino ? 'Kumpirmahin ang Puhunan' : 'Confirm Investment',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: fit.sp(14.0),
                                     fontWeight: FontWeight.w800,
@@ -529,7 +521,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    'Available Batches',
+                    strings.investmentOpportunities,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: fit.sp(16.5),
                       fontWeight: FontWeight.w800,
@@ -544,7 +536,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                       borderRadius: BorderRadius.circular(fit.dp(12)),
                     ),
                     child: Text(
-                      '$openBatchesCount BATCHES OPEN',
+                      strings.isFilipino ? '$openBatchesCount BUKAS NA BATCH' : '$openBatchesCount BATCHES OPEN',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(11.0),
                         fontWeight: FontWeight.w800,
@@ -645,8 +637,6 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                   final int totalRaisers = (batch['total_raisers'] as num?)?.toInt() ?? 1;
                   final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? 0;
 
-                  final stageColor = _getStageColor(stage);
-
                   return Container(
                     margin: EdgeInsets.only(bottom: fit.dp(16)),
                     decoration: BoxDecoration(
@@ -692,15 +682,14 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                   ),
                                 ),
                               ),
-
                               // 2. Hog Type Badge (e.g. Fattening)
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1A365D) : const Color(0xFFEFF6FF),
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(fit.dp(20)),
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF2B6CB0) : const Color(0xFFBFDBFE),
+                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                                     width: 1,
                                   ),
                                 ),
@@ -709,18 +698,20 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: fit.sp(11.0),
                                     fontWeight: FontWeight.w700,
-                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                    color: isDark ? Colors.white : const Color(0xFF18314F),
                                   ),
                                 ),
                               ),
-
                               // 3. Stage Badge (e.g. Booster Stage)
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
                                 decoration: BoxDecoration(
-                                  color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                                  color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.12),
                                   borderRadius: BorderRadius.circular(fit.dp(20)),
-                                  border: Border.all(color: stageColor.withValues(alpha: 0.35), width: 1),
+                                  border: Border.all(
+                                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.4 : 0.3),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -728,8 +719,8 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                     Container(
                                       width: fit.dp(5.5),
                                       height: fit.dp(5.5),
-                                      decoration: BoxDecoration(
-                                        color: stageColor,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF10B981),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -739,7 +730,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: fit.sp(11.0),
                                         fontWeight: FontWeight.w700,
-                                        color: stageColor,
+                                        color: const Color(0xFF10B981),
                                       ),
                                     ),
                                   ],
@@ -844,7 +835,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                     label: FittedBox(
                                       fit: BoxFit.scaleDown,
                                       child: Text(
-                                        'Raiser Info',
+                                        strings.isFilipino ? 'Impormasyon' : 'Raiser Info',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: fit.sp(12.5),
                                           fontWeight: FontWeight.w700,
@@ -864,8 +855,8 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                   child: ElevatedButton.icon(
                                     onPressed: () => _startInvestmentFlow(batch),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: _brandColor,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: isDark ? Colors.white : _brandColor,
+                                      foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                                       elevation: 0,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(fit.dp(14)),
@@ -875,16 +866,16 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                                     icon: Icon(
                                       Icons.add_card_rounded,
                                       size: fit.dp(17),
-                                      color: Colors.white,
+                                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
                                     ),
                                     label: FittedBox(
                                       fit: BoxFit.scaleDown,
                                       child: Text(
-                                        'Invest Now',
+                                        strings.investNow,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: fit.sp(13.0),
                                           fontWeight: FontWeight.w800,
-                                          color: Colors.white,
+                                          color: isDark ? const Color(0xFF0F172A) : Colors.white,
                                         ),
                                         maxLines: 1,
                                       ),

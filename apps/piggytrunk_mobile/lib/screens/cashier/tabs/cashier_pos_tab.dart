@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/screens/best_sellers_screen.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/cashier_empty_state.dart';
 import '../widgets/cashier_sales_history_view.dart';
 import '../widgets/cashier_checkout_modal.dart';
@@ -59,10 +61,9 @@ class CashierPOSTab extends StatefulWidget {
 class _CashierPOSTabState extends State<CashierPOSTab> {
   static const Color _brandNavy = Color(0xFF18314F);
   static const Color _cardBorder = Color(0xFFE2E8F0);
-  static const Color _emeraldGreen = Color(0xFF10B981);
-  static const Color _criticalRed = Color(0xFFDC2626);
 
   final TextEditingController _searchCtrl = TextEditingController();
+  final Map<String, int> _productQuantities = {};
   bool _viewSalesHistory = false;
 
   @override
@@ -73,6 +74,47 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
 
   String _formatCurrency(double amount) {
     return '₱${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }
+
+  int _getQuantity(String productId) {
+    return _productQuantities[productId] ?? 1;
+  }
+
+  void _incrementProductQuantity(POSProduct product) {
+    if (product.units <= 0) return;
+    final current = _getQuantity(product.id);
+    final inCart = widget.currentOrder.quantityFor(product.id);
+    final available = product.units - inCart;
+    if (current < available && current < product.units) {
+      setState(() {
+        _productQuantities[product.id] = current + 1;
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Cannot exceed available stock (${product.units} units).'),
+          backgroundColor: const Color(0xFFEF4444),
+          duration: const Duration(milliseconds: 900),
+        ),
+      );
+    }
+  }
+
+  void _decrementProductQuantity(String productId) {
+    final current = _getQuantity(productId);
+    if (current > 1) {
+      setState(() {
+        _productQuantities[productId] = current - 1;
+      });
+    }
+  }
+
+  bool _isProductTopSeller(POSProduct product) {
+    if (product.sold <= 0) return false;
+    final sorted = List<POSProduct>.from(widget.allProducts.where((p) => !p.isArchived))
+      ..sort((a, b) => b.sold.compareTo(a.sold));
+    final topRank = sorted.indexWhere((p) => p.id == product.id);
+    return topRank >= 0 && topRank < 3;
   }
 
   void _openCartBottomSheet() {
@@ -149,15 +191,25 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
   }
 
   Widget _buildCartModal() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
+    final modalBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? Colors.white : _brandNavy;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardBorder = isDark ? const Color(0xFF28354A) : _cardBorder;
+    final itemBg = isDark ? const Color(0xFF1B2638) : const Color(0xFFF8FAFC);
+    final stepperBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+
     return StatefulBuilder(
       builder: (context, setModalState) {
         final order = widget.currentOrder;
 
         return Container(
           height: MediaQuery.of(context).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          decoration: BoxDecoration(
+            color: modalBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
           child: SafeArea(
             top: false,
@@ -170,13 +222,13 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
 
-                // Modal Header
+                // Modal Header (Matching Admin POS Current Order)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
                   child: Row(
@@ -185,26 +237,27 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                       Row(
                         children: [
                           Text(
-                            'Order Cart',
+                            'Current order',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 19,
                               fontWeight: FontWeight.w800,
-                              color: _brandNavy,
+                              color: titleColor,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: _brandNavy.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(12),
+                              color: (isDark ? Colors.white : _brandNavy).withValues(alpha: isDark ? 0.12 : 0.08),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '${order.totalItems} items',
+                              '${order.totalItems} ITEMS',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: _brandNavy,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                                color: isDark ? const Color(0xFF93C5FD) : _brandNavy,
                               ),
                             ),
                           ),
@@ -219,7 +272,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           },
                           icon: const Icon(Icons.delete_sweep_outlined, size: 18, color: Colors.red),
                           label: Text(
-                            'Clear',
+                            strings.clearCart,
                             style: GoogleFonts.plusJakartaSans(
                               color: Colors.red,
                               fontSize: 13,
@@ -231,7 +284,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                     ],
                   ),
                 ),
-                const Divider(height: 1, thickness: 1, color: Color(0xFFE2E8F0)),
+                Divider(height: 1, thickness: 1, color: cardBorder),
 
                 // Cart Items List
                 Expanded(
@@ -240,12 +293,12 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.shopping_cart_outlined, size: 48, color: Colors.grey[300]),
+                              Icon(Icons.shopping_cart_outlined, size: 48, color: isDark ? Colors.white24 : Colors.grey[300]),
                               const SizedBox(height: 12),
                               Text(
-                                'Your cart is empty',
+                                'No products added yet.',
                                 style: GoogleFonts.plusJakartaSans(
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: subtitleColor,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -263,9 +316,9 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                             return Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: itemBg,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border: Border.all(color: cardBorder),
                               ),
                               child: Row(
                                 children: [
@@ -274,16 +327,16 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                     width: 48,
                                     height: 48,
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                                      border: Border.all(color: cardBorder),
                                     ),
                                     child: item.image != null && item.image!.isNotEmpty
                                         ? ClipRRect(
                                             borderRadius: BorderRadius.circular(12),
                                             child: Image.network(item.image!, fit: BoxFit.cover),
                                           )
-                                        : const Icon(Icons.inventory_2_rounded, color: _brandNavy, size: 22),
+                                        : Icon(Icons.inventory_2_rounded, color: titleColor, size: 22),
                                   ),
                                   const SizedBox(width: 12),
 
@@ -297,7 +350,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                           style: GoogleFonts.plusJakartaSans(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 13.5,
-                                            color: _brandNavy,
+                                            color: titleColor,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -307,7 +360,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                           '${_formatCurrency(item.price)} each',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 11.5,
-                                            color: PiggyTrunkTheme.ptMuted,
+                                            color: subtitleColor,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
@@ -318,9 +371,9 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                   // Stepper Controls (- Qty +)
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: stepperBg,
                                       borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: const Color(0xFFD7E3F3)),
+                                      border: Border.all(color: cardBorder),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
@@ -336,9 +389,9 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                             setState(() {});
                                           },
                                           borderRadius: BorderRadius.circular(8),
-                                          child: const Padding(
-                                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                            child: Icon(Icons.remove, size: 14, color: _brandNavy),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                            child: Icon(Icons.remove, size: 14, color: titleColor),
                                           ),
                                         ),
                                         Padding(
@@ -348,7 +401,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w800,
-                                              color: _brandNavy,
+                                              color: titleColor,
                                             ),
                                           ),
                                         ),
@@ -359,9 +412,9 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                             setState(() {});
                                           },
                                           borderRadius: BorderRadius.circular(8),
-                                          child: const Padding(
-                                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                            child: Icon(Icons.add, size: 14, color: _brandNavy),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                            child: Icon(Icons.add, size: 14, color: titleColor),
                                           ),
                                         ),
                                       ],
@@ -369,7 +422,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                   ),
                                   const SizedBox(width: 10),
 
-                                  // Item Total (Symmetrically aligned on the right)
+                                  // Item Total
                                   SizedBox(
                                     width: 78,
                                     child: Text(
@@ -378,7 +431,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                       style: GoogleFonts.plusJakartaSans(
                                         fontWeight: FontWeight.w800,
                                         fontSize: 13.5,
-                                        color: _brandNavy,
+                                        color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
                                       ),
                                     ),
                                   ),
@@ -389,13 +442,13 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                         ),
                 ),
 
-                // Bottom Checkout Action Bar (Cleanly pinned to bottom)
+                // Bottom Checkout Action Bar
                 if (order.items.isNotEmpty) ...[
                   Container(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                    decoration: BoxDecoration(
+                      color: modalBg,
+                      border: Border(top: BorderSide(color: cardBorder)),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -408,7 +461,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: PiggyTrunkTheme.ptMuted,
+                                color: subtitleColor,
                               ),
                             ),
                             Text(
@@ -416,7 +469,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w900,
-                                color: _brandNavy,
+                                color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
                               ),
                             ),
                           ],
@@ -430,17 +483,18 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                               _openCheckoutModal();
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: _brandNavy,
+                              backgroundColor: isDark ? Colors.white : _brandNavy,
+                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               elevation: 0,
                             ),
                             child: Text(
-                              'Proceed to Payment (${_formatCurrency(order.total)})',
+                              '${strings.checkout} (${_formatCurrency(order.total)})',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14.5,
-                                color: Colors.white,
+                                color: isDark ? const Color(0xFF0F172A) : Colors.white,
                               ),
                             ),
                           ),
@@ -459,15 +513,24 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
+    final titleColor = isDark ? Colors.white : _brandNavy;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardBorder = isDark ? const Color(0xFF28354A) : _cardBorder;
+    final cardBg = isDark ? const Color(0xFF1B2638) : Colors.white;
+    final topBarBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+
     if (_viewSalesHistory) {
       return Column(
         children: [
           // Header Bar to return to POS
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            decoration: BoxDecoration(
+              color: topBarBg,
+              border: Border(bottom: BorderSide(color: cardBorder)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -480,20 +543,20 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: cardBorder),
                         ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: _brandNavy),
+                        child: Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: titleColor),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Sales & Receipts Log',
+                      strings.recentSalesActivity,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: _brandNavy,
+                        color: titleColor,
                       ),
                     ),
                   ],
@@ -560,13 +623,13 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
         children: [
           RefreshIndicator(
             onRefresh: widget.onRefresh,
-            color: _brandNavy,
+            color: isDark ? Colors.white : _brandNavy,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
-                20.0,
                 16.0,
-                20.0,
+                14.0,
+                16.0,
                 widget.currentOrder.items.isNotEmpty ? 110.0 : 24.0,
               ),
               child: Column(
@@ -579,21 +642,21 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                         child: Container(
                           height: 46,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: cardBg,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _cardBorder),
+                            border: Border.all(color: cardBorder),
                           ),
                           child: TextField(
                             controller: _searchCtrl,
                             onChanged: (_) => setState(() {}),
-                            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _brandNavy),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 13, color: titleColor),
                             decoration: InputDecoration(
-                              hintText: 'Search products by name or category...',
-                              hintStyle: GoogleFonts.plusJakartaSans(color: PiggyTrunkTheme.ptMuted, fontSize: 12),
-                              prefixIcon: const Icon(Icons.search, color: PiggyTrunkTheme.ptMuted, size: 20),
+                              hintText: strings.searchProducts,
+                              hintStyle: GoogleFonts.plusJakartaSans(color: subtitleColor, fontSize: 12),
+                              prefixIcon: Icon(Icons.search, color: subtitleColor, size: 20),
                               suffixIcon: _searchCtrl.text.isNotEmpty
                                   ? IconButton(
-                                      icon: const Icon(Icons.clear, size: 16, color: PiggyTrunkTheme.ptMuted),
+                                      icon: Icon(Icons.clear, size: 16, color: subtitleColor),
                                       onPressed: () {
                                         _searchCtrl.clear();
                                         setState(() {});
@@ -607,18 +670,57 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      // Best Sellers Text Button (Matching Admin POS)
+                      GestureDetector(
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => BestSellersScreen(
+                                initialProducts: widget.allProducts,
+                                isMobileEmbedded: true,
+                              ),
+                            ),
+                          );
+                          widget.onRefresh();
+                        },
+                        child: Container(
+                          height: 46,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white : _brandNavy,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isDark ? Colors.white : _brandNavy).withValues(alpha: isDark ? 0.12 : 0.18),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Best Sellers',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       // Sales History / Receipts Button
                       Container(
                         height: 46,
                         width: 46,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardBg,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: _cardBorder),
+                          border: Border.all(color: cardBorder),
                         ),
                         child: IconButton(
                           onPressed: () => setState(() => _viewSalesHistory = true),
-                          icon: const Icon(Icons.receipt_long_rounded, color: _brandNavy, size: 22),
+                          icon: Icon(Icons.receipt_long_rounded, color: titleColor, size: 22),
                           tooltip: 'Sales History',
                           padding: EdgeInsets.zero,
                         ),
@@ -632,17 +734,17 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                             height: 46,
                             width: 46,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cardBg,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: widget.currentOrder.items.isNotEmpty
-                                    ? _brandNavy.withValues(alpha: 0.4)
-                                    : _cardBorder,
+                                    ? (isDark ? Colors.white : _brandNavy.withValues(alpha: 0.4))
+                                    : cardBorder,
                               ),
                             ),
                             child: IconButton(
                               onPressed: _openCartBottomSheet,
-                              icon: const Icon(Icons.shopping_cart_outlined, color: _brandNavy, size: 22),
+                              icon: Icon(Icons.shopping_cart_outlined, color: titleColor, size: 22),
                               tooltip: 'View Cart & Checkout',
                               padding: EdgeInsets.zero,
                             ),
@@ -656,7 +758,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFEF4444),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.white, width: 1.5),
+                                  border: Border.all(color: isDark ? const Color(0xFF151F2E) : Colors.white, width: 1.5),
                                   boxShadow: [
                                     BoxShadow(
                                       color: const Color(0xFFEF4444).withValues(alpha: 0.35),
@@ -681,13 +783,17 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Categories Selector - Balanced 5-item full width Row
+                  // Categories Selector - Balanced full width Row
                   Row(
                     children: widget.categories.map((cat) {
                       final isSelected = widget.selectedCategory.toLowerCase() == cat.toLowerCase();
+                      final count = cat == 'All'
+                          ? activeProducts.length
+                          : activeProducts.where((p) => p.category.toLowerCase() == cat.toLowerCase()).length;
+
                       return Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
                           child: GestureDetector(
                             onTap: () => widget.onCategorySelected(cat),
                             child: AnimatedContainer(
@@ -695,16 +801,20 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: isSelected ? _brandNavy : Colors.white,
+                                color: isSelected
+                                    ? (isDark ? Colors.white : _brandNavy)
+                                    : (isDark ? const Color(0xFF1E293B) : Colors.white),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: isSelected ? _brandNavy : _cardBorder,
+                                  color: isSelected
+                                      ? (isDark ? Colors.white : _brandNavy)
+                                      : cardBorder,
                                   width: 1,
                                 ),
                                 boxShadow: isSelected
                                     ? [
                                         BoxShadow(
-                                          color: _brandNavy.withValues(alpha: 0.18),
+                                          color: (isDark ? Colors.white : _brandNavy).withValues(alpha: isDark ? 0.12 : 0.18),
                                           blurRadius: 6,
                                           offset: const Offset(0, 2),
                                         ),
@@ -712,11 +822,13 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                     : null,
                               ),
                               child: Text(
-                                cat,
+                                '$cat ($count)',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
+                                  fontSize: 11,
                                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                      : (isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF475569)),
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -728,18 +840,18 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
                   // Product Catalog Section Header
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${filtered.length} Products in Catalog',
+                        '${filtered.length} Products Available',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: _brandNavy,
+                          color: titleColor,
                         ),
                       ),
                       if (widget.currentOrder.totalItems > 0) ...[
@@ -748,7 +860,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: _emeraldGreen,
+                            color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
                           ),
                         ),
                       ],
@@ -756,7 +868,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Products List
+                  // Products List - Matching Admin POS Layout
                   filtered.isEmpty
                       ? const CashierEmptyState(
                           message: 'No available products in this category.',
@@ -766,172 +878,25 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: filtered.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          separatorBuilder: (context, index) => const SizedBox(height: 14),
                           itemBuilder: (context, index) {
-                            final p = filtered[index];
-                            final isInCart = widget.currentOrder.containsProduct(p.id);
-                            final cartQty = widget.currentOrder.quantityFor(p.id);
-                            final isOutOfStock = p.stock <= 0;
+                            final product = filtered[index];
+                            final isOutOfStock = product.units <= 0;
+                            final isTopSeller = _isProductTopSeller(product);
+                            final selectedQty = _getQuantity(product.id);
+                            final inCartQty = widget.currentOrder.quantityFor(product.id);
 
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: isInCart ? _brandNavy : _cardBorder,
-                                  width: isInCart ? 1.5 : 1.0,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _brandNavy.withValues(alpha: 0.03),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  // Thumbnail
-                                  Container(
-                                    width: 60,
-                                    height: 60,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF5F8FE),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: _cardBorder),
-                                    ),
-                                    child: p.image != null && p.image!.isNotEmpty
-                                        ? ClipRRect(
-                                            borderRadius: BorderRadius.circular(14),
-                                            child: Image.network(p.image!, fit: BoxFit.cover),
-                                          )
-                                        : const Icon(Icons.inventory_2_rounded, color: _brandNavy, size: 28),
-                                  ),
-                                  const SizedBox(width: 14),
-
-                                  // Info
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: _brandNavy.withValues(alpha: 0.08),
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                p.category.toUpperCase(),
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: _brandNavy,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              isOutOfStock ? '• Out of Stock' : '• ${p.stock} in stock',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: isOutOfStock ? _criticalRed : _emeraldGreen,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          p.name,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w800,
-                                            color: _brandNavy,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '₱${p.price.toStringAsFixed(2)}',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w800,
-                                            color: _brandNavy,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-
-                                  // Add to Cart / Quantity Badge Button
-                                  if (isOutOfStock) ...[
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[100],
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        'Empty',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[500],
-                                        ),
-                                      ),
-                                    ),
-                                  ] else if (isInCart) ...[
-                                    GestureDetector(
-                                      onTap: _openCartBottomSheet,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: _brandNavy,
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.check, size: 16, color: Colors.white),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'x$cartQty',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                color: Colors.white,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ] else ...[
-                                    ElevatedButton.icon(
-                                      onPressed: () => widget.onAddToCart(p),
-                                      icon: const Icon(Icons.add_shopping_cart, size: 16, color: Colors.white),
-                                      label: Text(
-                                        'Add',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _brandNavy,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                            return _buildPOSProductCard(
+                              product: product,
+                              isOutOfStock: isOutOfStock,
+                              isTopSeller: isTopSeller,
+                              selectedQty: selectedQty,
+                              inCartQty: inCartQty,
+                              isDark: isDark,
+                              cardBg: cardBg,
+                              cardBorder: cardBorder,
+                              titleColor: titleColor,
+                              subtitleColor: subtitleColor,
                             );
                           },
                         ),
@@ -949,7 +914,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
                 decoration: BoxDecoration(
-                  color: _brandNavy,
+                  color: isDark ? const Color(0xFF1E293B) : _brandNavy,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                   boxShadow: [
                     BoxShadow(
@@ -981,7 +946,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                             Text(
                               _formatCurrency(widget.currentOrder.total),
                               style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
+                                color: const Color(0xFF34D399),
                                 fontSize: 19,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -999,7 +964,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           elevation: 0,
                         ),
                         child: Text(
-                          'Checkout',
+                          strings.checkout,
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.w800,
                             fontSize: 14,
@@ -1013,6 +978,365 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  // ==================== PRODUCT CARD MATCHING ADMIN POS ====================
+  Widget _buildPOSProductCard({
+    required POSProduct product,
+    required bool isOutOfStock,
+    required bool isTopSeller,
+    required int selectedQty,
+    required int inCartQty,
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
+    final pillBg = isDark ? const Color(0xFF131E2D) : const Color(0xFFF8FAFC);
+    final stepperBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: inCartQty > 0
+              ? (isDark ? const Color(0xFF60A5FA) : _brandNavy)
+              : cardBorder,
+          width: inCartQty > 0 ? 1.5 : 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left: Square Image (1:1 Ratio) with optional TOP badge
+          Stack(
+            children: [
+              Container(
+                width: 95,
+                height: 95,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF151F2E) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: cardBorder),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(13),
+                  child: product.image != null && product.image!.isNotEmpty
+                      ? Image.network(
+                          product.image!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (ctx, err, st) => Center(
+                            child: Icon(Icons.inventory_2_rounded, color: subtitleColor, size: 28),
+                          ),
+                        )
+                      : Center(
+                          child: Icon(Icons.inventory_2_rounded, color: subtitleColor, size: 28),
+                        ),
+                ),
+              ),
+              if (isTopSeller)
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white : const Color(0xFF18314F),
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      'TOP',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+
+          // Right: Product Details & Actions
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row: Title + Stock Status Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        product.name,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isOutOfStock
+                            ? (isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.16) : const Color(0xFFFEF3C7))
+                            : (product.units <= 10
+                                ? (isDark ? const Color(0xFFEF4444).withValues(alpha: 0.16) : const Color(0xFFFEE2E2))
+                                : (isDark ? const Color(0xFF10B981).withValues(alpha: 0.16) : const Color(0xFFECFDF5))),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isOutOfStock
+                            ? 'OUT OF STOCK'
+                            : (product.units <= 10 ? 'LOW STOCK' : 'IN STOCK'),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: isOutOfStock
+                              ? (isDark ? const Color(0xFFFDE68A) : const Color(0xFFD97706))
+                              : (product.units <= 10
+                                  ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626))
+                                  : (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF059669))),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+
+                // Category & Description
+                Text(
+                  product.description.isEmpty ? '${product.category} • Warehouse stock' : product.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: subtitleColor,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Price & Stock Info Box
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: cardBorder),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'PRICE: ',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: subtitleColor,
+                            ),
+                          ),
+                          Text(
+                            '₱${product.price.toStringAsFixed(2)}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Stock: ',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: subtitleColor,
+                            ),
+                          ),
+                          Text(
+                            '${product.units} units',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: isOutOfStock
+                                  ? (isDark ? const Color(0xFFFDE68A) : const Color(0xFFD97706))
+                                  : (product.units <= 10
+                                      ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626))
+                                      : titleColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Quantity Stepper & Add to Order Action Row
+                Row(
+                  children: [
+                    // Stepper (- Qty +)
+                    Container(
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: stepperBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: cardBorder),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          InkWell(
+                            onTap: isOutOfStock || selectedQty <= 1
+                                ? null
+                                : () => _decrementProductQuantity(product.id),
+                            borderRadius: const BorderRadius.horizontal(left: Radius.circular(7)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Icon(
+                                Icons.remove_rounded,
+                                size: 14,
+                                color: (isOutOfStock || selectedQty <= 1) ? subtitleColor.withValues(alpha: 0.4) : titleColor,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 24),
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(
+                              '$selectedQty',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: isOutOfStock ? subtitleColor : titleColor,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            onTap: isOutOfStock || selectedQty >= product.units
+                                ? null
+                                : () => _incrementProductQuantity(product),
+                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(7)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Icon(
+                                Icons.add_rounded,
+                                size: 14,
+                                color: (isOutOfStock || selectedQty >= product.units) ? subtitleColor.withValues(alpha: 0.4) : titleColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Add to Order Button
+                    Expanded(
+                      child: SizedBox(
+                        height: 36,
+                        child: ElevatedButton.icon(
+                          onPressed: isOutOfStock
+                              ? null
+                              : () {
+                                  final qtyToAdd = _getQuantity(product.id);
+                                  final currentQtyInCart = widget.currentOrder.quantityFor(product.id);
+                                  if (currentQtyInCart + qtyToAdd > product.units) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Cannot add $qtyToAdd item(s). Only ${product.units - currentQtyInCart} remaining in stock.',
+                                        ),
+                                        backgroundColor: const Color(0xFFEF4444),
+                                        duration: const Duration(milliseconds: 1200),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  for (int i = 0; i < qtyToAdd; i++) {
+                                    widget.onAddToCart(product);
+                                  }
+                                  setState(() {
+                                    _productQuantities[product.id] = 1;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${qtyToAdd}x ${product.name} added to order'),
+                                      backgroundColor: isDark ? const Color(0xFF1E3A8A) : const Color(0xFF315C8F),
+                                      duration: const Duration(milliseconds: 800),
+                                    ),
+                                  );
+                                },
+                          icon: Icon(
+                            Icons.add_shopping_cart_rounded,
+                            size: 14,
+                            color: isOutOfStock
+                                ? subtitleColor
+                                : (isDark ? const Color(0xFF0F172A) : Colors.white),
+                          ),
+                          label: Text(
+                            isOutOfStock ? 'Out of Stock' : '+ Add to Order',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: isOutOfStock
+                                  ? subtitleColor
+                                  : (isDark ? const Color(0xFF0F172A) : Colors.white),
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isOutOfStock
+                                ? (isDark ? const Color(0xFF1E293B) : Colors.grey[300])
+                                : (isDark ? Colors.white : _brandNavy),
+                            foregroundColor: isOutOfStock
+                                ? subtitleColor
+                                : (isDark ? const Color(0xFF0F172A) : Colors.white),
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

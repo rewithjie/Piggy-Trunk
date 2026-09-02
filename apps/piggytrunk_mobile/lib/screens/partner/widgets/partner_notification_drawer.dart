@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../../../utils/app_strings.dart';
 
 void showPartnerNotificationDrawer({
   required BuildContext context,
@@ -274,7 +275,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                     padding: EdgeInsets.symmetric(horizontal: fit.dp(16), vertical: fit.dp(12)),
                     physics: const BouncingScrollPhysics(),
                     itemCount: filteredList.length,
-                    separatorBuilder: (_, __) => SizedBox(height: fit.dp(10)),
+                    separatorBuilder: (context, index) => SizedBox(height: fit.dp(10)),
                     itemBuilder: (ctx, index) {
                       final notif = filteredList[index];
                       final notifId = (notif['notification_id'] as num?)?.toInt() ?? index;
@@ -428,6 +429,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
   }
 
   Widget _buildEmptyState(ScreenFit fit, bool isDark) {
+    final strings = AppStrings.of(context);
     return Center(
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: fit.dp(30)),
@@ -435,35 +437,34 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: EdgeInsets.all(fit.dp(18)),
+              padding: EdgeInsets.all(fit.dp(16)),
               decoration: BoxDecoration(
                 color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 Icons.notifications_none_rounded,
-                size: fit.dp(44),
+                size: fit.dp(36),
                 color: isDark ? const Color(0xFF93C5FD) : _brandColor,
               ),
             ),
-            SizedBox(height: fit.dp(14)),
+            SizedBox(height: fit.dp(12)),
             Text(
-              'No Notifications Yet',
+              strings.noNotifications,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: fit.sp(16),
+                fontSize: fit.sp(15),
                 fontWeight: FontWeight.w800,
                 color: isDark ? Colors.white : _brandColor,
               ),
             ),
-            SizedBox(height: fit.dp(6)),
+            SizedBox(height: fit.dp(4)),
             Text(
-              'Updates on funded hog batches, health logs, and stage transitions will appear here.',
+              strings.noNotificationsSubtitle,
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: fit.sp(12.5),
+                fontSize: fit.sp(12.0),
                 fontWeight: FontWeight.w500,
                 color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
-                height: 1.4,
               ),
             ),
           ],

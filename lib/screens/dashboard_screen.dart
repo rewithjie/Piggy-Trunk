@@ -61,16 +61,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .or('account_status.ilike.active,account_status.ilike.approved')
           .order('name', ascending: true);
 
-      // 2. Load investment records to compute total, fattening, and sow allocations
+      // 2. Load investment records to compute Admin Initial Capital & batch count
       final invRecordsRes = await _supabase
           .from('investment_records')
           .select('hog_raiser_id, id, initial_capital, hog_type, stage, investment_date')
           .order('investment_date', ascending: false);
 
       final invList = (invRecordsRes as List? ?? []);
-      double calculatedTotalCapital = 0;
-      double calculatedFatteningCapital = 0;
-      double calculatedSowCapital = 0;
+      double calculatedInitialCapital = 0;
+      double calculatedFatteningInitialCapital = 0;
+      double calculatedSowInitialCapital = 0;
       final Map<String, String> raiserInvestmentTypeMap = {};
 
       for (var inv in invList) {
@@ -79,14 +79,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final amt = rawCap is num
             ? rawCap.toDouble()
             : double.tryParse(rawCap?.toString() ?? '0') ?? 0;
-        calculatedTotalCapital += amt;
+        calculatedInitialCapital += amt;
 
         final ht = (inv['hog_type'] ?? '').toString().toLowerCase();
         if (ht.contains('sow') || ht.contains('inahin')) {
-          calculatedSowCapital += amt;
+          calculatedSowInitialCapital += amt;
         } else {
-          // Defaults or contains fattening
-          calculatedFatteningCapital += amt;
+          calculatedFatteningInitialCapital += amt;
         }
 
         final rId = inv['hog_raiser_id']?.toString() ?? '';
@@ -96,24 +95,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
-      // Load active/approved partner investments from investments table
-      int partnerActiveCount = 0;
+      // 3. Load product prices to price stock requests accurately
+      final Map<String, double> productPriceMap = {};
       try {
-        final partnerInvRes = await _supabase
-            .from('investments')
-            .select('amount, status')
-            .or('status.ilike.active,status.ilike.approved');
-
-        for (var pInv in (partnerInvRes as List? ?? [])) {
-          if (pInv is! Map) continue;
-          final amt = (pInv['amount'] as num?)?.toDouble() ?? 0.0;
-          calculatedTotalCapital += amt;
-          calculatedFatteningCapital += amt;
-          partnerActiveCount++;
+        final productsRes = await _supabase
+            .from('inventory_products')
+            .select('id, name, price, category');
+        for (var p in (productsRes as List? ?? [])) {
+          if (p is! Map) continue;
+          final pName = (p['name'] ?? '').toString().trim().toLowerCase();
+          final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
+          final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
+          if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
+          if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
+            productPriceMap[pCat] = pPrice;
+          }
         }
       } catch (pErr) {
-        debugPrint('Notice loading partner investments for dashboard: $pErr');
+        debugPrint('Notice loading product prices for dashboard: $pErr');
       }
+
+      const double defaultFeedPrice = 1650.0;
+      double calculatedStocksProvided = 0;
+      double calculatedFatteningStocks = 0;
+      double calculatedSowStocks = 0;
+
+      // 4. Load approved stock requests (Stocks provided for Hog Raisers)
+      try {
+        final stockReqRes = await _supabase
+            .from('stock_requests')
+            .select('request_id, hog_raiser_id, category, quantity, feed_type, status')
+            .eq('status', 'approved');
+
+        for (var req in (stockReqRes as List? ?? [])) {
+          if (req is! Map) continue;
+          final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
+          final fType = (req['feed_type'] ?? '').toString().trim().toLowerCase();
+          final cat = (req['category'] ?? '').toString().trim().toLowerCase();
+          final rId = (req['hog_raiser_id'] ?? '').toString();
+
+          final unitPrice = productPriceMap[fType] ??
+              productPriceMap[cat] ??
+              defaultFeedPrice;
+
+          final totalReqValue = qty * unitPrice;
+          calculatedStocksProvided += totalReqValue;
+
+          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
+          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+            calculatedSowStocks += totalReqValue;
+          } else {
+            calculatedFatteningStocks += totalReqValue;
+          }
+        }
+      } catch (sErr) {
+        debugPrint('Notice loading stock requests for dashboard: $sErr');
+      }
+
+      // 5. Also include sales marked as raiser_distribution if any
+      try {
+        final distSalesRes = await _supabase
+            .from('sales')
+            .select('total_amount, hog_raiser_id, type')
+            .eq('type', 'raiser_distribution');
+
+        for (var s in (distSalesRes as List? ?? [])) {
+          if (s is! Map) continue;
+          final amt = (s['total_amount'] as num?)?.toDouble() ?? 0.0;
+          final rId = (s['hog_raiser_id'] ?? '').toString();
+          calculatedStocksProvided += amt;
+          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
+          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+            calculatedSowStocks += amt;
+          } else {
+            calculatedFatteningStocks += amt;
+          }
+        }
+      } catch (salesErr) {
+        debugPrint('Notice loading distribution sales for dashboard: $salesErr');
+      }
+
+      final double calculatedTotalCapital = calculatedInitialCapital + calculatedStocksProvided;
+      final double calculatedFatteningCapital = calculatedFatteningInitialCapital + calculatedFatteningStocks;
+      final double calculatedSowCapital = calculatedSowInitialCapital + calculatedSowStocks;
 
       if (mounted) {
         final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
@@ -150,7 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         setState(() {
           _activeRaisers = list.length;
-          _batchCount = invList.length + partnerActiveCount;
+          _batchCount = invList.length; // strictly admin batch investments (partner investor excluded)
           _totalCapital = calculatedTotalCapital;
           _fatteningCapital = calculatedFatteningCapital;
           _sowCapital = calculatedSowCapital;
@@ -165,8 +229,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  /// Fallback: query each table individually if the dashboard_summary view
-  /// hasn't been created in Supabase yet.
+  /// Fallback: query each table individually if needed
   Future<void> _loadDashboardFallback() async {
     try {
       final results = await Future.wait([
@@ -191,9 +254,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final investmentRows = results[2] as List;
       final activeRaisers = (results[4] as List).cast<Map<String, dynamic>>();
 
-      double totalCapital = 0;
-      double fatteningCapital = 0;
-      double sowCapital = 0;
+      double initialCapital = 0;
+      double fatteningInitialCapital = 0;
+      double sowInitialCapital = 0;
+      final Map<String, String> raiserInvestmentTypeMap = {};
 
       for (final row in investmentRows) {
         if (row is! Map) continue;
@@ -201,25 +265,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final amt = rawCap is num
             ? rawCap.toDouble()
             : double.tryParse(rawCap?.toString() ?? '0') ?? 0;
-        totalCapital += amt;
+        initialCapital += amt;
         final ht = (row['hog_type'] ?? '').toString().toLowerCase();
         if (ht.contains('sow') || ht.contains('inahin')) {
-          sowCapital += amt;
+          sowInitialCapital += amt;
         } else {
-          fatteningCapital += amt;
+          fatteningInitialCapital += amt;
+        }
+
+        final rId = row['hog_raiser_id']?.toString() ?? '';
+        final rawHt = (row['hog_type'] ?? '').toString().trim();
+        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
+          raiserInvestmentTypeMap[rId] = rawHt;
         }
       }
 
-      int partnerActiveCount = 0;
+      double stocksProvided = 0;
+      double fatteningStocks = 0;
+      double sowStocks = 0;
+
       try {
-        final pRes = await _supabase.from('investments').select('amount').or('status.ilike.active,status.ilike.approved');
-        for (var p in (pRes as List? ?? [])) {
-          final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
-          totalCapital += amt;
-          fatteningCapital += amt;
-          partnerActiveCount++;
+        final stockReqRes = await _supabase
+            .from('stock_requests')
+            .select('hog_raiser_id, category, quantity, feed_type, status')
+            .eq('status', 'approved');
+
+        for (var req in (stockReqRes as List? ?? [])) {
+          if (req is! Map) continue;
+          final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
+          final val = qty * 1650.0;
+          stocksProvided += val;
+          final rId = (req['hog_raiser_id'] ?? '').toString();
+          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
+          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+            sowStocks += val;
+          } else {
+            fatteningStocks += val;
+          }
         }
       } catch (_) {}
+
+      final double totalCapital = initialCapital + stocksProvided;
+      final double fatteningCapital = fatteningInitialCapital + fatteningStocks;
+      final double sowCapital = sowInitialCapital + sowStocks;
 
       final cleanedActiveRaisers = activeRaisers.map((r) {
         final copy = Map<String, dynamic>.from(r);
@@ -248,7 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       setState(() {
         _activeRaisers = raisers.length;
-        _batchCount = batches.length + partnerActiveCount;
+        _batchCount = batches.length; // strictly admin batches
         _totalCapital = totalCapital;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;
@@ -375,7 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// KPI CARDS ROW — now driven by live Supabase data
+  /// KPI CARDS ROW — driven by live Supabase data (Admin Capital + Stocks Provided)
   Widget _buildKpiCardsRow() {
     final isMobile = Responsive.isMobile(context);
     final kpiData = [
@@ -479,7 +567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// INVESTMENT ALLOCATION SECTION — now driven by live Supabase data
+  /// INVESTMENT ALLOCATION SECTION — driven by live Admin investment + stocks data
   Widget _buildInvestmentAllocationSection() {
     final isMobile = Responsive.isMobile(context);
     final isVeryNarrow = MediaQuery.of(context).size.width < 500;

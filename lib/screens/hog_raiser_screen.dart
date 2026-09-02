@@ -12,6 +12,7 @@ import '../utils/responsive.dart';
 import '../widgets/hog_raiser/raiser_profile_drawer.dart';
 import '../widgets/hog_raiser/edit_raiser_drawer.dart';
 import '../widgets/hog_raiser/active_raisers_tab.dart';
+import '../services/email_service.dart';
 
 class HogRaiserScreen extends StatefulWidget {
   const HogRaiserScreen({super.key});
@@ -466,6 +467,18 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       }
 
       await Future.wait(updates);
+
+      // Send approval email via Resend
+      if (email.isNotEmpty) {
+        try {
+          EmailService().sendAccountApprovalEmail(
+            recipientEmail: email,
+            recipientName: name,
+            role: 'hog_raiser',
+          );
+        } catch (_) {}
+      }
+
       await _loadRaisers(keyword: _searchCtrl.text);
       _showThemedSnackBar('Raiser "$name" approved successfully.');
     } catch (e) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../utils/app_strings.dart';
 import 'widgets/raiser_empty_state.dart';
 
 class RequestHistoryScreen extends StatefulWidget {
@@ -19,7 +20,7 @@ class RequestHistoryScreen extends StatefulWidget {
 }
 
 class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
-  String _activeTab = 'Lahat'; // 'Lahat', 'Pending', 'Natapos'
+  String _activeTab = 'All'; // 'All', 'Pending', 'Completed'
   List<Map<String, dynamic>> _requests = [];
   bool _isLoading = true;
 
@@ -36,40 +37,47 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
 
   Future<void> _fetchRequests() async {
     final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
-    if (raiserId == null) return;
-
-    setState(() => _isLoading = true);
+    if (raiserId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
 
     try {
       final res = await Supabase.instance.client
           .from('stock_requests')
-          .select('*, assignments(*, batches(*))')
+          .select('''
+            request_id,
+            product_name,
+            quantity,
+            request_date,
+            status,
+            rejection_reason,
+            notes,
+            batches(batch_name)
+          ''')
           .eq('hog_raiser_id', raiserId)
           .order('request_date', ascending: false);
 
       if (mounted) {
         setState(() {
-          _requests = List<Map<String, dynamic>>.from(res);
+          _requests = List<Map<String, dynamic>>.from(res as List);
+          _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error fetching request history: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   List<Map<String, dynamic>> get _filteredRequests {
-    if (_activeTab == 'Lahat') return _requests;
+    if (_activeTab == 'All' || _activeTab == 'Lahat') return _requests;
     if (_activeTab == 'Pending') {
       return _requests.where((r) {
         final s = (r['status'] ?? '').toString().toLowerCase();
         return s == 'pending' || s == 'for_approval';
       }).toList();
     }
-    // Natapos includes approved, rejected, delivered, completed
+    // Completed includes approved, rejected, delivered, completed
     return _requests.where((r) {
       final s = (r['status'] ?? '').toString().toLowerCase();
       return s != 'pending' && s != 'for_approval';
@@ -97,8 +105,13 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : _brandColor;
+    final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
     final filtered = _filteredRequests;
 
     final int pendingCount = _requests.where((r) {
@@ -112,9 +125,9 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     }).length;
 
     return Scaffold(
-      backgroundColor: PiggyTrunkTheme.ptBg,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: surfaceBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
@@ -122,17 +135,17 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: _brandColor.withValues(alpha: 0.06),
+              color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.06),
               shape: BoxShape.circle,
             ),
-            child: const Center(
-              child: Icon(Icons.arrow_back_ios_new_rounded, color: _brandColor, size: 16),
+            child: Center(
+              child: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 16),
             ),
           ),
           onPressed: widget.onBack,
         ),
         title: Text(
-          'Kasaysayan ng Request',
+          strings.isFilipino ? 'Kasaysayan ng Request' : 'Request History',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
             fontSize: 18,
@@ -142,27 +155,40 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(color: PiggyTrunkTheme.ptBorder, height: 1),
+          child: Container(color: cardBorder, height: 1),
         ),
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // ==================== ENLARGED BALANCED FILTER PILLS ====================
             Padding(
               padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 16.0),
               child: Row(
                 children: [
                   Expanded(
-                    child: _buildFilterChip('Lahat', _requests.length),
+                    child: _buildFilterChip(
+                      'All',
+                      strings.filterAll,
+                      _requests.length,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildFilterChip('Pending', pendingCount, color: _warningAmber),
+                    child: _buildFilterChip(
+                      'Pending',
+                      strings.filterPending,
+                      pendingCount,
+                      color: _warningAmber,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildFilterChip('Natapos', completedCount, color: _successGreen),
+                    child: _buildFilterChip(
+                      'Completed',
+                      strings.isFilipino ? 'Natapos' : 'Completed',
+                      completedCount,
+                      color: _successGreen,
+                    ),
                   ),
                 ],
               ),
@@ -171,9 +197,9 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
             // ==================== HISTORY LOGS LIST / EMPTY STATE ====================
             Expanded(
               child: _isLoading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(_brandColor),
+                        valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : _brandColor),
                       ),
                     )
                   : filtered.isEmpty
@@ -183,14 +209,16 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                             alignment: Alignment.topCenter,
                             child: RaiserEmptyState(
                               icon: Icons.history_rounded,
-                              message: 'Walang kamakailang aktibidad.',
-                              subtitle: 'Ang mga nakaraang delivery at naaprubahang request mula kay Admin ay lalabas dito.',
+                              message: strings.noStockRequestsYet,
+                              subtitle: strings.isFilipino
+                                  ? 'Wala pang rekord ng mga request.'
+                                  : 'No request records available.',
                             ),
                           ),
                         )
                       : RefreshIndicator(
                           onRefresh: _fetchRequests,
-                          color: _brandColor,
+                          color: isDark ? Colors.white : _brandColor,
                           child: ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -219,30 +247,30 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                               final lowerStatus = status.toLowerCase();
                               if (lowerStatus == 'approved') {
                                 statusColor = _successGreen;
-                                statusBgColor = const Color(0xFFECFDF5);
+                                statusBgColor = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
                               } else if (lowerStatus == 'pending' || lowerStatus == 'for_approval') {
                                 statusColor = _warningAmber;
-                                statusBgColor = const Color(0xFFFFFBEB);
+                                statusBgColor = isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB);
                               } else if (lowerStatus == 'rejected' || lowerStatus == 'cancelled') {
                                 statusColor = _dangerRed;
-                                statusBgColor = const Color(0xFFFEF2F2);
+                                statusBgColor = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
                               } else {
                                 statusColor = const Color(0xFF6366F1);
-                                statusBgColor = const Color(0xFFEEF2FF);
+                                statusBgColor = isDark ? const Color(0xFF312E81) : const Color(0xFFEEF2FF);
                               }
 
                               IconData itemIcon = Icons.grass_rounded;
                               Color itemColor = const Color(0xFF10B981);
-                              Color itemBg = const Color(0xFFECFDF5);
+                              Color itemBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
 
                               if (category.toLowerCase() == 'vitamins') {
                                 itemIcon = Icons.medication_liquid_rounded;
                                 itemColor = const Color(0xFF8B5CF6);
-                                itemBg = const Color(0xFFF3E8FF);
+                                itemBg = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF3E8FF);
                               } else if (category.toLowerCase() == 'medicine') {
                                 itemIcon = Icons.medical_services_rounded;
                                 itemColor = const Color(0xFFEF4444);
-                                itemBg = const Color(0xFFFEE2E2);
+                                itemBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2);
                               }
 
                               String titleText = '$quantity Sacks of $category';
@@ -256,12 +284,12 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: surfaceBg,
                                   borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                                  border: Border.all(color: cardBorder),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.02),
+                                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                                       blurRadius: 8,
                                       offset: const Offset(0, 3),
                                     ),
@@ -291,7 +319,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                                 style: GoogleFonts.plusJakartaSans(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w700,
-                                                  color: _brandColor,
+                                                  color: textColor,
                                                 ),
                                               ),
                                               const SizedBox(height: 3),
@@ -299,7 +327,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                                 '$batchName • $dateStr',
                                                 style: GoogleFonts.plusJakartaSans(
                                                   fontSize: 12,
-                                                  color: PiggyTrunkTheme.ptMuted,
+                                                  color: mutedColor,
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
@@ -331,21 +359,21 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                         width: double.infinity,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF8FAFC),
+                                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                                           borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                                          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                                         ),
                                         child: Row(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            const Icon(Icons.notes_rounded, size: 14, color: PiggyTrunkTheme.ptMuted),
+                                            Icon(Icons.notes_rounded, size: 14, color: mutedColor),
                                             const SizedBox(width: 6),
                                             Expanded(
                                               child: Text(
                                                 notes,
                                                 style: GoogleFonts.plusJakartaSans(
                                                   fontSize: 11.5,
-                                                  color: PiggyTrunkTheme.ptMuted,
+                                                  color: mutedColor,
                                                   fontWeight: FontWeight.w500,
                                                 ),
                                               ),
@@ -360,9 +388,9 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                         width: double.infinity,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFEF2F2),
+                                          color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2),
                                           borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(color: const Color(0xFFFCA5A5)),
+                                          border: Border.all(color: isDark ? const Color(0xFF991B1B) : const Color(0xFFFCA5A5)),
                                         ),
                                         child: Row(
                                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,7 +402,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                                 'Dahilan: ${req['rejection_reason']}',
                                                 style: GoogleFonts.plusJakartaSans(
                                                   fontSize: 11.5,
-                                                  color: const Color(0xFFB91C1C),
+                                                  color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                               ),
@@ -396,30 +424,37 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     );
   }
 
-  Widget _buildFilterChip(String label, int count, {Color? color}) {
-    final isSelected = _activeTab == label;
+  Widget _buildFilterChip(String key, String label, int count, {Color? color}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = _activeTab == key;
+    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
+
     return GestureDetector(
-      onTap: () => setState(() => _activeTab = label),
+      onTap: () => setState(() => _activeTab = key),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : Colors.white,
+          color: isSelected ? selectedBg : inactiveBg,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
+            color: isSelected ? selectedBg : inactiveBorder,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _brandColor.withValues(alpha: 0.22),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.22),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -434,7 +469,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : _brandColor,
+                color: isSelected ? selectedText : inactiveText,
               ),
             ),
             const SizedBox(width: 6),
@@ -442,8 +477,8 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? Colors.white.withValues(alpha: 0.22)
-                    : (color?.withValues(alpha: 0.12) ?? PiggyTrunkTheme.ptBg),
+                    ? (isDark ? const Color(0xFF0F172A).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.22))
+                    : (color?.withValues(alpha: isDark ? 0.2 : 0.12) ?? (isDark ? const Color(0xFF1E293B) : PiggyTrunkTheme.ptBg)),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -451,7 +486,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: isSelected ? Colors.white : (color ?? _brandColor),
+                  color: isSelected ? selectedText : (color ?? inactiveText),
                 ),
               ),
             ),

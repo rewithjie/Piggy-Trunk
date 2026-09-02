@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../widgets/piggy_toast.dart';
 
 class RequestFormScreen extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
@@ -118,21 +119,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       } catch (_) {}
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Matagumpay na naipadala ang Stock Request!'),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na naipadala ang Stock Request!',
         );
         widget.onSuccess();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: _brandColor,
-          ),
+        PiggyToast.showError(
+          context,
+          'Error: ${e.toString()}',
         );
       }
     } finally {
@@ -150,6 +147,13 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     required Color accentColor,
     required bool isSelected,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final selectedBorderColor = isDark ? const Color(0xFF38BDF8) : _brandColor;
+    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : (isSelected ? _brandColor : const Color(0xFF1E293B));
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -166,15 +170,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: cardBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
+              color: isSelected ? selectedBorderColor : cardBorder,
               width: isSelected ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: isSelected ? _brandColor.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.03),
+                color: isSelected
+                    ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.12))
+                    : Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                 blurRadius: isSelected ? 12 : 8,
                 offset: const Offset(0, 3),
               ),
@@ -186,7 +192,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
+                  color: accentColor.withValues(alpha: isDark ? 0.2 : 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Image.asset(
@@ -211,7 +217,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: isSelected ? _brandColor : const Color(0xFF1E293B),
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 2),
@@ -220,7 +226,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w500,
-                  color: PiggyTrunkTheme.ptMuted,
+                  color: mutedColor,
                 ),
               ),
             ],
@@ -231,7 +237,14 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   }
 
   Widget _buildFeedChip(String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedFeedType == label;
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xff5d6a7b);
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -242,10 +255,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : Colors.white,
+          color: isSelected ? selectedBg : inactiveBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? _brandColor : PiggyTrunkTheme.ptBorder,
+            color: isSelected ? selectedBg : inactiveBorder,
             width: 1,
           ),
         ),
@@ -254,7 +267,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xff5d6a7b),
+            color: isSelected ? selectedText : inactiveText,
           ),
         ),
       ),
@@ -263,13 +276,20 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return Scaffold(
-      backgroundColor: PiggyTrunkTheme.ptBg,
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: surfaceBg,
         elevation: 0.5,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: _brandColor, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 20),
           onPressed: widget.onBack,
         ),
         title: Text(
@@ -277,21 +297,21 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
             fontSize: 18,
-            color: _brandColor,
+            color: textColor,
           ),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded, color: _brandColor),
+            icon: Icon(Icons.history_rounded, color: textColor),
             onPressed: widget.onViewHistory,
           ),
         ],
       ),
       body: _isSubmitting
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(_brandColor),
+                valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : _brandColor),
               ),
             )
           : SafeArea(
@@ -306,7 +326,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _brandColor,
+                        color: textColor,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -315,47 +335,47 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: surfaceBg,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                              border: Border.all(color: borderColor),
                             ),
                             child: Text(
                               'Walang aktibong batch na nakatalaga.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
-                                color: PiggyTrunkTheme.ptMuted,
+                                color: mutedColor,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           )
                         : DropdownButtonFormField<BigInt>(
                             initialValue: _selectedAssignmentId,
+                            dropdownColor: surfaceBg,
                             isExpanded: true,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
-                              color: _brandColor,
+                              color: textColor,
                               fontWeight: FontWeight.w600,
                             ),
                             decoration: InputDecoration(
-                              fillColor: Colors.white,
+                              fillColor: surfaceBg,
                               filled: true,
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: PiggyTrunkTheme.ptBorder),
+                                borderSide: BorderSide(color: borderColor),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: PiggyTrunkTheme.ptBorder),
+                                borderSide: BorderSide(color: borderColor),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: const BorderSide(color: _brandColor, width: 1.5),
+                                borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : _brandColor, width: 1.5),
                               ),
                             ),
                             items: widget.activeAssignments.map((a) {
                               final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
-                              // Clean up the UUID suffix from the display batch name
                               String displayBatchName = rawBatchName;
                               if (rawBatchName.contains(' (')) {
                                 final parts = rawBatchName.split(' (');
@@ -378,7 +398,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                   maxLines: 1,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
-                                    color: _brandColor,
+                                    color: textColor,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -418,7 +438,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _brandColor,
+                        color: textColor,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -460,17 +480,19 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _quantityError != null ? const Color(0xFFE53935) : _brandColor,
+                        color: _quantityError != null ? const Color(0xFFE53935) : textColor,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: _quantityError != null ? const Color(0xFFFFEBEE) : Colors.white,
+                        color: _quantityError != null
+                            ? (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE))
+                            : surfaceBg,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: _quantityError != null ? const Color(0xFFE53935) : PiggyTrunkTheme.ptBorder,
+                          color: _quantityError != null ? const Color(0xFFE53935) : borderColor,
                           width: _quantityError != null ? 1.5 : 1,
                         ),
                       ),
@@ -486,9 +508,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                 });
                               }
                             },
-                            icon: const Icon(Icons.remove, color: _brandColor),
+                            icon: Icon(Icons.remove, color: textColor),
                             style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xfff7f8fb),
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xfff7f8fb),
                               padding: const EdgeInsets.all(8),
                             ),
                           ),
@@ -497,7 +519,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: _brandColor,
+                              color: textColor,
                             ),
                           ),
                           IconButton(
@@ -507,9 +529,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                 _quantityError = null;
                               });
                             },
-                            icon: const Icon(Icons.add, color: _brandColor),
+                            icon: Icon(Icons.add, color: textColor),
                             style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xfff7f8fb),
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xfff7f8fb),
                               padding: const EdgeInsets.all(8),
                             ),
                           ),
@@ -544,7 +566,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: _brandColor,
+                          color: textColor,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -569,7 +591,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _brandColor,
+                        color: textColor,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -582,28 +604,28 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       ],
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
-                        color: _brandColor,
+                        color: textColor,
                       ),
                       decoration: InputDecoration(
                         hintText: 'Ipaliwanag kung para saan ito...',
                         hintStyle: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: const Color(0xffa0aec0),
+                          color: mutedColor,
                         ),
-                        fillColor: Colors.white,
+                        fillColor: surfaceBg,
                         filled: true,
                         contentPadding: const EdgeInsets.all(16),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: PiggyTrunkTheme.ptBorder),
+                          borderSide: BorderSide(color: borderColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: PiggyTrunkTheme.ptBorder),
+                          borderSide: BorderSide(color: borderColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: _brandColor, width: 1.5),
+                          borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : _brandColor, width: 1.5),
                         ),
                       ),
                     ),

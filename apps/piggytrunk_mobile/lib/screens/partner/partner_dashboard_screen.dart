@@ -12,6 +12,7 @@ import 'tabs/partner_activities_tab.dart';
 import 'tabs/partner_profile_tab.dart';
 import '../../services/auth_session_service.dart';
 import '../../utils/capitalization_formatters.dart';
+import '../../utils/app_strings.dart';
 
 class PartnerDashboardScreen extends StatefulWidget {
   const PartnerDashboardScreen({super.key});
@@ -689,8 +690,22 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 _partnerAddress = partnerRecord['address'].toString();
               }
               final pAvatar = partnerRecord['avatar_url']?.toString().trim();
-              if (pAvatar != null && pAvatar.isNotEmpty && (pAvatar.startsWith('http://') || pAvatar.startsWith('https://'))) {
+              if (pAvatar != null &&
+                  pAvatar.isNotEmpty &&
+                  (pAvatar.startsWith('http://') || pAvatar.startsWith('https://')) &&
+                  !pAvatar.toLowerCase().contains('googleusercontent.com') &&
+                  !pAvatar.toLowerCase().contains('ggpht.com') &&
+                  !pAvatar.toLowerCase().contains('google.com')) {
                 _partnerAvatarUrl = pAvatar;
+              } else if (pAvatar != null &&
+                  (pAvatar.toLowerCase().contains('googleusercontent.com') ||
+                      pAvatar.toLowerCase().contains('ggpht.com'))) {
+                try {
+                  await Supabase.instance.client
+                      .from('partner_investors')
+                      .update({'avatar_url': null})
+                      .eq('user_id', appUserId);
+                } catch (_) {}
               }
             } else {
               final inserted = await Supabase.instance.client
@@ -704,24 +719,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
             }
           } catch (e) {
             debugPrint('Notice on partner_investors record: $e');
-          }
-        }
-
-        // Fallback to auth metadata if partner_investors had no avatar
-        if (_partnerAvatarUrl == null || _partnerAvatarUrl!.isEmpty) {
-          if (user != null) {
-            final meta = user.userMetadata ?? {};
-            final metaAvatar = (meta['avatar_url'] ?? meta['picture'] ?? meta['profile_picture'])?.toString().trim();
-            if (metaAvatar != null && metaAvatar.isNotEmpty && (metaAvatar.startsWith('http://') || metaAvatar.startsWith('https://'))) {
-              _partnerAvatarUrl = metaAvatar;
-              if (appUserId != null) {
-                try {
-                  await Supabase.instance.client.from('partner_investors').update({
-                    'avatar_url': metaAvatar,
-                  }).eq('user_id', appUserId);
-                } catch (_) {}
-              }
-            }
           }
         }
 
@@ -1175,6 +1172,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
     final scaffoldBg = isDark ? const Color(0xff0f1724) : PiggyTrunkTheme.ptBg;
     final navBg = isDark ? const Color(0xff151f2e) : Colors.white;
     final navBorder = isDark ? const Color(0xff28354a) : const Color(0xffe6ebf2);
@@ -1244,10 +1242,14 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Color(0xFF18314F),
+            SnackBar(
+              content: Text(
+                strings.isFilipino
+                    ? 'Pindutin ulit ang Back button upang isara ang app.'
+                    : 'Press back again to exit the app.',
+              ),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF18314F),
             ),
           );
           return;
@@ -1259,9 +1261,9 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         backgroundColor: scaffoldBg,
         body: SafeArea(
           child: _isLoading
-            ? const Center(
+            ? Center(
                 child: CircularProgressIndicator(
-                  color: Color(0xFF18314F),
+                  color: isDark ? Colors.white : const Color(0xFF18314F),
                 ),
               )
             : IndexedStack(
@@ -1302,22 +1304,22 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
             BottomNavigationBarItem(
               icon: const Icon(Icons.grid_view_rounded),
               activeIcon: Icon(Icons.grid_view_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
-              label: 'Home',
+              label: strings.navHome,
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.account_balance_wallet_outlined),
               activeIcon: Icon(Icons.account_balance_wallet_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
-              label: 'Investment',
+              label: strings.navInvestment,
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.article_outlined),
               activeIcon: Icon(Icons.article_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
-              label: 'Activities',
+              label: strings.navActivities,
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.person_outline_rounded),
               activeIcon: Icon(Icons.person_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
-              label: 'Profile',
+              label: strings.navProfile,
             ),
           ],
         ),

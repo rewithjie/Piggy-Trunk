@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/partner_notification_drawer.dart';
 import '../widgets/batch_raiser_details_drawer.dart';
 
@@ -130,8 +131,10 @@ class PartnerHomeTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final fit = ScreenFit(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
 
-    final primaryTextColor = isDark ? const Color(0xffecf2ff) : _brandColor;
+    final primaryTextColor = isDark ? Colors.white : _brandColor;
+    final titleColor = isDark ? Colors.white : _brandColor;
     final cardBgColor = isDark ? const Color(0xff151f2e) : Colors.white;
     final cardBorderColor = isDark ? const Color(0xff28354a) : const Color(0xffe6ebf2);
     final iconBgColor = isDark ? const Color(0xff1b2638) : const Color(0xfff0f4f8);
@@ -157,7 +160,7 @@ class PartnerHomeTab extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: onRefresh,
-      color: _brandColor,
+      color: isDark ? Colors.white : _brandColor,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.fromLTRB(fit.dp(20), fit.dp(20), fit.dp(20), fit.dp(32)),
@@ -174,7 +177,7 @@ class PartnerHomeTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hello Partner Investor,',
+                        strings.partnerGreeting,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(13.0),
                           fontWeight: FontWeight.w500,
@@ -188,7 +191,7 @@ class PartnerHomeTab extends StatelessWidget {
                         child: Text(
                           (partnerName.trim().isNotEmpty && partnerName.trim().toLowerCase() != 'partner investor')
                               ? partnerName.trim()
-                              : 'Just a Random',
+                              : strings.partnerRole,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(22.0),
                             fontWeight: FontWeight.w800,
@@ -255,26 +258,34 @@ class PartnerHomeTab extends StatelessWidget {
                         // Header row inside card: Label + Status Tag
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.account_balance_wallet_rounded,
-                                  size: fit.dp(16),
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'PORTFOLIO VALUE',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: fit.sp(11.5),
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.8,
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.account_balance_wallet_rounded,
+                                    size: fit.dp(16),
                                     color: Colors.white.withValues(alpha: 0.8),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      (strings.isFilipino ? 'PORTFOLIO' : 'PORTFOLIO VALUE'),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: fit.sp(11.0),
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.8,
+                                        color: Colors.white.withValues(alpha: 0.8),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             Container(
                               padding: EdgeInsets.symmetric(
                                 horizontal: fit.dp(10),
@@ -305,7 +316,9 @@ class PartnerHomeTab extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
-                                    hasInvestments ? 'Active Investor' : 'Ready to Invest',
+                                    hasInvestments
+                                        ? (strings.isFilipino ? 'Aktibo' : 'Active Investor')
+                                        : (strings.isFilipino ? 'Handa' : 'Ready to Invest'),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: fit.sp(10.5),
                                       fontWeight: FontWeight.w700,
@@ -339,8 +352,12 @@ class PartnerHomeTab extends StatelessWidget {
 
                         Text(
                           hasInvestments
-                              ? 'Funded across $activeProjectsCount active hog batches'
-                              : 'Start funding raisers & earn passive returns',
+                              ? (strings.isFilipino
+                                  ? 'Naipuhunan sa $activeProjectsCount aktibong batch ng baboy'
+                                  : 'Funded across $activeProjectsCount active hog batches')
+                              : (strings.isFilipino
+                                  ? 'Simulang pondohan ang mga tagapag-alaga at kumita'
+                                  : 'Start funding raisers & earn passive returns'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(12.0),
                             fontWeight: FontWeight.w500,
@@ -369,7 +386,7 @@ class PartnerHomeTab extends StatelessWidget {
                               Expanded(
                                 child: _buildHeroStatItem(
                                   fit: fit,
-                                  label: 'Batches',
+                                  label: strings.isFilipino ? 'Mga Batch' : 'Batches',
                                   value: activeProjectsCount <= 0
                                       ? '0'
                                       : activeProjectsCount.toString().padLeft(2, '0'),
@@ -385,7 +402,7 @@ class PartnerHomeTab extends StatelessWidget {
                               Expanded(
                                 child: _buildHeroStatItem(
                                   fit: fit,
-                                  label: 'Raisers',
+                                  label: strings.isFilipino ? 'Tagapag-alaga' : 'Raisers',
                                   value: uniqueRaisers <= 0
                                       ? '0'
                                       : uniqueRaisers.toString().padLeft(2, '0'),
@@ -401,7 +418,7 @@ class PartnerHomeTab extends StatelessWidget {
                               Expanded(
                                 child: _buildHeroStatItem(
                                   fit: fit,
-                                  label: 'Hogs Funded',
+                                  label: strings.isFilipino ? 'Pinondohan' : 'Hogs Funded',
                                   value: totalHogsFunded <= 0
                                       ? '0'
                                       : totalHogsFunded.toString(),
@@ -426,8 +443,8 @@ class PartnerHomeTab extends StatelessWidget {
                   child: _buildQuickActionCard(
                     context: context,
                     fit: fit,
-                    title: 'Fund Batch',
-                    subtitle: 'Invest now',
+                    title: strings.isFilipino ? 'Puhunan' : strings.fundBatch,
+                    subtitle: strings.investNow,
                     icon: Icons.add_card_rounded,
                     accentColor: const Color(0xFF10B981),
                     onTap: () {
@@ -444,8 +461,8 @@ class PartnerHomeTab extends StatelessWidget {
                   child: _buildQuickActionCard(
                     context: context,
                     fit: fit,
-                    title: 'Raiser Logs',
-                    subtitle: 'Live updates',
+                    title: strings.isFilipino ? 'Mga Ulat' : strings.recentActivities,
+                    subtitle: strings.isFilipino ? 'Updates' : 'Live updates',
                     icon: Icons.feed_rounded,
                     accentColor: const Color(0xFFF59E0B),
                     onTap: () {
@@ -462,8 +479,8 @@ class PartnerHomeTab extends StatelessWidget {
                   child: _buildQuickActionCard(
                     context: context,
                     fit: fit,
-                    title: 'My Profile',
-                    subtitle: 'Account info',
+                    title: strings.profile,
+                    subtitle: strings.isFilipino ? 'Account' : 'Account info',
                     icon: Icons.person_rounded,
                     accentColor: const Color(0xFF3B82F6),
                     onTap: () {
@@ -483,7 +500,7 @@ class PartnerHomeTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  hasInvestments ? 'My Active Batches' : 'Investment Opportunities',
+                  hasInvestments ? strings.myInvestments : strings.investmentOpportunities,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: fit.sp(16.0),
                     fontWeight: FontWeight.w800,
@@ -502,18 +519,18 @@ class PartnerHomeTab extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'See all',
+                        strings.seeAll,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(13.0),
                           fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xff93c5fd) : _brandColor,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(width: 2),
                       Icon(
                         Icons.chevron_right_rounded,
                         size: fit.dp(16),
-                        color: isDark ? const Color(0xff93c5fd) : _brandColor,
+                        color: titleColor,
                       ),
                     ],
                   ),
@@ -763,7 +780,7 @@ class PartnerHomeTab extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  'Hog Raiser Activities',
+                  strings.recentActivities,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: fit.sp(16.0),
                     fontWeight: FontWeight.w800,
@@ -782,18 +799,18 @@ class PartnerHomeTab extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'See all',
+                        strings.seeAll,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(13.0),
                           fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xff93c5fd) : _brandColor,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(width: 2),
                       Icon(
                         Icons.chevron_right_rounded,
                         size: fit.dp(16),
-                        color: isDark ? const Color(0xff93c5fd) : _brandColor,
+                        color: titleColor,
                       ),
                     ],
                   ),
@@ -829,7 +846,7 @@ class PartnerHomeTab extends StatelessWidget {
                     ),
                     SizedBox(height: fit.dp(12)),
                     Text(
-                      'No Recent Activities',
+                      strings.noActivitiesYet,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(14.5),
                         fontWeight: FontWeight.w800,
@@ -838,7 +855,9 @@ class PartnerHomeTab extends StatelessWidget {
                     ),
                     SizedBox(height: fit.dp(4)),
                     Text(
-                      'Activities & updates from your hog raisers will appear here in real-time.',
+                      strings.isFilipino
+                          ? 'Ang mga aktibidad at update mula sa iyong mga tagapag-alaga ay lalabas dito.'
+                          : 'Activities & updates from your hog raisers will appear here in real-time.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(12.0),
                         fontWeight: FontWeight.w500,

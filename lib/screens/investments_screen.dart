@@ -86,7 +86,39 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         debugPrint('Error fetching assignments: $aErr');
       }
 
-      // 3. Fetch Direct Investment Records
+      // 3. Fetch Product Prices
+      final Map<String, double> productPriceMap = {};
+      try {
+        final productsRes = await _supabase.from('inventory_products').select('name, price, category');
+        for (var p in (productsRes as List? ?? [])) {
+          if (p is! Map) continue;
+          final pName = (p['name'] ?? '').toString().trim().toLowerCase();
+          final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
+          final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
+          if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
+          if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
+            productPriceMap[pCat] = pPrice;
+          }
+        }
+      } catch (pErr) {
+        debugPrint('Error fetching product prices: $pErr');
+      }
+
+      // 4. Fetch Approved Stock Requests
+      List<dynamic> approvedStockRequests = [];
+      try {
+        approvedStockRequests = await _supabase
+            .from('stock_requests')
+            .select('*')
+            .eq('status', 'approved')
+            .order('request_date', ascending: false);
+      } catch (sErr) {
+        debugPrint('Error fetching approved stock requests: $sErr');
+      }
+
+      const double defaultFeedPrice = 1650.0;
+
+      // 5. Fetch Direct Investment Records
       dynamic response;
       try {
         response = await _supabase
@@ -105,7 +137,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       }
 
       final List<Investment> loaded = [];
-      for (var row in (response as List? ?? [])) {
+      final allInvRows = (response as List? ?? []);
+
+      for (var row in allInvRows) {
         final rMap = Map<String, dynamic>.from(row as Map);
         final raiser = rMap['hog_raisers'] as Map<String, dynamic>?;
         final appUsers = raiser?['app_users'] as Map<String, dynamic>?;
@@ -124,6 +158,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
         String? matchedBatchName;
         String? matchedBatchId;
+        String? matchedAssignmentId;
 
         // A. Direct batch_name / batch_id
         if (rMap['batch_name'] != null && rMap['batch_name'].toString().isNotEmpty) {
@@ -147,34 +182,92 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         }
 
         // C. Match from assignments for this raiser
-        if (matchedBatchName == null && raiserId.isNotEmpty) {
+        if (raiserId.isNotEmpty) {
           Map<String, dynamic>? bestAssign;
           for (var a in assignmentsRaw) {
             if (a is! Map) continue;
             final aRaiserId = (a['hog_raiser_id'] ?? '').toString();
+            final aBatchId = (a['batch_id'] ?? '').toString();
             if (aRaiserId == raiserId) {
+              if (matchedBatchId != null && aBatchId == matchedBatchId) {
+                bestAssign = Map<String, dynamic>.from(a);
+                break;
+              }
               final aDate = (a['assigned_date'] ?? '').toString();
               if (invDate.isNotEmpty && aDate.startsWith(invDate.split('T').first)) {
                 bestAssign = Map<String, dynamic>.from(a);
                 break;
               }
-              if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
-                bestAssign ??= Map<String, dynamic>.from(a);
-              } else {
-                bestAssign ??= Map<String, dynamic>.from(a);
-              }
+              bestAssign ??= Map<String, dynamic>.from(a);
             }
           }
 
           if (bestAssign != null) {
             final bId = (bestAssign['batch_id'] ?? '').toString();
-            matchedBatchId = bId;
-            matchedBatchName = batchesMap[bId];
+            matchedAssignmentId = (bestAssign['assignment_id'] ?? bestAssign['id'])?.toString();
+            matchedBatchId ??= bId;
+            matchedBatchName ??= batchesMap[bId];
           }
         }
 
         rMap['batch_name'] = matchedBatchName ?? 'Unassigned';
         rMap['batch_id'] = matchedBatchId;
+
+        // D. Calculate stocks spend and itemized history for this batch
+        final List<Map<String, dynamic>> providedStocksList = [];
+        double batchStocksSpend = 0.0;
+
+        // Find raiser's total batch count to split shared requests if needed
+        final raiserBatchesCount = allInvRows.where((r) => (r['hog_raiser_id'] ?? '').toString() == raiserId).length;
+
+        for (var req in approvedStockRequests) {
+          if (req is! Map) continue;
+          final reqRaiserId = (req['hog_raiser_id'] ?? '').toString();
+          final reqAssignmentId = (req['assignment_id'] ?? '').toString();
+
+          bool isMatch = false;
+          if (matchedAssignmentId != null && reqAssignmentId.isNotEmpty) {
+            isMatch = (reqAssignmentId == matchedAssignmentId);
+          } else if (reqRaiserId == raiserId) {
+            isMatch = true;
+          }
+
+          if (isMatch) {
+            final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
+            final fType = (req['feed_type'] ?? '').toString().trim();
+            final cat = (req['category'] ?? '').toString().trim();
+            final unitPrice = productPriceMap[fType.toLowerCase()] ??
+                productPriceMap[cat.toLowerCase()] ??
+                defaultFeedPrice;
+
+            final totalReqVal = qty * unitPrice;
+
+            // If matched solely on raiserId and raiser has multiple batches without distinct assignmentIds,
+            // allocate to each batch cleanly.
+            final effectiveVal = (matchedAssignmentId == null && raiserBatchesCount > 1)
+                ? (totalReqVal / raiserBatchesCount)
+                : totalReqVal;
+
+            batchStocksSpend += effectiveVal;
+
+            providedStocksList.add({
+              'request_id': req['request_id'],
+              'product_name': fType.isNotEmpty ? fType : (cat.isNotEmpty ? cat : 'Feeds / Supplies'),
+              'category': cat.isNotEmpty ? cat : 'Feeds',
+              'quantity': qty.toInt(),
+              'unit_price': unitPrice,
+              'total_amount': totalReqVal,
+              'request_date': req['request_date'] ?? req['created_at'],
+              'decision_date': req['decision_date'],
+              'status': req['status'] ?? 'approved',
+              'notes': req['notes'] ?? '',
+            });
+          }
+        }
+
+        rMap['stocks_value'] = batchStocksSpend;
+        rMap['provided_stocks'] = providedStocksList;
+
         loaded.add(Investment.fromJson(rMap));
       }
 

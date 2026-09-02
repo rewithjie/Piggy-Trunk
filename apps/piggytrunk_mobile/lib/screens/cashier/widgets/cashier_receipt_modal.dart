@@ -42,17 +42,27 @@ class CashierReceiptModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final modalBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? Colors.white : _brandNavy;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
+    final innerCardBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
+    final innerCardBorder = isDark ? const Color(0xFF2E456B) : const Color(0xFFD7E3F3);
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: modalBg,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: cardBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -80,7 +90,7 @@ class CashierReceiptModal extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: _brandNavy,
+                  color: titleColor,
                 ),
               ),
               const SizedBox(height: 4),
@@ -89,7 +99,7 @@ class CashierReceiptModal extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: PiggyTrunkTheme.ptMuted,
+                  color: subtitleColor,
                 ),
               ),
               const SizedBox(height: 16),
@@ -99,9 +109,9 @@ class CashierReceiptModal extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F8FE),
+                  color: innerCardBg,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFD7E3F3)),
+                  border: Border.all(color: innerCardBorder),
                 ),
                 child: Column(
                   children: [
@@ -110,7 +120,7 @@ class CashierReceiptModal extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: PiggyTrunkTheme.ptMuted,
+                        color: subtitleColor,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -120,7 +130,7 @@ class CashierReceiptModal extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
-                        color: _brandNavy,
+                        color: const Color(0xFF10B981),
                       ),
                     ),
                   ],
@@ -132,38 +142,38 @@ class CashierReceiptModal extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Customer:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                  Text(customerName, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandNavy)),
+                  Text('Customer:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: subtitleColor)),
+                  Text(customerName, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor)),
                 ],
               ),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Cashier:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                  Text(cashierName, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandNavy)),
+                  Text('Cashier:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: subtitleColor)),
+                  Text(cashierName, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor)),
                 ],
               ),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Payment:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                  Text(paymentMethod, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandNavy)),
+                  Text('Payment:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: subtitleColor)),
+                  Text(paymentMethod, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor)),
                 ],
               ),
               const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Date/Time:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                  Text(_formatDate(timestamp), style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: _brandNavy)),
+                  Text('Date/Time:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: subtitleColor)),
+                  Text(_formatDate(timestamp), style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: titleColor)),
                 ],
               ),
               const SizedBox(height: 14),
 
               // Divider line
-              const Divider(color: Color(0xFFE2E8F0)),
+              Divider(color: cardBorder),
               const SizedBox(height: 8),
 
               // Items breakdown
@@ -174,7 +184,7 @@ class CashierReceiptModal extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: _brandNavy,
+                    color: titleColor,
                   ),
                 ),
               ),
@@ -193,14 +203,14 @@ class CashierReceiptModal extends StatelessWidget {
                         Expanded(
                           child: Text(
                             '${item.quantity}x ${item.productName}',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: _brandNavy, fontWeight: FontWeight.w500),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, color: titleColor, fontWeight: FontWeight.w500),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Text(
                           '₱${item.total.toStringAsFixed(2)}',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandNavy),
+                          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor),
                         ),
                       ],
                     ),
@@ -208,15 +218,15 @@ class CashierReceiptModal extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 8),
-              const Divider(color: Color(0xFFE2E8F0)),
+              Divider(color: cardBorder),
               const SizedBox(height: 6),
 
               // Payment Calculation
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Amount Tendered:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: PiggyTrunkTheme.ptMuted)),
-                  Text('₱${tenderedAmount.toStringAsFixed(2)}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: _brandNavy)),
+                  Text('Amount Tendered:', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: subtitleColor)),
+                  Text('₱${tenderedAmount.toStringAsFixed(2)}', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700, color: titleColor)),
                 ],
               ),
               const SizedBox(height: 4),
@@ -235,7 +245,8 @@ class CashierReceiptModal extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: onDone,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandNavy,
+                    backgroundColor: isDark ? Colors.white : _brandNavy,
+                    foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -244,7 +255,7 @@ class CashierReceiptModal extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
                     ),
                   ),
                 ),

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/raiser_header_bar.dart';
 
 class RaiserHomeTab extends StatelessWidget {
   final Map<String, dynamic> raiserData;
   final double investedAmount;
+  final double initialCapital;
+  final double stocksSpendAmount;
+  final List<Map<String, dynamic>> providedStocksList;
   final List<Map<String, dynamic>> requestsList;
   final List<Map<String, dynamic>> notificationsList;
   final List<Map<String, dynamic>> activeAssignments;
@@ -26,6 +30,9 @@ class RaiserHomeTab extends StatelessWidget {
     super.key,
     required this.raiserData,
     required this.investedAmount,
+    this.initialCapital = 0.0,
+    this.stocksSpendAmount = 0.0,
+    this.providedStocksList = const [],
     required this.requestsList,
     required this.notificationsList,
     this.activeAssignments = const [],
@@ -55,7 +62,9 @@ class RaiserHomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final raiserName = raiserData['name'] ?? 'Hog Raiser';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+    final raiserName = raiserData['name'] ?? strings.hogRaiserRole;
 
     // Active assignment & investment details
     final hasActiveBatch = activeAssignments.isNotEmpty;
@@ -75,8 +84,8 @@ class RaiserHomeTab extends StatelessWidget {
         ? rawStage
         : (hasActiveBatch ? (activeAssignments[0]['lifecycle_stage'] ?? 'Booster').toString() : 'Booster');
 
-    final String displayStage = hasInvestment ? activeStage : 'Unassigned';
-    final String displayPigType = hasInvestment ? pigType : 'Unassigned';
+    final String displayStage = hasInvestment ? activeStage : strings.unassigned;
+    final String displayPigType = hasInvestment ? pigType : strings.unassigned;
 
     // Metrics computation
     final int totalHogs = hogsList.isNotEmpty
@@ -171,7 +180,7 @@ class RaiserHomeTab extends StatelessWidget {
                           border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Text(
-                          hasActiveBatch ? activeBatchName.toUpperCase() : 'NO BATCH ASSIGNED',
+                          hasActiveBatch ? activeBatchName.toUpperCase() : (strings.isFilipino ? 'WALANG BATCH' : 'NO BATCH ASSIGNED'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w800,
@@ -193,8 +202,8 @@ class RaiserHomeTab extends StatelessWidget {
                           const SizedBox(width: 6),
                           Text(
                             (hasActiveBatch && hasInvestment)
-                                ? 'Active Cycle'
-                                : (hasActiveBatch ? 'Pending Investment' : 'Pending Batch'),
+                                ? (strings.isFilipino ? 'Aktibong Siklo' : 'Active Cycle')
+                                : (hasActiveBatch ? (strings.isFilipino ? 'Nakabinbing Puhunan' : 'Pending Investment') : (strings.isFilipino ? 'Nakabinbing Batch' : 'Pending Batch')),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
@@ -208,48 +217,125 @@ class RaiserHomeTab extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Middle Main Investment Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  InkWell(
+                    onTap: () => _showInvestmentBreakdownModal(context),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            'Invested Amount',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.85),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      strings.totalCurrentInvestment,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.18),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.info_outline_rounded, color: Colors.white, size: 12),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            strings.viewBreakdown,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _formatCurrency(investedAmount),
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                if (initialCapital > 0 || stocksSpendAmount > 0) ...[
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.account_balance_wallet_outlined, size: 12, color: Colors.white.withValues(alpha: 0.9)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${strings.initialCapital}: ${_formatCurrency(initialCapital)}',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        Text(
+                                          '  •  ',
+                                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                                        ),
+                                        const Icon(Icons.inventory_2_outlined, size: 12, color: Color(0xFF6EE7B7)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${strings.stockRequestsSpend}: ${_formatCurrency(stocksSpendAmount)}',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF6EE7B7),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _formatCurrency(investedAmount),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: -0.5,
+                          GestureDetector(
+                            onTap: () => onNavigateToTab(1),
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.add, color: _brandColor, size: 24),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      GestureDetector(
-                        onTap: () => onNavigateToTab(1),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.add, color: _brandColor, size: 24),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 16),
 
@@ -266,7 +352,7 @@ class RaiserHomeTab extends StatelessWidget {
                         Expanded(
                           child: _buildHeroMiniBadge(
                             icon: Icons.pets_rounded,
-                            label: '$totalHogs Heads',
+                            label: '$totalHogs ${strings.hogs}',
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -280,7 +366,7 @@ class RaiserHomeTab extends StatelessWidget {
                         Expanded(
                           child: _buildHeroMiniBadge(
                             icon: Icons.assignment_outlined,
-                            label: '$pendingRequestsCount Pending',
+                            label: '$pendingRequestsCount ${strings.filterPending}',
                           ),
                         ),
                       ],
@@ -296,9 +382,10 @@ class RaiserHomeTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Active Hogs',
-                    value: '$totalHogs Heads',
-                    subtitle: hasActiveBatch ? activeBatchName : 'No batch assigned',
+                    context: context,
+                    title: strings.totalHogs,
+                    value: '$totalHogs ${strings.hogs}',
+                    subtitle: hasActiveBatch ? activeBatchName : strings.noActiveBatchNotice,
                     icon: Icons.pets_rounded,
                     accentColor: const Color(0xFFEF5B6C),
                     bgColor: const Color(0xFFFEF2F2),
@@ -308,11 +395,12 @@ class RaiserHomeTab extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Hog Health',
+                    context: context,
+                    title: strings.isFilipino ? 'Kalusugan ng Baboy' : 'Hog Health',
                     value: totalHogs > 0
-                        ? (sickHogsCount == 0 ? '100% Good' : '$healthyHogsCount/$totalHogs')
-                        : '100% Good',
-                    subtitle: sickHogsCount == 0 ? 'All healthy' : '$sickHogsCount need care',
+                        ? (sickHogsCount == 0 ? (strings.isFilipino ? '100% Maayos' : '100% Good') : '$healthyHogsCount/$totalHogs')
+                        : (strings.isFilipino ? '100% Maayos' : '100% Good'),
+                    subtitle: sickHogsCount == 0 ? (strings.isFilipino ? 'Lahat malusog' : 'All healthy') : '$sickHogsCount ${strings.isFilipino ? 'nangangailangan ng lunas' : 'need care'}',
                     icon: Icons.health_and_safety_rounded,
                     accentColor: sickHogsCount == 0 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                     bgColor: sickHogsCount == 0 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
@@ -326,9 +414,10 @@ class RaiserHomeTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Stock Requests',
-                    value: '$pendingRequestsCount Pending',
-                    subtitle: 'Awaiting Admin approval',
+                    context: context,
+                    title: strings.stockRequestsTitle,
+                    value: '$pendingRequestsCount ${strings.filterPending}',
+                    subtitle: strings.isFilipino ? 'Naghihintay ng apruba ng Admin' : 'Awaiting Admin approval',
                     icon: Icons.assignment_rounded,
                     accentColor: const Color(0xFFF59E0B),
                     bgColor: const Color(0xFFFFFBEB),
@@ -338,9 +427,10 @@ class RaiserHomeTab extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Feeds Stage',
+                    context: context,
+                    title: strings.currentFeedsStage,
                     value: displayStage,
-                    subtitle: hasInvestment ? '$displayPigType Cycle' : 'No active investment',
+                    subtitle: hasInvestment ? displayPigType : (strings.isFilipino ? 'Walang aktibong puhunan' : 'No active investment'),
                     icon: Icons.restaurant_rounded,
                     accentColor: const Color(0xFF2563EB),
                     bgColor: const Color(0xFFEFF6FF),
@@ -352,11 +442,11 @@ class RaiserHomeTab extends StatelessWidget {
 
             // ==================== QUICK ACTIONS ====================
             Text(
-              'Quick Actions',
+              strings.isFilipino ? 'Mabilisang Aksyon' : 'Quick Actions',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: _brandColor,
+                color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
               ),
             ),
             const SizedBox(height: 14),
@@ -364,29 +454,33 @@ class RaiserHomeTab extends StatelessWidget {
             Row(
               children: [
                 _buildQuickActionTile(
+                  context: context,
                   icon: Icons.post_add_rounded,
-                  label: 'Request',
+                  label: strings.request,
                   color: const Color(0xFF2563EB),
                   onTap: () => onNavigateToTab(1),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
+                  context: context,
                   icon: Icons.medical_services_rounded,
-                  label: 'Report',
+                  label: strings.isFilipino ? 'Mag-ulat' : 'Report',
                   color: const Color(0xFFEF4444),
                   onTap: () => onNavigateToTab(2),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
+                  context: context,
                   icon: Icons.pets_rounded,
-                  label: 'My Hogs',
+                  label: strings.myHogsTitle,
                   color: const Color(0xFF10B981),
                   onTap: () => onNavigateToTab(2),
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
+                  context: context,
                   icon: Icons.receipt_long_rounded,
-                  label: 'History',
+                  label: strings.requestHistory,
                   color: const Color(0xFF8B5CF6),
                   onTap: () => onNavigateToTab(1),
                 ),
@@ -398,8 +492,8 @@ class RaiserHomeTab extends StatelessWidget {
             if (hasActiveBatch) ...[
               _buildFeedsCard(
                 context: context,
-                title: 'Feeds Stages',
-                badgeText: hasInvestment ? (pigType == 'Sow' ? 'Sow' : 'Fattening') : 'Unassigned',
+                title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
+                badgeText: hasInvestment ? (pigType == 'Sow' ? 'Sow' : 'Fattening') : strings.unassigned,
                 stages: (hasInvestment && pigType == 'Sow')
                     ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
                     : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'],
@@ -412,9 +506,9 @@ class RaiserHomeTab extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                  border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
                 ),
                 child: Center(
                   child: Column(
@@ -422,11 +516,11 @@ class RaiserHomeTab extends StatelessWidget {
                       const Icon(Icons.assignment_late_outlined, size: 36, color: Color(0xffa0aec0)),
                       const SizedBox(height: 10),
                       Text(
-                        'Walang nakatalagang feeds stage.',
+                        strings.isFilipino ? 'Walang nakatalagang feeds stage.' : 'No feeds stage assigned.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: PiggyTrunkTheme.ptMuted,
+                          color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                         ),
                       ),
                     ],
@@ -441,21 +535,21 @@ class RaiserHomeTab extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Recent Activities',
+                  strings.recentStockRequests,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: _brandColor,
+                    color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
                   ),
                 ),
                 TextButton(
                   onPressed: () => onNavigateToTab(1),
                   child: Text(
-                    'See all',
+                    strings.viewAll,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: _brandColor,
+                      color: isDark ? const Color(0xFF38BDF8) : _brandColor,
                     ),
                   ),
                 ),
@@ -468,17 +562,17 @@ class RaiserHomeTab extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 32),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                      border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
                     ),
                     child: Center(
                       child: Text(
-                        'Walang kamakailang aktibidad.',
+                        strings.noStockRequestsYet,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: PiggyTrunkTheme.ptMuted,
+                          color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                         ),
                       ),
                     ),
@@ -497,8 +591,9 @@ class RaiserHomeTab extends StatelessWidget {
                       }
 
                       return _buildActivityItem(
+                        context: context,
                         icon: Icons.assignment_outlined,
-                        title: 'Stock Request ($batchName)',
+                        title: '${strings.request} ($batchName)',
                         subtitle: '$dateStr • Status: ${status.toUpperCase()}',
                         isCompleted: status.toLowerCase() == 'approved',
                       );
@@ -543,6 +638,7 @@ class RaiserHomeTab extends StatelessWidget {
   }
 
   Widget _buildMetricCard({
+    required BuildContext context,
     required String title,
     required String value,
     required String subtitle,
@@ -551,17 +647,23 @@ class RaiserHomeTab extends StatelessWidget {
     required Color bgColor,
     VoidCallback? onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: PiggyTrunkTheme.ptBorder),
+          border: Border.all(color: cardBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -576,13 +678,13 @@ class RaiserHomeTab extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: bgColor,
+                    color: isDark ? accentColor.withValues(alpha: 0.15) : bgColor,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(icon, color: accentColor, size: 18),
                 ),
                 if (onTap != null)
-                  Icon(Icons.arrow_forward_ios_rounded, color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.6), size: 12),
+                  Icon(Icons.arrow_forward_ios_rounded, color: mutedColor.withValues(alpha: 0.6), size: 12),
               ],
             ),
             const SizedBox(height: 12),
@@ -591,7 +693,7 @@ class RaiserHomeTab extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: _brandColor,
+                color: textColor,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -602,7 +704,7 @@ class RaiserHomeTab extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
-                color: PiggyTrunkTheme.ptMuted,
+                color: mutedColor,
               ),
             ),
           ],
@@ -612,23 +714,29 @@ class RaiserHomeTab extends StatelessWidget {
   }
 
   Widget _buildQuickActionTile({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: cardBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: PiggyTrunkTheme.ptBorder),
+            border: Border.all(color: cardBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -640,7 +748,7 @@ class RaiserHomeTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: color.withValues(alpha: isDark ? 0.2 : 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -651,7 +759,7 @@ class RaiserHomeTab extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: _brandColor,
+                  color: textColor,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -671,16 +779,21 @@ class RaiserHomeTab extends StatelessWidget {
     required String activeStage,
     required bool hasInvestment,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -697,22 +810,22 @@ class RaiserHomeTab extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: _brandColor,
+                  color: textColor,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: isDark ? const Color(0xFF1E2D42) : const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFDBEAFE)),
+                  border: Border.all(color: isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFDBEAFE)),
                 ),
                 child: Text(
                   badgeText,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2563EB),
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
                   ),
                 ),
               ),
@@ -726,6 +839,7 @@ class RaiserHomeTab extends StatelessWidget {
   }
 
   Widget _buildTimeline(BuildContext context, List<String> stages, String activeStage, bool hasInvestment) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     int activeIndex = hasInvestment
         ? stages.indexWhere((s) => s.toLowerCase() == activeStage.toLowerCase())
         : -1;
@@ -753,7 +867,7 @@ class RaiserHomeTab extends StatelessWidget {
                     child: Container(
                       height: 3,
                       decoration: BoxDecoration(
-                        color: isPassed ? _successGreen : const Color(0xFFE2E8F0),
+                        color: isPassed ? _successGreen : (isDark ? const Color(0xFF334A66) : const Color(0xFFE2E8F0)),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -772,16 +886,26 @@ class RaiserHomeTab extends StatelessWidget {
 
                 Color circleColor;
                 Widget iconWidget;
+                BoxBorder? nodeBorder;
 
                 if (isPassed) {
                   circleColor = _successGreen;
-                  iconWidget = const Icon(Icons.check_rounded, size: 15, color: Colors.white);
+                  iconWidget = const Icon(Icons.check_rounded, size: 16, color: Colors.white);
                 } else if (isActive) {
-                  circleColor = _brandColor;
-                  iconWidget = const Icon(Icons.priority_high_rounded, size: 17, color: Colors.white);
+                  circleColor = isDark ? Colors.white : _brandColor;
+                  iconWidget = Icon(
+                    Icons.priority_high_rounded,
+                    size: 18,
+                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  );
                 } else {
-                  circleColor = const Color(0xFFF1F5F9);
-                  iconWidget = const Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFFA0AEC0));
+                  circleColor = isDark ? const Color(0xFF1E2D42) : const Color(0xFFF1F5F9);
+                  nodeBorder = isDark ? Border.all(color: const Color(0xFF3B506D), width: 1.2) : null;
+                  iconWidget = Icon(
+                    Icons.lock_outline_rounded,
+                    size: 13,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFA0AEC0),
+                  );
                 }
 
                 return GestureDetector(
@@ -801,11 +925,12 @@ class RaiserHomeTab extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: circleColor,
                             shape: BoxShape.circle,
+                            border: nodeBorder,
                             boxShadow: isActive
                                 ? [
                                     BoxShadow(
-                                      color: _brandColor.withValues(alpha: 0.3),
-                                      blurRadius: 8,
+                                      color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.35 : 0.3),
+                                      blurRadius: 10,
                                       offset: const Offset(0, 3),
                                     ),
                                   ]
@@ -817,11 +942,11 @@ class RaiserHomeTab extends StatelessWidget {
                         Text(
                           stages[index],
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            fontWeight: isActive ? FontWeight.w800 : (isPassed ? FontWeight.w700 : FontWeight.w500),
+                            fontSize: 10.5,
+                            fontWeight: isActive ? FontWeight.w800 : (isPassed ? FontWeight.w700 : FontWeight.w600),
                             color: isActive
-                                ? _brandColor
-                                : (isPassed ? _successGreen : const Color(0xFFA0AEC0)),
+                                ? (isDark ? Colors.white : _brandColor)
+                                : (isPassed ? _successGreen : (isDark ? const Color(0xFF94A3B8) : const Color(0xFFA0AEC0))),
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 1,
@@ -840,18 +965,25 @@ class RaiserHomeTab extends StatelessWidget {
   }
 
   Widget _buildActivityItem({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String subtitle,
     required bool isCompleted,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+        border: Border.all(color: cardBorder),
       ),
       child: Row(
         children: [
@@ -859,7 +991,9 @@ class RaiserHomeTab extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: isCompleted ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+              color: isCompleted
+                  ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                  : (isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB)),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
@@ -878,7 +1012,7 @@ class RaiserHomeTab extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: _brandColor,
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -886,7 +1020,7 @@ class RaiserHomeTab extends StatelessWidget {
                   subtitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
-                    color: PiggyTrunkTheme.ptMuted,
+                    color: mutedColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -895,6 +1029,465 @@ class RaiserHomeTab extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showInvestmentBreakdownModal(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF111C2E) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF18263D) : const Color(0xFFF8FAFC);
+    final cardBorder = isDark ? const Color(0xFF283A57) : const Color(0xFFE2E8F0);
+    final primaryTextColor = isDark ? const Color(0xFFF1F5F9) : _brandColor;
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, -6),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Grabber Handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 44,
+                  height: 4.5,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF334A6E) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+
+              // Title Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 16, 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _brandColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.account_balance_wallet_rounded, color: _brandColor, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Investment Breakdown',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: primaryTextColor,
+                            ),
+                          ),
+                          Text(
+                            'Initial Capital + Distributed Stocks Value',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: mutedTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: Icon(Icons.close_rounded, color: mutedTextColor, size: 22),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1, thickness: 1),
+
+              // Content List
+              Flexible(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Total Highlight Hero Banner
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: const LinearGradient(
+                            colors: [_brandColor, _gradientEndColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _brandColor.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'TOTAL CURRENT INVESTMENT',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: _successGreen.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    'ACTIVE',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF6EE7B7),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _formatCurrency(investedAmount),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Combined total of initial capital funding and feeds/supplies dispatched to your batch.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                color: Colors.white.withValues(alpha: 0.75),
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Two Summary Cards: Initial Capital & Supplies Spend
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: cardBorder, width: 1.2),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.account_balance_wallet_outlined, color: Color(0xFF3B82F6), size: 16),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Initial Capital',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: mutedTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _formatCurrency(initialCapital),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: primaryTextColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Admin allocation',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: mutedTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: cardBorder, width: 1.2),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: _successGreen.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.inventory_2_outlined, color: _successGreen, size: 16),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Stocks Spend',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: mutedTextColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _formatCurrency(stocksSpendAmount),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: _successGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Distributed supplies',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: mutedTextColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Section Title: Itemized History
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Distributed Products & Feeds',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: primaryTextColor,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _brandColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${providedStocksList.length} items',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _brandColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      if (providedStocksList.isEmpty) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: cardBorder),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.inventory_2_outlined, size: 36, color: mutedTextColor.withValues(alpha: 0.5)),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No Feeds/Supplies Distributed Yet',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Once admin approves your stock requests, they will automatically count and appear here.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: mutedTextColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        ...providedStocksList.map((item) {
+                          final pName = item['product_name'] ?? 'Feeds';
+                          final pCat = (item['category'] ?? 'Feeds').toString();
+                          final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+                          final uPrice = (item['unit_price'] as num?)?.toDouble() ?? 1650.0;
+                          final total = (item['total_amount'] as num?)?.toDouble() ?? (qty * uPrice);
+                          final rawDate = (item['request_date'] ?? item['decision_date'])?.toString();
+                          final formattedDate = _formatDate(rawDate ?? '');
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: cardBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: cardBorder, width: 1.1),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: _brandColor.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    pCat.toLowerCase().contains('med') || pCat.toLowerCase().contains('vaccine') || pCat.toLowerCase().contains('vitamin')
+                                        ? Icons.medical_services_outlined
+                                        : Icons.grain_rounded,
+                                    color: _brandColor,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        pName,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: primaryTextColor,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '$qty ${qty == 1 ? "unit/sack" : "units/sacks"} • ${_formatCurrency(uPrice)}/ea • $formattedDate',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11.5,
+                                          color: mutedTextColor,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _formatCurrency(total),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: primaryTextColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _successGreen.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'DISTRIBUTED',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: _successGreen,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -908,7 +1501,7 @@ class RaiserHomeTab extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Progression ng Stage',
+            'Stage Progression',
             style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w800,
               fontSize: 18,
@@ -916,7 +1509,7 @@ class RaiserHomeTab extends StatelessWidget {
             ),
           ),
           content: Text(
-            'Nais mo bang i-update ang stage ng iyong alaga sa $targetStage?',
+            'Would you like to advance the growth stage of your batch to $targetStage?',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -936,7 +1529,7 @@ class RaiserHomeTab extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      'Hindi',
+                      'Cancel',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
@@ -960,7 +1553,7 @@ class RaiserHomeTab extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      'Oo, I-update',
+                      'Confirm Update',
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w800,
                         fontSize: 13.5,

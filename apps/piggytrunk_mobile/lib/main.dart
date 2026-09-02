@@ -12,6 +12,7 @@ import 'screens/raiser/dashboard_screen.dart';
 import 'screens/partner/partner_dashboard_screen.dart';
 import 'screens/cashier/cashier_dashboard_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
+import 'services/locale_provider.dart';
 
 const String _defaultSupabaseUrl = 'https://ywwwrshblzyqmxkbkxsp.supabase.co';
 const String _defaultSupabaseAnonKey =
@@ -49,7 +50,11 @@ void main() async {
     debugPrint('NotificationService init warning: $e');
   }
 
-  runApp(const HogRaiserMobileApp());
+  runApp(
+    const SettingsProvider(
+      child: HogRaiserMobileApp(),
+    ),
+  );
 }
 
 class HogRaiserMobileApp extends StatelessWidget {
@@ -57,6 +62,9 @@ class HogRaiserMobileApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = SettingsProvider.of(context);
+    final themeMode = settings?.themeMode ?? ThemeMode.light;
+
     return MaterialApp(
       title: 'PiggyTrunk',
       debugShowCheckedModeBanner: false,
@@ -78,7 +86,7 @@ class HogRaiserMobileApp extends StatelessWidget {
           ),
         ),
       ),
-      themeMode: ThemeMode.light,
+      themeMode: themeMode,
       initialRoute: '/splash',
       routes: {
         '/splash': (context) => const SplashScreen(),

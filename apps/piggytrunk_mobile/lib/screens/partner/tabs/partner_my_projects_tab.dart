@@ -461,10 +461,10 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                     padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
                                     margin: EdgeInsets.only(right: fit.dp(6)),
                                     decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF1A365D) : const Color(0xFFEFF6FF),
+                                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                                       borderRadius: BorderRadius.circular(fit.dp(20)),
                                       border: Border.all(
-                                        color: isDark ? const Color(0xFF2B6CB0) : const Color(0xFFBFDBFE),
+                                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                                         width: 1,
                                       ),
                                     ),
@@ -474,7 +474,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                         Icon(
                                           Icons.pets_rounded,
                                           size: fit.dp(11),
-                                          color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB),
+                                          color: isDark ? Colors.white : _brandColor,
                                         ),
                                         SizedBox(width: fit.dp(4)),
                                         Text(
@@ -482,7 +482,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: fit.sp(10.5),
                                             fontWeight: FontWeight.w800,
-                                            color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                            color: isDark ? Colors.white : _brandColor,
                                           ),
                                         ),
                                       ],
@@ -492,9 +492,12 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                   Container(
                                     padding: EdgeInsets.symmetric(horizontal: fit.dp(9), vertical: fit.dp(4.5)),
                                     decoration: BoxDecoration(
-                                      color: stageColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.12),
                                       borderRadius: BorderRadius.circular(fit.dp(20)),
-                                      border: Border.all(color: stageColor.withValues(alpha: 0.3), width: 1),
+                                      border: Border.all(
+                                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.4 : 0.3),
+                                        width: 1,
+                                      ),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
@@ -502,8 +505,8 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                         Container(
                                           width: fit.dp(6),
                                           height: fit.dp(6),
-                                          decoration: BoxDecoration(
-                                            color: stageColor,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF10B981),
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -513,7 +516,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: fit.sp(10.5),
                                             fontWeight: FontWeight.w800,
-                                            color: stageColor,
+                                            color: const Color(0xFF10B981),
                                           ),
                                         ),
                                       ],

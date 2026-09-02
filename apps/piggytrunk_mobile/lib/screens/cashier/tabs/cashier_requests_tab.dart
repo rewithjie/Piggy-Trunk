@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 
 class CashierRequestsTab extends StatefulWidget {
   final List<Map<String, dynamic>> pendingRequests;
@@ -78,42 +79,23 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
       if (reqDateOnly.isBefore(sDate)) return false;
       if (reqDt.isAfter(eDate)) return false;
       return true;
-    } catch (_) {}
-    return true;
+    } catch (_) {
+      return true;
+    }
   }
 
-  Future<void> _showFilterModal() async {
-    final DateTimeRange? picked = await showDateRangePicker(
+  void _showFilterModal() async {
+    final picked = await showDateRangePicker(
       context: context,
-      helpText: 'SELECT DATE RANGE',
-      cancelText: 'RESET',
-      confirmText: 'APPLY',
-      saveText: 'APPLY',
-      firstDate: DateTime(2020),
+      firstDate: DateTime(2023),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _startDate != null && _endDate != null
+      initialDateRange: (_startDate != null && _endDate != null)
           ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : DateTimeRange(
-              start: DateTime.now().subtract(const Duration(days: 7)),
-              end: DateTime.now(),
-            ),
+          : null,
       builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: _brandColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: _brandColor,
-              secondary: _brandBlue,
-            ),
-            scaffoldBackgroundColor: Colors.white,
-            dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
-            textTheme: GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme).apply(
-              bodyColor: _brandColor,
-              displayColor: _brandColor,
-            ),
-          ),
+          data: isDark ? ThemeData.dark() : ThemeData.light(),
           child: child!,
         );
       },
@@ -134,8 +116,26 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
+    final bg = isDark ? PiggyTrunkTheme.ptBgDark : const Color(0xFFF8FAFC);
+    final topBarBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1B2638) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final fieldBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF8FAFC);
+
     if (_selectedRequest != null) {
-      return _buildAllocationView(_selectedRequest!);
+      return _buildAllocationView(
+        _selectedRequest!,
+        isDark: isDark,
+        cardBg: cardBg,
+        cardBorder: cardBorder,
+        titleColor: titleColor,
+        subtitleColor: subtitleColor,
+      );
     }
 
     final allPending = widget.pendingRequests.where((req) {
@@ -167,15 +167,15 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: bg,
       body: Column(
         children: [
           // ==================== TOP BAR & CONTROLS ====================
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            decoration: BoxDecoration(
+              color: topBarBg,
+              border: Border(bottom: BorderSide(color: cardBorder)),
             ),
             child: Column(
               children: [
@@ -183,7 +183,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Row(
@@ -195,12 +195,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: _selectedTab == 0 ? _brandColor : Colors.transparent,
+                              color: _selectedTab == 0
+                                  ? (isDark ? Colors.white : _brandColor)
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: _selectedTab == 0
                                   ? [
                                       BoxShadow(
-                                        color: _brandColor.withValues(alpha: 0.25),
+                                        color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.12 : 0.25),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -213,15 +215,19 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                 Icon(
                                   Icons.pending_actions_rounded,
                                   size: 16,
-                                  color: _selectedTab == 0 ? Colors.white : const Color(0xFF64748B),
+                                  color: _selectedTab == 0
+                                      ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                      : subtitleColor,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Pending',
+                                  strings.filterPending,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: _selectedTab == 0 ? Colors.white : const Color(0xFF64748B),
+                                    color: _selectedTab == 0
+                                        ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                        : subtitleColor,
                                   ),
                                 ),
                                 if (allPending.isNotEmpty) ...[
@@ -229,7 +235,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                     decoration: BoxDecoration(
-                                      color: _selectedTab == 0 ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
+                                      color: _selectedTab == 0
+                                          ? const Color(0xFFEF4444)
+                                          : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
@@ -237,7 +245,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
-                                        color: _selectedTab == 0 ? Colors.white : _brandColor,
+                                        color: _selectedTab == 0
+                                            ? Colors.white
+                                            : (isDark ? Colors.white70 : _brandColor),
                                       ),
                                     ),
                                   ),
@@ -255,12 +265,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
-                              color: _selectedTab == 1 ? _brandColor : Colors.transparent,
+                              color: _selectedTab == 1
+                                  ? (isDark ? Colors.white : _brandColor)
+                                  : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: _selectedTab == 1
                                   ? [
                                       BoxShadow(
-                                        color: _brandColor.withValues(alpha: 0.25),
+                                        color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.12 : 0.25),
                                         blurRadius: 8,
                                         offset: const Offset(0, 2),
                                       ),
@@ -273,15 +285,19 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                 Icon(
                                   Icons.history_rounded,
                                   size: 16,
-                                  color: _selectedTab == 1 ? Colors.white : const Color(0xFF64748B),
+                                  color: _selectedTab == 1
+                                      ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                      : subtitleColor,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'History',
+                                  strings.requestHistory,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: _selectedTab == 1 ? Colors.white : const Color(0xFF64748B),
+                                    color: _selectedTab == 1
+                                        ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                        : subtitleColor,
                                   ),
                                 ),
                                 if (allHistorical.isNotEmpty) ...[
@@ -289,7 +305,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                                     decoration: BoxDecoration(
-                                      color: _selectedTab == 1 ? Colors.white.withValues(alpha: 0.25) : const Color(0xFFCBD5E1),
+                                      color: _selectedTab == 1
+                                          ? (isDark ? const Color(0xFF10B981) : Colors.white.withValues(alpha: 0.25))
+                                          : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
@@ -297,7 +315,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
-                                        color: _selectedTab == 1 ? Colors.white : _brandColor,
+                                        color: _selectedTab == 1
+                                            ? Colors.white
+                                            : (isDark ? Colors.white70 : _brandColor),
                                       ),
                                     ),
                                   ),
@@ -319,23 +339,23 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       child: Container(
                         height: 42,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: fieldBg,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: cardBorder),
                         ),
                         child: TextField(
                           onChanged: (val) => setState(() => _searchQuery = val),
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: _brandColor),
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: titleColor),
                           decoration: InputDecoration(
-                            hintText: 'Search raiser or feed item...',
+                            hintText: strings.searchRequests,
                             hintStyle: GoogleFonts.plusJakartaSans(
                               fontSize: 12.5,
-                              color: PiggyTrunkTheme.ptMuted,
+                              color: subtitleColor,
                             ),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 18),
+                            prefixIcon: Icon(Icons.search_rounded, color: subtitleColor, size: 18),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(Icons.clear, size: 16, color: Color(0xFF94A3B8)),
+                                    icon: Icon(Icons.clear, size: 16, color: subtitleColor),
                                     onPressed: () => setState(() => _searchQuery = ''),
                                   )
                                 : null,
@@ -352,10 +372,12 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         height: 42,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         decoration: BoxDecoration(
-                          color: (_startDate != null && _endDate != null) ? const Color(0xFFEFF6FF) : Colors.white,
+                          color: (_startDate != null && _endDate != null)
+                              ? (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF))
+                              : cardBg,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: (_startDate != null && _endDate != null) ? _brandBlue : const Color(0xFFE2E8F0),
+                            color: (_startDate != null && _endDate != null) ? _brandBlue : cardBorder,
                           ),
                         ),
                         child: Row(
@@ -364,7 +386,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                             Icon(
                               Icons.calendar_today_rounded,
                               size: 15,
-                              color: (_startDate != null && _endDate != null) ? _brandBlue : const Color(0xFF64748B),
+                              color: (_startDate != null && _endDate != null) ? _brandBlue : subtitleColor,
                             ),
                             if (_startDate != null && _endDate != null) ...[
                               const SizedBox(width: 6),
@@ -373,7 +395,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
-                                  color: _brandBlue,
+                                  color: isDark ? const Color(0xFF93C5FD) : _brandBlue,
                                 ),
                               ),
                             ],
@@ -390,7 +412,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
           // ==================== LIST OF REQUESTS ====================
           Expanded(
             child: requestsToDisplay.isEmpty
-                ? _buildEmptyState()
+                ? _buildEmptyState(isDark: isDark, titleColor: titleColor, subtitleColor: subtitleColor)
                 : ListView.separated(
                     padding: const EdgeInsets.all(20),
                     physics: const BouncingScrollPhysics(),
@@ -398,7 +420,23 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                     separatorBuilder: (context, index) => const SizedBox(height: 14),
                     itemBuilder: (context, index) {
                       final req = requestsToDisplay[index];
-                      return _selectedTab == 0 ? _buildPendingRequestCard(req) : _buildHistoricalCard(req);
+                      return _selectedTab == 0
+                          ? _buildPendingRequestCard(
+                              req,
+                              isDark: isDark,
+                              cardBg: cardBg,
+                              cardBorder: cardBorder,
+                              titleColor: titleColor,
+                              subtitleColor: subtitleColor,
+                            )
+                          : _buildHistoricalCard(
+                              req,
+                              isDark: isDark,
+                              cardBg: cardBg,
+                              cardBorder: cardBorder,
+                              titleColor: titleColor,
+                              subtitleColor: subtitleColor,
+                            );
                     },
                   ),
           ),
@@ -407,7 +445,11 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({
+    required bool isDark,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     final bool isPending = _selectedTab == 0;
     return Center(
       child: SingleChildScrollView(
@@ -418,7 +460,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isPending ? const Color(0xFFECFDF5) : const Color(0xFFEFF6FF),
+                color: isPending
+                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                    : (isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF)),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -433,7 +477,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: _brandColor,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 6),
@@ -444,7 +488,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
-                color: PiggyTrunkTheme.ptMuted,
+                color: subtitleColor,
                 height: 1.4,
               ),
             ),
@@ -454,7 +498,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     );
   }
 
-  Widget _buildPendingRequestCard(Map<String, dynamic> request) {
+  Widget _buildPendingRequestCard(
+    Map<String, dynamic> request, {
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     final raiser = request['hog_raisers'] ?? request['raiser'];
     final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
         request['raiser_name']?.toString() ??
@@ -486,12 +537,12 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -507,13 +558,13 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: const Color(0xFFEFF6FF),
+                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                   child: Text(
                     raiserName.isNotEmpty ? raiserName[0].toUpperCase() : 'R',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: _brandBlue,
+                      color: isDark ? const Color(0xFF93C5FD) : _brandBlue,
                     ),
                   ),
                 ),
@@ -527,19 +578,19 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: _brandColor,
+                          color: titleColor,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
+                          Icon(Icons.access_time_rounded, size: 12, color: subtitleColor),
                           const SizedBox(width: 4),
                           Text(
                             timeAgo,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11.5,
-                              color: PiggyTrunkTheme.ptMuted,
+                              color: subtitleColor,
                             ),
                           ),
                         ],
@@ -550,20 +601,20 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF3C7),
+                    color: isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.16) : const Color(0xFFFEF3C7),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircleAvatar(radius: 3, backgroundColor: _brandAmber),
+                      CircleAvatar(radius: 3, backgroundColor: isDark ? const Color(0xFFFDE68A) : _brandAmber),
                       const SizedBox(width: 5),
                       Text(
                         'PENDING',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
-                          color: _brandAmber,
+                          color: isDark ? const Color(0xFFFDE68A) : _brandAmber,
                         ),
                       ),
                     ],
@@ -572,7 +623,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1, color: cardBorder),
 
           // Requested Item Details Box
           Padding(
@@ -580,9 +631,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF131E2D) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: cardBorder),
               ),
               child: Column(
                 children: [
@@ -594,10 +645,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.inventory_2_rounded, color: _brandBlue, size: 18),
+                            child: Icon(
+                              Icons.inventory_2_rounded,
+                              color: isDark ? const Color(0xFF93C5FD) : _brandBlue,
+                              size: 18,
+                            ),
                           ),
                           const SizedBox(width: 10),
                           Column(
@@ -608,14 +663,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: _brandColor,
+                                  color: titleColor,
                                 ),
                               ),
                               Text(
                                 'Feed Type • Standard 50kg Sack',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: subtitleColor,
                                 ),
                               ),
                             ],
@@ -625,15 +680,16 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _brandColor,
+                          color: isDark ? const Color(0xFF1E293B) : _brandColor,
                           borderRadius: BorderRadius.circular(10),
+                          border: isDark ? Border.all(color: const Color(0xFF334155)) : null,
                         ),
                         child: Text(
                           '$quantity ${quantity == 1 ? 'Sack' : 'Sacks'}',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: isDark ? const Color(0xFFE2E8F0) : Colors.white,
                           ),
                         ),
                       ),
@@ -647,7 +703,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         'Warehouse Inventory:',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11.5,
-                          color: PiggyTrunkTheme.ptMuted,
+                          color: subtitleColor,
                         ),
                       ),
                       Text(
@@ -655,7 +711,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w700,
-                          color: hasEnoughStock ? _brandGreen : _brandRed,
+                          color: hasEnoughStock
+                              ? (isDark ? const Color(0xFF6EE7B7) : _brandGreen)
+                              : (isDark ? const Color(0xFFFCA5A5) : _brandRed),
                         ),
                       ),
                     ],
@@ -677,8 +735,8 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                     child: ElevatedButton(
                       onPressed: () => _openAllocationView(request),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _brandColor,
-                        foregroundColor: Colors.white,
+                        backgroundColor: isDark ? Colors.white : _brandColor,
+                        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -707,10 +765,12 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   child: SizedBox(
                     height: 44,
                     child: OutlinedButton(
-                      onPressed: () => _showRejectConfirmationDialog(requestId, raiserName),
+                      onPressed: () => _showRejectConfirmationDialog(requestId, raiserName, isDark: isDark),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFFCA5A5)),
-                        foregroundColor: _brandRed,
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFFEF4444).withValues(alpha: 0.3) : const Color(0xFFFCA5A5),
+                        ),
+                        foregroundColor: isDark ? const Color(0xFFFCA5A5) : _brandRed,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -720,7 +780,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: _brandRed,
+                          color: isDark ? const Color(0xFFFCA5A5) : _brandRed,
                         ),
                       ),
                     ),
@@ -734,7 +794,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     );
   }
 
-  Widget _buildHistoricalCard(Map<String, dynamic> request) {
+  Widget _buildHistoricalCard(
+    Map<String, dynamic> request, {
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     final raiser = request['hog_raisers'] ?? request['raiser'];
     final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
         request['raiser_name']?.toString() ??
@@ -753,16 +820,18 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+        border: Border.all(color: cardBorder),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+              color: isApproved
+                  ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                  : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2)),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -784,13 +853,15 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w800,
-                        color: _brandColor,
+                        color: titleColor,
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: isApproved ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                        color: isApproved
+                            ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
+                            : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2)),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -810,7 +881,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF475569),
+                    color: isDark ? Colors.white70 : const Color(0xFF475569),
                   ),
                 ),
                 const SizedBox(height: 3),
@@ -818,7 +889,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   dateStr,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
-                    color: PiggyTrunkTheme.ptMuted,
+                    color: subtitleColor,
                   ),
                 ),
               ],
@@ -829,28 +900,35 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
     );
   }
 
-  void _showRejectConfirmationDialog(int requestId, String raiserName) {
+  void _showRejectConfirmationDialog(int requestId, String raiserName, {required bool isDark}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF151F2E) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Reject Stock Request?',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
-            color: _brandColor,
+            color: isDark ? Colors.white : _brandColor,
           ),
         ),
         content: Text(
           'Are you sure you want to reject the feed request from $raiserName?',
-          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, color: const Color(0xFF475569)),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.5,
+            color: isDark ? Colors.white70 : const Color(0xFF475569),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'Cancel',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, color: PiggyTrunkTheme.ptMuted),
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w600,
+                color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
+              ),
             ),
           ),
           ElevatedButton(
@@ -874,7 +952,14 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
   }
 
   // ==================== ALLOCATION SHEET VIEW ====================
-  Widget _buildAllocationView(Map<String, dynamic> request) {
+  Widget _buildAllocationView(
+    Map<String, dynamic> request, {
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     final int requestId = (request['id'] ?? request['request_id'] ?? 0) as int;
     final raiser = request['hog_raisers'] ?? request['raiser'];
     final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
@@ -916,7 +1001,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: _brandColor),
+                icon: Icon(Icons.arrow_back_rounded, color: titleColor),
                 onPressed: _closeAllocationView,
               ),
               const SizedBox(width: 4),
@@ -925,7 +1010,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
-                  color: _brandColor,
+                  color: titleColor,
                 ),
               ),
             ],
@@ -936,9 +1021,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder),
+              border: Border.all(color: cardBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,7 +1036,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: PiggyTrunkTheme.ptMuted,
+                        color: subtitleColor,
                       ),
                     ),
                     Text(
@@ -959,7 +1044,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: _brandBlue,
+                        color: isDark ? const Color(0xFF38BDF8) : _brandBlue,
                       ),
                     ),
                   ],
@@ -970,7 +1055,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: _brandColor,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -978,7 +1063,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   'Feed Product: $productName',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13.5,
-                    color: const Color(0xFF475569),
+                    color: isDark ? Colors.white70 : const Color(0xFF475569),
                   ),
                 ),
               ],
@@ -990,9 +1075,9 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: PiggyTrunkTheme.ptBorder),
+              border: Border.all(color: cardBorder),
             ),
             child: Column(
               children: [
@@ -1001,7 +1086,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: _brandColor,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1012,24 +1097,24 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       icon: const Icon(Icons.remove_rounded),
                       onPressed: _allocatedSacks > 1 ? () => setState(() => _allocatedSacks--) : null,
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        foregroundColor: _brandColor,
+                        backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        foregroundColor: titleColor,
                       ),
                     ),
                     const SizedBox(width: 20),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: isDark ? const Color(0xFF131E2D) : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _brandBlue, width: 1.5),
+                        border: Border.all(color: isDark ? const Color(0xFF38BDF8) : _brandBlue, width: 1.5),
                       ),
                       child: Text(
                         '$_allocatedSacks',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 28,
                           fontWeight: FontWeight.w800,
-                          color: _brandColor,
+                          color: titleColor,
                         ),
                       ),
                     ),
@@ -1038,8 +1123,8 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       icon: const Icon(Icons.add_rounded),
                       onPressed: () => setState(() => _allocatedSacks++),
                       style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        foregroundColor: _brandColor,
+                        backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        foregroundColor: titleColor,
                       ),
                     ),
                   ],
@@ -1050,7 +1135,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: _allocatedSacks > inStock ? _brandRed : PiggyTrunkTheme.ptMuted,
+                    color: _allocatedSacks > inStock ? _brandRed : subtitleColor,
                   ),
                 ),
               ],
@@ -1076,12 +1161,12 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       _closeAllocationView();
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor,
-                foregroundColor: Colors.white,
+                backgroundColor: isDark ? Colors.white : _brandColor,
+                foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: _isProcessing
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  ? CircularProgressIndicator(color: isDark ? const Color(0xFF0F172A) : Colors.white)
                   : Text(
                       'Confirm & Distribute $_allocatedSacks Sacks',
                       style: GoogleFonts.plusJakartaSans(

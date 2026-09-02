@@ -148,6 +148,11 @@ class PiggyTrunkTheme {
         ),
       ),
     ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: const Color(0xFF18314F),
+      selectionColor: const Color(0xFF18314F).withValues(alpha: 0.25),
+      selectionHandleColor: const Color(0xFF18314F),
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -282,6 +287,11 @@ class PiggyTrunkTheme {
           fontWeight: FontWeight.w600,
         ),
       ),
+    ),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: const Color(0xFFECF2FF),
+      selectionColor: const Color(0xFF38BDF8).withValues(alpha: 0.35),
+      selectionHandleColor: const Color(0xFF38BDF8),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,

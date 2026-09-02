@@ -5,6 +5,8 @@ class Investment {
   final String hogRaiserId;
   final String raiserName;
   final double initialCapital;
+  final double stocksValue;
+  final List<Map<String, dynamic>> providedStocks;
   final String hogType;
   final int totalHog;
   final DateTime investmentDate;
@@ -17,6 +19,8 @@ class Investment {
     required this.hogRaiserId,
     required this.raiserName,
     required this.initialCapital,
+    this.stocksValue = 0.0,
+    this.providedStocks = const [],
     required this.hogType,
     required this.totalHog,
     required this.investmentDate,
@@ -25,8 +29,11 @@ class Investment {
     this.batchId,
   });
 
+  double get totalInvestment => initialCapital + stocksValue;
+
   factory Investment.fromJson(Map<String, dynamic> json) {
     final rawCapital = json['initial_capital'];
+    final rawStocksValue = json['stocks_value'] ?? json['stocksValue'];
     final rawTotalHog = json['total_hog'];
 
     final rawHogType = (json['hog_type'] ?? '').toString();
@@ -49,6 +56,16 @@ class Investment {
         .toList();
     final finalHogType = cleanList.isNotEmpty ? cleanList.join(', ') : 'Fattening';
 
+    final rawHistory = json['provided_stocks'] ?? json['providedStocks'];
+    final List<Map<String, dynamic>> parsedHistory = [];
+    if (rawHistory is List) {
+      for (var item in rawHistory) {
+        if (item is Map) {
+          parsedHistory.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
     return Investment(
       id: (json['id'] ?? '').toString(),
       hogRaiserId: (json['hog_raiser_id'] ?? '').toString(),
@@ -56,6 +73,10 @@ class Investment {
       initialCapital: rawCapital is num
           ? rawCapital.toDouble()
           : double.tryParse(rawCapital?.toString() ?? '0') ?? 0,
+      stocksValue: rawStocksValue is num
+          ? rawStocksValue.toDouble()
+          : double.tryParse(rawStocksValue?.toString() ?? '0') ?? 0,
+      providedStocks: parsedHistory,
       hogType: finalHogType,
       totalHog: rawTotalHog is num
           ? rawTotalHog.toInt()
@@ -75,6 +96,8 @@ class Investment {
       'hog_raiser_id': hogRaiserId,
       'raiser_name': raiserName,
       'initial_capital': initialCapital,
+      'stocks_value': stocksValue,
+      'provided_stocks': providedStocks,
       'hog_type': hogType,
       'total_hog': totalHog,
       'investment_date': investmentDate.toIso8601String(),

@@ -11,7 +11,7 @@ class GoogleAuthService {
 
   /// Sign in with Google Auth natively or fallback smoothly
   Future<Map<String, dynamic>> signInWithGoogle({
-    required String targetRole,
+    String? targetRole,
     bool isSignUpMode = false,
   }) async {
     try {
@@ -49,7 +49,7 @@ class GoogleAuthService {
               final String fullName = user.userMetadata?['full_name'] ??
                   user.userMetadata?['name'] ??
                   email.split('@').first;
-              return await registerGoogleUserWithEmail(
+              return await _processGoogleUser(
                 email: email,
                 targetRole: targetRole,
                 fullName: fullName,
@@ -64,8 +64,8 @@ class GoogleAuthService {
         return {
           'success': false,
           'message': googleErr != null
-              ? 'Kanselado ang Google Sign-In.'
-              : 'Hindi maikonekta ang Google Sign-In. Siguraduhing nakasetup ang Google OAuth Client ID o subukan ang email signup/login.',
+              ? 'Google Sign-In was canceled.'
+              : 'Unable to connect to Google Sign-In. Please check your internet connection or try signing in with email and password.',
         };
       }
 
@@ -88,7 +88,7 @@ class GoogleAuthService {
       final String email = googleUser.email;
       final String fullName = googleUser.displayName ?? email.split('@').first;
 
-      return await registerGoogleUserWithEmail(
+      return await _processGoogleUser(
         email: email,
         targetRole: targetRole,
         fullName: fullName,
@@ -97,7 +97,7 @@ class GoogleAuthService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Error sa Google Login: ${e.toString()}',
+        'message': 'Google Sign-In error: ${e.toString()}',
       };
     }
   }
@@ -112,10 +112,10 @@ class GoogleAuthService {
     return '${s.substring(0, 8)}-${s.substring(8, 12)}-4${s.substring(13, 16)}-a${s.substring(17, 20)}-${s.substring(20, 32)}';
   }
 
-  /// Register or authenticate Google User by email directly in Supabase
-  Future<Map<String, dynamic>> registerGoogleUserWithEmail({
+  /// Process Google User: Auto-detect existing role or flag for new user role selection
+  Future<Map<String, dynamic>> _processGoogleUser({
     required String email,
-    required String targetRole,
+    String? targetRole,
     String? fullName,
     bool isSignUpMode = false,
   }) async {
@@ -123,7 +123,7 @@ class GoogleAuthService {
       final nameToUse = (fullName != null && fullName.isNotEmpty)
           ? fullName
           : email.split('@').first;
-      
+
       final String? authId = _supabase.auth.currentUser?.id;
       final String validGoogleUuid = (authId != null && authId.contains('-'))
           ? authId
@@ -133,231 +133,192 @@ class GoogleAuthService {
       try {
         existingUser = await _supabase
             .from('app_users')
-            .select('user_id, status, role')
+            .select('user_id, status, role, name')
             .or('email.eq.$email,supabase_user_id.eq.$validGoogleUuid')
             .maybeSingle();
       } catch (_) {}
 
-      String role = targetRole;
-      String status = 'Pending';
-
-      dynamic newUserId;
-
+      // If user does not exist in database yet
       if (existingUser == null) {
-        try {
-          final insertedUser = await _supabase.from('app_users').upsert({
-            'supabase_user_id': validGoogleUuid,
-            'email': email,
-            'name': nameToUse,
-            'role': targetRole,
-            'status': 'Pending',
-          }, onConflict: 'email').select('user_id').single();
-
-          newUserId = insertedUser['user_id'];
-        } catch (insertErr) {
-          debugPrint('app_users upsert notice: $insertErr');
-          try {
-            final fetchedUser = await _supabase
-                .from('app_users')
-                .select('user_id')
-                .eq('email', email)
-                .maybeSingle();
-            if (fetchedUser != null) {
-              newUserId = fetchedUser['user_id'];
-            }
-          } catch (_) {}
+        if (targetRole != null && targetRole.isNotEmpty) {
+          // Pre-selected role (from Sign Up screen)
+          return await completeGoogleRegistration(
+            email: email,
+            selectedRole: targetRole,
+            fullName: nameToUse,
+          );
         }
 
-        if (newUserId != null) {
-          if (targetRole == 'hog_raiser' || targetRole == 'raiser') {
-            try {
-              await _supabase.from('hog_raisers').insert({
-                'user_id': newUserId,
-                'name': nameToUse,
-                'phone': 'N/A',
-                'address': 'N/A',
-                'status': 'Inactive',
-                'account_status': 'Pending',
-                'pig_type': 'N/A',
-                'lifecycle_stage': 'N/A',
-              });
-            } catch (raiserErr) {
-              debugPrint('Hog raiser auto-create notice: $raiserErr');
-            }
-          } else if (targetRole == 'partner') {
-            try {
-              await _supabase.from('partner_investors').insert({
-                'user_id': newUserId,
-              });
-            } catch (partnerErr) {
-              debugPrint('Partner investor auto-create notice: $partnerErr');
-            }
-          } else if (targetRole == 'cashier') {
-            try {
-              await _supabase.from('cashiers').insert({
-                'user_id': newUserId,
-                'status': 'Pending',
-              });
-            } catch (cashierErr) {
-              debugPrint('Cashier auto-create notice: $cashierErr');
-            }
-          }
+        // Universal Login: user is new, trigger role selection modal
+        return {
+          'success': true,
+          'is_new_user': true,
+          'email': email,
+          'name': nameToUse,
+        };
+      }
 
-          // Trigger Registration Email via Resend
-          try {
-            EmailService().sendRegistrationEmail(
-              recipientEmail: email,
-              recipientName: nameToUse,
-              role: targetRole,
-            );
-          } catch (emailErr) {
-            debugPrint('Email send notice: $emailErr');
-          }
-        }
-        role = targetRole;
-        status = 'Pending';
-      } else {
-        final currentRole = (existingUser['role'] ?? '').toString();
-        final currentStatus = (existingUser['status'] ?? 'Pending').toString();
-        final existingUserId = existingUser['user_id'];
+      // User exists: auto-detect and return registered role & status
+      final String currentRole = (existingUser['role'] ?? 'hog_raiser').toString();
+      final String currentStatus = (existingUser['status'] ?? 'Pending').toString();
+      final existingUserId = existingUser['user_id'];
 
-        // Seamlessly use the user's actual registered role from database
-        role = currentRole.isNotEmpty ? currentRole : targetRole;
-        status = currentStatus;
+      // Link supabase_user_id if not linked yet
+      try {
+        await _supabase
+            .from('app_users')
+            .update({'supabase_user_id': validGoogleUuid})
+            .eq('user_id', existingUserId);
+      } catch (_) {}
 
-        // Link supabase_user_id if not linked yet
+      // Always ensure Google Display Name is synced
+      if (nameToUse.isNotEmpty && nameToUse != email.split('@').first) {
         try {
           await _supabase
               .from('app_users')
-              .update({'supabase_user_id': validGoogleUuid})
+              .update({'name': nameToUse})
               .eq('user_id', existingUserId);
         } catch (_) {}
-
-        // Update role and re-initialize role table if account is still pending
-        if (currentStatus.toLowerCase() == 'pending') {
-          try {
-            await _supabase
-                .from('app_users')
-                .update({'role': targetRole, 'status': 'Pending'})
-                .eq('user_id', existingUserId);
-          } catch (_) {}
-
-          if (targetRole == 'hog_raiser' || targetRole == 'raiser') {
-            try {
-              final exists = await _supabase.from('hog_raisers').select('hog_raiser_id').eq('user_id', existingUserId).maybeSingle();
-              if (exists == null) {
-                await _supabase.from('hog_raisers').insert({
-                  'user_id': existingUserId,
-                  'name': nameToUse,
-                  'phone': 'N/A',
-                  'address': 'N/A',
-                  'status': 'Inactive',
-                  'account_status': 'Pending',
-                  'pig_type': 'N/A',
-                  'lifecycle_stage': 'N/A',
-                });
-              }
-            } catch (_) {}
-          }
-
-          // Trigger Registration Email via Resend
-          try {
-            EmailService().sendRegistrationEmail(
-              recipientEmail: email,
-              recipientName: nameToUse,
-              role: targetRole,
-            );
-          } catch (_) {}
-        }
-
-        // Always ensure Google Display Name is synced to app_users and role tables
-        if (nameToUse.isNotEmpty && nameToUse != email.split('@').first) {
-          try {
-            await _supabase
-                .from('app_users')
-                .update({'name': nameToUse})
-                .eq('user_id', existingUserId);
-            if (role.toLowerCase() == 'cashier') {
-              await _supabase
-                  .from('cashiers')
-                  .update({'name': nameToUse})
-                  .eq('user_id', existingUserId);
-            } else if (role.toLowerCase() == 'hog_raiser' || role.toLowerCase() == 'raiser') {
-              await _supabase
-                  .from('hog_raisers')
-                  .update({'name': nameToUse})
-                  .eq('user_id', existingUserId);
-            }
-          } catch (_) {}
-        }
       }
 
-      // Only insert admin notification IF this is a brand new / pending registration
-      if (status.toLowerCase() == 'pending') {
+      return {
+        'success': true,
+        'is_new_user': false,
+        'email': email,
+        'name': existingUser['name'] ?? nameToUse,
+        'role': currentRole,
+        'status': currentStatus,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error processing Google account: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Complete Google Registration with selected role
+  Future<Map<String, dynamic>> completeGoogleRegistration({
+    required String email,
+    required String selectedRole,
+    String? fullName,
+  }) async {
+    try {
+      final nameToUse = (fullName != null && fullName.isNotEmpty)
+          ? fullName
+          : email.split('@').first;
+
+      final String? authId = _supabase.auth.currentUser?.id;
+      final String validGoogleUuid = (authId != null && authId.contains('-'))
+          ? authId
+          : _toUuid(email);
+
+      dynamic newUserId;
+      try {
+        final insertedUser = await _supabase.from('app_users').upsert({
+          'supabase_user_id': validGoogleUuid,
+          'email': email,
+          'name': nameToUse,
+          'role': selectedRole,
+          'status': 'Pending',
+        }, onConflict: 'email').select('user_id').single();
+
+        newUserId = insertedUser['user_id'];
+      } catch (insertErr) {
+        debugPrint('app_users upsert notice: $insertErr');
         try {
-          final String roleDisplay = targetRole == 'hog_raiser' || targetRole == 'raiser'
+          final fetchedUser = await _supabase
+              .from('app_users')
+              .select('user_id')
+              .eq('email', email)
+              .maybeSingle();
+          if (fetchedUser != null) {
+            newUserId = fetchedUser['user_id'];
+          }
+        } catch (_) {}
+      }
+
+      if (newUserId != null) {
+        if (selectedRole == 'hog_raiser' || selectedRole == 'raiser') {
+          try {
+            await _supabase.from('hog_raisers').insert({
+              'user_id': newUserId,
+              'name': nameToUse,
+              'phone': 'N/A',
+              'address': 'N/A',
+              'status': 'Inactive',
+              'account_status': 'Pending',
+              'pig_type': 'N/A',
+              'lifecycle_stage': 'N/A',
+            });
+          } catch (raiserErr) {
+            debugPrint('Hog raiser auto-create notice: $raiserErr');
+          }
+        } else if (selectedRole == 'partner' || selectedRole == 'investor') {
+          try {
+            await _supabase.from('partner_investors').insert({
+              'user_id': newUserId,
+            });
+          } catch (partnerErr) {
+            debugPrint('Partner investor auto-create notice: $partnerErr');
+          }
+        } else if (selectedRole == 'cashier') {
+          try {
+            await _supabase.from('cashiers').insert({
+              'user_id': newUserId,
+              'status': 'Pending',
+            });
+          } catch (cashierErr) {
+            debugPrint('Cashier auto-create notice: $cashierErr');
+          }
+        }
+
+        // Send Notification to Admin Web
+        try {
+          final String roleDisplay = selectedRole == 'hog_raiser' || selectedRole == 'raiser'
               ? 'Hog Raiser'
-              : targetRole == 'partner'
-                  ? 'Partner Investor'
-                  : targetRole == 'cashier'
-                      ? 'Cashier'
-                      : 'User';
-          await _supabase
-              .from('admin_notifications')
-              .delete()
-              .eq('metadata->>email', email)
-              .eq('type', 'user_registration');
+              : (selectedRole == 'partner' || selectedRole == 'investor' ? 'Partner Investor' : 'Cashier');
           await _supabase.from('admin_notifications').insert({
             'title': 'New User Registration',
             'message': '$nameToUse ($email) registered as $roleDisplay and is pending approval.',
             'type': 'user_registration',
             'is_read': false,
             'metadata': {
-              'name': nameToUse,
+              'user_id': newUserId,
               'email': email,
-              'role': targetRole,
+              'name': nameToUse,
+              'role': selectedRole,
             },
           });
-        } catch (_) {}
-      } else if (status.toLowerCase() == 'active') {
-        // If user is already approved and active, remove any leftover pending registration notifications
+        } catch (notifErr) {
+          debugPrint('Admin notification insert notice: $notifErr');
+        }
+
+        // Trigger Registration Email via Gmail SMTP
         try {
-          await _supabase
-              .from('admin_notifications')
-              .delete()
-              .eq('metadata->>email', email)
-              .eq('type', 'user_registration');
-        } catch (_) {}
+          EmailService().sendRegistrationEmail(
+            recipientEmail: email,
+            recipientName: nameToUse,
+            role: selectedRole,
+          );
+        } catch (emailErr) {
+          debugPrint('Email send notice: $emailErr');
+        }
       }
 
       return {
         'success': true,
+        'is_new_user': true,
         'email': email,
-        'role': role,
-        'status': status,
+        'name': nameToUse,
+        'role': selectedRole,
+        'status': 'Pending',
       };
     } catch (e) {
       return {
         'success': false,
-        'message': 'Error sa Google Registration: ${e.toString()}',
+        'message': 'Failed to complete registration: ${e.toString()}',
       };
-    }
-  }
-
-  static String formatRoleName(String role) {
-    switch (role.toLowerCase()) {
-      case 'hog_raiser':
-      case 'raiser':
-        return 'Hog Raiser';
-      case 'partner':
-      case 'investor':
-        return 'Partner Investor';
-      case 'cashier':
-        return 'Cashier';
-      case 'admin':
-        return 'Admin';
-      default:
-        return role;
     }
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/utils/inventory_data_adapter.dart';
@@ -16,7 +17,10 @@ import 'widgets/stock_requests_modal.dart';
 import 'widgets/cashier_empty_state.dart';
 import '../../services/auth_session_service.dart';
 import '../../utils/capitalization_formatters.dart';
+import '../../utils/app_strings.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/services/notification_service.dart';
+import '../../widgets/piggy_toast.dart';
 
 class CashierDashboardScreen extends StatefulWidget {
   const CashierDashboardScreen({super.key});
@@ -64,8 +68,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
   final List<String> _categories = [
     "All",
     "Feeds",
-    "Vitamins",
     "Medicines",
+    "Vitamins",
     "Others",
   ];
 
@@ -87,6 +91,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     _refreshTimer?.cancel();
     _requestsChannel?.unsubscribe();
     _inventoryChannel?.unsubscribe();
+    NotificationService().stopListener();
     super.dispose();
   }
 
@@ -122,6 +127,12 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
+    final user = _supabase.auth.currentUser;
+    if (user != null) {
+      NotificationService().requestPermission();
+      NotificationService().startRoleRealtimeListener(role: 'cashier', userId: user.id);
+    }
+    await _loadReadNotifications();
     await _fetchProfile();
     await _fetchInventory();
     await _fetchPendingRequests();
@@ -129,6 +140,25 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadReadNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedList = prefs.getStringList('cashier_read_notifications') ?? [];
+      if (mounted) {
+        setState(() {
+          _readNotificationIds.addAll(savedList);
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveReadNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('cashier_read_notifications', _readNotificationIds.toList());
+    } catch (_) {}
   }
 
   Future<void> _fetchProfile() async {
@@ -211,8 +241,12 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
             profile['address'] != 'N/A') {
           resolvedAddress = profile['address'];
         }
-        if (profile['avatar_url']?.toString().trim().isNotEmpty == true) {
-          resolvedAvatar = profile['avatar_url'];
+        final pAv = profile['avatar_url']?.toString().trim();
+        if (pAv != null &&
+            pAv.isNotEmpty &&
+            !pAv.toLowerCase().contains('googleusercontent.com') &&
+            !pAv.toLowerCase().contains('ggpht.com')) {
+          resolvedAvatar = pAv;
         }
       }
 
@@ -234,9 +268,13 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
             cashierRow['address'] != 'N/A') {
           resolvedAddress = cashierRow['address'];
         }
+        final cAv = cashierRow['avatar_url']?.toString().trim();
         if (resolvedAvatar == null &&
-            cashierRow['avatar_url']?.toString().trim().isNotEmpty == true) {
-          resolvedAvatar = cashierRow['avatar_url'];
+            cAv != null &&
+            cAv.isNotEmpty &&
+            !cAv.toLowerCase().contains('googleusercontent.com') &&
+            !cAv.toLowerCase().contains('ggpht.com')) {
+          resolvedAvatar = cAv;
         }
       }
 
@@ -1265,41 +1303,11 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
-              color: isError ? Colors.white : const Color(0xFF10B981),
-              size: 18,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: isError ? const Color(0xFFDC2626) : _brandColor,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(milliseconds: 1800),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          _currentOrder.items.isNotEmpty ? 84 : 16,
-        ),
-      ),
-    );
+    if (isError) {
+      PiggyToast.showError(context, message);
+    } else {
+      PiggyToast.showSuccess(context, message);
+    }
   }
 
   void _openSalesHistoryModal() {
@@ -1453,6 +1461,9 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -1472,12 +1483,14 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: isDark ? PiggyTrunkTheme.ptBgDark : const Color(0xFFF8FAFC),
         body: SafeArea(
           bottom: false,
           child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor),
+              ? Center(
+                  child: CircularProgressIndicator(
+                    color: isDark ? Colors.white : _brandColor,
+                  ),
                 )
               : IndexedStack(
                   index: _currentIndex,
@@ -1505,15 +1518,17 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                           for (final p in _lowStockProducts) {
                             _readNotificationIds.add('stock_${p.id}');
                           }
-                          for (final sale in _salesLogs.take(5)) {
+                          for (final sale in _salesLogs) {
                             _readNotificationIds.add('sale_${sale['id']}');
                           }
                         });
+                        _saveReadNotifications();
                       },
                       onMarkAsRead: (id) {
                         setState(() {
                           _readNotificationIds.add(id);
                         });
+                        _saveReadNotifications();
                       },
                       onAddToCart: (product) {
                         _onAddToCart(product);
@@ -1576,9 +1591,14 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                 ),
         ),
         bottomNavigationBar: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF151F2E) : Colors.white,
+            border: Border(
+              top: BorderSide(
+                color: isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
           ),
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
@@ -1588,9 +1608,9 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
               });
             },
             type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.white,
-            selectedItemColor: _brandColor,
-            unselectedItemColor: const Color(0xFF909BB0),
+            backgroundColor: isDark ? const Color(0xFF151F2E) : Colors.white,
+            selectedItemColor: isDark ? Colors.white : _brandColor,
+            unselectedItemColor: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF909BB0),
             selectedLabelStyle: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w800,
               fontSize: 11,
@@ -1601,10 +1621,10 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
             ),
             elevation: 0,
             items: [
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home_rounded),
-                label: 'Home',
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.home_outlined),
+                activeIcon: const Icon(Icons.home_rounded),
+                label: strings.navHome,
               ),
               BottomNavigationBarItem(
                 icon: Badge(
@@ -1619,12 +1639,12 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   child: const Icon(Icons.assignment_outlined),
                 ),
                 activeIcon: const Icon(Icons.assignment_rounded),
-                label: 'Requests',
+                label: strings.navRequest,
               ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2_outlined),
-                activeIcon: Icon(Icons.inventory_2_rounded),
-                label: 'Inventory',
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.inventory_2_outlined),
+                activeIcon: const Icon(Icons.inventory_2_rounded),
+                label: strings.navInventory,
               ),
               BottomNavigationBarItem(
                 icon: Badge(
@@ -1637,12 +1657,12 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                   child: const Icon(Icons.point_of_sale_outlined),
                 ),
                 activeIcon: const Icon(Icons.point_of_sale_rounded),
-                label: 'POS',
+                label: strings.navPOS,
               ),
-              const BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline_rounded),
-                activeIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.person_outline_rounded),
+                activeIcon: const Icon(Icons.person_rounded),
+                label: strings.navProfile,
               ),
             ],
           ),

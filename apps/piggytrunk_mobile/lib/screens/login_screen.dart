@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 import '../services/google_auth_service.dart';
 import '../services/auth_session_service.dart';
 import '../utils/screen_fit_util.dart';
+import '../widgets/piggy_toast.dart';
+import '../widgets/role_selection_modal.dart';
+
+const String googleLogoSvg = '''
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+  <path fill="none" d="M0 0h48v48H0z"/>
+</svg>
+''';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,11 +33,23 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
+  String? _targetRole;
   String? _errorMessage;
   String? _identifierError;
   String? _passwordError;
 
   final GoogleAuthService _googleAuthService = GoogleAuthService();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String && args.isNotEmpty) {
+      _targetRole = args;
+    } else if (args is Map && args['role'] != null) {
+      _targetRole = args['role'].toString();
+    }
+  }
 
   @override
   void dispose() {
@@ -74,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _handlePasswordSignIn(String targetRole) async {
+  Future<void> _handlePasswordSignIn() async {
     _clearErrors();
 
     final String identifier = _usernameController.text.trim();
@@ -85,15 +110,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final cleanId = identifier.trim().toLowerCase();
     if (cleanId.isEmpty) {
-      idErr = 'Mangyaring ilagay ang iyong Username o Gmail.';
+      idErr = 'Please enter your Username or Gmail address.';
     } else if (cleanId.contains('gmail') && !cleanId.contains('@')) {
-      idErr = 'Kulang ng "@" ang Gmail address (hal. name@gmail.com).';
+      idErr = 'Please include "@" in your email address (e.g. name@gmail.com).';
     }
 
     if (password.isEmpty) {
-      passErr = 'Mangyaring ilagay ang iyong password.';
+      passErr = 'Please enter your password.';
     } else if (password.length < 6) {
-      passErr = 'Ang password ay dapat hindi bababa sa 6 na karakter.';
+      passErr = 'Password must be at least 6 characters.';
     }
 
     if (idErr != null || passErr != null) {
@@ -108,8 +133,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
+    String emailToUse = identifier;
+
     try {
-      String emailToUse = identifier;
       if (!identifier.contains('@')) {
         try {
           final res = await Supabase.instance.client
@@ -133,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final user = response.user;
       if (user == null) {
-        throw Exception('Maling account o password.');
+        throw Exception('Invalid account credentials.');
       }
 
       final userData = await Supabase.instance.client
@@ -144,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final String rawStatus = (userData?['status'] ?? 'Pending').toString();
       final String statusLower = rawStatus.toLowerCase();
-      final String role = userData?['role']?.toString() ?? targetRole;
+      final String role = (userData?['role'] ?? 'hog_raiser').toString();
 
       if (statusLower == 'pending' || statusLower == 'inactive') {
         await Supabase.instance.client.auth.signOut();
@@ -159,37 +185,42 @@ class _LoginScreenState extends State<LoginScreen> {
         );
         if (mounted) _navigateToDashboard(role);
       }
-    } on AuthException catch (_) {
-      // Smart check: Does this user exist in app_users?
-      bool userExists = false;
-      try {
-        final existing = await Supabase.instance.client
-            .from('app_users')
-            .select('user_id')
-            .or('email.ilike.$identifier,name.ilike.$identifier')
-            .maybeSingle();
-        userExists = existing != null;
-      } catch (_) {}
-
-      if (!userExists) {
-        setState(() {
-          _identifierError = 'Walang natagpuang account. Mangyaring gumawa muna ng account bago mag-login.';
-        });
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('email not confirmed')) {
+        if (mounted) _showUnconfirmedEmailDialog(emailToUse);
       } else {
-        setState(() {
-          _passwordError = 'Maling password. Pakisuri ang iyong password at subukang muli.';
-        });
+        // Smart check: Does this user exist in app_users?
+        bool userExists = false;
+        try {
+          final existing = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id')
+              .or('email.ilike.$identifier,name.ilike.$identifier')
+              .maybeSingle();
+          userExists = existing != null;
+        } catch (_) {}
+
+        if (!userExists) {
+          setState(() {
+            _identifierError = 'No registered account found. Please create an account before signing in.';
+          });
+        } else {
+          setState(() {
+            _passwordError = 'Incorrect password. Please verify and try again.';
+          });
+        }
       }
     } catch (e) {
       setState(() {
-        _passwordError = 'Maling Email o Password. Mangyaring subukang muli.';
+        _passwordError = 'Invalid Email or Password. Please try again.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _handleGoogleSignIn(String targetRole) async {
+  Future<void> _handleGoogleSignIn() async {
     setState(() {
       _errorMessage = null;
       _identifierError = null;
@@ -199,16 +230,49 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await _googleAuthService.signInWithGoogle(
-        targetRole: targetRole,
         isSignUpMode: false,
       );
 
       if (result['success'] == true) {
+        final bool isNewUser = result['is_new_user'] == true;
+        final String? googleEmail = result['email'];
+        final String googleName = result['name'] ?? 'User';
+
+        if (isNewUser) {
+          // Brand new user: trigger RoleSelectionModal on the spot
+          if (mounted) {
+            setState(() => _isGoogleLoading = false);
+            final String? chosenRole = await RoleSelectionModal.show(
+              context,
+              userName: googleName,
+            );
+
+            if (chosenRole != null && googleEmail != null) {
+              setState(() => _isGoogleLoading = true);
+              final regResult = await _googleAuthService.completeGoogleRegistration(
+                email: googleEmail,
+                selectedRole: chosenRole,
+                fullName: googleName,
+              );
+
+              if (regResult['success'] == true) {
+                await Supabase.instance.client.auth.signOut();
+                await AuthSessionService().clearSession();
+                if (mounted) _showPendingDialog();
+              } else {
+                setState(() {
+                  _errorMessage = regResult['message'] ?? 'Failed to complete registration.';
+                });
+              }
+            }
+          }
+          return;
+        }
+
+        // Returning user: read detected role and status
         final String rawStatus = (result['status'] ?? 'pending').toString();
         final String statusLower = rawStatus.toLowerCase();
-        final String role = (result['role'] ?? targetRole).toString();
-        final String? googleEmail = result['email'];
-
+        final String role = (result['role'] ?? 'hog_raiser').toString();
         final bool isActuallyActive = statusLower == 'active' || statusLower == 'approved';
 
         if (!isActuallyActive) {
@@ -255,11 +319,11 @@ class _LoginScreenState extends State<LoginScreen> {
           }
           if (mounted) _navigateToDashboard(role);
         }
-      } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.') {
+      } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.' && result['message'] != 'Google Sign-In was canceled.') {
         final rawMsg = result['message'].toString();
-        if (rawMsg.contains('Walang nakalaang account') || rawMsg.contains('mag-Sign Up muna')) {
+        if (rawMsg.contains('Walang nakalaang account') || rawMsg.contains('mag-Sign Up muna') || rawMsg.contains('No registered account')) {
           setState(() {
-            _identifierError = 'Walang natagpuang account para sa Google account na ito. Mangyaring mag-rehistro muna.';
+            _identifierError = 'No registered account found for this Google account. Please sign up first.';
           });
         } else {
           setState(() {
@@ -269,7 +333,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error sa Google Login: ${e.toString()}';
+        _errorMessage = 'Google Sign-In error: ${e.toString()}';
       });
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
@@ -286,11 +350,11 @@ class _LoginScreenState extends State<LoginScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
+            Icon(Icons.hourglass_top_rounded, color: Color(0xFFF59E0B), size: 28),
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Nagawa na ang Account!',
+                'Account Pending Approval',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
@@ -301,11 +365,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
         content: const Text(
-          'Matagumpay na naitala ang iyong account!\n\nKasalukuyan pa itong naghihintay ng pag-apruba mula sa Admin bago ka makapasok sa Dashboard.',
+          'Your account has been registered and is currently awaiting Admin approval before you can access the dashboard.\n\nWe will notify you once approved!',
           style: TextStyle(
             fontSize: 14,
             color: Color(0xFF334155),
-            height: 1.4,
+            height: 1.45,
           ),
         ),
         actions: [
@@ -323,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               onPressed: () => Navigator.pop(context),
               child: const Text(
-                'Naintindihan',
+                'Got It',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -331,6 +395,114 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUnconfirmedEmailDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.mark_email_unread_rounded, color: Color(0xFF2563EB), size: 28),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Email Not Confirmed',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF18314F),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'A confirmation email was sent to $email.\n\nPlease check your inbox (and spam folder) and click the confirmation link before signing in.',
+          style: const TextStyle(
+            fontSize: 14,
+            color: Color(0xFF334155),
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    try {
+                      await Supabase.instance.client.auth.resend(
+                        type: OtpType.signup,
+                        email: email,
+                      );
+                      if (mounted) {
+                        PiggyToast.showSuccess(
+                          context,
+                          'Verification email resent to $email',
+                          title: 'Email Sent',
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        PiggyToast.showError(
+                          context,
+                          'Failed to resend confirmation email: ${e.toString()}',
+                          title: 'Error',
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Resend Link',
+                    style: TextStyle(
+                      color: Color(0xFF18314F),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF18314F),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text(
+                    'Got It',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -365,7 +537,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Supabase.instance.client.auth.signOut();
         setState(() {
           _errorMessage =
-              'Walang nahanap na angkop na dashboard para sa iyong role.';
+              'No appropriate dashboard found for your assigned role.';
         });
     }
   }
@@ -384,23 +556,31 @@ class _LoginScreenState extends State<LoginScreen> {
     final double inputFontSize = fit.sp(15.0);
     final double cardPaddingH = fit.dp(18.0);
     final double cardPaddingV = fit.dp(12.0);
-    final double buttonHeight = fit.dp(48.0);
+    final double buttonHeight = fit.dp(54.0);
     final double textOffsetV = 0.0;
 
-    final String role =
-        (ModalRoute.of(context)?.settings.arguments as String?) ?? 'hog_raiser';
-    final bool isTagalog = role == 'hog_raiser' || role == 'raiser';
-    final String displayRole = role == 'hog_raiser'
-        ? (isTagalog ? 'Hog Raiser' : 'Hog Raiser')
-        : role == 'partner'
-        ? 'Partner Investor'
-        : role == 'cashier'
-        ? 'Cashier'
-        : 'Admin';
+    const String backText = 'Back';
+    const String actionTitle = 'Sign In';
 
-    final String backText = isTagalog ? 'Bumalik' : 'Back';
-    final String actionTitle = isTagalog ? 'Mag-Sign In' : 'Sign In';
-    final String subtitleText = isTagalog ? 'Mag-login bilang $displayRole' : 'Sign in as $displayRole';
+    String roleLabel = '';
+    IconData? roleIcon;
+    if (_targetRole != null) {
+      final r = _targetRole!.toLowerCase();
+      if (r.contains('cashier')) {
+        roleLabel = 'Cashier';
+        roleIcon = Icons.point_of_sale_rounded;
+      } else if (r.contains('partner') || r.contains('investor')) {
+        roleLabel = 'Partner Investor';
+        roleIcon = Icons.trending_up_rounded;
+      } else if (r.contains('raiser')) {
+        roleLabel = 'Hog Raiser';
+        roleIcon = Icons.pets_rounded;
+      }
+    }
+
+    final String subtitleText = roleLabel.isNotEmpty
+        ? 'Sign in to continue as $roleLabel'
+        : 'Welcome back! Sign in to continue';
 
     return Scaffold(
       body: Container(
@@ -436,7 +616,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           } else {
                             Navigator.pushReplacementNamed(
                               context,
-                              '/onboarding',
+                              '/signup',
+                              arguments: _targetRole,
                             );
                           }
                         },
@@ -526,7 +707,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Action Title "Sign In" / "Mag-Sign In"
+                          // Action Title "Sign In"
                           Text(
                             actionTitle,
                             style: GoogleFonts.plusJakartaSans(
@@ -538,7 +719,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Subtitle: "Sign in as Partner Investor" / "Mag-login bilang Hog Raiser"
+                          // Subtitle: Dynamic based on registered role
                           Text(
                             subtitleText,
                             textAlign: TextAlign.center,
@@ -548,6 +729,25 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: const Color(0xFF6F8096),
                             ),
                           ),
+                          if (roleLabel.isNotEmpty && roleIcon != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF18314F).withValues(alpha: 0.08),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF18314F).withValues(alpha: 0.2),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: Icon(
+                                roleIcon,
+                                size: 20,
+                                color: const Color(0xFF18314F),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -633,7 +833,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               // Username/Email Label
                               Text(
-                                isTagalog ? 'Username o Email Address' : 'Username or Email Address',
+                                'Username or Email Address',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
@@ -650,44 +850,46 @@ class _LoginScreenState extends State<LoginScreen> {
                                   border: Border.all(
                                     color: _identifierError != null
                                         ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _identifierError != null ? 1.5 : 1.2,
+                                        : const Color(0xFFE2E8F0),
+                                    width: 1.2,
                                   ),
                                 ),
                                 child: TextField(
                                   controller: _usernameController,
+                                  cursorColor: const Color(0xFF18314F),
+                                  keyboardType: TextInputType.emailAddress,
+                                  textCapitalization: TextCapitalization.none,
+                                  textInputAction: TextInputAction.next,
+                                  onChanged: (_) => _clearErrors(),
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  onChanged: (_) {
-                                    if (_identifierError != null) {
-                                      setState(() => _identifierError = null);
-                                    }
-                                  },
                                   decoration: InputDecoration(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: inputPaddingV,
-                                    ),
-                                    border: InputBorder.none,
-                                    hintText: isTagalog ? 'hal. juan@gmail.com' : 'e.g. john@example.com',
+                                    filled: false,
+                                    fillColor: Colors.transparent,
+                                    hintText: 'Enter username or email',
                                     hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF94A3B8),
-                                      fontSize: labelFontSize,
-                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF64748B),
+                                      fontSize: inputFontSize,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                     prefixIcon: const Icon(
                                       Icons.person_outline_rounded,
-                                      color: Color(0xFF64748B),
-                                      size: 19,
+                                      color: Color(0xFF18314F),
+                                      size: 20,
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: inputPaddingV,
+                                      horizontal: 14,
                                     ),
                                   ),
                                 ),
                               ),
                               _buildInlineError(_identifierError),
-                              SizedBox(height: fieldSpacing),
+                              SizedBox(height: fieldSpacing * 0.8),
 
                               // Password Label
                               Text(
@@ -708,53 +910,55 @@ class _LoginScreenState extends State<LoginScreen> {
                                   border: Border.all(
                                     color: _passwordError != null
                                         ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _passwordError != null ? 1.5 : 1.2,
+                                        : const Color(0xFFE2E8F0),
+                                    width: 1.2,
                                   ),
                                 ),
                                 child: TextField(
                                   controller: _passwordController,
+                                  cursorColor: const Color(0xFF18314F),
                                   obscureText: _obscurePassword,
+                                  textCapitalization: TextCapitalization.none,
+                                  textInputAction: TextInputAction.done,
+                                  onChanged: (_) => _clearErrors(),
+                                  onSubmitted: (_) => _handlePasswordSignIn(),
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
                                     color: const Color(0xFF18314F),
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  onChanged: (_) {
-                                    if (_passwordError != null) {
-                                      setState(() => _passwordError = null);
-                                    }
-                                  },
                                   decoration: InputDecoration(
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: inputPaddingV,
-                                    ),
-                                    border: InputBorder.none,
-                                    hintText: isTagalog ? 'Ilagay ang iyong password' : 'Enter your password',
+                                    filled: false,
+                                    fillColor: Colors.transparent,
+                                    hintText: 'Enter password',
                                     hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF94A3B8),
-                                      fontSize: labelFontSize,
-                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF64748B),
+                                      fontSize: inputFontSize,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                     prefixIcon: const Icon(
                                       Icons.lock_outline_rounded,
-                                      color: Color(0xFF64748B),
-                                      size: 19,
+                                      color: Color(0xFF18314F),
+                                      size: 20,
                                     ),
                                     suffixIcon: IconButton(
                                       icon: Icon(
                                         _obscurePassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
+                                            ? Icons.visibility_off_outlined
+                                            : Icons.visibility_outlined,
                                         color: const Color(0xFF64748B),
-                                        size: 19,
+                                        size: 20,
                                       ),
                                       onPressed: () {
                                         setState(() {
                                           _obscurePassword = !_obscurePassword;
                                         });
                                       },
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.symmetric(
+                                      vertical: inputPaddingV,
+                                      horizontal: 14,
                                     ),
                                   ),
                                 ),
@@ -767,21 +971,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 alignment: Alignment.centerRight,
                                 child: GestureDetector(
                                   onTap: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          isTagalog
-                                              ? 'Kontakin ang Admin para sa pag-reset ng password.'
-                                              : 'Please contact the Admin to reset your password.',
-                                        ),
-                                        backgroundColor: const Color(0xFF18314F),
-                                      ),
+                                    PiggyToast.showInfo(
+                                      context,
+                                      'Please contact the Admin to reset your password.',
+                                      title: 'Password Reset',
                                     );
                                   },
                                   child: Text(
-                                    isTagalog ? 'Nakalimutan ang Password?' : 'Forgot Password?',
+                                    'Forgot Password?',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: labelFontSize - 0.5,
+                                      fontSize: 12.5,
                                       fontWeight: FontWeight.w600,
                                       color: const Color(0xFF2366CC),
                                     ),
@@ -817,7 +1016,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isLoading
                                       ? null
-                                      : () => _handlePasswordSignIn(role),
+                                      : () => _handlePasswordSignIn(),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
                                     shadowColor: Colors.transparent,
@@ -830,8 +1029,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   child: _isLoading
                                       ? const SizedBox(
-                                          height: 22,
-                                          width: 22,
+                                          height: 24,
+                                          width: 24,
                                           child: CircularProgressIndicator(
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
@@ -841,11 +1040,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         )
                                       : Text(
-                                          isTagalog ? 'Mag-Sign In Na' : 'Sign In Now',
+                                          'Sign In',
                                           style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 15.0,
+                                            fontSize: 16.5,
                                             fontWeight: FontWeight.w700,
                                             color: Colors.white,
+                                            letterSpacing: 0.3,
                                             height: 1.15,
                                           ),
                                         ),
@@ -853,7 +1053,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 20),
 
-                              // Divider with "o kaya gamitin ang" / "or continue with"
+                              // Divider with "or continue with"
                               Row(
                                 children: [
                                   Expanded(
@@ -867,7 +1067,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       horizontal: 12.0,
                                     ),
                                     child: Text(
-                                      isTagalog ? 'o kaya gamitin ang' : 'or continue with',
+                                      'or continue with',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
@@ -888,10 +1088,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Sign in with Google Button (Official Google Sign-In Pill Style)
                               Container(
                                 width: double.infinity,
-                                height: 50,
+                                height: buttonHeight,
                                 decoration: BoxDecoration(
                                   color: Colors.white,
-                                  borderRadius: BorderRadius.circular(25.0),
+                                  borderRadius: BorderRadius.circular(27.0),
                                   border: Border.all(
                                     color: const Color(0xFF747775),
                                     width: 1.0,
@@ -900,20 +1100,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isGoogleLoading
                                       ? null
-                                      : () => _handleGoogleSignIn(role),
+                                      : () => _handleGoogleSignIn(),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.white,
                                     foregroundColor: const Color(0xFF1F1F1F),
-                                    elevation: 0,
                                     shadowColor: Colors.transparent,
+                                    elevation: 0,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(25.0),
+                                      borderRadius: BorderRadius.circular(27.0),
                                     ),
+                                    padding: EdgeInsets.zero,
+                                    alignment: Alignment.center,
                                   ),
                                   child: _isGoogleLoading
                                       ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
+                                          height: 22,
+                                          width: 22,
                                           child: CircularProgressIndicator(
                                             valueColor:
                                                 AlwaysStoppedAnimation<Color>(
@@ -925,62 +1127,69 @@ class _LoginScreenState extends State<LoginScreen> {
                                       : Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
                                           children: [
-                                            const OfficialGoogleLogo(size: 22),
-                                            const SizedBox(width: 12),
+                                            SvgPicture.string(
+                                              googleLogoSvg,
+                                              height: 20.0,
+                                              width: 20.0,
+                                            ),
+                                            const SizedBox(width: 10.0),
                                             Text(
-                                              isTagalog ? 'Mag-Sign in gamit ang Google' : 'Sign in with Google',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: const Color(0xFF1F1F1F),
-                                                letterSpacing: 0.1,
-                                              ),
+                                              'Continue with Google',
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(
+                                                      0xFF1F1F1F,
+                                                    ),
+                                                    letterSpacing: 0.1,
+                                                  ),
                                             ),
                                           ],
                                         ),
                                 ),
                               ),
-                              const SizedBox(height: 20),
-
-                              // Create an account Link (Aligned color + Underline)
-                              Center(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      '/signup',
-                                      arguments: role,
-                                    );
-                                  },
-                                  child: RichText(
-                                    text: TextSpan(
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13.5,
-                                        color: const Color(0xFF64748B),
-                                      ),
-                                      children: [
-                                        TextSpan(
-                                          text: isTagalog ? 'Wala ka pang account? ' : "Don't have an account? ",
-                                        ),
-                                        TextSpan(
-                                          text: isTagalog ? 'Gumawa ng Account' : 'Create Account',
-                                          style: const TextStyle(
-                                            color: Color(0xFF18314F),
-                                            fontWeight: FontWeight.w700,
-                                            decoration:
-                                                TextDecoration.underline,
-                                            decorationColor: Color(0xFF18314F),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ],
                           ),
                         ),
+                        SizedBox(height: fieldSpacing * 1.5),
+
+                        // Bottom Navigation Link: "Don't have an account? Sign Up"
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "Don't have an account? ",
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13.5,
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            GestureDetector(
+                                onTap: () {
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/signup',
+                                    arguments: _targetRole,
+                                  );
+                                },
+                              child: Text(
+                                'Sign Up',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF18314F),
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: fieldSpacing),
                       ],
                     ),
                   ),
@@ -992,71 +1201,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}
-
-class OfficialGoogleLogo extends StatelessWidget {
-  final double size;
-  const OfficialGoogleLogo({super.key, this.size = 22});
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.network(
-      'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/512px-Google_%22G%22_logo.svg.png',
-      height: size,
-      width: size,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          CustomPaint(size: Size(size, size), painter: _GoogleLogoPainter()),
-    );
-  }
-}
-
-class _GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double radius = size.width / 2;
-    final Offset center = Offset(radius, radius);
-    final double strokeWidth = size.width * 0.22;
-    final Rect rect = Rect.fromCircle(
-      center: center,
-      radius: radius - (strokeWidth / 2),
-    );
-
-    final Paint paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.butt;
-
-    // Red Arc
-    paint.color = const Color(0xFFEA4335);
-    canvas.drawArc(rect, -0.785398, -1.8326, false, paint);
-
-    // Yellow Arc
-    paint.color = const Color(0xFFFBBC05);
-    canvas.drawArc(rect, -2.61799, -1.309, false, paint);
-
-    // Green Arc
-    paint.color = const Color(0xFF34A853);
-    canvas.drawArc(rect, -3.92699, -1.309, false, paint);
-
-    // Blue Arc
-    paint.color = const Color(0xFF4285F4);
-    canvas.drawArc(rect, -5.23599, -1.1, false, paint);
-
-    // Blue Bar
-    final Paint fillPaint = Paint()
-      ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.fill;
-
-    final Rect barRect = Rect.fromLTRB(
-      center.dx,
-      center.dy - (strokeWidth / 2),
-      size.width,
-      center.dy + (strokeWidth / 2),
-    );
-    canvas.drawRect(barRect, fillPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

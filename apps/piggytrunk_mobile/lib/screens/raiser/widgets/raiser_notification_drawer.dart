@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
+import '../../../widgets/piggy_toast.dart';
 import 'raiser_empty_state.dart';
 
 void showRaiserNotificationDrawer({
@@ -48,77 +50,73 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _brandBlue = Color(0xFF2563EB);
 
-  String _selectedFilter = 'All'; // 'All', 'Requests', 'Farm'
+  String _selectedFilter = 'All'; // 'All', 'Requests', 'Approved', 'Rejected'
 
-  String _formatTime(String? dateStr) {
-    if (dateStr == null) return 'Recent';
-    try {
-      final dt = DateTime.parse(dateStr.toString()).toLocal();
-      final diff = DateTime.now().difference(dt);
-      if (diff.inMinutes < 1) return 'Just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays < 7) return '${diff.inDays}d ago';
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${months[dt.month - 1]} ${dt.day}';
-    } catch (_) {
-      return 'Recent';
-    }
+  List<Map<String, dynamic>> get _filteredNotifications {
+    if (_selectedFilter == 'All') return widget.notificationsList;
+    return widget.notificationsList.where((n) {
+      final type = (n['type'] ?? n['category'] ?? '').toString().toLowerCase();
+      final title = (n['title'] ?? '').toString().toLowerCase();
+      final message = (n['message'] ?? n['content'] ?? '').toString().toLowerCase();
+
+      if (_selectedFilter == 'Requests') {
+        return type.contains('request') ||
+            type.contains('stock') ||
+            title.contains('request') ||
+            title.contains('kahilingan') ||
+            message.contains('request');
+      } else if (_selectedFilter == 'Approved') {
+        return type.contains('approved') ||
+            title.contains('approved') ||
+            title.contains('naaprubahan') ||
+            message.contains('approved');
+      } else if (_selectedFilter == 'Rejected') {
+        return type.contains('rejected') ||
+            title.contains('rejected') ||
+            title.contains('tinanggihan') ||
+            message.contains('rejected');
+      }
+      return true;
+    }).toList();
   }
 
   void _handleMarkAllAsRead() {
     widget.onMarkAllRead();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.done_all_rounded, color: Colors.white, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Lahat ng notification ay namarkahan nang nabasa',
-              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF047857),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 2),
-      ),
+    final strings = AppStrings.of(context);
+    PiggyToast.showSuccess(
+      context,
+      strings.isFilipino
+          ? 'Lahat ng notification ay minarkahan nang nabasa.'
+          : 'All notifications marked as read.',
     );
   }
 
-  List<Map<String, dynamic>> get _filteredNotifications {
-    if (_selectedFilter == 'All') return widget.notificationsList;
-    if (_selectedFilter == 'Requests') {
-      return widget.notificationsList.where((n) {
-        final t = (n['type'] ?? n['category'] ?? '').toString().toLowerCase();
-        final title = (n['title'] ?? '').toString().toLowerCase();
-        final msg = (n['message'] ?? n['content'] ?? '').toString().toLowerCase();
-        return t.contains('request') || t.contains('stock') || title.contains('request') || msg.contains('request');
-      }).toList();
+  String _formatTime(dynamic dateValue) {
+    if (dateValue == null) return '';
+    try {
+      final DateTime dt = dateValue is DateTime ? dateValue : DateTime.parse(dateValue.toString());
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+
+      if (diff.inMinutes < 1) return 'Kani-kanina lang';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ang nakalipas';
+      if (diff.inHours < 24) return '${diff.inHours}h ang nakalipas';
+      if (diff.inDays < 7) return '${diff.inDays}d ang nakalipas';
+      return '${dt.month}/${dt.day}/${dt.year}';
+    } catch (_) {
+      return '';
     }
-    if (_selectedFilter == 'Approved') {
-      return widget.notificationsList.where((n) {
-        final t = (n['type'] ?? n['category'] ?? '').toString().toLowerCase();
-        final title = (n['title'] ?? '').toString().toLowerCase();
-        final msg = (n['message'] ?? n['content'] ?? '').toString().toLowerCase();
-        return msg.contains('approved') || title.contains('approved') || t.contains('approved');
-      }).toList();
-    }
-    if (_selectedFilter == 'Rejected') {
-      return widget.notificationsList.where((n) {
-        final t = (n['type'] ?? n['category'] ?? '').toString().toLowerCase();
-        final title = (n['title'] ?? '').toString().toLowerCase();
-        final msg = (n['message'] ?? n['content'] ?? '').toString().toLowerCase();
-        return msg.contains('rejected') || title.contains('rejected') || t.contains('rejected');
-      }).toList();
-    }
-    return widget.notificationsList;
   }
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final sheetBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     final unreadCount = widget.notificationsList.where((n) => n['is_read'] == false).length;
     final displayList = _filteredNotifications;
 
@@ -127,10 +125,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
       minChildSize: 0.45,
       maxChildSize: 0.95,
       builder: (_, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          boxShadow: [
+        decoration: BoxDecoration(
+          color: sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: const [
             BoxShadow(
               color: Colors.black26,
               blurRadius: 20,
@@ -146,7 +144,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
               width: 44,
               height: 4.5,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: isDark ? const Color(0xFF334155) : Colors.grey[300],
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
@@ -159,10 +157,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.notifications_active_rounded, color: _brandBlue, size: 22),
+                    child: Icon(Icons.notifications_active_rounded, color: isDark ? const Color(0xFF38BDF8) : _brandBlue, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -172,11 +170,11 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         Row(
                           children: [
                             Text(
-                              'Mga Notification',
+                              strings.notificationsTitle,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: _brandColor,
+                                color: textColor,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -199,10 +197,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                           ],
                         ),
                         Text(
-                          'Live updates mula sa farm at requests',
+                          strings.notificationsSubtitle,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            color: PiggyTrunkTheme.ptMuted,
+                            color: mutedColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -215,21 +213,21 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFDBEAFE)),
+                          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.done_all_rounded, color: _brandBlue, size: 14),
+                            Icon(Icons.done_all_rounded, color: isDark ? const Color(0xFF38BDF8) : _brandBlue, size: 14),
                             const SizedBox(width: 4),
                             Text(
-                              'Mark read',
+                              strings.markAllRead,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w700,
-                                color: _brandBlue,
+                                color: isDark ? const Color(0xFF38BDF8) : _brandBlue,
                               ),
                             ),
                           ],
@@ -245,13 +243,13 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterTab('All', 'Lahat (${widget.notificationsList.length})')),
+                  Expanded(child: _buildFilterTab('All', '${strings.filterAll} (${widget.notificationsList.length})')),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterTab('Requests', 'Requests')),
+                  Expanded(child: _buildFilterTab('Requests', strings.request)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterTab('Approved', 'Approved')),
+                  Expanded(child: _buildFilterTab('Approved', strings.filterApproved)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterTab('Rejected', 'Rejected')),
+                  Expanded(child: _buildFilterTab('Rejected', strings.filterRejected)),
                 ],
               ),
             ),
@@ -265,8 +263,8 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         padding: const EdgeInsets.all(24.0),
                         child: RaiserEmptyState(
                           icon: Icons.notifications_none_rounded,
-                          message: 'Walang notification sa kasalukuyan.',
-                          subtitle: 'Ang mga update tungkol sa mga request, alaga, at anunsyo ay lalabas dito.',
+                          message: strings.noNotifications,
+                          subtitle: strings.noNotificationsSubtitle,
                         ),
                       ),
                     )
@@ -285,22 +283,29 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         final type = (notif['type'] ?? notif['category'] ?? '').toString().toLowerCase();
 
                         IconData notifIcon = Icons.notifications_rounded;
-                        Color iconColor = _brandBlue;
-                        Color iconBg = const Color(0xFFEFF6FF);
+                        Color iconColor = isDark ? const Color(0xFF38BDF8) : _brandBlue;
+                        Color iconBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
 
                         if (type.contains('stock') || type.contains('request')) {
                           notifIcon = Icons.inventory_2_rounded;
                           iconColor = const Color(0xFFF59E0B);
-                          iconBg = const Color(0xFFFFFBEB);
+                          iconBg = isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB);
                         } else if (type.contains('health') || type.contains('sick')) {
                           notifIcon = Icons.health_and_safety_rounded;
                           iconColor = const Color(0xFFEF4444);
-                          iconBg = const Color(0xFFFEF2F2);
+                          iconBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
                         } else if (type.contains('batch') || type.contains('stage') || type.contains('hog')) {
                           notifIcon = Icons.pets_rounded;
                           iconColor = const Color(0xFF10B981);
-                          iconBg = const Color(0xFFECFDF5);
+                          iconBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
                         }
+
+                        final itemBg = isRead
+                            ? (isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white)
+                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC));
+                        final itemBorder = isRead
+                            ? sheetBorder
+                            : (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFCBD5E1));
 
                         return GestureDetector(
                           onTap: () {
@@ -339,15 +344,15 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: isRead ? Colors.white : const Color(0xFFF8FAFC),
+                              color: itemBg,
                               borderRadius: BorderRadius.circular(16),
                               border: Border.all(
-                                color: isRead ? PiggyTrunkTheme.ptBorder : const Color(0xFFCBD5E1),
+                                color: itemBorder,
                                 width: isRead ? 1 : 1.2,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.02),
+                                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -379,7 +384,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                               style: GoogleFonts.plusJakartaSans(
                                                 fontSize: 13.5,
                                                 fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
-                                                color: _brandColor,
+                                                color: textColor,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
@@ -391,7 +396,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w500,
-                                              color: PiggyTrunkTheme.ptMuted,
+                                              color: mutedColor,
                                             ),
                                           ),
                                         ],
@@ -402,7 +407,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                           message,
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 12,
-                                            color: isRead ? PiggyTrunkTheme.ptMuted : const Color(0xFF475569),
+                                            color: isRead ? mutedColor : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
                                             fontWeight: isRead ? FontWeight.w400 : FontWeight.w500,
                                           ),
                                           maxLines: 4,
@@ -418,8 +423,8 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                     width: 8,
                                     height: 8,
                                     margin: const EdgeInsets.only(top: 6),
-                                    decoration: const BoxDecoration(
-                                      color: _brandBlue,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF38BDF8) : _brandBlue,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -438,14 +443,20 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
   }
 
   Widget _buildFilterTab(String key, String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedFilter == key;
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final inactiveBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final inactiveText = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = key),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : const Color(0xFFF1F5F9),
+          color: isSelected ? selectedBg : inactiveBg,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
@@ -454,7 +465,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-              color: isSelected ? Colors.white : PiggyTrunkTheme.ptMuted,
+              color: isSelected ? selectedText : inactiveText,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

@@ -12,10 +12,12 @@ import '../widgets/screen_top_bar.dart';
 
 class BestSellersScreen extends StatefulWidget {
   final List<POSProduct>? initialProducts;
+  final bool isMobileEmbedded;
 
   const BestSellersScreen({
     super.key,
     this.initialProducts,
+    this.isMobileEmbedded = false,
   });
 
   @override
@@ -135,7 +137,46 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
   @override
   Widget build(BuildContext context) {
     final isSmall = Responsive.isSmallScreen(context);
-    final isMobile = Responsive.isMobile(context);
+    final isMobile = Responsive.isMobile(context) || widget.isMobileEmbedded;
+
+    if (widget.isMobileEmbedded) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: _isLoading
+              ? Center(child: CircularProgressIndicator(color: _brandPrimary))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Bar Header & Back Button
+                      _buildHeader(true),
+                      const SizedBox(height: 18),
+
+                      // KPI Metric Summary Cards
+                      _buildKpiMetrics(true),
+                      const SizedBox(height: 24),
+
+                      // Category Pills (Balanced Spacing)
+                      _buildCategoryPills(),
+                      const SizedBox(height: 20),
+
+                      // Top 3 Podium Spotlight (if available)
+                      if (_rankedProducts.isNotEmpty) ...[
+                        _buildPodiumSection(true),
+                        const SizedBox(height: 24),
+                      ],
+
+                      // Full Leaderboard Table / Cards
+                      _buildLeaderboardSection(true),
+                    ],
+                  ),
+                ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _bg,

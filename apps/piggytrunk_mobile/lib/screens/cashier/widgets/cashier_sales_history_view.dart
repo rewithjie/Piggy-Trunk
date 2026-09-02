@@ -99,8 +99,8 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
         ],
         totalAmount: totalAmount,
         paymentMethod: sale['payment_method'] ?? 'Cash',
-        tenderedAmount: (sale['tendered_amount'] as num?)?.toDouble() ?? totalAmount,
-        changeAmount: (sale['change_amount'] as num?)?.toDouble() ?? 0.0,
+        tenderedAmount: totalAmount,
+        changeAmount: 0.0,
         onDone: () => Navigator.pop(ctx),
       ),
     );
@@ -108,51 +108,62 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    final query = _searchCtrl.text.trim().toLowerCase();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // Compute Metrics
+    final titleColor = isDark ? Colors.white : _brandNavy;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardBorder = isDark ? const Color(0xFF28354A) : _cardBorder;
+    final cardBg = isDark ? const Color(0xFF1B2638) : Colors.white;
+    final fieldBg = isDark ? const Color(0xFF1B2638) : Colors.white;
+
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final now = DateTime.now();
+
+    // Summary calculations
     double totalRevenue = 0.0;
     double todayRevenue = 0.0;
-    final now = DateTime.now();
 
     for (final sale in widget.salesLogs) {
       final amount = (sale['total_amount'] as num?)?.toDouble() ?? 0.0;
       totalRevenue += amount;
-      final dateVal = sale['sale_date'] ?? sale['created_at'];
-      if (dateVal != null) {
-        final dt = DateTime.tryParse(dateVal.toString());
+
+      final dateStr = sale['sale_date'] ?? sale['created_at'];
+      if (dateStr != null) {
+        final dt = DateTime.tryParse(dateStr.toString());
         if (dt != null && dt.year == now.year && dt.month == now.month && dt.day == now.day) {
           todayRevenue += amount;
         }
       }
     }
 
-    // Filter Logs
+    // Filter list
     final filteredLogs = widget.salesLogs.where((sale) {
       final product = sale['product'] as Map<String, dynamic>?;
-      final pName = (product != null ? (product['name'] as String) : (sale['product_name'] ?? '')).toString().toLowerCase();
-      final category = (product != null ? (product['category'] ?? '') : (sale['category'] ?? '')).toString().toLowerCase();
-      final idStr = (sale['id'] ?? '').toString().toLowerCase();
+      final pName = (product != null ? product['name'] : sale['product_name'])?.toString().toLowerCase() ?? '';
+      final category = (product != null ? product['category'] : sale['category'])?.toString().toLowerCase() ?? '';
       final customer = (sale['customer_name'] ?? '').toString().toLowerCase();
+      final idStr = (sale['id'] ?? '').toString().toLowerCase();
 
-      // Tab filter
+      // Quick filter pill
       if (_selectedFilterIndex == 1) {
-        // Today
-        final dateVal = sale['sale_date'] ?? sale['created_at'];
-        if (dateVal != null) {
-          final dt = DateTime.tryParse(dateVal.toString());
+        // Today only
+        final dateStr = sale['sale_date'] ?? sale['created_at'];
+        if (dateStr != null) {
+          final dt = DateTime.tryParse(dateStr.toString());
           if (dt == null || dt.year != now.year || dt.month != now.month || dt.day != now.day) {
             return false;
           }
+        } else {
+          return false;
         }
       } else if (_selectedFilterIndex == 2) {
         // Feeds
-        if (!category.contains('feed') && !pName.contains('pigrolac') && !pName.contains('starter') && !pName.contains('booster')) {
+        if (!category.contains('feed') && !pName.contains('feed') && !pName.contains('grower') && !pName.contains('booster')) {
           return false;
         }
       } else if (_selectedFilterIndex == 3) {
-        // Medicines / Vitamins
-        if (!category.contains('med') && !category.contains('vit') && !pName.contains('vetracin') && !pName.contains('apralyte') && !pName.contains('latigo')) {
+        // Meds & Vits
+        if (!category.contains('med') && !category.contains('vit') && !pName.contains('vit') && !pName.contains('iron')) {
           return false;
         }
       }
@@ -172,15 +183,17 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
           margin: const EdgeInsets.fromLTRB(20, 14, 20, 10),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [_brandNavy, Color(0xFF1E3A5F)],
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF1E3A8A), const Color(0xFF1E293B)]
+                  : [_brandNavy, const Color(0xFF1E3A5F)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: _brandNavy.withValues(alpha: 0.25),
+                color: isDark ? Colors.black38 : _brandNavy.withValues(alpha: 0.25),
                 blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
@@ -254,21 +267,21 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
           child: Container(
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: fieldBg,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _cardBorder),
+              border: Border.all(color: cardBorder),
             ),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (_) => setState(() {}),
-              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: _brandNavy),
+              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: titleColor),
               decoration: InputDecoration(
                 hintText: 'Search receipts by product, customer, or ID...',
-                hintStyle: GoogleFonts.plusJakartaSans(color: PiggyTrunkTheme.ptMuted, fontSize: 11.5),
-                prefixIcon: const Icon(Icons.search_rounded, color: PiggyTrunkTheme.ptMuted, size: 18),
+                hintStyle: GoogleFonts.plusJakartaSans(color: subtitleColor, fontSize: 11.5),
+                prefixIcon: Icon(Icons.search_rounded, color: subtitleColor, size: 18),
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16, color: PiggyTrunkTheme.ptMuted),
+                        icon: Icon(Icons.clear, size: 16, color: subtitleColor),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() {});
@@ -288,13 +301,13 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              _buildFilterPill(0, 'All Logs (${widget.salesLogs.length})'),
+              _buildFilterPill(0, 'All Logs (${widget.salesLogs.length})', isDark: isDark),
               const SizedBox(width: 8),
-              _buildFilterPill(1, 'Today'),
+              _buildFilterPill(1, 'Today', isDark: isDark),
               const SizedBox(width: 8),
-              _buildFilterPill(2, 'Feeds'),
+              _buildFilterPill(2, 'Feeds', isDark: isDark),
               const SizedBox(width: 8),
-              _buildFilterPill(3, 'Meds & Vits'),
+              _buildFilterPill(3, 'Meds & Vits', isDark: isDark),
             ],
           ),
         ),
@@ -303,15 +316,22 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
         // Logs List or Lively Empty State
         Expanded(
           child: widget.isLoadingSales
-              ? const Center(child: CircularProgressIndicator(color: _brandNavy))
+              ? Center(child: CircularProgressIndicator(color: isDark ? Colors.white : _brandNavy))
               : (filteredLogs.isEmpty
-                  ? _buildEmptyState()
+                  ? _buildEmptyState(isDark: isDark, titleColor: titleColor, subtitleColor: subtitleColor)
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(20, 6, 20, 24),
                       itemCount: filteredLogs.length,
                       separatorBuilder: (context, index) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        return _buildReceiptCard(filteredLogs[index]);
+                        return _buildReceiptCard(
+                          filteredLogs[index],
+                          isDark: isDark,
+                          cardBg: cardBg,
+                          cardBorder: cardBorder,
+                          titleColor: titleColor,
+                          subtitleColor: subtitleColor,
+                        );
                       },
                     )),
         ),
@@ -319,7 +339,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
     );
   }
 
-  Widget _buildFilterPill(int index, String title) {
+  Widget _buildFilterPill(int index, String title, {required bool isDark}) {
     final isSelected = _selectedFilterIndex == index;
     return Expanded(
       child: GestureDetector(
@@ -328,13 +348,19 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? _brandNavy : Colors.white,
+            color: isSelected
+                ? (isDark ? Colors.white : _brandNavy)
+                : (isDark ? const Color(0xFF1E293B) : Colors.white),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? _brandNavy : _cardBorder),
+            border: Border.all(
+              color: isSelected
+                  ? (isDark ? Colors.white : _brandNavy)
+                  : (isDark ? const Color(0xFF334155) : _cardBorder),
+            ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: _brandNavy.withValues(alpha: 0.15),
+                      color: (isDark ? Colors.white : _brandNavy).withValues(alpha: isDark ? 0.12 : 0.15),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -348,8 +374,12 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
+                color: isSelected
+                    ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                    : (isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF475569)),
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -357,31 +387,39 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
     );
   }
 
-  Widget _buildReceiptCard(Map<String, dynamic> sale) {
+  Widget _buildReceiptCard(
+    Map<String, dynamic> sale, {
+    required bool isDark,
+    required Color cardBg,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     final product = sale['product'] as Map<String, dynamic>?;
-    final String productName = product != null ? (product['name'] as String) : (sale['product_name'] ?? 'IMMUNOBOOSTER');
-    final String categoryName = product != null ? (product['category'] ?? product['description'] ?? 'Feeds') : (sale['category'] ?? 'POS Item');
-    final String imageUrl = product != null ? (product['image'] as String? ?? '') : (sale['image'] ?? '');
-    final int quantity = sale['quantity'] as int? ?? 1;
+    final String productName = product != null ? (product['name'] as String) : (sale['product_name'] ?? 'ImmunoBooster 1L');
+    final String categoryName = product != null ? (product['category'] as String) : (sale['category'] ?? 'Medicines');
+    final String imageUrl = (product != null && product['image'] != null) ? product['image'] as String : '';
     final double totalAmount = (sale['total_amount'] as num?)?.toDouble() ?? 0.0;
-    final String paymentMethod = sale['payment_method'] ?? 'CASH';
-    final String dateStr = sale['sale_date'] ?? sale['created_at'] ?? '';
-    final String formattedDate = _formatDate(dateStr);
-    final String receiptId = sale['id'] != null ? '#REC-${sale['id'].toString().padLeft(5, '0')}' : '#REC-POS';
-
-    final isKilo = productName.toLowerCase().contains('kilo') || categoryName.toLowerCase().contains('kilo');
-    final String quantityLabel = isKilo ? '$quantity kg' : '$quantity ${quantity > 1 ? 'Units' : 'Unit'}';
+    final int quantity = sale['quantity'] as int? ?? 1;
+    final String quantityLabel = sale['unit_type'] != null ? '$quantity ${sale['unit_type']}' : '$quantity units';
+    final String customerName = sale['customer_name'] ?? 'Walk-in Customer';
+    final String paymentMethod = sale['payment_method'] ?? 'Cash';
+    final String dateFormatted = _formatDate(sale['sale_date'] ?? sale['created_at']);
+    
+    // Shorten UUIDs to clean receipt badges e.g. #SALE-XXXX or #50197623
+    final rawId = (sale['invoice_number'] ?? sale['receipt_number'] ?? sale['id'] ?? 'TX').toString();
+    final String saleId = rawId.length > 10 ? '#${rawId.substring(0, 8).toUpperCase()}' : (rawId.startsWith('#') ? rawId : '#$rawId');
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _cardBorder),
+        border: Border.all(color: cardBorder),
         boxShadow: [
           BoxShadow(
-            color: _brandNavy.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
             blurRadius: 8,
-            offset: const Offset(0, 2),
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -393,64 +431,82 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Row: Receipt ID, Date & Payment Pill
+                // Top Row: Sale ID, Customer & Date
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              saleId,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: titleColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              customerName,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: titleColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            color: isDark
+                                ? const Color(0xFF10B981).withValues(alpha: 0.16)
+                                : _emeraldGreen.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            receiptId,
+                            paymentMethod,
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: _brandNavy,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFF6EE7B7) : _emeraldGreen,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Text(
-                          formattedDate,
+                          dateFormatted,
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: PiggyTrunkTheme.ptMuted,
+                            fontSize: 11,
+                            color: subtitleColor,
                           ),
                         ),
                       ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: paymentMethod.toUpperCase().contains('GCASH')
-                            ? const Color(0xFF007DFE).withValues(alpha: 0.1)
-                            : _emeraldGreen.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        paymentMethod.toUpperCase(),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: paymentMethod.toUpperCase().contains('GCASH')
-                              ? const Color(0xFF007DFE)
-                              : _emeraldGreen,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(height: 1, thickness: 1, color: isDark ? const Color(0xFF28354A) : const Color(0xFFF1F5F9)),
                 ),
 
                 // Middle Row: Thumbnail, Product Name & Quantity
@@ -460,16 +516,16 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _cardBorder),
+                        border: Border.all(color: cardBorder),
                       ),
                       child: imageUrl.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(12),
                               child: Image.network(imageUrl, fit: BoxFit.cover),
                             )
-                          : const Icon(Icons.receipt_long_rounded, color: _brandNavy, size: 22),
+                          : Icon(Icons.receipt_long_rounded, color: titleColor, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -481,7 +537,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: _brandNavy,
+                              color: titleColor,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -492,7 +548,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF1F5F9),
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -500,7 +556,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 10.5,
                                     fontWeight: FontWeight.w600,
-                                    color: PiggyTrunkTheme.ptMuted,
+                                    color: subtitleColor,
                                   ),
                                 ),
                               ),
@@ -510,7 +566,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
-                                  color: _brandNavy,
+                                  color: titleColor,
                                 ),
                               ),
                             ],
@@ -527,7 +583,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w900,
-                            color: _brandNavy,
+                            color: const Color(0xFF10B981),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -558,7 +614,11 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({
+    required bool isDark,
+    required Color titleColor,
+    required Color subtitleColor,
+  }) {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
@@ -569,14 +629,14 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: _brandNavy.withValues(alpha: 0.06),
+                color: (isDark ? Colors.white : _brandNavy).withValues(alpha: 0.06),
                 shape: BoxShape.circle,
-                border: Border.all(color: _brandNavy.withValues(alpha: 0.1), width: 2),
+                border: Border.all(color: (isDark ? Colors.white : _brandNavy).withValues(alpha: 0.1), width: 2),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.receipt_long_rounded,
                 size: 38,
-                color: _brandNavy,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 18),
@@ -585,7 +645,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: _brandNavy,
+                color: titleColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -594,7 +654,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
-                color: PiggyTrunkTheme.ptMuted,
+                color: subtitleColor,
                 height: 1.4,
               ),
             ),
@@ -612,7 +672,7 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandNavy,
+                  backgroundColor: isDark ? const Color(0xFF2563EB) : _brandNavy,
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   elevation: 0,

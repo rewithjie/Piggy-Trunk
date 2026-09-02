@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import 'raiser_notification_drawer.dart';
 
 class RaiserHeaderBar extends StatelessWidget {
@@ -96,6 +97,7 @@ class RaiserHeaderBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _brandColor;
+    final strings = AppStrings.of(context);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -105,7 +107,7 @@ class RaiserHeaderBar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hello Hog Raiser,',
+                strings.helloGreeting,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
@@ -114,7 +116,7 @@ class RaiserHeaderBar extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                raiserName.trim().isNotEmpty ? raiserName : 'Hog Raiser',
+                raiserName.trim().isNotEmpty ? raiserName : strings.hogRaiserRole,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,

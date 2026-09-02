@@ -140,12 +140,16 @@ class NotificationService {
       tableName = 'raiser_notifications';
     } else if (roleLower == 'partner' || roleLower == 'partner_investor') {
       tableName = 'partner_notifications';
+    } else if (roleLower == 'cashier') {
+      tableName = 'stock_requests';
     } else {
       debugPrint("Realtime notification channel skipped for unhandled role: $role");
       return;
     }
 
-    final channelName = 'public:$tableName:user_$userId';
+    final channelName = roleLower == 'cashier'
+        ? 'public:stock_requests_notifs'
+        : 'public:$tableName:user_$userId';
 
     try {
       final client = Supabase.instance.client;
@@ -158,6 +162,17 @@ class NotificationService {
             callback: (payload) {
               final newRecord = payload.newRecord;
               if (newRecord.isEmpty) return;
+
+              if (roleLower == 'cashier') {
+                final qty = newRecord['quantity'] ?? newRecord['sacks'] ?? 1;
+                final prodName = newRecord['product_name'] ?? newRecord['item_name'] ?? 'Feed Stock';
+                showNotification(
+                  title: 'New Stock Request',
+                  body: 'A raiser submitted a request for $qty sacks of $prodName.',
+                  payload: newRecord.toString(),
+                );
+                return;
+              }
 
               final notifUserId = newRecord['partner_investor_id']?.toString() ??
                   newRecord['user_id']?.toString() ??

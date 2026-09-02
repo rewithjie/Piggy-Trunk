@@ -12,8 +12,6 @@ class NotificationItemCard extends StatelessWidget {
   final Color borderColor;
   final Color textColor;
   final Color mutedColor;
-  final bool isApproving;
-  final Future<void> Function(AdminNotification notif, int userId, String role) onQuickApprove;
 
   const NotificationItemCard({
     super.key,
@@ -24,8 +22,6 @@ class NotificationItemCard extends StatelessWidget {
     required this.borderColor,
     required this.textColor,
     required this.mutedColor,
-    required this.isApproving,
-    required this.onQuickApprove,
   });
 
   String _formatTimeAgo(DateTime dateTime) {
@@ -143,10 +139,6 @@ class NotificationItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUserRegistration = notif.type == 'user_registration';
-    final meta = notif.metadata ?? <String, dynamic>{};
-    final int? rawUserId = meta['user_id'] is int ? meta['user_id'] as int : int.tryParse(meta['user_id']?.toString() ?? '');
-    final String rawRole = (meta['role'] ?? 'hog_raiser').toString();
     final targetRoute = _resolveTargetRoute(notif);
     final String? routeArg = targetRoute == '/inventory'
         ? 'stock_request'
@@ -265,50 +257,6 @@ class NotificationItemCard extends StatelessWidget {
                               height: 1.35,
                             ),
                           ),
-
-                          // Quick Approve Action (for user registrations)
-                          if (isUserRegistration && rawUserId != null) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                ElevatedButton(
-                                  onPressed: isApproving
-                                      ? null
-                                      : () => onQuickApprove(notif, rawUserId, rawRole),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                                  ),
-                                  child: isApproving
-                                      ? const SizedBox(
-                                          width: 10,
-                                          height: 10,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 1.5,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(Icons.check_rounded, size: 13, color: Colors.white),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'Approve',
-                                              style: AppTextStyles.jakarta(size: 11, weight: FontWeight.w700),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                     ),

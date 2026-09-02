@@ -14,17 +14,21 @@ class CashierNotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: onOpenNotifications,
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1B2638) : Colors.white,
           shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0),
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -34,9 +38,9 @@ class CashierNotificationBell extends StatelessWidget {
           clipBehavior: Clip.none,
           alignment: Alignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_none_rounded,
-              color: _brandColor,
+              color: isDark ? Colors.white : _brandColor,
               size: 24,
             ),
             if (unreadCount > 0)
@@ -45,9 +49,13 @@ class CashierNotificationBell extends StatelessWidget {
                 top: -2,
                 child: Container(
                   padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEF4444),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF1B2638) : Colors.white,
+                      width: 1.5,
+                    ),
                   ),
                   constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                   child: Text(

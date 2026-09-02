@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/auth_session_service.dart';
 import '../../utils/capitalization_formatters.dart';
+import '../../utils/app_strings.dart';
+import '../../widgets/piggy_toast.dart';
 
 import 'tabs/raiser_home_tab.dart';
 import 'tabs/raiser_request_tab.dart';
@@ -26,6 +28,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   bool _isLoading = true;
   Map<String, dynamic> _raiserData = {};
   double _investedAmount = 0.0;
+  double _initialCapital = 0.0;
+  double _stocksSpendAmount = 0.0;
+  List<Map<String, dynamic>> _providedStocksList = [];
   List<Map<String, dynamic>> _hogsList = [];
   List<Map<String, dynamic>> _requestsList = [];
   List<Map<String, dynamic>> _activeAssignments = [];
@@ -246,13 +251,77 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         return aId.compareTo(bId);
       });
 
-      // 6. Fetch stock requests
-      final requestsRes = await Supabase.instance.client
-          .from('stock_requests')
-          .select('*, assignments!inner(*, batches(*))')
-          .eq('hog_raiser_id', raiserId)
-          .order('request_date', ascending: false);
+      // 6. Fetch stock requests & calculate distributed stocks spend
+      List<dynamic> requestsRes = [];
+      try {
+        requestsRes = await Supabase.instance.client
+            .from('stock_requests')
+            .select('*, assignments!inner(*, batches(*))')
+            .eq('hog_raiser_id', raiserId)
+            .order('request_date', ascending: false);
+      } catch (_) {
+        try {
+          requestsRes = await Supabase.instance.client
+              .from('stock_requests')
+              .select('*')
+              .eq('hog_raiser_id', raiserId)
+              .order('request_date', ascending: false);
+        } catch (_) {}
+      }
       final requests = List<Map<String, dynamic>>.from(requestsRes);
+
+      // Fetch Product Price Catalog for accurate distributed product valuation
+      final Map<String, double> productPriceMap = {};
+      try {
+        final productsRes = await Supabase.instance.client
+            .from('inventory_products')
+            .select('name, price, category');
+        for (var p in (productsRes as List? ?? [])) {
+          if (p is! Map) continue;
+          final pName = (p['name'] ?? '').toString().trim().toLowerCase();
+          final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
+          final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
+          if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
+          if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
+            productPriceMap[pCat] = pPrice;
+          }
+        }
+      } catch (pErr) {
+        debugPrint('Notice fetching product prices: $pErr');
+      }
+
+      const double defaultFeedPrice = 1650.0;
+      double totalStocksSpend = 0.0;
+      final List<Map<String, dynamic>> providedStocks = [];
+
+      for (var req in requests) {
+        final status = (req['status'] ?? '').toString().toLowerCase();
+        if (status == 'approved' || status == 'completed' || status == 'distributed') {
+          final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
+          final fType = (req['feed_type'] ?? '').toString().trim();
+          final cat = (req['category'] ?? '').toString().trim();
+          final unitPrice = productPriceMap[fType.toLowerCase()] ??
+              productPriceMap[cat.toLowerCase()] ??
+              defaultFeedPrice;
+          final totalAmount = qty * unitPrice;
+          totalStocksSpend += totalAmount;
+
+          providedStocks.add({
+            'request_id': req['request_id'],
+            'product_name': fType.isNotEmpty ? fType : (cat.isNotEmpty ? cat : 'Feeds / Supplies'),
+            'category': cat.isNotEmpty ? cat : 'Feeds',
+            'quantity': qty.toInt(),
+            'unit_price': unitPrice,
+            'total_amount': totalAmount,
+            'request_date': req['request_date'] ?? req['created_at'],
+            'decision_date': req['decision_date'],
+            'status': req['status'] ?? 'approved',
+            'notes': req['notes'] ?? '',
+          });
+        }
+      }
+
+      final double combinedInvestedAmount = totalCapital + totalStocksSpend;
 
       // 7. Fetch health reports
       final reportsRes = await Supabase.instance.client
@@ -281,7 +350,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
       String? resolvedAvatar;
 
-      // 1. Check direct database fields in hog_raisers & app_users
+      bool isGoogleAvatar(String? url) {
+        if (url == null) return false;
+        final u = url.toLowerCase().trim();
+        return u.contains('googleusercontent.com') ||
+            u.contains('ggpht.com') ||
+            u.contains('google.com') ||
+            u.contains('graph.facebook.com');
+      }
+
+      // 1. Check direct database fields in hog_raisers & app_users (excluding Google OAuth avatar URLs)
       final possibleDbUrls = [
         raiser['avatar_url'],
         raiser['picture'],
@@ -292,31 +370,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       ];
       for (final u in possibleDbUrls) {
         final s = u?.toString().trim();
-        if (s != null && s.isNotEmpty && s != 'N/A' && s != 'null') {
+        if (s != null && s.isNotEmpty && s != 'N/A' && s != 'null' && !isGoogleAvatar(s)) {
           resolvedAvatar = s;
           break;
         }
       }
 
-      // 2. Check Supabase Auth user metadata (Google OAuth picture / avatar_url)
-      if (resolvedAvatar == null) {
-        final meta = user.userMetadata;
-        final possibleMetaUrls = [
-          meta?['avatar_url'],
-          meta?['picture'],
-          meta?['photo_url'],
-          meta?['avatar'],
-        ];
-        for (final u in possibleMetaUrls) {
-          final s = u?.toString().trim();
-          if (s != null && s.isNotEmpty && s != 'N/A' && s != 'null') {
-            resolvedAvatar = s;
-            break;
-          }
-        }
-      }
-
-      // 3. Check Supabase Storage profile_pictures/avatars bucket for uploaded avatar
+      // 2. Check Supabase Storage profile_pictures/avatars bucket for uploaded avatar
       if (resolvedAvatar == null) {
         try {
           final storageFiles = await Supabase.instance.client.storage.from('profile_pictures').list(path: 'avatars');
@@ -338,19 +398,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
-      // 4. If an avatar was found from OAuth/Storage but missing in DB, sync it in background
-      if (resolvedAvatar != null &&
-          (raiser['avatar_url'] == null ||
-              raiser['avatar_url'].toString().trim().isEmpty ||
-              raiser['avatar_url'] == 'N/A')) {
+      // 3. Clean up legacy Google avatars if stored in DB
+      final dbRaiserAvatar = raiser['avatar_url']?.toString().trim();
+      final dbAppUserAvatar = appUser['avatar_url']?.toString().trim();
+      if (isGoogleAvatar(dbRaiserAvatar) || isGoogleAvatar(dbAppUserAvatar)) {
         try {
           await Supabase.instance.client
               .from('hog_raisers')
-              .update({'avatar_url': resolvedAvatar})
+              .update({'avatar_url': null})
               .eq('hog_raiser_id', raiserId);
           await Supabase.instance.client
               .from('app_users')
-              .update({'avatar_url': resolvedAvatar})
+              .update({'avatar_url': null})
               .eq('user_id', userId);
         } catch (_) {}
       }
@@ -389,7 +448,10 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       if (mounted) {
         setState(() {
           _raiserData = combinedRaiserData;
-          _investedAmount = totalCapital;
+          _investedAmount = combinedInvestedAmount;
+          _initialCapital = totalCapital;
+          _stocksSpendAmount = totalStocksSpend;
+          _providedStocksList = providedStocks;
           _activeAssignments = assignments;
           _hogsList = hogs;
           _requestsList = requests;
@@ -455,23 +517,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       await _fetchRaiserData();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Matagumpay na nailipat ang stage sa $targetStage!',
-              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na nailipat ang stage sa $targetStage!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update stage: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+        PiggyToast.showError(
+          context,
+          'Failed to update stage: ${e.toString()}',
         );
       }
     } finally {
@@ -513,22 +568,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .eq('hog_id', hogId.toInt());
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Matagumpay na naipadala ang Hog Report!'),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na naipadala ang Hog Report!',
         );
       }
 
       await _fetchRaiserData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: _brandColor,
-          ),
+        PiggyToast.showError(
+          context,
+          'Error: ${e.toString()}',
         );
       }
     } finally {
@@ -605,22 +656,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         setState(() {
           _raiserData['avatar_url'] = publicUrl;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Matagumpay na na-update ang inyong profile picture!'),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na na-update ang inyong profile picture!',
         );
       }
 
       await _fetchRaiserData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading image: ${e.toString()}'),
-            backgroundColor: _brandColor,
-          ),
+        PiggyToast.showError(
+          context,
+          'Error uploading image: ${e.toString()}',
         );
       }
     } finally {
@@ -754,22 +801,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         setState(() {
           _raiserData.remove('avatar_url');
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Matagumpay na naibalik sa default ang inyong profile!'),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na naibalik sa default ang inyong profile!',
         );
       }
 
       await _fetchRaiserData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error restoring image: ${e.toString()}'),
-            backgroundColor: _brandColor,
-          ),
+        PiggyToast.showError(
+          context,
+          'Error restoring image: ${e.toString()}',
         );
       }
     } finally {
@@ -1038,21 +1081,17 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                             final newAddr = addressController.text.trim();
 
                             if (newName.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Mangyaring ilagay ang buong pangalan.'),
-                                  backgroundColor: Colors.red,
-                                ),
+                              PiggyToast.showWarning(
+                                context,
+                                'Mangyaring ilagay ang buong pangalan.',
                               );
                               return;
                             }
 
                             if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09 (hal. 09123456789).'),
-                                  backgroundColor: Colors.red,
-                                ),
+                              PiggyToast.showWarning(
+                                context,
+                                'Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09.',
                               );
                               return;
                             }
@@ -1114,22 +1153,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Matagumpay na nai-save ang inyong profile!'),
-            backgroundColor: PiggyTrunkTheme.ptSuccess,
-          ),
+        PiggyToast.showSuccess(
+          context,
+          'Matagumpay na nai-save ang inyong profile!',
         );
       }
 
       await _fetchRaiserData();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: _brandColor,
-          ),
+        PiggyToast.showError(
+          context,
+          'Error: ${e.toString()}',
         );
       }
     } finally {
@@ -1156,12 +1191,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         final now = DateTime.now();
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Pindutin ulit ang Back button upang isara ang app.'),
-              duration: Duration(seconds: 2),
-              backgroundColor: _brandColor,
-            ),
+          PiggyToast.showInfo(
+            context,
+            'Pindutin ulit ang Back button upang isara ang app.',
           );
           return;
         }
@@ -1169,109 +1201,134 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         // Close the application directly without popping back to login
         SystemNavigator.pop();
       },
-      child: Scaffold(
-        backgroundColor: PiggyTrunkTheme.ptBg,
-        body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(_brandColor),
+      child: Builder(
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final strings = AppStrings.of(context);
+          final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
+          final navBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+          final navSelectedColor = isDark ? Colors.white : _brandColor;
+          final navUnselectedColor = isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xffa0aec0);
+
+          return Scaffold(
+            backgroundColor: scaffoldBg,
+            body: _isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(navSelectedColor),
+                    ),
+                  )
+                : SafeArea(
+                    child: IndexedStack(
+                      index: _currentIndex,
+                      children: [
+                        RaiserHomeTab(
+                          raiserData: _raiserData,
+                          investedAmount: _investedAmount,
+                          initialCapital: _initialCapital,
+                          stocksSpendAmount: _stocksSpendAmount,
+                          providedStocksList: _providedStocksList,
+                          requestsList: _requestsList,
+                          notificationsList: _notificationsList,
+                          activeAssignments: _activeAssignments,
+                          hogsList: _hogsList,
+                          reportsList: _reportsList,
+                          errorMessage: _errorMessage,
+                          onRefresh: _fetchRaiserData,
+                          onNavigateToTab: (index) => setState(() => _currentIndex = index),
+                          onMarkNotificationAsRead: _markNotificationAsRead,
+                          onMarkAllRead: _markAllRead,
+                          onUpdateLifecycleStage: _updateLifecycleStage,
+                        ),
+                        RaiserRequestTab(
+                          activeAssignments: _activeAssignments,
+                          raiserData: _raiserData,
+                          requestsList: _requestsList,
+                          onRefresh: _fetchRaiserData,
+                        ),
+                        RaiserHogsTab(
+                          raiserData: _raiserData,
+                          investedAmount: _investedAmount,
+                          activeAssignments: _activeAssignments,
+                          hogsList: _hogsList,
+                          reportsList: _reportsList,
+                          notificationsList: _notificationsList,
+                          selectedAssignmentId: _selectedAssignmentId,
+                          onRefresh: _fetchRaiserData,
+                          onMarkNotificationAsRead: _markNotificationAsRead,
+                          onMarkAllRead: _markAllRead,
+                          onSubmitHogReport: _submitHogReport,
+                          onUpdateLifecycleStage: _updateLifecycleStage,
+                        ),
+                        RaiserProfileTab(
+                          raiserData: _raiserData,
+                          onPickAndUploadAvatar: _pickAndUploadAvatar,
+                          onRestoreDefaultAvatar: _restoreDefaultAvatar,
+                          onShowEditProfileDialog: _showEditProfileDialog,
+                          onHandleSignOut: _handleSignOut,
+                        ),
+                      ],
+                    ),
+                  ),
+            bottomNavigationBar: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder,
+                    width: 1,
+                  ),
                 ),
-              )
-            : SafeArea(
-                child: IndexedStack(
-                  index: _currentIndex,
-                  children: [
-                    RaiserHomeTab(
-                      raiserData: _raiserData,
-                      investedAmount: _investedAmount,
-                      requestsList: _requestsList,
-                      notificationsList: _notificationsList,
-                      activeAssignments: _activeAssignments,
-                      hogsList: _hogsList,
-                      reportsList: _reportsList,
-                      errorMessage: _errorMessage,
-                      onRefresh: _fetchRaiserData,
-                      onNavigateToTab: (index) => setState(() => _currentIndex = index),
-                      onMarkNotificationAsRead: _markNotificationAsRead,
-                      onMarkAllRead: _markAllRead,
-                      onUpdateLifecycleStage: _updateLifecycleStage,
-                    ),
-                    RaiserRequestTab(
-                      activeAssignments: _activeAssignments,
-                      raiserData: _raiserData,
-                      requestsList: _requestsList,
-                      onRefresh: _fetchRaiserData,
-                    ),
-                    RaiserHogsTab(
-                      raiserData: _raiserData,
-                      investedAmount: _investedAmount,
-                      activeAssignments: _activeAssignments,
-                      hogsList: _hogsList,
-                      reportsList: _reportsList,
-                      notificationsList: _notificationsList,
-                      selectedAssignmentId: _selectedAssignmentId,
-                      onRefresh: _fetchRaiserData,
-                      onMarkNotificationAsRead: _markNotificationAsRead,
-                      onMarkAllRead: _markAllRead,
-                      onSubmitHogReport: _submitHogReport,
-                    ),
-                    RaiserProfileTab(
-                      raiserData: _raiserData,
-                      onPickAndUploadAvatar: _pickAndUploadAvatar,
-                      onRestoreDefaultAvatar: _restoreDefaultAvatar,
-                      onShowEditProfileDialog: _showEditProfileDialog,
-                      onHandleSignOut: _handleSignOut,
-                    ),
-                  ],
+              ),
+              child: BottomNavigationBar(
+                currentIndex: _currentIndex,
+                onTap: (index) => setState(() => _currentIndex = index),
+                type: BottomNavigationBarType.fixed,
+                backgroundColor: navBg,
+                selectedItemColor: navSelectedColor,
+                unselectedItemColor: navUnselectedColor,
+                selectedLabelStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
                 ),
+                unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+                items: [
+                  BottomNavigationBarItem(
+                    icon: SvgPicture.asset(
+                      'assets/icons/sidebar/dashboard.svg',
+                      width: 22,
+                      height: 22,
+                      colorFilter: ColorFilter.mode(navUnselectedColor, BlendMode.srcIn),
+                    ),
+                    activeIcon: SvgPicture.asset(
+                      'assets/icons/sidebar/dashboard.svg',
+                      width: 22,
+                      height: 22,
+                      colorFilter: ColorFilter.mode(navSelectedColor, BlendMode.srcIn),
+                    ),
+                    label: strings.navDashboard,
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.description_outlined),
+                    label: strings.navRequest,
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.pets),
+                    label: strings.navHogs,
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.person_outline_rounded),
+                    label: strings.navProfile,
+                  ),
+                ],
               ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: _brandColor,
-          unselectedItemColor: const Color(0xffa0aec0),
-          selectedLabelStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
-          unselectedLabelStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-          items: [
-            BottomNavigationBarItem(
-              icon: SvgPicture.asset(
-                'assets/icons/sidebar/dashboard.svg',
-                width: 22,
-                height: 22,
-                colorFilter: const ColorFilter.mode(Color(0xffa0aec0), BlendMode.srcIn),
-              ),
-              activeIcon: SvgPicture.asset(
-                'assets/icons/sidebar/dashboard.svg',
-                width: 22,
-                height: 22,
-                colorFilter: const ColorFilter.mode(_brandColor, BlendMode.srcIn),
-              ),
-              label: 'DASHBOARD',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.description_outlined),
-              label: 'REQUEST',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.pets),
-              label: 'HOGS',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              label: 'PROFILE',
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

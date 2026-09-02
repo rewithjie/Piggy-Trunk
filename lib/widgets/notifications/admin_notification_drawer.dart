@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/app_toast.dart';
 import '../../models/admin_notification_model.dart';
 import '../../providers/admin_notifications_provider.dart';
 import '../slide_over_confirmation_drawer.dart';
@@ -50,34 +49,6 @@ class AdminNotificationDrawer extends ConsumerStatefulWidget {
 
 class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawer> {
   String _selectedFilter = 'all'; // 'all', 'registrations', 'unread'
-  final Set<int> _approvingUserIds = <int>{};
-
-  Future<void> _handleQuickApprove(AdminNotification notif, int userId, String role) async {
-    setState(() {
-      _approvingUserIds.add(userId);
-    });
-
-    final success = await AdminNotificationService.quickApproveUser(
-      userId: userId,
-      role: role,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _approvingUserIds.remove(userId);
-    });
-
-    if (success) {
-      await AdminNotificationService.markAsRead(notif.notificationId);
-
-      if (!mounted) return;
-
-      AppToast.success(context, 'User approved and activated successfully!');
-    } else {
-      AppToast.error(context, 'Failed to approve user. Please try again.');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,9 +196,6 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                         separatorBuilder: (context, index) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final notif = filteredNotifications[index];
-                          final meta = notif.metadata ?? <String, dynamic>{};
-                          final int? rawUserId = meta['user_id'] is int ? meta['user_id'] as int : int.tryParse(meta['user_id']?.toString() ?? '');
-                          final isApproving = rawUserId != null && _approvingUserIds.contains(rawUserId);
 
                           return NotificationItemCard(
                             notif: notif,
@@ -237,8 +205,6 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                             borderColor: borderColor,
                             textColor: textColor,
                             mutedColor: mutedColor,
-                            isApproving: isApproving,
-                            onQuickApprove: _handleQuickApprove,
                           );
                         },
                       ),

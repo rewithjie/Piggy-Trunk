@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/screen_fit_util.dart';
 
 void showBatchRaiserDetailsDrawer({
@@ -28,8 +27,6 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
 
   static const Color _brandNavy = Color(0xFF18314F);
   static const Color _accentGreen = Color(0xFF10B981);
-  static const Color _accentBlue = Color(0xFF3B82F6);
-  static const Color _accentCoral = Color(0xFFC73F57);
 
   const _BatchRaiserDetailsContent({
     required this.batch,
@@ -50,22 +47,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     return idx != -1 ? idx : 0;
   }
 
-  Color _getStageColor(String stage) {
-    switch (stage.toLowerCase()) {
-      case 'booster':
-        return const Color(0xFF8B5CF6);
-      case 'pre-starter':
-        return const Color(0xFFEC4899);
-      case 'starter':
-        return const Color(0xFF3B82F6);
-      case 'grower':
-        return const Color(0xFF10B981);
-      case 'finisher':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF10B981);
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -89,15 +71,19 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     final String phone = (rawPhone != null && rawPhone.trim().isNotEmpty && rawPhone.trim().toLowerCase() != 'n/a')
         ? rawPhone.trim()
         : 'Not set';
-    final String? avatarUrl = batch['avatar_url'] ?? batch['raiser_avatar_url'];
+    final String? rawAvatar = batch['avatar_url'] ?? batch['raiser_avatar_url'];
+    final String? avatarUrl = (rawAvatar != null &&
+            rawAvatar.trim().isNotEmpty &&
+            !rawAvatar.toLowerCase().contains('googleusercontent.com') &&
+            !rawAvatar.toLowerCase().contains('ggpht.com') &&
+            !rawAvatar.toLowerCase().contains('google.com'))
+        ? rawAvatar.trim()
+        : null;
     final String hogType = batch['hog_type'] ?? 'Fattening';
     final String stage = batch['stage'] ?? 'Grower';
     final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? (batch['total_hog'] as num?)?.toInt() ?? 0;
-    final int mortality = (batch['mortality'] as num?)?.toInt() ?? 0;
-    final int healthyHogs = totalHogs > mortality ? totalHogs - mortality : totalHogs;
     final String appliedDate = batch['date_created']?.toString().split('T')[0] ?? batch['appliedDate'] ?? 'Active Season';
 
-    final stageColor = _getStageColor(stage);
     final currentStageIdx = _getStageIndex(stage);
 
     return Container(
@@ -254,7 +240,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                               width: fit.dp(40),
                                               height: fit.dp(40),
                                               fit: BoxFit.contain,
-                                              errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 28, color: _brandNavy),
+                                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 28, color: _brandNavy),
                                             ),
                                           ),
                                         )
@@ -265,7 +251,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                             width: fit.dp(40),
                                             height: fit.dp(40),
                                             fit: BoxFit.contain,
-                                            errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 28, color: _brandNavy),
+                                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 28, color: _brandNavy),
                                           ),
                                         ),
                                 ),
@@ -374,10 +360,10 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF),
+                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                                   borderRadius: BorderRadius.circular(fit.dp(12)),
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF2563EB) : const Color(0xFFBFDBFE),
+                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                                     width: 1,
                                   ),
                                 ),
@@ -386,7 +372,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: fit.sp(11.5),
                                     fontWeight: FontWeight.w800,
-                                    color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+                                    color: isDark ? Colors.white : _brandNavy,
                                   ),
                                 ),
                               ),
@@ -442,9 +428,12 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
                                 decoration: BoxDecoration(
-                                  color: stageColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                                  color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.12),
                                   borderRadius: BorderRadius.circular(fit.dp(20)),
-                                  border: Border.all(color: stageColor.withValues(alpha: 0.4), width: 1),
+                                  border: Border.all(
+                                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.4 : 0.3),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -452,8 +441,8 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                     Container(
                                       width: fit.dp(6),
                                       height: fit.dp(6),
-                                      decoration: BoxDecoration(
-                                        color: stageColor,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF10B981),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -463,7 +452,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: fit.sp(11.0),
                                         fontWeight: FontWeight.w800,
-                                        color: stageColor,
+                                        color: const Color(0xFF10B981),
                                       ),
                                     ),
                                   ],
@@ -471,14 +460,14 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                               ),
                             ],
                           ),
-                          SizedBox(height: fit.dp(14)),
+                          SizedBox(height: fit.dp(18)),
 
-                          // 5-Stage Stepper
+                          // Interactive 5-Step Progress Track
                           Row(
                             children: List.generate(_stages.length, (i) {
-                              final isCompleted = i <= currentStageIdx;
-                              final isCurrent = i == currentStageIdx;
                               final sName = _stages[i];
+                              final isCurrent = i == currentStageIdx;
+                              final isCompleted = i < currentStageIdx;
 
                               return Expanded(
                                 child: Column(
@@ -491,20 +480,47 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                             color: i == 0
                                                 ? Colors.transparent
                                                 : (i <= currentStageIdx
-                                                    ? stageColor
+                                                    ? (isDark ? Colors.white : _brandNavy)
                                                     : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
                                           ),
                                         ),
                                         Container(
-                                          width: fit.dp(isCurrent ? 14 : 10),
-                                          height: fit.dp(isCurrent ? 14 : 10),
+                                          width: fit.dp(26),
+                                          height: fit.dp(26),
                                           decoration: BoxDecoration(
-                                            color: isCompleted ? stageColor : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                            color: isCurrent
+                                                ? (isDark ? Colors.white : _brandNavy)
+                                                : (isCompleted
+                                                    ? const Color(0xFF10B981)
+                                                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))),
                                             shape: BoxShape.circle,
-                                            border: isCurrent
-                                                ? Border.all(color: Colors.white, width: 2)
-                                                : null,
+                                            border: Border.all(
+                                              color: isCurrent
+                                                  ? (isDark ? Colors.white : _brandNavy)
+                                                  : (isCompleted
+                                                      ? const Color(0xFF10B981)
+                                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
+                                              width: isCurrent ? 2.5 : 1.2,
+                                            ),
                                           ),
+                                          child: isCompleted
+                                              ? const Icon(
+                                                  Icons.check_rounded,
+                                                  size: 14,
+                                                  color: Colors.white,
+                                                )
+                                              : (isCurrent
+                                                  ? Center(
+                                                      child: Container(
+                                                        width: fit.dp(8),
+                                                        height: fit.dp(8),
+                                                        decoration: BoxDecoration(
+                                                          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                                          shape: BoxShape.circle,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : null),
                                         ),
                                         Expanded(
                                           child: Container(
@@ -512,7 +528,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                             color: i == _stages.length - 1
                                                 ? Colors.transparent
                                                 : (i < currentStageIdx
-                                                    ? stageColor
+                                                    ? (isDark ? Colors.white : _brandNavy)
                                                     : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
                                           ),
                                         ),
@@ -525,7 +541,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                         fontSize: fit.sp(9.5),
                                         fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
                                         color: isCurrent
-                                            ? stageColor
+                                            ? (isDark ? Colors.white : _brandNavy)
                                             : (isCompleted ? primaryTextColor : mutedTextColor),
                                       ),
                                       textAlign: TextAlign.center,
@@ -564,7 +580,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                           onViewActivities?.call();
                         },
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: cardBorder, width: 1.2),
+                          side: BorderSide(color: isDark ? const Color(0xFF334155) : cardBorder, width: 1.2),
                           padding: EdgeInsets.symmetric(vertical: fit.dp(14)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(fit.dp(14)),
@@ -573,14 +589,14 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                         icon: Icon(
                           Icons.feed_outlined,
                           size: fit.dp(18),
-                          color: primaryTextColor,
+                          color: isDark ? Colors.white : primaryTextColor,
                         ),
                         label: Text(
                           'Raiser Logs',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(13.0),
                             fontWeight: FontWeight.w700,
-                            color: primaryTextColor,
+                            color: isDark ? Colors.white : primaryTextColor,
                           ),
                         ),
                       ),
@@ -595,8 +611,8 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                         onInvestNow();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _brandNavy,
-                        foregroundColor: Colors.white,
+                        backgroundColor: isDark ? Colors.white : _brandNavy,
+                        foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                         elevation: 0,
                         padding: EdgeInsets.symmetric(vertical: fit.dp(14)),
                         shape: RoundedRectangleBorder(
@@ -606,14 +622,14 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                       icon: Icon(
                         Icons.add_card_rounded,
                         size: fit.dp(18),
-                        color: Colors.white,
+                        color: isDark ? const Color(0xFF0F172A) : Colors.white,
                       ),
                       label: Text(
                         'Invest in Batch',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: fit.sp(14.0),
                           fontWeight: FontWeight.w800,
-                          color: Colors.white,
+                          color: isDark ? const Color(0xFF0F172A) : Colors.white,
                         ),
                       ),
                     ),

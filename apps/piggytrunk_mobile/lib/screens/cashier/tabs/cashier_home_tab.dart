@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import '../widgets/cashier_empty_state.dart';
 import '../widgets/cashier_notification_bell.dart';
 import '../widgets/cashier_notification_drawer.dart';
@@ -24,7 +25,6 @@ class CashierHomeTab extends StatelessWidget {
   final Future<void> Function() onRefresh;
 
   static const Color _brandColor = Color(0xFF18314F);
-  static const Color _cardBg = Colors.white;
 
   const CashierHomeTab({
     super.key,
@@ -86,6 +86,14 @@ class CashierHomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardColor = isDark ? const Color(0xFF1B2638) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF28354A) : PiggyTrunkTheme.ptBorder;
+
     final double todaySales = _calculateTodaySales();
     final int todayTx = _calculateTodayTransactions();
     final int inStockCount = allProducts.where((p) => p.units > 0 && !p.isArchived).length;
@@ -121,7 +129,7 @@ class CashierHomeTab extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: onRefresh,
-      color: _brandColor,
+      color: isDark ? Colors.white : _brandColor,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: const EdgeInsets.fromLTRB(20.0, 24.0, 20.0, 32.0),
@@ -137,20 +145,20 @@ class CashierHomeTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Hello Cashier,',
+                        strings.cashierGreeting,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: PiggyTrunkTheme.ptMuted,
+                          color: subtitleColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        cashierName.trim().isNotEmpty ? cashierName : 'Cashier',
+                        cashierName.trim().isNotEmpty ? cashierName : strings.cashierRole,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
-                          color: _brandColor,
+                          color: titleColor,
                           letterSpacing: -0.5,
                         ),
                         maxLines: 1,
@@ -185,23 +193,31 @@ class CashierHomeTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    title: "Today's Sales",
+                    title: strings.todaySales,
                     value: _formatCurrency(todaySales),
-                    subtitle: '$todayTx receipts issued',
+                    subtitle: '$todayTx receipts',
                     icon: Icons.payments_rounded,
-                    accentColor: const Color(0xFF10B981),
-                    bgColor: const Color(0xFFECFDF5),
+                    accentColor: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
+                    bgColor: isDark ? const Color(0xFF10B981).withValues(alpha: 0.14) : const Color(0xFFECFDF5),
+                    cardColor: cardColor,
+                    cardBorder: cardBorder,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Active Products',
+                    title: strings.inStockItems,
                     value: '$inStockCount Items',
-                    subtitle: '${allProducts.length} total catalog',
+                    subtitle: '${allProducts.length} total',
                     icon: Icons.inventory_2_rounded,
-                    accentColor: const Color(0xFF2563EB),
-                    bgColor: const Color(0xFFEFF6FF),
+                    accentColor: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB),
+                    bgColor: isDark ? const Color(0xFF2563EB).withValues(alpha: 0.14) : const Color(0xFFEFF6FF),
+                    cardColor: cardColor,
+                    cardBorder: cardBorder,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
                     onTap: onNavigateToInventory,
                   ),
                 ),
@@ -212,24 +228,36 @@ class CashierHomeTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Stock Alerts',
+                    title: strings.lowStockAlerts,
                     value: '$lowStockCount Items',
-                    subtitle: lowStockCount > 0 ? 'Action required' : 'All well-stocked',
+                    subtitle: lowStockCount > 0 ? 'Action required' : 'Stocked',
                     icon: Icons.warning_amber_rounded,
-                    accentColor: lowStockCount > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-                    bgColor: lowStockCount > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
+                    accentColor: lowStockCount > 0
+                        ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFEF4444))
+                        : (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981)),
+                    bgColor: lowStockCount > 0
+                        ? (isDark ? const Color(0xFFEF4444).withValues(alpha: 0.14) : const Color(0xFFFEF2F2))
+                        : (isDark ? const Color(0xFF10B981).withValues(alpha: 0.14) : const Color(0xFFECFDF5)),
+                    cardColor: cardColor,
+                    cardBorder: cardBorder,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
                     onTap: onNavigateToInventory,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildMetricCard(
-                    title: 'Stock Requests',
+                    title: strings.pendingHogRequests,
                     value: '$pendingReqCount Pending',
-                    subtitle: 'From Hog Raisers',
+                    subtitle: 'From Raisers',
                     icon: Icons.assignment_rounded,
-                    accentColor: const Color(0xFFF59E0B),
-                    bgColor: const Color(0xFFFFFBEB),
+                    accentColor: isDark ? const Color(0xFFFDE68A) : const Color(0xFFF59E0B),
+                    bgColor: isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.14) : const Color(0xFFFFFBEB),
+                    cardColor: cardColor,
+                    cardBorder: cardBorder,
+                    titleColor: titleColor,
+                    subtitleColor: subtitleColor,
                     onTap: onNavigateToRequests,
                   ),
                 ),
@@ -242,11 +270,11 @@ class CashierHomeTab extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Quick Actions',
+                  strings.quickActions,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: _brandColor,
+                    color: titleColor,
                   ),
                 ),
               ],
@@ -257,30 +285,46 @@ class CashierHomeTab extends StatelessWidget {
               children: [
                 _buildQuickActionTile(
                   icon: Icons.point_of_sale_rounded,
-                  label: 'POS Register',
-                  color: const Color(0xFF2563EB),
+                  label: strings.openPOS,
+                  color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB),
+                  cardColor: cardColor,
+                  cardBorder: cardBorder,
+                  textColor: isDark ? const Color(0xFFE2E8F0) : _brandColor,
                   onTap: onNavigateToPOS,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
                   icon: Icons.add_box_rounded,
-                  label: 'Restock',
-                  color: const Color(0xFF10B981),
+                  label: strings.manageInventory,
+                  color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
+                  cardColor: cardColor,
+                  cardBorder: cardBorder,
+                  textColor: isDark ? const Color(0xFFE2E8F0) : _brandColor,
                   onTap: onNavigateToInventory,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
                   icon: Icons.post_add_rounded,
-                  label: 'Request',
-                  color: const Color(0xFFF59E0B),
+                  label: strings.stockAllocation,
+                  color: isDark ? const Color(0xFFFDE68A) : const Color(0xFFF59E0B),
+                  cardColor: cardColor,
+                  cardBorder: cardBorder,
+                  textColor: isDark ? const Color(0xFFE2E8F0) : _brandColor,
                   onTap: onShowRequestsDialog,
+                  isDark: isDark,
                 ),
                 const SizedBox(width: 10),
                 _buildQuickActionTile(
                   icon: Icons.receipt_long_rounded,
-                  label: 'History',
-                  color: const Color(0xFF8B5CF6),
+                  label: strings.recentSalesActivity,
+                  color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF8B5CF6),
+                  cardColor: cardColor,
+                  cardBorder: cardBorder,
+                  textColor: isDark ? const Color(0xFFE2E8F0) : _brandColor,
                   onTap: onShowSalesHistory,
+                  isDark: isDark,
                 ),
               ],
             ),
@@ -293,24 +337,35 @@ class CashierHomeTab extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'Live Stock Alerts',
+                      strings.lowStockAlerts,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: _brandColor,
+                        color: titleColor,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: lowStockCount > 0 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                        color: lowStockCount > 0
+                            ? (isDark ? const Color(0xFFEF4444).withValues(alpha: 0.25) : const Color(0xFFEF4444))
+                            : (isDark ? const Color(0xFF10B981).withValues(alpha: 0.25) : const Color(0xFF10B981)),
                         borderRadius: BorderRadius.circular(12),
+                        border: isDark
+                            ? Border.all(
+                                color: lowStockCount > 0
+                                    ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                                    : const Color(0xFF10B981).withValues(alpha: 0.4),
+                              )
+                            : null,
                       ),
                       child: Text(
                         '$lowStockCount',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark
+                              ? (lowStockCount > 0 ? const Color(0xFFFCA5A5) : const Color(0xFF6EE7B7))
+                              : Colors.white,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
@@ -321,11 +376,11 @@ class CashierHomeTab extends StatelessWidget {
                 GestureDetector(
                   onTap: onNavigateToInventory,
                   child: Text(
-                    'Manage Stock →',
+                    '${strings.manageInventory} →',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: _brandColor,
+                      color: titleColor,
                     ),
                   ),
                 ),
@@ -338,19 +393,23 @@ class CashierHomeTab extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                  border: Border.all(color: cardBorder),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFECFDF5),
-                        shape: BoxShape.circle,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF10B981).withValues(alpha: 0.14) : const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
+                      child: Icon(
+                        Icons.check_circle_rounded,
+                        color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -358,19 +417,19 @@ class CashierHomeTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Healthy Stock Levels',
+                            'All Stocks Healthy',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: _brandColor,
+                              color: titleColor,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
-                            'All inventory items have sufficient units in stock.',
+                            'No items are critically low or below threshold.',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: PiggyTrunkTheme.ptMuted,
+                              fontSize: 12.5,
+                              color: subtitleColor,
                             ),
                           ),
                         ],
@@ -383,175 +442,110 @@ class CashierHomeTab extends StatelessWidget {
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: lowStockProducts.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemCount: lowStockProducts.take(3).length,
+                separatorBuilder: (context, index) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final p = lowStockProducts[index];
-                  final int currentStock = p.units;
-                  final bool isCritical = currentStock <= 5;
-                  final double stockProgress = (currentStock / 20.0).clamp(0.05, 1.0);
-
+                  final isCritical = p.units <= 5;
                   return Container(
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: _cardBg,
-                      borderRadius: BorderRadius.circular(18),
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isCritical
-                            ? const Color(0xFFEF4444).withValues(alpha: 0.3)
-                            : PiggyTrunkTheme.ptBorder,
-                        width: isCritical ? 1.5 : 1,
+                            ? (isDark ? const Color(0xFFEF4444).withValues(alpha: 0.3) : const Color(0xFFFECACA))
+                            : cardBorder,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.02),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: isCritical
+                                ? (isDark ? const Color(0xFFEF4444).withValues(alpha: 0.14) : const Color(0xFFFEE2E2))
+                                : (isDark ? const Color(0xFFF59E0B).withValues(alpha: 0.14) : const Color(0xFFFEF3C7)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            isCritical ? Icons.error_rounded : Icons.warning_amber_rounded,
+                            color: isCritical
+                                ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626))
+                                : (isDark ? const Color(0xFFFDE68A) : const Color(0xFFD97706)),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p.name,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${p.units} units left • ${p.category}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: isCritical
+                                      ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626))
+                                      : subtitleColor,
+                                  fontWeight: isCritical ? FontWeight.w700 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: onNavigateToInventory,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            foregroundColor: titleColor,
+                            elevation: 0,
+                            side: isDark ? const BorderSide(color: Color(0xFF334155)) : null,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text(
+                            'Restock',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Row(
-                        children: [
-                          // Product Image / Thumbnail
-                          Container(
-                            width: 54,
-                            height: 54,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(13),
-                              child: p.image != null && p.image!.isNotEmpty
-                                  ? Image.network(
-                                      p.image!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (ctx, err, st) => const Icon(
-                                        Icons.inventory_2_outlined,
-                                        color: Color(0xFF94A3B8),
-                                        size: 26,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.inventory_2_outlined,
-                                      color: Color(0xFF94A3B8),
-                                      size: 26,
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-
-                          // Product Info & Real Stock Gauge
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isCritical
-                                            ? const Color(0xFFFEE2E2)
-                                            : const Color(0xFFFEF3C7),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        isCritical ? 'CRITICAL' : 'LOW STOCK',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          color: isCritical
-                                              ? const Color(0xFFDC2626)
-                                              : const Color(0xFFD97706),
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      _formatCurrency(p.price),
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: _brandColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  p.name,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: _brandColor,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: LinearProgressIndicator(
-                                          value: stockProgress,
-                                          backgroundColor: const Color(0xFFF1F5F9),
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            isCritical ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
-                                          ),
-                                          minHeight: 5,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      '$currentStock ${currentStock == 1 ? 'unit' : 'units'} left',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: isCritical
-                                            ? const Color(0xFFDC2626)
-                                            : const Color(0xFFD97706),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   );
                 },
               ),
             const SizedBox(height: 32),
 
-            // ==================== FEATURED PRODUCTS CAROUSEL ====================
+            // ==================== FAST MOVING PRODUCTS ====================
             if (featuredProducts.isNotEmpty) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Featured Inventory',
+                    strings.fastMovingProducts,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: _brandColor,
+                      color: titleColor,
                     ),
                   ),
                   GestureDetector(
                     onTap: onNavigateToPOS,
                     child: Text(
-                      'View POS Catalog →',
+                      '${strings.posRegister} →',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: _brandColor,
+                        color: titleColor,
                       ),
                     ),
                   ),
@@ -571,12 +565,12 @@ class CashierHomeTab extends StatelessWidget {
                       width: 155,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                        border: Border.all(color: cardBorder),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
+                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -590,7 +584,7 @@ class CashierHomeTab extends StatelessWidget {
                             child: Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
+                                color: isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: ClipRRect(
@@ -617,7 +611,7 @@ class CashierHomeTab extends StatelessWidget {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: _brandColor,
+                              color: titleColor,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -628,7 +622,7 @@ class CashierHomeTab extends StatelessWidget {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: _brandColor,
+                              color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -639,19 +633,24 @@ class CashierHomeTab extends StatelessWidget {
                                 '${item.units} in stock',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 10.5,
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: subtitleColor,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
                               GestureDetector(
                                 onTap: () => onAddToCart(item),
                                 child: Container(
-                                  padding: const EdgeInsets.all(5),
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: _brandColor,
+                                    color: isDark ? const Color(0xFF1E293B) : _brandColor,
                                     borderRadius: BorderRadius.circular(8),
+                                    border: isDark ? Border.all(color: const Color(0xFF334155)) : null,
                                   ),
-                                  child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white, size: 14),
+                                  child: const Icon(
+                                    Icons.add_shopping_cart_rounded,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
                                 ),
                               ),
                             ],
@@ -670,21 +669,21 @@ class CashierHomeTab extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Recent Transactions',
+                  strings.recentSalesActivity,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: _brandColor,
+                    color: titleColor,
                   ),
                 ),
                 GestureDetector(
                   onTap: onShowSalesHistory,
                   child: Text(
-                    'All Receipts →',
+                    '${strings.viewAllSales} →',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: _brandColor,
+                      color: titleColor,
                     ),
                   ),
                 ),
@@ -725,19 +724,23 @@ class CashierHomeTab extends StatelessWidget {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                      border: Border.all(color: cardBorder),
                     ),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF1F5F9),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.receipt_rounded, color: _brandColor, size: 20),
+                          child: Icon(
+                            Icons.receipt_rounded,
+                            color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                            size: 20,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -749,7 +752,7 @@ class CashierHomeTab extends StatelessWidget {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: _brandColor,
+                                  color: titleColor,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -757,7 +760,7 @@ class CashierHomeTab extends StatelessWidget {
                                 '$paymentMethod • $timeDisplay',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11.5,
-                                  color: PiggyTrunkTheme.ptMuted,
+                                  color: subtitleColor,
                                 ),
                               ),
                             ],
@@ -768,7 +771,7 @@ class CashierHomeTab extends StatelessWidget {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF10B981),
+                            color: isDark ? const Color(0xFF6EE7B7) : const Color(0xFF10B981),
                           ),
                         ),
                       ],
@@ -789,6 +792,10 @@ class CashierHomeTab extends StatelessWidget {
     required IconData icon,
     required Color accentColor,
     required Color bgColor,
+    required Color cardColor,
+    required Color cardBorder,
+    required Color titleColor,
+    required Color subtitleColor,
     VoidCallback? onTap,
   }) {
     return GestureDetector(
@@ -796,9 +803,9 @@ class CashierHomeTab extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: PiggyTrunkTheme.ptBorder),
+          border: Border.all(color: cardBorder),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.02),
@@ -822,7 +829,7 @@ class CashierHomeTab extends StatelessWidget {
                   child: Icon(icon, color: accentColor, size: 18),
                 ),
                 if (onTap != null)
-                  Icon(Icons.arrow_forward_ios_rounded, color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.6), size: 12),
+                  Icon(Icons.arrow_forward_ios_rounded, color: subtitleColor.withValues(alpha: 0.6), size: 12),
               ],
             ),
             const SizedBox(height: 12),
@@ -831,7 +838,7 @@ class CashierHomeTab extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: _brandColor,
+                color: titleColor,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -842,7 +849,7 @@ class CashierHomeTab extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
-                color: PiggyTrunkTheme.ptMuted,
+                color: subtitleColor,
               ),
             ),
           ],
@@ -855,7 +862,11 @@ class CashierHomeTab extends StatelessWidget {
     required IconData icon,
     required String label,
     required Color color,
+    required Color cardColor,
+    required Color cardBorder,
+    required Color textColor,
     required VoidCallback onTap,
+    required bool isDark,
   }) {
     return Expanded(
       child: GestureDetector(
@@ -863,12 +874,12 @@ class CashierHomeTab extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: PiggyTrunkTheme.ptBorder),
+            border: Border.all(color: cardBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -880,7 +891,7 @@ class CashierHomeTab extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: color.withValues(alpha: isDark ? 0.14 : 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -891,7 +902,7 @@ class CashierHomeTab extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: _brandColor,
+                  color: textColor,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -903,4 +914,3 @@ class CashierHomeTab extends StatelessWidget {
     );
   }
 }
-

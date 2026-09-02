@@ -1,40 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
-import 'package:piggytrunk/theme/app_text_styles.dart';
-
-const String raiserSvg = '''
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Hat crown -->
-  <path d="M8 8 C8 4, 16 4, 16 8" />
-  <!-- Hat brim -->
-  <path d="M4 9 L20 9" />
-  <!-- Face/Head -->
-  <path d="M9 9 V12 C9 13.7, 10.3 15, 12 15 C13.7 15, 15 13.7, 15 12 V9" />
-  <!-- Shoulders -->
-  <path d="M5 20 C5 17, 8 16, 12 16 C16 16, 19 17, 19 20" />
-</svg>
-''';
-
-const String partnerSvg = '''
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <!-- Coin circle -->
-  <circle cx="12" cy="12" r="10" />
-  <!-- Peso sign '₱' -->
-  <path d="M9.5 7v10" />
-  <path d="M9.5 7h3.5a2.5 2.5 0 0 1 0 5H9.5" />
-  <path d="M8 9.5h6" />
-  <path d="M8 11.5h6" />
-</svg>
-''';
-
-const String cashierSvg = '''
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="9" cy="21" r="1" fill="currentColor" />
-  <circle cx="20" cy="21" r="1" fill="currentColor" />
-  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-</svg>
-''';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -46,32 +12,25 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  String _selectedRole = 'hog_raiser';
 
   final List<OnboardingData> _slides = [
     OnboardingData(
-      title: 'Tulong sa Pagpapalaki',
+      title: 'Farm Growth & Support',
       description:
-          'Mag-iinvest ang mga investor sa iyong farm para matulungan ka sa mga pangangailangan ng iyong mga baboy tulad ng pagkain, bakuna, at tirahan.',
+          'Connect with investors who provide essential resources for your pigs—including feeds, vitamins, vaccines, and housing support.',
       imagePath: 'assets/onboarding_invest.png',
     ),
     OnboardingData(
-      title: 'Salu-salong Kita',
+      title: 'Shared Profit & Success',
       description:
-          'Sa bawat matagumpay na pagpapalaki at benta ng baboy, parehong kikita ang hog raiser at ang investor. Isang patas na tulungan!',
+          'Every successful harvest creates mutual value. Hog raisers and investors share transparent, fair returns with real-time tracking.',
       imagePath: 'assets/onboarding_profit.png',
     ),
     OnboardingData(
-      title: 'Handa Ka Na Ba?',
+      title: 'Ready to Get Started?',
       description:
-          'Ikaw ba ay handa nang kumonekta sa mga investors at palaguin ang iyong pagbababuyan? Magsimula na ngayon!',
+          'Join our growing network of dedicated raisers, investors, and agribusiness partners today.',
       imagePath: 'assets/onboarding_start.png',
-    ),
-    OnboardingData(
-      title: 'Pumili ng Gampanin',
-      description:
-          'Piliin ang iyong gampanin sa PiggyTrunk upang magpatuloy:',
-      imagePath: '',
     ),
   ];
 
@@ -87,91 +46,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
-  Widget _buildRoleCard(String role, String title, String subtitle, String svgString) {
-    final bool isSelected = _selectedRole == role;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedRole = role;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.06) : PiggyTrunkTheme.ptSurface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptBorder,
-            width: isSelected ? 2 : 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected 
-                ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ]
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isSelected ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.12) : PiggyTrunkTheme.ptBg,
-                shape: BoxShape.circle,
-              ),
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: SvgPicture.string(
-                  svgString,
-                  colorFilter: ColorFilter.mode(
-                    isSelected ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptMuted,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptText,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isSelected ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.8) : PiggyTrunkTheme.ptMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              const Icon(
-                Icons.check_circle,
-                color: PiggyTrunkTheme.ptPrimary,
-                size: 20,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -181,12 +55,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Bar (Skip Button)
+            // Top Bar: Skip Action
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
+              padding: const EdgeInsets.only(left: 24.0, right: 24.0, top: 12.0),
               child: Align(
                 alignment: Alignment.centerRight,
                 child: AnimatedOpacity(
@@ -198,18 +69,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       onTap: () {
                         _pageController.animateToPage(
                           _slides.length - 1,
-                          duration: const Duration(milliseconds: 600),
+                          duration: const Duration(milliseconds: 400),
                           curve: Curves.easeInOutCubic,
                         );
                       },
                       borderRadius: BorderRadius.circular(20),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
-                          color: PiggyTrunkTheme.ptSurface,
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: PiggyTrunkTheme.ptBorder,
+                            color: const Color(0xFFCBD5E1),
                             width: 1,
                           ),
                         ),
@@ -217,16 +88,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'Laktawan',
-                              style: AppTextStyles.bodyStrong(const Color(0xFF18314F)).copyWith(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                              'Skip',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF18314F),
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             const Icon(
                               Icons.arrow_forward_ios_rounded,
-                              size: 13,
+                              size: 11,
                               color: Color(0xFF18314F),
                             ),
                           ],
@@ -245,44 +117,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: _onPageChanged,
                 itemCount: _slides.length,
                 itemBuilder: (context, index) {
-                  if (index == _slides.length - 1) {
-                    return SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(height: screenHeight * 0.01),
-                            // Slide Title
-                            Text(
-                              _slides[index].title,
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.pageTitle(
-                                PiggyTrunkTheme.ptText,
-                              ).copyWith(fontSize: 24, fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 8),
-                            // Slide Description
-                            Text(
-                              'Piliin ang iyong gampanin sa PiggyTrunk upang magpatuloy:',
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.body(
-                                PiggyTrunkTheme.ptMuted,
-                              ).copyWith(fontSize: 14),
-                            ),
-                            const SizedBox(height: 20),
-                            // Role Cards Selector
-                            _buildRoleCard('hog_raiser', 'Hog Raiser', 'Nag-aalaga at nagpapatakbo ng babuyan', raiserSvg),
-                            const SizedBox(height: 12),
-                            _buildRoleCard('partner', 'Partner Investor', 'Sumusuporta sa farm sa pamamagitan ng puhunan', partnerSvg),
-                            const SizedBox(height: 12),
-                            _buildRoleCard('cashier', 'Cashier', 'Namamahala sa pag-release ng supply at feeds', cashierSvg),
-                            SizedBox(height: screenHeight * 0.02),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
                   return OnboardingPageContent(
                     data: _slides[index],
                     screenHeight: screenHeight,
@@ -295,11 +129,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: 24.0,
-                vertical: screenHeight < 740 ? 12.0 : 24.0,
+                vertical: screenHeight < 740 ? 12.0 : 20.0,
               ),
               child: Column(
                 children: [
-                  // Indicators
+                  // Page Indicators
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
@@ -307,7 +141,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       (index) => buildIndicator(index),
                     ),
                   ),
-                  SizedBox(height: screenHeight < 740 ? 16.0 : 28.0),
+                  SizedBox(height: screenHeight < 740 ? 14.0 : 22.0),
 
                   // Action Button
                   AnimatedSwitcher(
@@ -316,45 +150,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ? SizedBox(
                             key: const ValueKey('actions_continue'),
                             width: double.infinity,
-                            height: 56,
+                            height: 52,
                             child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context, 
-                                  '/signup',
-                                  arguments: _selectedRole,
-                                );
-                              },
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(context, '/signup');
+                                },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF18314F),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Text(
-                                'Magpatuloy',
-                                style: AppTextStyles.button(
-                                  Colors.white,
-                                ).copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          )
-                        : SizedBox(
-                            key: const ValueKey('action_next'),
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                _pageController.nextPage(
-                                  duration: const Duration(milliseconds: 400),
-                                  curve: Curves.easeInOut,
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: PiggyTrunkTheme.ptPrimary,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
@@ -365,13 +167,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Susunod',
-                                    style: AppTextStyles.button(
-                                      Colors.white,
-                                    ).copyWith(fontSize: 16),
+                                    'Get Started',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward, size: 20),
+                                  const Icon(Icons.arrow_forward_rounded, size: 18),
+                                ],
+                              ),
+                            ),
+                          )
+                        : SizedBox(
+                            key: const ValueKey('action_next'),
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 350),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF18314F),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Next',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.arrow_forward_rounded, size: 18),
                                 ],
                               ),
                             ),
@@ -389,12 +229,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget buildIndicator(int index) {
     final bool isActive = _currentPage == index;
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 250),
       margin: const EdgeInsets.symmetric(horizontal: 4.0),
-      height: 8.0,
-      width: isActive ? 24.0 : 8.0,
+      height: 7.0,
+      width: isActive ? 22.0 : 7.0,
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF18314F) : PiggyTrunkTheme.ptBorder,
+        color: isActive ? const Color(0xFF18314F) : const Color(0xFFCBD5E1),
         borderRadius: BorderRadius.circular(4.0),
       ),
     );
@@ -426,19 +266,19 @@ class OnboardingPageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isSmallScreen = screenHeight < 740;
-    final double imageHeight = isSmallScreen ? (screenHeight * 0.28).clamp(160.0, 220.0) : (screenHeight * 0.35);
-    final double titleFontSize = isSmallScreen ? 20.0 : 24.0;
-    final double descriptionFontSize = isSmallScreen ? 13.5 : 15.0;
-    final double gapHeight = isSmallScreen ? 12.0 : 24.0;
+    final double imageHeight = isSmallScreen ? (screenHeight * 0.28).clamp(150.0, 210.0) : (screenHeight * 0.33);
+    final double titleFontSize = isSmallScreen ? 19.0 : 23.0;
+    final double descriptionFontSize = isSmallScreen ? 13.0 : 14.5;
+    final double gapHeight = isSmallScreen ? 12.0 : 20.0;
 
     return Center(
       child: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 6.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Graphic Image Container with soft shadow and rounded borders
+            // Graphic Image Container
             Container(
               height: imageHeight,
               decoration: BoxDecoration(
@@ -447,12 +287,12 @@ class OnboardingPageContent extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: Image.asset(data.imagePath, fit: BoxFit.contain),
@@ -464,11 +304,14 @@ class OnboardingPageContent extends StatelessWidget {
             Text(
               data.title,
               textAlign: TextAlign.center,
-              style: AppTextStyles.pageTitle(
-                const Color(0xFF18314F),
-              ).copyWith(fontSize: titleFontSize, fontWeight: FontWeight.w800),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: titleFontSize,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF18314F),
+                letterSpacing: -0.3,
+              ),
             ),
-            SizedBox(height: isSmallScreen ? 8.0 : 14.0),
+            SizedBox(height: isSmallScreen ? 6.0 : 10.0),
 
             // Slide Description
             Padding(
@@ -476,9 +319,12 @@ class OnboardingPageContent extends StatelessWidget {
               child: Text(
                 data.description,
                 textAlign: TextAlign.center,
-                style: AppTextStyles.body(
-                  const Color(0xFF475569),
-                ).copyWith(fontSize: descriptionFontSize, height: 1.45),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: descriptionFontSize,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                  height: 1.4,
+                ),
               ),
             ),
           ],

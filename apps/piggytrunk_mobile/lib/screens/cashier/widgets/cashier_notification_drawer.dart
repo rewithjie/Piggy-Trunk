@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/app_strings.dart';
 import 'cashier_empty_state.dart';
 
 void showCashierNotificationDrawer({
@@ -96,7 +97,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
       for (final p in widget.lowStockProducts) {
         _localReadIds.add('stock_${p.id}');
       }
-      for (final sale in widget.salesLogs.take(5)) {
+      for (final sale in widget.salesLogs) {
         _localReadIds.add('sale_${sale['id']}');
       }
     });
@@ -123,6 +124,14 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+
+    final drawerBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final subtitleColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final cardBorder = isDark ? const Color(0xFF28354A) : PiggyTrunkTheme.ptBorder;
+
     final activeRequests = widget.pendingRequests.where((r) {
       final st = (r['status'] ?? '').toString().toLowerCase();
       return st == 'pending' || st == 'for_approval' || st.isEmpty;
@@ -154,10 +163,10 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          boxShadow: [
+        decoration: BoxDecoration(
+          color: drawerBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: const [
             BoxShadow(
               color: Colors.black26,
               blurRadius: 20,
@@ -173,7 +182,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
               width: 44,
               height: 4.5,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: isDark ? const Color(0xFF334155) : Colors.grey[300],
                 borderRadius: BorderRadius.circular(3),
               ),
             ),
@@ -186,7 +195,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.notifications_active_rounded, color: _brandBlue, size: 20),
@@ -199,11 +208,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                         Row(
                           children: [
                             Text(
-                              'Notifications',
+                              strings.notificationsTitle,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: _brandColor,
+                                color: titleColor,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -229,10 +238,10 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Live updates from raisers & inventory',
+                              strings.notificationsSubtitle,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
-                                color: PiggyTrunkTheme.ptMuted,
+                                color: subtitleColor,
                               ),
                             ),
                             if (totalUnread > 0)
@@ -241,9 +250,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFEFF6FF),
+                                    color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFFDBEAFE)),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF2563EB) : const Color(0xFFDBEAFE),
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -251,11 +262,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                                       const Icon(Icons.done_all_rounded, color: _brandBlue, size: 13),
                                       const SizedBox(width: 3),
                                       Text(
-                                        'Mark read',
+                                        strings.markAllRead,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w700,
-                                          color: _brandBlue,
+                                          color: isDark ? const Color(0xFF93C5FD) : _brandBlue,
                                         ),
                                       ),
                                     ],
@@ -268,7 +279,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: PiggyTrunkTheme.ptMuted),
+                    icon: Icon(Icons.close_rounded, color: subtitleColor),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -280,22 +291,22 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterChip('All', totalUnread)),
+                  Expanded(child: _buildFilterChip('All', totalUnread, isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Requests', unreadRequests, color: const Color(0xFFF59E0B))),
+                  Expanded(child: _buildFilterChip('Requests', unreadRequests, color: const Color(0xFFF59E0B), isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Stock', unreadStock, color: const Color(0xFFEF4444))),
+                  Expanded(child: _buildFilterChip('Stock', unreadStock, color: const Color(0xFFEF4444), isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Sales', unreadSales, color: const Color(0xFF10B981))),
+                  Expanded(child: _buildFilterChip('Sales', unreadSales, color: const Color(0xFF10B981), isDark: isDark)),
                 ],
               ),
             ),
             const SizedBox(height: 6),
-            const Divider(height: 1),
+            Divider(height: 1, color: cardBorder),
 
             // Notification Items List
             Expanded(
-              child: _buildNotificationList(scrollController, activeRequests),
+              child: _buildNotificationList(scrollController, activeRequests, isDark: isDark),
             ),
           ],
         ),
@@ -303,7 +314,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     );
   }
 
-  Widget _buildFilterChip(String filter, int unreadCount, {Color color = _brandColor}) {
+  Widget _buildFilterChip(String filter, int unreadCount, {Color color = _brandColor, required bool isDark}) {
     final isSelected = _selectedFilter == filter;
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = filter),
@@ -312,16 +323,20 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? _brandColor : const Color(0xFFF1F5F9),
+          color: isSelected
+              ? (isDark ? Colors.white : _brandColor)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? _brandColor : const Color(0xFFE2E8F0),
+            color: isSelected
+                ? (isDark ? Colors.white : _brandColor)
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
             width: 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _brandColor.withValues(alpha: 0.18),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.12 : 0.18),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -338,7 +353,9 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                  color: isSelected
+                      ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                      : (isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF475569)),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -349,7 +366,9 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white.withValues(alpha: 0.25) : color.withValues(alpha: 0.15),
+                  color: isSelected
+                      ? (isDark ? const Color(0xFF0F172A).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.25))
+                      : color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -357,7 +376,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                   style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
-                    color: isSelected ? Colors.white : color,
+                    color: isSelected ? (isDark ? const Color(0xFF0F172A) : Colors.white) : color,
                   ),
                 ),
               ),
@@ -370,8 +389,9 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
 
   Widget _buildNotificationList(
     ScrollController scrollController,
-    List<Map<String, dynamic>> activeRequests,
-  ) {
+    List<Map<String, dynamic>> activeRequests, {
+    required bool isDark,
+  }) {
     final List<Widget> items = [];
 
     // 1. Pending Stock Requests
@@ -394,12 +414,13 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             isRead: isRead,
             icon: Icons.assignment_late_rounded,
             iconColor: const Color(0xFFD97706),
-            bgColor: const Color(0xFFFEF3C7),
+            bgColor: isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7),
             title: 'Stock Request: $raiserName',
             subtitle: '$itemsDesc • $time',
             badgeText: 'ACTION REQUIRED',
             badgeColor: const Color(0xFFD97706),
             actionLabel: 'Review Request',
+            isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
               widget.onMarkAsRead(id);
@@ -423,12 +444,15 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             isRead: isRead,
             icon: Icons.warning_amber_rounded,
             iconColor: isCritical ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-            bgColor: isCritical ? const Color(0xFFFEE2E2) : const Color(0xFFFEF3C7),
+            bgColor: isCritical
+                ? (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2))
+                : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
             title: '${p.name} is running low',
             subtitle: 'Only ${p.units} units remaining in inventory',
             badgeText: isCritical ? 'CRITICAL' : 'LOW STOCK',
             badgeColor: isCritical ? const Color(0xFFDC2626) : const Color(0xFFD97706),
             actionLabel: 'Restock Item',
+            isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
               widget.onMarkAsRead(id);
@@ -456,12 +480,13 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             isRead: isRead,
             icon: Icons.check_circle_rounded,
             iconColor: const Color(0xFF059669),
-            bgColor: const Color(0xFFECFDF5),
+            bgColor: isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
             title: 'Sale Completed: $invoice',
             subtitle: '₱${total.toStringAsFixed(2)} • $time',
             badgeText: 'COMPLETED',
             badgeColor: const Color(0xFF059669),
             actionLabel: 'View Receipt',
+            isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
               widget.onMarkAsRead(id);
@@ -503,116 +528,143 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     required String badgeText,
     required Color badgeColor,
     required String actionLabel,
+    required bool isDark,
     required VoidCallback onTap,
   }) {
+    final cardBg = isRead
+        ? (isDark ? const Color(0xFF131E2D) : const Color(0xFFF8FAFC))
+        : (isDark ? const Color(0xFF1B2638) : Colors.white);
+
+    final cardBorder = isRead
+        ? (isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0))
+        : (isDark ? const Color(0xFF334155) : PiggyTrunkTheme.ptBorder);
+
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final descColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
       opacity: isRead ? 0.75 : 1.0,
       child: Container(
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isRead ? const Color(0xFFF8FAFC) : Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isRead ? const Color(0xFFE2E8F0) : PiggyTrunkTheme.ptBorder,
+            color: cardBorder,
             width: isRead ? 1.0 : 1.2,
           ),
           boxShadow: [
             if (!isRead)
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
           ],
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isRead ? const Color(0xFFF1F5F9) : bgColor,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: isRead ? const Color(0xFF94A3B8) : iconColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: isRead
-                              ? const Color(0xFFE2E8F0)
-                              : badgeColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: isRead ? const Color(0xFF64748B) : badgeColor,
-                          ),
-                        ),
-                      ),
-                      if (!isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: _brandBlue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13.5,
-                      fontWeight: isRead ? FontWeight.w600 : FontWeight.w700,
-                      color: isRead ? const Color(0xFF475569) : _brandColor,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: isRead ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)) : bgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: isRead ? (isDark ? Colors.white54 : const Color(0xFF94A3B8)) : iconColor,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: PiggyTrunkTheme.ptMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: onTap,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: isRead
+                                    ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))
+                                    : badgeColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                badgeText,
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isRead ? (isDark ? Colors.white70 : const Color(0xFF64748B)) : badgeColor,
+                                ),
+                              ),
+                            ),
+                            if (!isRead)
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: _brandBlue,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
                         Text(
-                          actionLabel,
+                          title,
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _brandBlue,
+                            fontSize: 13.5,
+                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w700,
+                            color: isRead ? (isDark ? Colors.white70 : const Color(0xFF475569)) : titleColor,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.arrow_forward_rounded, color: _brandBlue, size: 14),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            color: descColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              actionLabel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFF38BDF8) : _brandBlue,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              color: isDark ? const Color(0xFF38BDF8) : _brandBlue,
+                              size: 14,
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

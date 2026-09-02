@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../../../utils/app_strings.dart';
 
 class PartnerActivitiesTab extends StatefulWidget {
   final List<Map<String, dynamic>> activitiesList;
@@ -52,7 +53,6 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
   String _selectedFilter = 'All'; // 'All', 'Health', 'Medication', 'Feeding', 'Lifecycle'
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
 
   @override
   void dispose() {
@@ -99,13 +99,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
       if (!matchesCategory) return false;
 
-      // Text search filter
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        return title.contains(query) ||
-            desc.contains(query) ||
-            raiser.contains(query) ||
-            type.contains(query);
+      if (_searchController.text.trim().isNotEmpty) {
+        final query = _searchController.text.trim().toLowerCase();
+        return title.contains(query) || desc.contains(query) || raiser.contains(query);
       }
 
       return true;
@@ -115,15 +111,15 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
   Color _getColorForActivity(String type) {
     final t = type.toLowerCase();
     if (t.contains('vaccin') || t.contains('med')) {
-      return _accentBlue;
+      return _accentPurple;
     } else if (t.contains('sick') || t.contains('health') || t.contains('observation')) {
-      return _accentGreen;
+      return const Color(0xFFEF4444);
     } else if (t.contains('feed') || t.contains('weight') || t.contains('nutrition')) {
       return _accentAmber;
     } else if (t.contains('stage') || t.contains('growth') || t.contains('lifecycle')) {
-      return _accentPurple;
+      return _accentGreen;
     }
-    return _brandColor;
+    return _accentBlue;
   }
 
   IconData _getIconForActivity(String type) {
@@ -144,8 +140,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
   Widget build(BuildContext context) {
     final fit = ScreenFit(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
 
-    final primaryTextColor = isDark ? const Color(0xffecf2ff) : _brandColor;
+    final primaryTextColor = isDark ? Colors.white : _brandColor;
     final cardBgColor = isDark ? const Color(0xff151f2e) : Colors.white;
     final cardBorderColor = isDark ? const Color(0xff28354a) : const Color(0xffe6ebf2);
     final secondaryBgColor = isDark ? const Color(0xff1b2638) : const Color(0xfff8fafc);
@@ -155,7 +152,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
-      color: _brandColor,
+      color: isDark ? Colors.white : _brandColor,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
         padding: EdgeInsets.fromLTRB(fit.dp(20), fit.dp(20), fit.dp(20), fit.dp(36)),
@@ -168,15 +165,44 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  _buildFilterChip(fit: fit, label: 'All Logs', value: 'All', isDark: isDark),
+                  _buildFilterChip(
+                    fit: fit,
+                    label: strings.isFilipino ? 'Lahat ng Log' : 'All Logs',
+                    value: 'All',
+                    isDark: isDark,
+                  ),
                   SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(fit: fit, label: 'Health', value: 'Health', isDark: isDark, icon: Icons.health_and_safety_outlined),
+                  _buildFilterChip(
+                    fit: fit,
+                    label: strings.isFilipino ? 'Kalusugan' : 'Health',
+                    value: 'Health',
+                    isDark: isDark,
+                    icon: Icons.health_and_safety_outlined,
+                  ),
                   SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(fit: fit, label: 'Vaccines', value: 'Medication', isDark: isDark, icon: Icons.medication_outlined),
+                  _buildFilterChip(
+                    fit: fit,
+                    label: strings.isFilipino ? 'Bakuna at Gamot' : 'Vaccines',
+                    value: 'Medication',
+                    isDark: isDark,
+                    icon: Icons.medication_outlined,
+                  ),
                   SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(fit: fit, label: 'Feeds & Weight', value: 'Feeding', isDark: isDark, icon: Icons.monitor_weight_outlined),
+                  _buildFilterChip(
+                    fit: fit,
+                    label: strings.isFilipino ? 'Pagkain at Timbang' : 'Feeds & Weight',
+                    value: 'Feeding',
+                    isDark: isDark,
+                    icon: Icons.monitor_weight_outlined,
+                  ),
                   SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(fit: fit, label: 'Lifecycle', value: 'Lifecycle', isDark: isDark, icon: Icons.trending_up_rounded),
+                  _buildFilterChip(
+                    fit: fit,
+                    label: strings.isFilipino ? 'Yugto ng Buhay' : 'Lifecycle',
+                    value: 'Lifecycle',
+                    isDark: isDark,
+                    icon: Icons.trending_up_rounded,
+                  ),
                 ],
               ),
             ),
@@ -227,7 +253,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: filteredActivities.length,
-                separatorBuilder: (_, __) => SizedBox(height: fit.dp(12)),
+                separatorBuilder: (context, index) => SizedBox(height: fit.dp(12)),
                 itemBuilder: (ctx, index) {
                   final act = filteredActivities[index];
                   final String title = act['title'] ?? 'Activity Update';
@@ -364,18 +390,22 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                 child: ElevatedButton.icon(
                   onPressed: widget.onNavigateToBatches,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: Colors.white,
+                    backgroundColor: isDark ? Colors.white : _brandColor,
+                    foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(fit.dp(14))),
                   ),
-                  icon: Icon(Icons.inventory_2_outlined, size: fit.dp(18), color: Colors.white),
+                  icon: Icon(
+                    Icons.inventory_2_outlined,
+                    size: fit.dp(18),
+                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  ),
                   label: Text(
-                    'Explore Available Batches',
+                    strings.isFilipino ? 'Tingnan ang mga Batch' : 'Explore Available Batches',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: fit.sp(13.5),
                       fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
                     ),
                   ),
                 ),
@@ -396,29 +426,29 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     IconData? icon,
   }) {
     final isSelected = _selectedFilter == value;
-    final primaryTextColor = isDark ? const Color(0xffecf2ff) : _brandColor;
+    final activeBg = isDark ? Colors.white : _brandColor;
+    final activeText = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final inactiveBg = isDark ? const Color(0xff151f2e) : Colors.white;
+    final inactiveBorder = isDark ? const Color(0xff28354a) : const Color(0xffe2e8f0);
+    final inactiveText = isDark ? const Color(0xff94a3b8) : const Color(0xff64748b);
 
     return InkWell(
       onTap: () => setState(() => _selectedFilter = value),
       borderRadius: BorderRadius.circular(fit.dp(20)),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.symmetric(horizontal: fit.dp(12), vertical: fit.dp(7)),
+        padding: EdgeInsets.symmetric(horizontal: fit.dp(14), vertical: fit.dp(7)),
         decoration: BoxDecoration(
-          color: isSelected
-              ? _brandColor
-              : (isDark ? const Color(0xff151f2e) : Colors.white),
+          color: isSelected ? activeBg : inactiveBg,
           borderRadius: BorderRadius.circular(fit.dp(20)),
           border: Border.all(
-            color: isSelected
-                ? _brandColor
-                : (isDark ? const Color(0xff28354a) : const Color(0xffe2e8f0)),
+            color: isSelected ? activeBg : inactiveBorder,
             width: isSelected ? 1.4 : 1.0,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: _brandColor.withValues(alpha: 0.25),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.25),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   )
@@ -431,8 +461,8 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
             if (icon != null) ...[
               Icon(
                 icon,
-                size: fit.dp(13),
-                color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xff64748b)),
+                size: fit.dp(14),
+                color: isSelected ? activeText : inactiveText,
               ),
               SizedBox(width: fit.dp(5)),
             ],
@@ -441,7 +471,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fit.sp(11.5),
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : primaryTextColor,
+                color: isSelected ? activeText : (isDark ? Colors.white : inactiveText),
               ),
             ),
           ],
@@ -495,29 +525,29 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
             ),
           ),
-          SizedBox(height: fit.dp(14)),
+          SizedBox(height: fit.dp(12)),
           Text(
-            'No Hog Raiser Reports Yet',
+            AppStrings.of(context).noReportsYet,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: fit.sp(16.0),
+              fontSize: fit.sp(15.0),
               fontWeight: FontWeight.w800,
               color: primaryText,
               letterSpacing: -0.2,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: fit.dp(6)),
+          SizedBox(height: fit.dp(4)),
           Text(
-            'Live reports and routine updates from your assigned hog raisers will appear here once submitted.',
+            AppStrings.of(context).noReportsSubtitle,
             style: GoogleFonts.plusJakartaSans(
               fontSize: fit.sp(12.0),
               fontWeight: FontWeight.w500,
               color: mutedText,
-              height: 1.4,
+              height: 1.3,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: fit.dp(16)),
+          SizedBox(height: fit.dp(14)),
           // Refresh action button
           SizedBox(
             height: fit.dp(36),
@@ -530,7 +560,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
               ),
               icon: Icon(Icons.refresh_rounded, size: fit.dp(14), color: primaryText),
               label: Text(
-                'Refresh Reports',
+                AppStrings.of(context).refreshReports,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: fit.sp(11.5),
                   fontWeight: FontWeight.w700,
@@ -612,7 +642,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: fit.sp(11.0),
                     fontWeight: FontWeight.w800,
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    color: isDark ? Colors.white : const Color(0xFF64748B),
                   ),
                 ),
               ),
@@ -639,7 +669,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                             color: index == 0
                                 ? Colors.transparent
                                 : (index <= currentStageIdx
-                                    ? (isDark ? const Color(0xFF60A5FA) : _brandColor)
+                                    ? (isDark ? Colors.white : _brandColor)
                                     : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
                           ),
                         ),
@@ -651,14 +681,14 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                             color: isCompleted
                                 ? const Color(0xFF10B981)
                                 : (isCurrent
-                                    ? (isDark ? const Color(0xFF60A5FA) : _brandColor)
+                                    ? (isDark ? Colors.white : _brandColor)
                                     : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))),
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: isCompleted
                                   ? const Color(0xFF10B981)
                                   : (isCurrent
-                                      ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF2563EB))
+                                      ? (isDark ? Colors.white : _brandColor)
                                       : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
                               width: isCurrent ? 2 : 1.2,
                             ),
@@ -668,9 +698,11 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                                 ? Icons.check_rounded
                                 : (isCurrent ? Icons.trending_up_rounded : Icons.lock_outline_rounded),
                             size: fit.dp(14),
-                            color: isCompleted || isCurrent
+                            color: isCompleted
                                 ? Colors.white
-                                : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                : (isCurrent
+                                    ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                    : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))),
                           ),
                         ),
                         // Right connecting line
@@ -680,7 +712,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                             color: index == _stages.length - 1
                                 ? Colors.transparent
                                 : (index < currentStageIdx
-                                    ? (isDark ? const Color(0xFF60A5FA) : _brandColor)
+                                    ? (isDark ? Colors.white : _brandColor)
                                     : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
                           ),
                         ),
@@ -695,7 +727,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                           fontSize: fit.sp(10.0),
                           fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
                           color: isCurrent
-                              ? (isDark ? const Color(0xFF93C5FD) : _brandColor)
+                              ? (isDark ? Colors.white : _brandColor)
                               : (isCompleted ? primaryText : mutedText),
                         ),
                       ),
