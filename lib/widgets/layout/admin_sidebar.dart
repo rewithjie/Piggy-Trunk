@@ -237,21 +237,20 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
             );
           }
 
-          final headerMinHeight = isUltraCompact
+          final headerHeight = isUltraCompact
               ? 56.0
-              : (isCompactHeight ? 66.0 : 74.0);
+              : (isCompactHeight ? 66.0 : 70.0);
           final logoSize = showExpandedContent
-              ? (isUltraCompact ? 44.0 : (isCompactHeight ? 50.0 : 56.0))
-              : (isUltraCompact ? 38.0 : (isCompactHeight ? 42.0 : 46.0));
+              ? (isUltraCompact ? 44.0 : (isCompactHeight ? 48.0 : 50.0))
+              : (isUltraCompact ? 38.0 : (isCompactHeight ? 40.0 : 42.0));
 
           return Column(
             children: [
               /// Sidebar Header with Logo and Collapse/Expand Toggle (Side by Side)
               Container(
-                constraints: BoxConstraints(minHeight: headerMinHeight),
+                height: headerHeight,
                 padding: EdgeInsets.symmetric(
                   horizontal: showExpandedContent ? 14 : 4,
-                  vertical: isCompactHeight ? 8 : 10,
                 ),
                 decoration: BoxDecoration(
                   color: surfaceColor,

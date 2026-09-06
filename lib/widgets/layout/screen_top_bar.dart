@@ -64,14 +64,19 @@ class ScreenTopBar extends ConsumerWidget {
     final borderColor = isDark ? const Color(0xff28354a) : PiggyTrunkTheme.ptBorder;
     final textColor = isDark ? const Color(0xffecf2ff) : PiggyTrunkTheme.ptText;
     final mutedColor = isDark ? const Color(0xff9cb0c9) : PiggyTrunkTheme.ptMuted;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isUltraCompact = screenHeight < 640;
+    final isCompactHeight = screenHeight < 840;
+    final headerHeight = isUltraCompact
+        ? 56.0
+        : (isCompactHeight ? 66.0 : 70.0);
     final isSmall = showHamburger ?? Responsive.isSmallScreen(context);
     final isMobile = Responsive.isMobile(context);
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 70),
+      height: headerHeight,
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 32,
-        vertical: 10,
       ),
       decoration: BoxDecoration(
         color: surfaceColor,
