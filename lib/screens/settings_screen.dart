@@ -29,10 +29,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isUploadingImage = false;
   bool _isSavingProfile = false;
   bool _isChangingPassword = false;
+  bool _isEditingEmail = false;
+  String _originalEmail = '';
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   String? _adminNameError;
+  String? _emailError;
   String? _currentPasswordError;
   String? _newPasswordError;
   String? _confirmPasswordError;
@@ -150,7 +153,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
 
         setState(() {
+          _originalEmail = user.email!;
           _emailController.text = user.email!;
+          _isEditingEmail = false;
           _adminNameController.text = savedName.isNotEmpty
               ? savedName
               : (currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : fallbackEmailName);
@@ -173,7 +178,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         final currentProfile = ref.read(adminProfileProvider);
         if (!mounted) return;
         setState(() {
+          _originalEmail = currentProfile.email;
           _emailController.text = currentProfile.email;
+          _isEditingEmail = false;
           _adminNameController.text =
               currentProfile.adminName.trim().isNotEmpty ? currentProfile.adminName : 'Admin';
           _roleController.text = currentProfile.role.trim().isNotEmpty
@@ -428,8 +435,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           if (_adminNameError != null) _buildInlineError(_adminNameError!),
           const SizedBox(height: 12),
-          _textFieldLabel('Email'),
-          _readOnlyTextField(_emailController),
+          _textFieldLabel('Email Address'),
+          _textField(
+            _emailController,
+            readOnly: !_isEditingEmail,
+            hintText: 'e.g. yourname@gmail.com',
+            hasError: _emailError != null,
+            prefixIcon: Icon(
+              !_isEditingEmail ? Icons.lock_outline_rounded : Icons.mail_outline_rounded,
+              size: 18,
+              color: !_isEditingEmail ? _mutedDark : _primaryDark,
+            ),
+            suffixIcon: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (_isEditingEmail) {
+                        _emailController.text = _originalEmail;
+                        _emailError = null;
+                        _isEditingEmail = false;
+                      } else {
+                        _isEditingEmail = true;
+                      }
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _isEditingEmail
+                          ? const Color(0xFFE53E3E).withValues(alpha: 0.1)
+                          : _primaryDark.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _isEditingEmail ? const Color(0xFFE53E3E) : _primaryDark,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isEditingEmail ? Icons.close_rounded : Icons.edit_outlined,
+                          size: 13,
+                          color: _isEditingEmail ? const Color(0xFFE53E3E) : _primaryDark,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isEditingEmail ? 'Cancel' : 'Change',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _isEditingEmail ? const Color(0xFFE53E3E) : _primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            onChanged: (_) {
+              if (_emailError != null) setState(() => _emailError = null);
+            },
+          ),
+          if (_emailError != null) _buildInlineError(_emailError!),
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 2),
+            child: Text(
+              _isEditingEmail
+                  ? 'Changing this email will update your admin login and notification address.'
+                  : 'Email is locked for account security. Click Change to update.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: _mutedDark.withValues(alpha: 0.8),
+              ),
+            ),
+          ),
           const SizedBox(height: 12),
           _textFieldLabel('Role'),
           _textField(_roleController),
@@ -570,19 +655,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     TextEditingController controller, {
     bool hasError = false,
     ValueChanged<String>? onChanged,
+    String? hintText,
+    bool readOnly = false,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
+      readOnly: readOnly,
       onChanged: onChanged,
       style: GoogleFonts.plusJakartaSans(
         fontSize: 14,
-        color: _textDark,
+        color: readOnly ? _mutedDark : _textDark,
         fontWeight: FontWeight.w500,
       ),
       decoration: InputDecoration(
         isDense: true,
+        hintText: hintText,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 14,
+          color: _mutedDark.withValues(alpha: 0.6),
+          fontWeight: FontWeight.w400,
+        ),
         filled: true,
-        fillColor: _bgDark.withValues(alpha: 0.45),
+        fillColor: readOnly ? _bgDark.withValues(alpha: 0.25) : _bgDark.withValues(alpha: 0.45),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -609,35 +708,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _readOnlyTextField(TextEditingController controller) {
-    return TextField(
-      controller: controller,
-      readOnly: true,
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        color: _mutedDark,
-        fontWeight: FontWeight.w500,
-      ),
-      decoration: InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor: _bgDark.withValues(alpha: 0.25),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
-        ),
-        disabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: _borderDark),
-        ),
-      ),
-    );
-  }
 
   Widget _passwordField({
     required TextEditingController controller,
@@ -929,42 +999,106 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveAdminProfile() async {
     final name = _adminNameController.text.trim();
+    final email = _emailController.text.trim();
+
+    String? nameErr;
+    String? emailErr;
+
     if (name.isEmpty) {
-      setState(() => _adminNameError = 'Admin name is required.');
+      nameErr = 'Admin name is required.';
+    }
+
+    if (email.isEmpty) {
+      emailErr = 'Email address is required.';
+    } else if (!email.contains('@') || !email.contains('.')) {
+      emailErr = 'Please enter a valid email address (e.g. yourname@gmail.com).';
+    } else {
+      final emailRegex = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,}$');
+      if (!emailRegex.hasMatch(email)) {
+        emailErr = 'Please enter a valid email address.';
+      }
+    }
+
+    if (nameErr != null || emailErr != null) {
+      setState(() {
+        _adminNameError = nameErr;
+        _emailError = emailErr;
+      });
       return;
     }
 
     setState(() {
       _adminNameError = null;
+      _emailError = null;
       _isSavingProfile = true;
     });
+
     try {
       final user = _supabase.auth.currentUser;
       final Map<String, dynamic> metadataPayload = {
-        'admin_name': _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
+        'admin_name': name.isEmpty ? 'Admin' : name,
         'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
         'profile_picture_url': (_profilePictureUrl != null && _profilePictureUrl!.trim().isNotEmpty) ? _profilePictureUrl!.trim() : '',
         'profile_picture_path': (_profilePicturePath != null && _profilePicturePath!.trim().isNotEmpty) ? _profilePicturePath!.trim() : '',
       };
 
-      if (user != null) {
-        await _supabase.auth.updateUser(
-          UserAttributes(
-            data: metadataPayload,
-          ),
-        );
+      bool emailUpdated = false;
+      bool emailConfirmationRequired = false;
 
-        // Sync name and role to the public.app_users database table
-        await _supabase.from('app_users').update({
-          'name': _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
-          'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
-        }).eq('email', user.email!);
+      if (user != null) {
+        final currentAuthEmail = user.email?.trim().toLowerCase() ?? '';
+        final newEmail = email.toLowerCase();
+        final bool emailChanged = currentAuthEmail.isNotEmpty && newEmail != currentAuthEmail;
+
+        if (emailChanged) {
+          // 1. Update email and metadata in Supabase Auth
+          final authRes = await _supabase.auth.updateUser(
+            UserAttributes(
+              email: newEmail,
+              data: metadataPayload,
+            ),
+          );
+
+          emailUpdated = true;
+          // Check if Supabase sent a confirmation email to newEmail
+          if (authRes.user?.newEmail != null && authRes.user!.newEmail!.isNotEmpty) {
+            emailConfirmationRequired = true;
+          }
+
+          // 2. Sync new email, name and role in the app_users table
+          try {
+            await _supabase.from('app_users').update({
+              'name': name.isEmpty ? 'Admin' : name,
+              'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+              'email': newEmail,
+            }).eq('email', currentAuthEmail);
+          } catch (dbErr) {
+            debugPrint('Notice updating app_users email: $dbErr');
+          }
+        } else {
+          // Only metadata changed
+          await _supabase.auth.updateUser(
+            UserAttributes(
+              data: metadataPayload,
+            ),
+          );
+
+          // Sync name and role to the public.app_users database table
+          try {
+            await _supabase.from('app_users').update({
+              'name': name.isEmpty ? 'Admin' : name,
+              'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+            }).eq('email', user.email!);
+          } catch (dbErr) {
+            debugPrint('Notice updating app_users: $dbErr');
+          }
+        }
       }
 
       // Update the admin profile provider
       ref.read(adminProfileProvider.notifier).updateProfile(
-            adminName: _adminNameController.text.trim().isEmpty ? 'Admin' : _adminNameController.text.trim(),
-            email: _emailController.text,
+            adminName: name.isEmpty ? 'Admin' : name,
+            email: email,
             role: _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
             profilePictureUrl: _profilePictureUrl,
             clearProfilePicture: _profilePictureUrl == null,
@@ -974,14 +1108,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await _loadAdminProfile();
 
       if (mounted) {
-        _showThemedSnackBar(
-          'Profile saved successfully!',
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        );
+        if (emailConfirmationRequired) {
+          _showThemedSnackBar(
+            'Profile saved! Supabase sent a confirmation link to $email. Please check your inbox.',
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          );
+        } else if (emailUpdated) {
+          _showThemedSnackBar(
+            'Profile and login email updated to $email successfully!',
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          );
+        } else {
+          _showThemedSnackBar(
+            'Profile saved successfully!',
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          );
+        }
         setState(() {
+          _isEditingEmail = false;
+          _originalEmail = email;
           _selectedImageBytes = null;
         });
+      }
+    } on AuthException catch (authErr) {
+      if (mounted) {
+        setState(() {
+          _emailError = authErr.message;
+        });
+        _showThemedSnackBar(
+          authErr.message,
+          backgroundColor: Colors.red,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1003,10 +1163,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     // Instant local state reset
     setState(() {
+      _isEditingEmail = false;
+      _emailController.text = _originalEmail;
       _selectedImageBytes = null;
       _profilePictureUrl = null;
       _profilePicturePath = null;
       _adminNameError = null;
+      _emailError = null;
       _currentPasswordError = null;
       _newPasswordError = null;
       _confirmPasswordError = null;

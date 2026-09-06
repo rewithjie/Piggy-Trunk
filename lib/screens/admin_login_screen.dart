@@ -126,7 +126,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     if (email.isEmpty) {
       emailErr = 'Please enter your email or username.';
     } else if (!email.contains('@') && (email.contains('.') || RegExp(r'\.[a-zA-Z]{2,}$').hasMatch(email))) {
-      emailErr = "Please include an '@' in the email address (e.g. admin@piggytrunk.com).";
+      emailErr = "Please include an '@' in the email address (e.g. admin@gmail.com).";
     } else if (email.contains('@')) {
       if (email.startsWith('@')) {
         emailErr = "Please enter the part before '@'.";
@@ -486,7 +486,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
             height: 1.2,
           ),
           decoration: LoginStyles.emailFieldDecoration(
-            hintText: 'admin@piggytrunk.com or username',
+            hintText: 'Enter your email or username',
             hasError: _emailError != null || _hasAuthCredentialError,
             prefixIcon: const Icon(
               Icons.person_outline_rounded,
@@ -656,10 +656,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () {
-          // Navigate to forgot password screen
-          // Navigator.pushNamed(context, '/forgot-password');
-        },
+        onTap: _showForgotPasswordDialog,
         child: Text(
           'FORGOT PASSWORD?',
           style: TextStyle(
@@ -671,6 +668,195 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           ),
         ),
       ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController(
+      text: _emailController.text.contains('@') ? _emailController.text.trim() : '',
+    );
+    String? dialogError;
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _brandColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.lock_reset_rounded, color: _brandColor, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Reset Password',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: _brandColor,
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Enter your registered email or Gmail address. We will send you a secure link to reset your password.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: LoginStyles.subtitleText,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: resetEmailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: LoginStyles.brandText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'admin@gmail.com',
+                      hintStyle: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: LoginStyles.hintText,
+                      ),
+                      prefixIcon: const Icon(Icons.email_outlined, size: 18, color: LoginStyles.fieldIconColor),
+                      filled: true,
+                      fillColor: LoginStyles.fieldBackground,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: _brandColor,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    onChanged: (_) {
+                      if (dialogError != null) {
+                        setDialogState(() => dialogError = null);
+                      }
+                    },
+                  ),
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      dialogError!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: LoginStyles.errorText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(
+                      color: LoginStyles.labelText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final email = resetEmailController.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            setDialogState(() {
+                              dialogError = 'Please enter a valid email address.';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                            dialogError = null;
+                          });
+
+                          try {
+                            await Supabase.instance.client.auth.resetPasswordForEmail(
+                              email,
+                            );
+
+                            if (dialogCtx.mounted) {
+                              Navigator.of(dialogCtx).pop();
+                            }
+
+                            if (mounted) {
+                              setState(() {
+                                _successMessage =
+                                    'Password reset link sent to $email! Please check your inbox or spam folder.';
+                              });
+                            }
+                          } on AuthException catch (authErr) {
+                            setDialogState(() {
+                              dialogError = authErr.message;
+                              isSubmitting = false;
+                            });
+                          } catch (e) {
+                            setDialogState(() {
+                              dialogError = 'Failed to send reset link: $e';
+                              isSubmitting = false;
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _actionColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Text(
+                          'Send Reset Link',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
