@@ -140,6 +140,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
 
         // Main Table Card
         Container(
+          width: double.infinity,
           decoration: BoxDecoration(
             color: cardBg,
             border: Border.all(color: cardBorder, width: 1),
@@ -225,35 +226,37 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               // Table Content
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
+                  final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
 
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_viewMode == 'DIRECT') ...[
-                            _buildTableHeader(isDark, cardBorder, hintText),
-                            if (filteredDirect.isEmpty)
-                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getDirectEmptyMessage())
-                            else
-                              ...List.generate(
-                                filteredDirect.length,
-                                (index) => _buildTableRow(filteredDirect[index], index, isDark, cardBorder, titleColor, hintText),
-                              ),
-                          ] else ...[
-                            _buildPartnerTableHeader(isDark, cardBorder, hintText),
-                            if (filteredPartner.isEmpty)
-                              _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getPartnerEmptyMessage())
-                            else
-                              ...List.generate(
-                                filteredPartner.length,
-                                (index) => _buildPartnerTableRow(filteredPartner[index], index, isDark, cardBorder, titleColor, hintText),
-                              ),
+                  return Scrollbar(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: tableWidth,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_viewMode == 'DIRECT') ...[
+                              _buildTableHeader(isDark, cardBorder, hintText),
+                              if (filteredDirect.isEmpty)
+                                _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getDirectEmptyMessage())
+                              else
+                                ...List.generate(
+                                  filteredDirect.length,
+                                  (index) => _buildTableRow(filteredDirect[index], index, isDark, cardBorder, titleColor, hintText),
+                                ),
+                            ] else ...[
+                              _buildPartnerTableHeader(isDark, cardBorder, hintText),
+                              if (filteredPartner.isEmpty)
+                                _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getPartnerEmptyMessage())
+                              else
+                                ...List.generate(
+                                  filteredPartner.length,
+                                  (index) => _buildPartnerTableRow(filteredPartner[index], index, isDark, cardBorder, titleColor, hintText),
+                                ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   );
@@ -455,37 +458,42 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
   }
 
   Widget _buildMetricsRow(double capital, double stocksSpend, int totalHogs, int activeCount, int pendingCount, bool isMobile, bool isDark) {
-    if (isMobile) {
-      return Column(
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final use2x2 = isMobile || constraints.maxWidth < 780;
+        if (use2x2) {
+          return Column(
             children: [
-              Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Stocks Spend', _formatCurrency(stocksSpend), Icons.inventory_2_rounded, const Color(0xFF38BDF8), isDark, isMobile)),
+              Row(
+                children: [
+                  Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMetricCard('Stocks Spend', _formatCurrency(stocksSpend), Icons.inventory_2_rounded, const Color(0xFF38BDF8), isDark, isMobile)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
+                ],
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
-            ],
-          ),
-        ],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Stocks Spend', _formatCurrency(stocksSpend), Icons.inventory_2_rounded, const Color(0xFF38BDF8), isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
-      ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: _buildMetricCard('Total Capital', _formatCurrency(capital), Icons.monetization_on_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Stocks Spend', _formatCurrency(stocksSpend), Icons.inventory_2_rounded, const Color(0xFF38BDF8), isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Total Heads', '$totalHogs heads', Icons.pets_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Active Allocations', '$activeCount active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
+          ],
+        );
+      },
     );
   }
 
@@ -641,7 +649,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       child: Row(
         children: [
           Expanded(flex: 3, child: Text('HOG RAISER', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
-          Expanded(flex: 3, child: Text('BATCH ASSIGN', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
+          Expanded(flex: 2, child: Text('BATCH ASSIGN', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('CAPITAL', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('STOCKS SPEND', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
           Expanded(flex: 2, child: Text('HOG TYPE', style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w800, color: hintText))),
@@ -667,14 +675,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         children: [
           Expanded(
             flex: 3,
-            child: Text(inv.raiserName, style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w700, color: titleColor)),
+            child: Text(inv.raiserName, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: titleColor), overflow: TextOverflow.ellipsis),
           ),
           Expanded(
-            flex: 3,
+            flex: 2,
             child: Text(
               batchName,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600,
                 color: hasBatch
                     ? (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
@@ -685,35 +693,36 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           ),
           Expanded(
             flex: 2,
-            child: Text(_formatCurrency(inv.initialCapital), style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF43CB89))),
+            child: Text(_formatCurrency(inv.initialCapital), style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFF43CB89)), overflow: TextOverflow.ellipsis),
           ),
           Expanded(
             flex: 2,
             child: Text(
               _formatCurrency(inv.stocksValue),
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w700,
                 color: inv.stocksValue > 0
                     ? (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary)
                     : hintText,
               ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
             flex: 2,
-            child: Text(inv.hogType, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: titleColor)),
+            child: Text(inv.hogType, style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: titleColor), overflow: TextOverflow.ellipsis),
           ),
           Expanded(
             flex: 2,
             child: Center(
-              child: Text('${inv.totalHog} heads', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.bold, color: titleColor)),
+              child: Text('${inv.totalHog} heads', style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.bold, color: titleColor)),
             ),
           ),
           Expanded(
             flex: 2,
             child: Center(
-              child: Text(_formatDate(inv.investmentDate), style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w500, color: hintText)),
+              child: Text(_formatDate(inv.investmentDate), style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w500, color: hintText)),
             ),
           ),
           Expanded(
@@ -723,7 +732,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 onTap: () => InvestmentDetailModal.show(context: context, investment: inv),
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
@@ -737,14 +746,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                     children: [
                       Icon(
                         Icons.visibility_outlined,
-                        size: 14,
+                        size: 13,
                         color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 4),
                       Text(
                         'Details',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700,
                           color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                         ),

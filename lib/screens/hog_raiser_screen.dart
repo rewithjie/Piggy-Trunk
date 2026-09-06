@@ -247,6 +247,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(
@@ -254,20 +255,28 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
                       ? const Center(child: CircularProgressIndicator())
                       : SingleChildScrollView(
                           padding: EdgeInsets.all(isMobile ? 12 : 18),
-                          child: Center(
-                            child: Container(
-                              constraints: const BoxConstraints(maxWidth: 1340),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
-                                border: Border.all(color: _panelBorder, width: 1),
-                                borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 14 : 26,
-                                vertical: isMobile ? 16 : 26,
-                              ),
-                              child: _buildMainContent(),
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final contentWidth = constraints.maxWidth > 1340
+                                  ? 1340.0
+                                  : constraints.maxWidth;
+                              return Align(
+                                alignment: Alignment.topCenter,
+                                child: Container(
+                                  width: contentWidth,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(colors: [_panelStart, _panelEnd]),
+                                    border: Border.all(color: _panelBorder, width: 1),
+                                    borderRadius: BorderRadius.circular(isMobile ? 16 : 30),
+                                  ),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 14 : 26,
+                                    vertical: isMobile ? 16 : 26,
+                                  ),
+                                  child: _buildMainContent(),
+                                ),
+                              );
+                            },
                           ),
                         ),
                 ),

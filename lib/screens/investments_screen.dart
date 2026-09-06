@@ -116,6 +116,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         debugPrint('Error fetching approved stock requests: $sErr');
       }
 
+      // 4b. Fetch Hog Reports for Health Updates
+      List<dynamic> allHogReports = [];
+      try {
+        allHogReports = await _supabase
+            .from('hog_reports')
+            .select('*')
+            .order('created_at', ascending: false);
+      } catch (hrErr) {
+        debugPrint('Error fetching hog reports: $hrErr');
+      }
+
       const double defaultFeedPrice = 1650.0;
 
       // 5. Fetch Direct Investment Records
@@ -268,6 +279,17 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         rMap['stocks_value'] = batchStocksSpend;
         rMap['provided_stocks'] = providedStocksList;
 
+        // E. Collect hog health reports for this raiser
+        final List<Map<String, dynamic>> raiserHealthReports = [];
+        for (var hr in allHogReports) {
+          if (hr is! Map) continue;
+          final hrRaiserId = (hr['hog_raiser_id'] ?? '').toString();
+          if (hrRaiserId.isNotEmpty && hrRaiserId == raiserId) {
+            raiserHealthReports.add(Map<String, dynamic>.from(hr));
+          }
+        }
+        rMap['health_reports'] = raiserHealthReports;
+
         loaded.add(Investment.fromJson(rMap));
       }
 
@@ -392,6 +414,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(
@@ -415,39 +438,47 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                             )
                           : SingleChildScrollView(
                               padding: EdgeInsets.all(isMobile ? 12 : 20),
-                              child: Center(
-                                child: Container(
-                                  constraints: const BoxConstraints(maxWidth: 1350),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [_panelStart, _panelEnd],
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final contentWidth = constraints.maxWidth > 1350
+                                      ? 1350.0
+                                      : constraints.maxWidth;
+                                  return Align(
+                                    alignment: Alignment.topCenter,
+                                    child: Container(
+                                      width: contentWidth,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [_panelStart, _panelEnd],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        border: Border.all(color: _panelBorder, width: 1),
+                                        borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isMobile ? 14 : 26,
+                                        vertical: isMobile ? 16 : 28,
+                                      ),
+                                      child: InvestmentTableView(
+                                        investments: investments,
+                                        partnerInvestments: partnerInvestments,
+                                        onAddInvestment: () => setState(() {
+                                          _showInvestmentForm = true;
+                                          _editingInvestment = null;
+                                        }),
+                                        onEditInvestment: (item) => setState(() {
+                                          _showInvestmentForm = true;
+                                          _editingInvestment = item;
+                                        }),
+                                        onArchiveInvestment: _archiveInvestment,
+                                        onDeleteInvestment: _deleteInvestment,
+                                        onApprovePartnerInvestment: _approvePartnerInvestment,
+                                        onRejectPartnerInvestment: _rejectPartnerInvestment,
+                                      ),
                                     ),
-                                    border: Border.all(color: _panelBorder, width: 1),
-                                    borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-                                  ),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 14 : 34,
-                                    vertical: isMobile ? 16 : 32,
-                                  ),
-                                  child: InvestmentTableView(
-                                    investments: investments,
-                                    partnerInvestments: partnerInvestments,
-                                    onAddInvestment: () => setState(() {
-                                      _showInvestmentForm = true;
-                                      _editingInvestment = null;
-                                    }),
-                                    onEditInvestment: (item) => setState(() {
-                                      _showInvestmentForm = true;
-                                      _editingInvestment = item;
-                                    }),
-                                    onArchiveInvestment: _archiveInvestment,
-                                    onDeleteInvestment: _deleteInvestment,
-                                    onApprovePartnerInvestment: _approvePartnerInvestment,
-                                    onRejectPartnerInvestment: _rejectPartnerInvestment,
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                             ),
                 ),

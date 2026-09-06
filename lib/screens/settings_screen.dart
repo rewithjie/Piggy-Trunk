@@ -224,20 +224,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.all(isMobile ? 12 : 20),
-                    child: Center(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 1400),
-                        decoration: BoxDecoration(
-                          color: _surfaceDark.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(isMobile ? 14 : 20),
-                        ),
-                        padding: EdgeInsets.all(isMobile ? 14 : 26),
-                        child: Column(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final contentWidth = constraints.maxWidth > 1400
+                            ? 1400.0
+                            : constraints.maxWidth;
+                        return Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: contentWidth,
+                            decoration: BoxDecoration(
+                              color: _surfaceDark.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(isMobile ? 14 : 20),
+                            ),
+                            padding: EdgeInsets.all(isMobile ? 14 : 26),
+                            child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
@@ -277,10 +284,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ],
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
-              ],
+              ),
+            ),
+          ],
             ),
           ),
         ],

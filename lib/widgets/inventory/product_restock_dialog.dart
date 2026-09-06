@@ -11,6 +11,7 @@ class ProductRestockDialog {
     required BuildContext context,
     required List<Product> products,
     Product? initialProduct,
+    int? initialQuantity,
     required Future<void> Function({
       required String? productId,
       required String productName,
@@ -35,7 +36,9 @@ class ProductRestockDialog {
         : products.first;
 
     final isSpecificProduct = initialProduct != null;
-    final quantityCtrl = TextEditingController();
+    final quantityCtrl = TextEditingController(
+      text: initialQuantity != null && initialQuantity > 0 ? initialQuantity.toString() : '',
+    );
     bool isSubmittingRestock = false;
     String? restockError;
 

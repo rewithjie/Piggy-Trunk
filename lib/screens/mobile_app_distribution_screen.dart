@@ -83,15 +83,17 @@ class _MobileAppDistributionScreenState extends State<MobileAppDistributionScree
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 12 : 24,
-                        vertical: isMobile ? 16 : 32,
-                      ),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 24,
+                      vertical: isMobile ? 16 : 32,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
                       child: Container(
                         constraints: const BoxConstraints(maxWidth: 600),
                         decoration: BoxDecoration(

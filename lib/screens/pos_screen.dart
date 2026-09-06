@@ -12,6 +12,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../main.dart';
 import 'best_sellers_screen.dart';
+import 'demand_forecasting_screen.dart';
 
 class POSScreen extends StatefulWidget {
   const POSScreen({super.key});
@@ -185,6 +186,9 @@ class _POSScreenState extends State<POSScreen> {
     final itemCount = currentOrder.totalItems;
     final total = currentOrder.total;
     final itemsToDeduct = List<OrderItem>.from(currentOrder.items);
+    final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(4)}';
+    final cashierEmail = _supabase.auth.currentUser?.email ?? 'Cashier Admin';
+    final nowIso = DateTime.now().toIso8601String();
 
     setState(() {
       _isLoading = true;
@@ -209,6 +213,28 @@ class _POSScreenState extends State<POSScreen> {
         final newUnits = (product.units - item.quantity).clamp(0, 999999);
         final newSold = product.sold + item.quantity;
 
+        // 1. Insert historical sale record into pos_sales table for demand forecasting
+        try {
+          await _supabase.from('pos_sales').insert({
+            'order_id': orderId,
+            'product_id': product.id,
+            'product_name': product.name,
+            'category': product.category.isNotEmpty ? product.category : 'Feeds',
+            'quantity': item.quantity,
+            'unit_price': product.price,
+            'total_amount': item.subtotal,
+            'sale_date': nowIso,
+            'customer_name': 'Walk-in Customer',
+            'customer_type': 'Walk-in',
+            'payment_method': 'Cash',
+            'cashier_name': cashierEmail,
+            'created_at': nowIso,
+          });
+        } catch (e) {
+          debugPrint('pos_sales insert error: $e');
+        }
+
+        // 2. Deduct inventory stock units
         try {
           await _supabase.from('inventory_products').update({
             'units': newUnits,
@@ -221,14 +247,15 @@ class _POSScreenState extends State<POSScreen> {
           }).eq('id', product.id);
         }
 
+        // 3. Log into inventory_logs
         try {
           await _supabase.from('inventory_logs').insert({
             'product_id': product.id,
             'product_name': product.name,
-            'action': 'UPDATE',
-            'performed_by': _supabase.auth.currentUser?.email ?? 'Cashier Admin',
+            'action': 'SALE',
+            'performed_by': cashierEmail,
             'price': product.price,
-            'units': newUnits,
+            'units': item.quantity,
             'details': 'POS Sale: Sold ${item.quantity} unit(s). Remaining: $newUnits.',
           });
         } catch (_) {}
@@ -365,42 +392,108 @@ class _POSScreenState extends State<POSScreen> {
                   'POS',
                   style: AppTextStyles.sectionTitle(_text),
                 ),
-                InkWell(
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => BestSellersScreen(initialProducts: _products),
-                      ),
-                    );
-                    _loadProductsFromInventory();
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9.5),
-                    decoration: BoxDecoration(
-                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    InkWell(
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const DemandForecastingScreen(),
+                          ),
+                        );
+                        _loadProductsFromInventory();
+                      },
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.12 : 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8.5),
+                        decoration: BoxDecoration(
+                          color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: _isDark ? 0.2 : 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      'Best Sellers',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.insights_rounded,
+                              size: 16,
+                              color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              'Demand Forecasting',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                    InkWell(
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => BestSellersScreen(initialProducts: _products),
+                          ),
+                        );
+                        _loadProductsFromInventory();
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8.5),
+                        decoration: BoxDecoration(
+                          color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: _isDark ? 0.2 : 0.04),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.local_fire_department_rounded,
+                              size: 16,
+                              color: _isDark ? const Color(0xFFFFAA00) : const Color(0xFFD97706),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              'Best Sellers',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

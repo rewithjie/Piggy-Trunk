@@ -259,6 +259,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(
@@ -287,52 +288,60 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
                             )
                           : SingleChildScrollView(
                               padding: EdgeInsets.all(isMobile ? 12 : 20),
-                              child: Center(
-                                child: Container(
-                                  constraints: const BoxConstraints(maxWidth: 1350),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [_panelStart, _panelEnd],
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final contentWidth = constraints.maxWidth > 1350
+                                      ? 1350.0
+                                      : constraints.maxWidth;
+                                  return Align(
+                                    alignment: Alignment.topCenter,
+                                    child: Container(
+                                      width: contentWidth,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [_panelStart, _panelEnd],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        border: Border.all(color: _panelBorder, width: 1),
+                                        borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: isMobile ? 14 : 26,
+                                        vertical: isMobile ? 16 : 26,
+                                      ),
+                                      child: BatchTableView(
+                                        batches: _batchesList,
+                                        searchQuery: _searchQuery,
+                                        selectedStatusFilter: _selectedStatusFilter,
+                                        errorMessage: _loadError,
+                                        onRefresh: _loadData,
+                                        onSearchChanged: (val) => setState(() => _searchQuery = val),
+                                        onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
+                                        onCreateBatch: () => setState(() {
+                                          _showBatchForm = true;
+                                          _editingBatch = null;
+                                        }),
+                                        onViewDetails: (batch) => BatchDetailDrawer.show(
+                                          context: context,
+                                          batch: batch,
+                                          onEdit: () => setState(() {
+                                            _showBatchForm = true;
+                                            _editingBatch = batch;
+                                          }),
+                                          onArchive: () => _archiveBatch(batch),
+                                          onDelete: () => _deleteBatch(batch),
+                                        ),
+                                        onEditBatch: (batch) => setState(() {
+                                          _showBatchForm = true;
+                                          _editingBatch = batch;
+                                        }),
+                                        onArchiveBatch: _archiveBatch,
+                                        onDeleteBatch: _deleteBatch,
+                                      ),
                                     ),
-                                    border: Border.all(color: _panelBorder, width: 1),
-                                    borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-                                  ),
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 14 : 34,
-                                    vertical: isMobile ? 16 : 32,
-                                  ),
-                                  child: BatchTableView(
-                                    batches: _batchesList,
-                                    searchQuery: _searchQuery,
-                                    selectedStatusFilter: _selectedStatusFilter,
-                                    errorMessage: _loadError,
-                                    onRefresh: _loadData,
-                                    onSearchChanged: (val) => setState(() => _searchQuery = val),
-                                    onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
-                                    onCreateBatch: () => setState(() {
-                                      _showBatchForm = true;
-                                      _editingBatch = null;
-                                    }),
-                                    onViewDetails: (batch) => BatchDetailDrawer.show(
-                                      context: context,
-                                      batch: batch,
-                                      onEdit: () => setState(() {
-                                        _showBatchForm = true;
-                                        _editingBatch = batch;
-                                      }),
-                                      onArchive: () => _archiveBatch(batch),
-                                      onDelete: () => _deleteBatch(batch),
-                                    ),
-                                    onEditBatch: (batch) => setState(() {
-                                      _showBatchForm = true;
-                                      _editingBatch = batch;
-                                    }),
-                                    onArchiveBatch: _archiveBatch,
-                                    onDeleteBatch: _deleteBatch,
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                             ),
                 ),

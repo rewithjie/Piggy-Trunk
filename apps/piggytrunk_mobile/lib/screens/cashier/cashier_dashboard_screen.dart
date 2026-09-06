@@ -1196,6 +1196,27 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
         debugPrint('Inventory logs insert error: $e');
       }
 
+      // Insert item-level sale in pos_sales table for demand forecasting
+      try {
+        await _supabase.from('pos_sales').insert({
+          'order_id': 'ORD-${DateTime.now().millisecondsSinceEpoch.toString().substring(4)}',
+          'product_id': item.productId.length >= 32 ? item.productId : null,
+          'product_name': item.productName,
+          'category': matchingProduct.category.isNotEmpty ? matchingProduct.category : 'Feeds',
+          'quantity': item.quantity,
+          'unit_price': item.price,
+          'total_amount': item.subtotal,
+          'sale_date': nowStr,
+          'customer_name': customerName,
+          'customer_type': customerType,
+          'payment_method': paymentMethod,
+          'cashier_name': cashierIdentifier,
+          'created_at': nowStr,
+        });
+      } catch (e) {
+        debugPrint('pos_sales mobile insert fallback: $e');
+      }
+
       // Also try item-level insert in sales table
       try {
         final numProductId = int.tryParse(item.productId);

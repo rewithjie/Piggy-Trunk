@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 
@@ -634,6 +635,17 @@ class InvestmentDetailModal {
               );
             },
           ),
+
+        const SizedBox(height: 24),
+
+        // 4. HOG HEALTH REPORTS SECTION
+        _HogHealthReportsSection(
+          investment: inv,
+          isDark: isDark,
+          cardBorder: cardBorder,
+          titleColor: titleColor,
+          hintText: hintText,
+        ),
       ],
     );
   }
@@ -668,5 +680,297 @@ class InvestmentDetailModal {
         ],
       ),
     );
+  }
+}
+
+class _HogHealthReportsSection extends StatefulWidget {
+  final Investment investment;
+  final bool isDark;
+  final Color cardBorder;
+  final Color titleColor;
+  final Color hintText;
+
+  const _HogHealthReportsSection({
+    required this.investment,
+    required this.isDark,
+    required this.cardBorder,
+    required this.titleColor,
+    required this.hintText,
+  });
+
+  @override
+  State<_HogHealthReportsSection> createState() => _HogHealthReportsSectionState();
+}
+
+class _HogHealthReportsSectionState extends State<_HogHealthReportsSection> {
+  List<Map<String, dynamic>> _reports = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _reports = List<Map<String, dynamic>>.from(widget.investment.healthReports);
+    _fetchLiveReports();
+  }
+
+  Future<void> _fetchLiveReports() async {
+    final raiserId = widget.investment.hogRaiserId.trim();
+    if (raiserId.isEmpty) return;
+
+    try {
+      final res = await Supabase.instance.client
+          .from('hog_reports')
+          .select('*')
+          .eq('hog_raiser_id', raiserId)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _reports = List<Map<String, dynamic>>.from(res);
+        });
+      }
+    } catch (e) {
+      debugPrint('Notice loading live hog_reports: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBorder = widget.cardBorder;
+    final titleColor = widget.titleColor;
+    final hintText = widget.hintText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.health_and_safety_outlined,
+                  size: 17,
+                  color: isDark ? const Color(0xFF43CB89) : PiggyTrunkTheme.ptSuccess,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'HOG HEALTH REPORTS',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: (isDark ? const Color(0xFF43CB89) : PiggyTrunkTheme.ptSuccess).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_reports.length} update${_reports.length == 1 ? '' : 's'}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? const Color(0xFF43CB89) : PiggyTrunkTheme.ptSuccess,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_reports.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B2E48).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cardBorder.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.health_and_safety_outlined,
+                  size: 32,
+                  color: hintText.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No health reports submitted for this hog raiser yet.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: hintText,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _reports.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (context, idx) {
+              final rep = _reports[idx];
+              final rType = (rep['report_type'] ?? 'Health Observation').toString();
+              final desc = (rep['description'] ?? rep['notes'] ?? '').toString().trim();
+              final hogId = rep['hog_id'];
+              final dateStr = (rep['created_at'] ?? '').toString();
+              final dt = DateTime.tryParse(dateStr);
+              final dateDisplay = dt != null ? _formatDateTime(dt) : dateStr;
+
+              final lower = rType.toLowerCase();
+              final isCritical = lower.contains('dead') ||
+                  lower.contains('sick') ||
+                  lower.contains('fever') ||
+                  lower.contains('poison') ||
+                  lower.contains('diarrhea');
+              final isRoutine = lower.contains('healthy') ||
+                  lower.contains('routine') ||
+                  lower.contains('normal') ||
+                  lower.contains('checkup');
+
+              final Color badgeFg = isCritical
+                  ? const Color(0xFFFF758C)
+                  : (isRoutine
+                      ? (isDark ? const Color(0xFF43CB89) : PiggyTrunkTheme.ptSuccess)
+                      : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary));
+              final Color badgeBg = badgeFg.withValues(alpha: isDark ? 0.15 : 0.1);
+
+              final IconData badgeIcon = isCritical
+                  ? Icons.warning_amber_rounded
+                  : (isRoutine ? Icons.check_circle_outline_rounded : Icons.medical_services_outlined);
+
+              return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16253B) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cardBorder.withValues(alpha: 0.7)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: badgeBg,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: badgeFg.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(badgeIcon, size: 13, color: badgeFg),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    rType.toUpperCase(),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: badgeFg,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (hogId != null && hogId.toString() != '0') ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF243B5B) : const Color(0xFFE2E8F0),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'HOG #$hogId',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          dateDisplay,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: hintText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (desc.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1B2E48).withValues(alpha: 0.6) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: cardBorder.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.notes_rounded, size: 13, color: hintText),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                desc,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontStyle: FontStyle.italic,
+                                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  static String _formatDateTime(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final monthName = months[date.month - 1];
+    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$monthName ${date.day.toString().padLeft(2, '0')}, ${date.year} • $hour:$minute $period';
   }
 }

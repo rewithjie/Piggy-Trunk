@@ -76,6 +76,7 @@ class BatchTableView extends StatelessWidget {
 
         // Main Table Card
         Container(
+          width: double.infinity,
           decoration: BoxDecoration(
             color: cardBg,
             border: Border.all(color: cardBorder, width: 1),
@@ -157,7 +158,7 @@ class BatchTableView extends StatelessWidget {
               // Responsive Table / Card Layout
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 950 ? constraints.maxWidth : 950.0;
+                  final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
 
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -216,37 +217,42 @@ class BatchTableView extends StatelessWidget {
   }
 
   Widget _buildMetricsRow(int total, int active, int assigned, int unassigned, bool isMobile, bool isDark) {
-    if (isMobile) {
-      return Column(
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final use2x2 = isMobile || constraints.maxWidth < 780;
+        if (use2x2) {
+          return Column(
             children: [
-              Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
+              Row(
+                children: [
+                  Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
+                ],
+              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
-            ],
-          ),
-        ],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
-        const SizedBox(width: 14),
-        Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
-      ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: _buildMetricCard('Total Batches', '$total', Icons.layers_rounded, isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Active Batches', '$active', Icons.check_circle_rounded, PiggyTrunkTheme.ptSuccess, isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Assigned Batches', '$assigned', Icons.people_outline_rounded, const Color(0xFFFFAA00), isDark, isMobile)),
+            const SizedBox(width: 14),
+            Expanded(child: _buildMetricCard('Unassigned', '$unassigned', Icons.pending_outlined, const Color(0xFFF43F5E), isDark, isMobile)),
+          ],
+        );
+      },
     );
   }
 
@@ -306,17 +312,30 @@ class BatchTableView extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchAndFilters(bool isMobile, bool isDark, Color fieldBg, Color fieldBorder, Color fieldFocus, Color fieldText, Color hintText) {
+  Widget _buildSearchAndFilters(
+    bool isMobile,
+    bool isDark,
+    Color fieldBg,
+    Color fieldBorder,
+    Color fieldFocus,
+    Color fieldText,
+    Color hintText,
+  ) {
     final searchField = TextField(
       onChanged: onSearchChanged,
-      style: GoogleFonts.plusJakartaSans(color: fieldText, fontSize: 14),
+      style: GoogleFonts.plusJakartaSans(fontSize: 13.5, color: fieldText),
       decoration: InputDecoration(
         hintText: 'Search by batch name or code...',
-        hintStyle: GoogleFonts.plusJakartaSans(color: hintText, fontSize: 14),
-        prefixIcon: Icon(Icons.search_rounded, color: hintText, size: 20),
+        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13.5, color: hintText),
+        prefixIcon: Icon(Icons.search, size: 20, color: hintText),
+        isDense: true,
         filled: true,
         fillColor: fieldBg,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: fieldBorder),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: fieldBorder),
@@ -341,31 +360,48 @@ class BatchTableView extends StatelessWidget {
       ),
     );
 
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          searchField,
-          const SizedBox(height: 12),
-          filterPills,
-        ],
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackControls = isMobile || constraints.maxWidth < 620;
+        if (stackControls) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              searchField,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: filterPills),
+                  if (onRefresh != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: onRefresh,
+                      icon: Icon(Icons.refresh_rounded, color: fieldFocus),
+                      tooltip: 'Refresh Batches',
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          );
+        }
 
-    return Row(
-      children: [
-        Expanded(flex: 3, child: searchField),
-        const SizedBox(width: 16),
-        Expanded(flex: 2, child: filterPills),
-        if (onRefresh != null) ...[
-          const SizedBox(width: 10),
-          IconButton(
-            onPressed: onRefresh,
-            icon: Icon(Icons.refresh_rounded, color: fieldFocus),
-            tooltip: 'Refresh Batches',
-          ),
-        ],
-      ],
+        return Row(
+          children: [
+            Expanded(child: searchField),
+            const SizedBox(width: 16),
+            filterPills,
+            if (onRefresh != null) ...[
+              const SizedBox(width: 10),
+              IconButton(
+                onPressed: onRefresh,
+                icon: Icon(Icons.refresh_rounded, color: fieldFocus),
+                tooltip: 'Refresh Batches',
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 

@@ -15,6 +15,7 @@ import 'screens/user_approvals_screen.dart';
 import 'screens/batch_management_screen.dart';
 import 'screens/mobile_app_distribution_screen.dart';
 import 'screens/best_sellers_screen.dart';
+import 'screens/demand_forecasting_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
@@ -84,6 +85,7 @@ class MyApp extends ConsumerWidget {
         '/batches': (context) => const BatchManagementScreen(),
         '/mobile-app': (context) => const MobileAppDistributionScreen(),
         '/best-sellers': (context) => const BestSellersScreen(),
+        '/forecasting': (context) => const DemandForecastingScreen(),
       },
       debugShowCheckedModeBanner: false,
     );

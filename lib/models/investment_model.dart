@@ -7,6 +7,7 @@ class Investment {
   final double initialCapital;
   final double stocksValue;
   final List<Map<String, dynamic>> providedStocks;
+  final List<Map<String, dynamic>> healthReports;
   final String hogType;
   final int totalHog;
   final DateTime investmentDate;
@@ -21,6 +22,7 @@ class Investment {
     required this.initialCapital,
     this.stocksValue = 0.0,
     this.providedStocks = const [],
+    this.healthReports = const [],
     required this.hogType,
     required this.totalHog,
     required this.investmentDate,
@@ -66,6 +68,16 @@ class Investment {
       }
     }
 
+    final rawReports = json['health_reports'] ?? json['healthReports'];
+    final List<Map<String, dynamic>> parsedReports = [];
+    if (rawReports is List) {
+      for (var item in rawReports) {
+        if (item is Map) {
+          parsedReports.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
     return Investment(
       id: (json['id'] ?? '').toString(),
       hogRaiserId: (json['hog_raiser_id'] ?? '').toString(),
@@ -77,6 +89,7 @@ class Investment {
           ? rawStocksValue.toDouble()
           : double.tryParse(rawStocksValue?.toString() ?? '0') ?? 0,
       providedStocks: parsedHistory,
+      healthReports: parsedReports,
       hogType: finalHogType,
       totalHog: rawTotalHog is num
           ? rawTotalHog.toInt()
@@ -98,6 +111,7 @@ class Investment {
       'initial_capital': initialCapital,
       'stocks_value': stocksValue,
       'provided_stocks': providedStocks,
+      'health_reports': healthReports,
       'hog_type': hogType,
       'total_hog': totalHog,
       'investment_date': investmentDate.toIso8601String(),

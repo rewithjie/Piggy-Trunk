@@ -251,6 +251,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const ScreenTopBar(),
                 Expanded(child: _buildMainContent()),
@@ -284,25 +285,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 1350),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [_panelStart, _panelEnd],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            border: Border.all(color: _panelBorder, width: 1),
-            borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
-          ),
-          padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 14 : 34,
-            vertical: isMobile ? 16 : 32,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final contentWidth = constraints.maxWidth > 1350
+              ? 1350.0
+              : constraints.maxWidth;
+          return Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              width: contentWidth,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_panelStart, _panelEnd],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                border: Border.all(color: _panelBorder, width: 1),
+                borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 14 : 34,
+                vertical: isMobile ? 16 : 32,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // Screen Header
               isMobile
                   ? Column(
@@ -385,8 +392,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ],
           ),
         ),
-      ),
-    );
+      );
+    },
+  ),
+);
   }
 
   Widget _buildActionButtonsRow({required bool isMobile}) {
