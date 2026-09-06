@@ -65,7 +65,7 @@ class Product {
       name: (json['name'] ?? '').toString(),
       categoryId: (json['category_id'] ?? '').toString(),
       category: (json['category'] ?? '').toString(),
-      image: json['image']?.toString(),
+      image: (json['image'] ?? json['image_url'])?.toString(),
       description: (json['description'] ?? '').toString(),
       price: rawPrice is num ? rawPrice.toDouble() : double.tryParse(rawPrice?.toString() ?? '0') ?? 0,
       units: rawUnits is num ? rawUnits.toInt() : int.tryParse(rawUnits?.toString() ?? '0') ?? 0,

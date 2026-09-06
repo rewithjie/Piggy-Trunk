@@ -36,9 +36,7 @@ class ProductRestockDialog {
         : products.first;
 
     final isSpecificProduct = initialProduct != null;
-    final quantityCtrl = TextEditingController(
-      text: initialQuantity != null && initialQuantity > 0 ? initialQuantity.toString() : '',
-    );
+    final quantityCtrl = TextEditingController(text: '');
     bool isSubmittingRestock = false;
     String? restockError;
 

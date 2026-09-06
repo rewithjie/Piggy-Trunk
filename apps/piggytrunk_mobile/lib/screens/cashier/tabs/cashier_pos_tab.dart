@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/screens/best_sellers_screen.dart';
+import 'package:piggytrunk/screens/demand_forecasting_screen.dart';
 import '../../../utils/app_strings.dart';
 import '../widgets/cashier_empty_state.dart';
 import '../widgets/cashier_sales_history_view.dart';
@@ -670,45 +671,6 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Best Sellers Text Button (Matching Admin POS)
-                      GestureDetector(
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => BestSellersScreen(
-                                initialProducts: widget.allProducts,
-                                isMobileEmbedded: true,
-                              ),
-                            ),
-                          );
-                          widget.onRefresh();
-                        },
-                        child: Container(
-                          height: 46,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.white : _brandNavy,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (isDark ? Colors.white : _brandNavy).withValues(alpha: isDark ? 0.12 : 0.18),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Best Sellers',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       // Sales History / Receipts Button
                       Container(
                         height: 46,
@@ -778,6 +740,119 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                               ),
                             ),
                         ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Dual Intelligence Action Bar (Matching Admin POS: Demand Forecasting + Best Sellers)
+                  Row(
+                    children: [
+                      // Demand Forecast Button
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const DemandForecastingScreen(isMobileEmbedded: true),
+                              ),
+                            );
+                            widget.onRefresh();
+                          },
+                          child: Container(
+                            height: 42,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E2F48) : const Color(0xFFEEF4FD),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.insights_rounded,
+                                  size: 16,
+                                  color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Demand Forecast',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Best Sellers Button
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => BestSellersScreen(
+                                  initialProducts: widget.allProducts,
+                                  isMobileEmbedded: true,
+                                ),
+                              ),
+                            );
+                            widget.onRefresh();
+                          },
+                          child: Container(
+                            height: 42,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E2F48) : const Color(0xFFEEF4FD),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.local_fire_department_rounded,
+                                  size: 16,
+                                  color: Color(0xFFFF758C),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Best Sellers',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),

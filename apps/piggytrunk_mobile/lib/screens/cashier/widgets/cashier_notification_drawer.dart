@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/app_strings.dart';
-import 'cashier_empty_state.dart';
 
 void showCashierNotificationDrawer({
   required BuildContext context,
@@ -66,7 +65,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _brandBlue = Color(0xFF2563EB);
 
-  String _selectedFilter = 'All'; // 'All', 'Requests', 'Stock', 'Sales'
+  String _selectedFilter = 'Active'; // 'Active', 'Requests', 'Stock', 'History'
   late Set<String> _localReadIds;
 
   @override
@@ -102,6 +101,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
       }
     });
     widget.onMarkAllAsRead();
+    final strings = AppStrings.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -109,7 +109,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             const Icon(Icons.done_all_rounded, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
-              'All notifications marked as read',
+              strings.allNotificationsMarkedRead,
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600),
             ),
           ],
@@ -291,13 +291,13 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterChip('All', totalUnread, isDark: isDark)),
+                  Expanded(child: _buildFilterChip('Active', totalUnread, label: strings.tabActive, isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Requests', unreadRequests, color: const Color(0xFFF59E0B), isDark: isDark)),
+                  Expanded(child: _buildFilterChip('Requests', unreadRequests, label: strings.tabRequests, color: const Color(0xFFF59E0B), isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Stock', unreadStock, color: const Color(0xFFEF4444), isDark: isDark)),
+                  Expanded(child: _buildFilterChip('Stock', unreadStock, label: strings.tabStock, color: const Color(0xFFEF4444), isDark: isDark)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip('Sales', unreadSales, color: const Color(0xFF10B981), isDark: isDark)),
+                  Expanded(child: _buildFilterChip('History', 0, label: strings.tabHistory, color: const Color(0xFF64748B), isDark: isDark)),
                 ],
               ),
             ),
@@ -306,7 +306,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
 
             // Notification Items List
             Expanded(
-              child: _buildNotificationList(scrollController, activeRequests, isDark: isDark),
+              child: _buildNotificationList(scrollController, activeRequests, strings: strings, isDark: isDark),
             ),
           ],
         ),
@@ -314,13 +314,14 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     );
   }
 
-  Widget _buildFilterChip(String filter, int unreadCount, {Color color = _brandColor, required bool isDark}) {
+  Widget _buildFilterChip(String filter, int unreadCount, {String? label, Color color = _brandColor, required bool isDark}) {
     final isSelected = _selectedFilter == filter;
+    final displayLabel = label ?? filter;
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = filter),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected
@@ -330,13 +331,13 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
           border: Border.all(
             color: isSelected
                 ? (isDark ? Colors.white : _brandColor)
-                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-            width: 1,
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            width: isSelected ? 1.4 : 1.1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.12 : 0.18),
+                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.2),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -349,32 +350,32 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
           children: [
             Flexible(
               child: Text(
-                filter,
+                displayLabel,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                   color: isSelected
                       ? (isDark ? const Color(0xFF0F172A) : Colors.white)
-                      : (isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF475569)),
+                      : (isDark ? const Color(0xFFECF2FF) : const Color(0xFF1E293B)),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             if (unreadCount > 0) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 5),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? (isDark ? const Color(0xFF0F172A).withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.25))
-                      : color.withValues(alpha: 0.15),
+                      : color.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '$unreadCount',
                   style: TextStyle(
-                    fontSize: 9.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: isSelected ? (isDark ? const Color(0xFF0F172A) : Colors.white) : color,
                   ),
@@ -390,15 +391,17 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
   Widget _buildNotificationList(
     ScrollController scrollController,
     List<Map<String, dynamic>> activeRequests, {
+    required AppStrings strings,
     required bool isDark,
   }) {
     final List<Widget> items = [];
 
     // 1. Pending Stock Requests
-    if (_selectedFilter == 'All' || _selectedFilter == 'Requests') {
+    if (_selectedFilter == 'Active' || _selectedFilter == 'Requests' || _selectedFilter == 'History') {
       for (final req in activeRequests) {
         final id = 'req_${req['id'] ?? req['request_id']}';
         final isRead = _localReadIds.contains(id);
+        if (_selectedFilter != 'History' && isRead) continue;
         final raiser = req['hog_raisers'];
         final String raiserName = (raiser is Map ? (raiser['name'] ?? raiser['app_users']?['name']) : null)?.toString() ??
             req['raiser_name']?.toString() ??
@@ -415,11 +418,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             icon: Icons.assignment_late_rounded,
             iconColor: const Color(0xFFD97706),
             bgColor: isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7),
-            title: 'Stock Request: $raiserName',
+            title: strings.isFilipino ? 'Kahilingan sa Stock: $raiserName' : 'Stock Request: $raiserName',
             subtitle: '$itemsDesc • $time',
-            badgeText: 'ACTION REQUIRED',
+            badgeText: strings.isFilipino ? 'AKSYON KAILANGAN' : 'ACTION REQUIRED',
             badgeColor: const Color(0xFFD97706),
-            actionLabel: 'Review Request',
+            actionLabel: strings.reviewRequest,
             isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
@@ -433,10 +436,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     }
 
     // 2. Low Stock Alerts
-    if (_selectedFilter == 'All' || _selectedFilter == 'Stock') {
+    if (_selectedFilter == 'Active' || _selectedFilter == 'Stock' || _selectedFilter == 'History') {
       for (final p in widget.lowStockProducts) {
         final id = 'stock_${p.id}';
         final isRead = _localReadIds.contains(id);
+        if (_selectedFilter != 'History' && isRead) continue;
         final isCritical = p.units <= 5;
         items.add(
           _buildNotificationCard(
@@ -447,11 +451,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             bgColor: isCritical
                 ? (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2))
                 : (isDark ? const Color(0xFF78350F) : const Color(0xFFFEF3C7)),
-            title: '${p.name} is running low',
-            subtitle: 'Only ${p.units} units remaining in inventory',
-            badgeText: isCritical ? 'CRITICAL' : 'LOW STOCK',
+            title: strings.isFilipino ? 'Mababang Stock: ${p.name}' : '${p.name} is running low',
+            subtitle: strings.isFilipino ? '${p.units} unit na lang ang natitira sa imbentaryo' : 'Only ${p.units} units remaining in inventory',
+            badgeText: isCritical ? (strings.isFilipino ? 'KRITIKAL' : 'CRITICAL') : (strings.isFilipino ? 'MABABANG STOCK' : 'LOW STOCK'),
             badgeColor: isCritical ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-            actionLabel: 'Restock Item',
+            actionLabel: strings.restockItem,
             isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
@@ -465,10 +469,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     }
 
     // 3. Completed Sales
-    if (_selectedFilter == 'All' || _selectedFilter == 'Sales') {
-      for (final sale in widget.salesLogs.take(5)) {
+    if (_selectedFilter == 'Active' || _selectedFilter == 'History') {
+      for (final sale in widget.salesLogs.take(10)) {
         final id = 'sale_${sale['id']}';
         final isRead = _localReadIds.contains(id);
+        if (_selectedFilter != 'History' && isRead) continue;
         final invoice = (sale['invoice_number'] ?? sale['receipt_number'] ?? '#SALE-${sale['id']}').toString();
         final rawTotal = sale['total_amount'] ?? sale['total'] ?? 0;
         final double total = rawTotal is num ? rawTotal.toDouble() : double.tryParse(rawTotal.toString()) ?? 0.0;
@@ -481,11 +486,11 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
             icon: Icons.check_circle_rounded,
             iconColor: const Color(0xFF059669),
             bgColor: isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5),
-            title: 'Sale Completed: $invoice',
+            title: strings.isFilipino ? 'Nakumpletong Benta: $invoice' : 'Sale Completed: $invoice',
             subtitle: '₱${total.toStringAsFixed(2)} • $time',
-            badgeText: 'COMPLETED',
+            badgeText: strings.isFilipino ? 'TAPOS NA' : 'COMPLETED',
             badgeColor: const Color(0xFF059669),
-            actionLabel: 'View Receipt',
+            actionLabel: strings.viewReceipt,
             isDark: isDark,
             onTap: () {
               setState(() => _localReadIds.add(id));
@@ -499,10 +504,108 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
     }
 
     if (items.isEmpty) {
-      return const Center(
-        child: CashierEmptyState(
-          message: 'You have no notifications in this category.',
-          icon: Icons.notifications_off_outlined,
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.3) : const Color(0xFFBFDBFE),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)).withValues(alpha: 0.12),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _selectedFilter == 'History' ? Icons.history_rounded : Icons.done_all_rounded,
+                  size: 34,
+                  color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF1D4ED8),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _selectedFilter == 'History' ? strings.noHistoryRecorded : strings.allCaughtUp,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : _brandColor,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _selectedFilter == 'History'
+                    ? strings.noHistorySubtitle
+                    : strings.allCaughtUpSubtitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                  height: 1.45,
+                ),
+              ),
+              if (_selectedFilter != 'History') ...[
+                const SizedBox(height: 20),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => setState(() => _selectedFilter = 'History'),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.history_rounded,
+                            size: 18,
+                            color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            strings.viewNotificationHistory,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : _brandColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       );
     }

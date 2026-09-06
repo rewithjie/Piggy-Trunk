@@ -48,7 +48,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
   static const Color _accentAmber = Color(0xFFF59E0B);
   static const Color _accentPurple = Color(0xFF8B5CF6);
 
-  String _selectedFilter = 'All'; // 'All', 'Hog Updates', 'Investments', 'Stage Progress'
+  String _selectedFilter = 'Active'; // 'Active', 'Hog Updates', 'Investments', 'Stage Progress', 'History'
 
   String _formatTime(dynamic dateValue) {
     if (dateValue == null) return 'Just now';
@@ -96,9 +96,12 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
   }
 
   List<Map<String, dynamic>> _getFilteredNotifications() {
-    if (_selectedFilter == 'All') return widget.notifications;
+    if (_selectedFilter == 'History') return widget.notifications;
 
     return widget.notifications.where((n) {
+      final isRead = n['is_read'] == true;
+      if (isRead) return false;
+
       final type = (n['type'] as String?)?.toLowerCase() ?? '';
       final title = (n['title'] as String?)?.toLowerCase() ?? '';
       final msg = (n['message'] as String?)?.toLowerCase() ?? '';
@@ -122,6 +125,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
   Widget build(BuildContext context) {
     final fit = ScreenFit(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
     final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final primaryTextColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
     final cardBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
@@ -183,7 +187,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Partner Notifications',
+                          strings.isFilipino ? 'Mga Abiso ng Kasosyo' : 'Partner Notifications',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(17),
                             fontWeight: FontWeight.w800,
@@ -192,7 +196,9 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                         ),
                         if (unreadCount > 0)
                           Text(
-                            '$unreadCount new update${unreadCount > 1 ? 's' : ''}',
+                            strings.isFilipino
+                                ? '$unreadCount bagong update'
+                                : '$unreadCount new update${unreadCount > 1 ? 's' : ''}',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: fit.sp(12),
                               fontWeight: FontWeight.w600,
@@ -201,7 +207,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                           )
                         else
                           Text(
-                            'All caught up',
+                            strings.isFilipino ? 'Lahat ay nabasa na' : 'All caught up',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: fit.sp(12),
                               fontWeight: FontWeight.w500,
@@ -226,7 +232,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         child: Text(
-                          'Mark all read',
+                          strings.markAllRead,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(12.5),
                             fontWeight: FontWeight.w700,
@@ -254,13 +260,15 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
             physics: const BouncingScrollPhysics(),
             child: Row(
               children: [
-                _buildFilterChip(fit, 'All', isDark),
+                _buildFilterChip(fit, 'Active', isDark, label: strings.tabActive),
                 SizedBox(width: fit.dp(8)),
-                _buildFilterChip(fit, 'Hog Updates', isDark),
+                _buildFilterChip(fit, 'Hog Updates', isDark, label: strings.tabHogUpdates),
                 SizedBox(width: fit.dp(8)),
-                _buildFilterChip(fit, 'Investments', isDark),
+                _buildFilterChip(fit, 'Investments', isDark, label: strings.tabInvestments),
                 SizedBox(width: fit.dp(8)),
-                _buildFilterChip(fit, 'Stage Progress', isDark),
+                _buildFilterChip(fit, 'Stage Progress', isDark, label: strings.tabStageProgress),
+                SizedBox(width: fit.dp(8)),
+                _buildFilterChip(fit, 'History', isDark, label: strings.tabHistory),
               ],
             ),
           ),
@@ -397,10 +405,20 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
     );
   }
 
-  Widget _buildFilterChip(ScreenFit fit, String label, bool isDark) {
-    final isSelected = _selectedFilter == label;
+  Widget _buildFilterChip(ScreenFit fit, String filterKey, bool isDark, {String? label}) {
+    final isSelected = _selectedFilter == filterKey;
+    final displayLabel = label ?? filterKey;
+    int? count;
+    if (filterKey == 'Active') {
+      final unread = widget.notifications.where((n) => n['is_read'] != true).length;
+      if (unread > 0) count = unread;
+    } else if (filterKey == 'History') {
+      final total = widget.notifications.length;
+      if (total > 0) count = total;
+    }
+
     return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
+      onTap: () => setState(() => _selectedFilter = filterKey),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: EdgeInsets.symmetric(horizontal: fit.dp(14), vertical: fit.dp(7)),
@@ -412,17 +430,42 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
             width: 1,
           ),
         ),
-        child: Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: fit.sp(12),
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              displayLabel,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: fit.sp(12),
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+              ),
+            ),
+            if (count != null) ...[
+              SizedBox(width: fit.dp(5)),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: fit.dp(5), vertical: fit.dp(1)),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.25)
+                      : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                  borderRadius: BorderRadius.circular(fit.dp(8)),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: fit.sp(10),
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -443,30 +486,82 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.notifications_none_rounded,
+                _selectedFilter == 'History' ? Icons.history_rounded : Icons.done_all_rounded,
                 size: fit.dp(36),
                 color: isDark ? const Color(0xFF93C5FD) : _brandColor,
               ),
             ),
             SizedBox(height: fit.dp(12)),
             Text(
-              strings.noNotifications,
+              _selectedFilter == 'History'
+                  ? strings.noHistoryRecorded
+                  : strings.allCaughtUp,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fit.sp(15),
                 fontWeight: FontWeight.w800,
                 color: isDark ? Colors.white : _brandColor,
               ),
             ),
-            SizedBox(height: fit.dp(4)),
+            SizedBox(height: fit.dp(6)),
             Text(
-              strings.noNotificationsSubtitle,
+              _selectedFilter == 'History'
+                  ? strings.noHistorySubtitle
+                  : strings.allCaughtUpSubtitle,
               textAlign: TextAlign.center,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: fit.sp(12.0),
-                fontWeight: FontWeight.w500,
-                color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
+                fontSize: fit.sp(13.0),
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                height: 1.45,
               ),
             ),
+            if (_selectedFilter != 'History' && widget.notifications.isNotEmpty) ...[
+              SizedBox(height: fit.dp(18)),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() => _selectedFilter = 'History'),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: fit.dp(22), vertical: fit.dp(12)),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
+                          size: fit.dp(18),
+                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                        ),
+                        SizedBox(width: fit.dp(8)),
+                        Text(
+                          strings.viewNotificationHistory,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: fit.sp(13.5),
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : _brandColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

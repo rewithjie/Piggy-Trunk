@@ -50,11 +50,14 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _brandBlue = Color(0xFF2563EB);
 
-  String _selectedFilter = 'All'; // 'All', 'Requests', 'Approved', 'Rejected'
+  String _selectedFilter = 'Active'; // 'Active', 'Requests', 'Approved', 'History'
 
   List<Map<String, dynamic>> get _filteredNotifications {
-    if (_selectedFilter == 'All') return widget.notificationsList;
+    if (_selectedFilter == 'History') return widget.notificationsList;
     return widget.notificationsList.where((n) {
+      final isRead = n['is_read'] == true;
+      if (_selectedFilter == 'Active') return !isRead;
+
       final type = (n['type'] ?? n['category'] ?? '').toString().toLowerCase();
       final title = (n['title'] ?? '').toString().toLowerCase();
       final message = (n['message'] ?? n['content'] ?? '').toString().toLowerCase();
@@ -70,13 +73,8 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
             title.contains('approved') ||
             title.contains('naaprubahan') ||
             message.contains('approved');
-      } else if (_selectedFilter == 'Rejected') {
-        return type.contains('rejected') ||
-            title.contains('rejected') ||
-            title.contains('tinanggihan') ||
-            message.contains('rejected');
       }
-      return true;
+      return !isRead;
     }).toList();
   }
 
@@ -238,18 +236,18 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
               ),
             ),
 
-            // Filter Tabs Bar (Lahat, Requests, Approved, Rejected)
+            // Filter Tabs Bar (Active, Requests, Approved, History)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterTab('All', '${strings.filterAll} (${widget.notificationsList.length})')),
+                  Expanded(child: _buildFilterTab('Active', '${strings.tabActive} (${widget.notificationsList.where((n) => n['is_read'] != true).length})')),
                   const SizedBox(width: 6),
                   Expanded(child: _buildFilterTab('Requests', strings.request)),
                   const SizedBox(width: 6),
                   Expanded(child: _buildFilterTab('Approved', strings.filterApproved)),
                   const SizedBox(width: 6),
-                  Expanded(child: _buildFilterTab('Rejected', strings.filterRejected)),
+                  Expanded(child: _buildFilterTab('History', strings.tabHistory)),
                 ],
               ),
             ),
@@ -261,10 +259,64 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24.0),
-                        child: RaiserEmptyState(
-                          icon: Icons.notifications_none_rounded,
-                          message: strings.noNotifications,
-                          subtitle: strings.noNotificationsSubtitle,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            RaiserEmptyState(
+                              icon: Icons.done_all_rounded,
+                              message: _selectedFilter == 'History' ? strings.noHistoryRecorded : strings.allCaughtUp,
+                              subtitle: _selectedFilter == 'History'
+                                  ? strings.noHistorySubtitle
+                                  : strings.allCaughtUpSubtitle,
+                            ),
+                            if (_selectedFilter != 'History' && widget.notificationsList.isNotEmpty) ...[
+                              const SizedBox(height: 18),
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => setState(() => _selectedFilter = 'History'),
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                        width: 1.5,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.history_rounded,
+                                          size: 18,
+                                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          strings.viewNotificationHistory,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark ? Colors.white : _brandColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     )

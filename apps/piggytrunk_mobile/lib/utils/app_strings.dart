@@ -72,11 +72,28 @@ class AppStrings {
   String get filterRejected => isFilipino ? 'Tinanggihan' : 'Rejected';
 
   // ================= Notifications Drawer =================
-  String get notificationsTitle => isFilipino ? 'Mga Notification' : 'Notifications';
-  String get notificationsSubtitle => isFilipino ? 'Mga update sa farm at requests' : 'Live updates and alerts';
-  String get markAllRead => isFilipino ? 'Mark read' : 'Mark read';
+  String get notificationsTitle => isFilipino ? 'Mga Abiso' : 'Notifications';
+  String get notificationsSubtitle => isFilipino ? 'Mga live na update at alerto' : 'Live updates and alerts';
+  String get markAllRead => isFilipino ? 'Basahin Lahat' : 'Mark all read';
   String get noNotifications => isFilipino ? 'Walang Notipikasyon' : 'No Notifications';
   String get noNotificationsSubtitle => isFilipino ? 'Lalabas dito ang mga bagong update.' : 'You\'re all caught up! New updates will show here.';
+  String get allCaughtUp => isFilipino ? 'Lahat ay Nabasa Na!' : 'All Caught Up!';
+  String get allCaughtUpSubtitle => isFilipino ? 'Walang aktibong alerto sa stock o nakabinbing kahilingan sa ngayon.' : 'No active stock alerts or pending requests at this time.';
+  String get noHistoryRecorded => isFilipino ? 'Walang Kasaysayan' : 'No History Recorded';
+  String get noHistorySubtitle => isFilipino ? 'Wala pang kasaysayan ng mga abiso na naitala.' : 'No notification history recorded yet.';
+  String get viewNotificationHistory => isFilipino ? 'Tingnan ang Kasaysayan' : 'View Notification History';
+  String get tabActive => isFilipino ? 'Aktibo' : 'Active';
+  String get tabRequests => isFilipino ? 'Kahilingan' : 'Requests';
+  String get tabStock => isFilipino ? 'Imbentaryo' : 'Stock';
+  String get tabHistory => isFilipino ? 'Kasaysayan' : 'History';
+  String get tabApproved => isFilipino ? 'Aprubado' : 'Approved';
+  String get tabHogUpdates => isFilipino ? 'Mga Baboy' : 'Hog Updates';
+  String get tabInvestments => isFilipino ? 'Puhunan' : 'Investments';
+  String get tabStageProgress => isFilipino ? 'Progreso' : 'Stage Progress';
+  String get allNotificationsMarkedRead => isFilipino ? 'Lahat ng abiso ay minarkahang nabasa na' : 'All notifications marked as read';
+  String get reviewRequest => isFilipino ? 'Suriin ang Kahilingan' : 'Review Request';
+  String get restockItem => isFilipino ? 'Mag-restock' : 'Restock Item';
+  String get viewReceipt => isFilipino ? 'Tingnan ang Resibo' : 'View Receipt';
 
   // ================= Hogs Tab & Reports =================
   String get myHogsTitle => isFilipino ? 'Aking mga Baboy' : 'My Hogs';

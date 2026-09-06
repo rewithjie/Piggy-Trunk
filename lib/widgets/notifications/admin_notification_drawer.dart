@@ -48,7 +48,7 @@ class AdminNotificationDrawer extends ConsumerStatefulWidget {
 }
 
 class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawer> {
-  String _selectedFilter = 'all'; // 'all', 'registrations', 'unread'
+  String _selectedFilter = 'unread'; // 'unread', 'registrations', 'history'
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +59,8 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
     final filteredNotifications = allNotifications.where((n) {
       if (_selectedFilter == 'unread') return !n.isRead;
       if (_selectedFilter == 'registrations') return n.type == 'user_registration';
-      return true;
+      if (_selectedFilter == 'history') return true;
+      return !n.isRead;
     }).toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -186,7 +187,7 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
               // Notifications List / Empty State
               Expanded(
                 child: filteredNotifications.isEmpty
-                    ? _buildEmptyState(isDark, mutedColor, textColor, borderColor)
+                    ? _buildEmptyState(isDark, mutedColor, textColor, borderColor, allNotifications.isNotEmpty)
                     : ListView.separated(
                         padding: EdgeInsets.symmetric(
                           horizontal: isMobile ? 12 : 16,
@@ -294,7 +295,7 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
     );
   }
 
-  Widget _buildEmptyState(bool isDark, Color mutedColor, Color textColor, Color borderColor) {
+  Widget _buildEmptyState(bool isDark, Color mutedColor, Color textColor, Color borderColor, bool hasHistory) {
     final brandPrimary = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
     final ringOuter = isDark ? const Color(0xFF1E2F47).withValues(alpha: 0.6) : const Color(0xFFEEF4FD);
     final ringInner = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9);
@@ -360,12 +361,59 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
               'No new registrations, farm alerts, or stock requests at the moment.',
               textAlign: TextAlign.center,
               style: AppTextStyles.jakarta(
-                size: 12.5,
-                weight: FontWeight.w400,
-                color: mutedColor,
-                height: 1.4,
+                size: 13.5,
+                weight: FontWeight.w500,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                height: 1.45,
               ),
             ),
+            if (hasHistory && _selectedFilter != 'history') ...[
+              const SizedBox(height: 18),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => setState(() => _selectedFilter = 'history'),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF38BDF8) : brandPrimary,
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
+                          size: 18,
+                          color: isDark ? const Color(0xFF38BDF8) : brandPrimary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'View Notification History',
+                          style: AppTextStyles.jakarta(
+                            size: 13.5,
+                            weight: FontWeight.w800,
+                            color: isDark ? Colors.white : brandPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -261,6 +261,7 @@ class ForecastingService {
               name: (row['product_name'] ?? '').toString(),
               categoryId: '',
               category: (row['category'] ?? 'Feeds').toString(),
+              image: (row['image'] ?? row['image_url'])?.toString(),
               description: '',
               price: (row['unit_price'] as num?)?.toDouble() ?? 0.0,
               units: (row['current_stock'] as num?)?.toInt() ?? 0,

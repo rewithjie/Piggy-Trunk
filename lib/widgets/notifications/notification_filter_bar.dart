@@ -76,14 +76,14 @@ class NotificationFilterBar extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildFilterPill('all', 'All (${allNotifications.length})'),
+                _buildFilterPill('unread', 'Active ($unreadCount)'),
                 const SizedBox(width: 6),
                 _buildFilterPill(
                   'registrations',
                   'Users (${allNotifications.where((n) => n.type == 'user_registration').length})',
                 ),
                 const SizedBox(width: 6),
-                _buildFilterPill('unread', 'Unread ($unreadCount)'),
+                _buildFilterPill('history', 'History (${allNotifications.length})'),
               ],
             ),
           ),
