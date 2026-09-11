@@ -929,7 +929,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth > 780 ? constraints.maxWidth : 780.0;
+        final tableWidth = constraints.maxWidth > 820 ? constraints.maxWidth : 820.0;
 
         return Container(
           decoration: BoxDecoration(
@@ -1044,7 +1044,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                                 Expanded(flex: 2, child: Text('AVG DAILY SALES', style: _tableHeaderStyle)),
                                 Expanded(flex: 2, child: Text('PROJECTED DEMAND', style: _tableHeaderStyle)),
                                 Expanded(flex: 2, child: Text('RECOMMENDED RESTOCK', style: _tableHeaderStyle)),
-                                SizedBox(width: 90, child: Text('ACTION', style: _tableHeaderStyle)),
+                                SizedBox(width: 104, child: Text('ACTION', style: _tableHeaderStyle)),
                               ],
                             ),
                           ),
@@ -1321,22 +1321,34 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
         // Quick Restock Action Button
         SizedBox(
-          width: 90,
+          width: 104,
           child: ElevatedButton(
             onPressed: () => _openRestockDialog(f),
             style: ElevatedButton.styleFrom(
               backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-              foregroundColor: _isDark ? const Color(0xFF0F1C2F) : Colors.white,
+              foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text(
-              'Restock',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_shopping_cart,
+                  size: 14,
+                  color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Restock',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1459,13 +1471,31 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                   ElevatedButton(
                     onPressed: () => _openRestockDialog(f),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: PiggyTrunkTheme.ptPrimary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                      backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                     ),
-                    child: const Text('Restock', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.add_shopping_cart,
+                          size: 13,
+                          color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Restock',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

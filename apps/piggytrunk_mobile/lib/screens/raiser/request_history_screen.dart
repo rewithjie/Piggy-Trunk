@@ -27,7 +27,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _successGreen = Color(0xFF10B981);
   static const Color _warningAmber = Color(0xFFF59E0B);
-  static const Color _dangerRed = Color(0xFFEF4444);
+  static const Color _dangerRed = Color(0xFFFF758C);
 
   @override
   void initState() {
@@ -56,11 +56,26 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
             batches(batch_name)
           ''')
           .eq('hog_raiser_id', raiserId)
-          .order('request_date', ascending: false);
+          .order('request_date', ascending: false)
+          .order('request_id', ascending: false);
 
       if (mounted) {
+        final list = List<Map<String, dynamic>>.from(res as List);
+        list.sort((a, b) {
+          final dateA = (a['request_date'] ?? '').toString();
+          final dateB = (b['request_date'] ?? '').toString();
+          final dateComp = dateB.compareTo(dateA);
+          if (dateComp != 0) return dateComp;
+          final idA = a['request_id'] is num
+              ? (a['request_id'] as num).toInt()
+              : (int.tryParse(a['request_id']?.toString() ?? '') ?? 0);
+          final idB = b['request_id'] is num
+              ? (b['request_id'] as num).toInt()
+              : (int.tryParse(b['request_id']?.toString() ?? '') ?? 0);
+          return idB.compareTo(idA);
+        });
         setState(() {
-          _requests = List<Map<String, dynamic>>.from(res as List);
+          _requests = list;
           _isLoading = false;
         });
       }
@@ -145,7 +160,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
           onPressed: widget.onBack,
         ),
         title: Text(
-          strings.isFilipino ? 'Kasaysayan ng Request' : 'Request History',
+          strings.isFilipino ? 'Kasaysayan ng Kahilingan' : 'Request History',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
             fontSize: 18,
@@ -211,7 +226,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                               icon: Icons.history_rounded,
                               message: strings.noStockRequestsYet,
                               subtitle: strings.isFilipino
-                                  ? 'Wala pang rekord ng mga request.'
+                                  ? 'Wala pang rekord ng mga kahilingan.'
                                   : 'No request records available.',
                             ),
                           ),
@@ -253,7 +268,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 statusBgColor = isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB);
                               } else if (lowerStatus == 'rejected' || lowerStatus == 'cancelled') {
                                 statusColor = _dangerRed;
-                                statusBgColor = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
+                                statusBgColor = _dangerRed.withValues(alpha: isDark ? 0.15 : 0.1);
                               } else {
                                 statusColor = const Color(0xFF6366F1);
                                 statusBgColor = isDark ? const Color(0xFF312E81) : const Color(0xFFEEF2FF);
@@ -269,15 +284,17 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 itemBg = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF3E8FF);
                               } else if (category.toLowerCase() == 'medicine') {
                                 itemIcon = Icons.medical_services_rounded;
-                                itemColor = const Color(0xFFEF4444);
-                                itemBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2);
+                                itemColor = _dangerRed;
+                                itemBg = _dangerRed.withValues(alpha: isDark ? 0.15 : 0.1);
                               }
 
-                              String titleText = '$quantity Sacks of $category';
+                              final unitWord = category.toLowerCase() == 'feeds'
+                                  ? (quantity == 1 ? (strings.isFilipino ? 'Sako' : 'Sack') : (strings.isFilipino ? 'mga Sako' : 'Sacks'))
+                                  : (quantity == 1 ? (strings.isFilipino ? 'Piraso' : 'Unit') : (strings.isFilipino ? 'mga Piraso' : 'Units'));
+                              final ofWord = strings.isFilipino ? 'ng' : 'of';
+                              String titleText = '$quantity $unitWord $ofWord $category';
                               if (category.toLowerCase() == 'feeds' && feedType != null) {
-                                titleText = '$quantity Sacks of $feedType';
-                              } else if (category.toLowerCase() != 'feeds') {
-                                titleText = '$quantity Units of $category';
+                                titleText = '$quantity $unitWord $ofWord $feedType';
                               }
 
                               return Container(
@@ -342,7 +359,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                             border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                                           ),
                                           child: Text(
-                                            status.toUpperCase(),
+                                            strings.formatStatus(status).toUpperCase(),
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 10,
                                               fontWeight: FontWeight.w800,
@@ -388,21 +405,21 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                         width: double.infinity,
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                         decoration: BoxDecoration(
-                                          color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2),
+                                          color: _dangerRed.withValues(alpha: isDark ? 0.15 : 0.08),
                                           borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(color: isDark ? const Color(0xFF991B1B) : const Color(0xFFFCA5A5)),
+                                          border: Border.all(color: _dangerRed.withValues(alpha: 0.3)),
                                         ),
                                         child: Row(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFEF4444)),
+                                            Icon(Icons.info_outline_rounded, size: 14, color: _dangerRed),
                                             const SizedBox(width: 6),
                                             Expanded(
                                               child: Text(
-                                                'Dahilan: ${req['rejection_reason']}',
+                                                '${strings.isFilipino ? "Dahilan" : "Reason"}: ${req['rejection_reason']}',
                                                 style: GoogleFonts.plusJakartaSans(
                                                   fontSize: 11.5,
-                                                  color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+                                                  color: _dangerRed,
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                               ),

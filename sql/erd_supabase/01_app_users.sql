@@ -3,12 +3,13 @@ create table if not exists public.app_users (
   name text not null,
   email text not null unique,
   password_hash text,
-  role text not null,
+  role text not null default 'hog_raiser',
   status text not null default 'active',
   created_at timestamptz not null default now(),
-  created_by bigint references public.app_users(user_id),
+  created_by bigint references public.app_users(user_id) on delete set null,
   supabase_user_id uuid unique
 );
 
 create index if not exists idx_app_users_role on public.app_users(role);
 create index if not exists idx_app_users_status on public.app_users(status);
+create index if not exists idx_app_users_supabase_id on public.app_users(supabase_user_id);

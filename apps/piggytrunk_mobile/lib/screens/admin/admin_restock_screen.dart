@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileRestockScreen extends StatefulWidget {
   final Map<String, dynamic>? product;
@@ -173,6 +174,8 @@ class _AdminMobileRestockScreenState extends State<AdminMobileRestockScreen> {
           children: [
             TextField(
               controller: nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               decoration: InputDecoration(
                 labelText: 'Product Name',
                 filled: true,
@@ -186,6 +189,8 @@ class _AdminMobileRestockScreenState extends State<AdminMobileRestockScreen> {
             const SizedBox(height: 14),
             TextField(
               controller: brandCtrl,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               decoration: InputDecoration(
                 labelText: 'Brand / Subtitle',
                 filled: true,

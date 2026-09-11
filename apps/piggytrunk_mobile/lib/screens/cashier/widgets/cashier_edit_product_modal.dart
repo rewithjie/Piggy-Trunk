@@ -328,6 +328,7 @@ class _CashierEditProductModalState extends State<CashierEditProductModal> {
               TextFormField(
                 controller: _descController,
                 maxLines: 2,
+                keyboardType: TextInputType.text,
                 textCapitalization: TextCapitalization.sentences,
                 inputFormatters: const [CapitalizeSentencesInputFormatter()],
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),

@@ -359,7 +359,7 @@ class RaiserHomeTab extends StatelessWidget {
                         Expanded(
                           child: _buildHeroMiniBadge(
                             icon: Icons.restaurant_rounded,
-                            label: 'Stage: $displayStage',
+                            label: '${strings.isFilipino ? "Yugto" : "Stage"}: $displayStage',
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -594,7 +594,7 @@ class RaiserHomeTab extends StatelessWidget {
                         context: context,
                         icon: Icons.assignment_outlined,
                         title: '${strings.request} ($batchName)',
-                        subtitle: '$dateStr • Status: ${status.toUpperCase()}',
+                        subtitle: '$dateStr • ${strings.isFilipino ? "Katayuan" : "Status"}: ${strings.formatStatus(status).toUpperCase()}',
                         isCompleted: status.toLowerCase() == 'approved',
                       );
                     }).toList(),
@@ -1045,6 +1045,7 @@ class RaiserHomeTab extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
+        final strings = AppStrings.of(ctx);
         return Container(
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.85,
@@ -1095,7 +1096,7 @@ class RaiserHomeTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Investment Breakdown',
+                            strings.investmentBreakdownTitle,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
@@ -1103,7 +1104,7 @@ class RaiserHomeTab extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            'Initial Capital + Distributed Stocks Value',
+                            strings.isFilipino ? 'Paunang Puhunan + Halaga ng Naipamahaging Stock' : 'Initial Capital + Distributed Stocks Value',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w500,
@@ -1157,7 +1158,7 @@ class RaiserHomeTab extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'TOTAL CURRENT INVESTMENT',
+                                  strings.totalCurrentInvestment,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
@@ -1172,7 +1173,7 @@ class RaiserHomeTab extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    'ACTIVE',
+                                    strings.activeStatus.toUpperCase(),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
@@ -1194,7 +1195,9 @@ class RaiserHomeTab extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'Combined total of initial capital funding and feeds/supplies dispatched to your batch.',
+                              strings.isFilipino
+                                  ? 'Kabuuang pinagsamang puhunan at mga feeds/gamot na naipamahagi sa iyong batch.'
+                                  : 'Combined total of initial capital funding and feeds/supplies dispatched to your batch.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
                                 color: Colors.white.withValues(alpha: 0.75),
@@ -1233,7 +1236,7 @@ class RaiserHomeTab extends StatelessWidget {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'Initial Capital',
+                                        strings.initialCapital,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -1253,7 +1256,7 @@ class RaiserHomeTab extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Admin allocation',
+                                    strings.isFilipino ? 'Alokasyon ng admin' : 'Admin allocation',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       color: mutedTextColor,
@@ -1287,7 +1290,7 @@ class RaiserHomeTab extends StatelessWidget {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'Stocks Spend',
+                                        strings.stockRequestsSpend,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w700,
@@ -1307,7 +1310,7 @@ class RaiserHomeTab extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Distributed supplies',
+                                    strings.isFilipino ? 'Naipamahaging supply' : 'Distributed supplies',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       color: mutedTextColor,
@@ -1327,7 +1330,7 @@ class RaiserHomeTab extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Distributed Products & Feeds',
+                            strings.isFilipino ? 'Mga Naipamahaging Produkto at Pakain' : 'Distributed Products & Feeds',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14.5,
                               fontWeight: FontWeight.w800,
@@ -1341,7 +1344,7 @@ class RaiserHomeTab extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              '${providedStocksList.length} items',
+                              strings.isFilipino ? '${providedStocksList.length} na item' : '${providedStocksList.length} items',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -1367,7 +1370,7 @@ class RaiserHomeTab extends StatelessWidget {
                               Icon(Icons.inventory_2_outlined, size: 36, color: mutedTextColor.withValues(alpha: 0.5)),
                               const SizedBox(height: 8),
                               Text(
-                                'No Feeds/Supplies Distributed Yet',
+                                strings.isFilipino ? 'Wala Pang Naipapamahaging Supply' : 'No Feeds/Supplies Distributed Yet',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -1376,7 +1379,9 @@ class RaiserHomeTab extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Once admin approves your stock requests, they will automatically count and appear here.',
+                                strings.isFilipino
+                                    ? 'Kapag naaprubahan ng admin ang iyong kahilingan sa stock, awtomatiko itong lalabas dito.'
+                                    : 'Once admin approves your stock requests, they will automatically count and appear here.',
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
@@ -1436,7 +1441,7 @@ class RaiserHomeTab extends StatelessWidget {
                                       ),
                                       const SizedBox(height: 3),
                                       Text(
-                                        '$qty ${qty == 1 ? "unit/sack" : "units/sacks"} • ${_formatCurrency(uPrice)}/ea • $formattedDate',
+                                        '$qty ${qty == 1 ? (strings.isFilipino ? "piraso/sako" : "unit/sack") : (strings.isFilipino ? "mga piraso/sako" : "units/sacks")} • ${_formatCurrency(uPrice)}/${strings.isFilipino ? "bawat isa" : "ea"} • $formattedDate',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 11.5,
                                           color: mutedTextColor,
@@ -1465,7 +1470,7 @@ class RaiserHomeTab extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        'DISTRIBUTED',
+                                        strings.filterDistributed.toUpperCase(),
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w800,
@@ -1493,6 +1498,7 @@ class RaiserHomeTab extends StatelessWidget {
 
   void _showStageProgressionDialog(BuildContext context, String targetStage) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
     showDialog(
       context: context,
       builder: (context) {
@@ -1501,7 +1507,7 @@ class RaiserHomeTab extends StatelessWidget {
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Stage Progression',
+            strings.stageProgressionTitle,
             style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w800,
               fontSize: 18,
@@ -1509,7 +1515,7 @@ class RaiserHomeTab extends StatelessWidget {
             ),
           ),
           content: Text(
-            'Would you like to advance the growth stage of your batch to $targetStage?',
+            strings.advanceStagePrompt(targetStage),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1529,7 +1535,7 @@ class RaiserHomeTab extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      'Cancel',
+                      strings.cancel,
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w700,
                         fontSize: 13.5,
@@ -1553,7 +1559,7 @@ class RaiserHomeTab extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      'Confirm Update',
+                      strings.confirm,
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w800,
                         fontSize: 13.5,

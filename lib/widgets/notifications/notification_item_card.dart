@@ -3,6 +3,7 @@ import '../../models/admin_notification_model.dart';
 import '../../providers/admin_notifications_provider.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
+import 'hog_report_detail_modal.dart';
 
 class NotificationItemCard extends StatelessWidget {
   final AdminNotification notif;
@@ -157,13 +158,21 @@ class NotificationItemCard extends StatelessWidget {
         ? borderColor
         : (isDark ? const Color(0xFF334E6F) : const Color(0xFFBFDBFE));
 
+    final isHogReport = notif.type == 'hog_report' ||
+        notif.title.toLowerCase().contains('hog health') ||
+        (notif.metadata != null && notif.metadata!['report_id'] != null);
+
     return InkWell(
       onTap: () {
         if (!notif.isRead) {
           AdminNotificationService.markAsRead(notif.notificationId);
         }
         Navigator.of(context).pop(); // Close drawer
-        Navigator.of(context).pushNamed(targetRoute, arguments: routeArg); // Navigate directly to screen
+        if (isHogReport) {
+          HogReportDetailModal.show(context, notif: notif);
+        } else {
+          Navigator.of(context).pushNamed(targetRoute, arguments: routeArg); // Navigate directly to screen
+        }
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(

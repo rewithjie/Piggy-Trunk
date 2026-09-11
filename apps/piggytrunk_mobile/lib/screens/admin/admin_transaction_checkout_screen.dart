@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileTransactionCheckoutScreen extends StatefulWidget {
   final Map<String, dynamic>? checkoutData;
@@ -338,6 +339,8 @@ class _AdminMobileTransactionCheckoutScreenState
             ),
             child: TextField(
               controller: _customerIdCtrl,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w600,

@@ -10,6 +10,7 @@ import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
 import '../widgets/investment/investment_form_view.dart';
 import '../widgets/investment/investment_table_view.dart';
+import '../widgets/investment/investment_detail_modal.dart';
 import '../main.dart';
 
 class InvestmentsScreen extends StatefulWidget {
@@ -32,6 +33,45 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   Color get _panelStart => _isDark ? const Color(0xFF1A2940) : Colors.white;
   Color get _panelEnd => _isDark ? const Color(0xFF0F1C2F) : Colors.white;
   Color get _panelBorder => _isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
+
+  bool _hasCheckedRouteArgs = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasCheckedRouteArgs) {
+      _hasCheckedRouteArgs = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        final targetBatchId = args['batch_id']?.toString();
+        final targetBatchName = (args['batch_name'] ?? '').toString().toLowerCase();
+        final targetRaiserName = (args['raiser_name'] ?? '').toString().toLowerCase();
+
+        _loadInvestments().then((_) {
+          if (mounted && investments.isNotEmpty) {
+            Investment? match;
+            for (var inv in investments) {
+              if (targetBatchId != null && inv.batchId?.toString() == targetBatchId) {
+                match = inv;
+                break;
+              }
+              if (targetBatchName.isNotEmpty && (inv.batchName ?? '').toLowerCase().contains(targetBatchName)) {
+                match = inv;
+                break;
+              }
+              if (targetRaiserName.isNotEmpty && inv.raiserName.toLowerCase().contains(targetRaiserName)) {
+                match = inv;
+                break;
+              }
+            }
+            if (match != null) {
+              InvestmentDetailModal.show(context: context, investment: match);
+            }
+          }
+        });
+      }
+    }
+  }
 
   @override
   void initState() {

@@ -69,16 +69,25 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       try {
         res = await _supabase
             .from('stock_requests')
-            .select('*')
-            .order('request_date', ascending: false);
-      } catch (e1) {
+            .select('*, assignments(*, batches(*))')
+            .order('request_date', ascending: false)
+            .order('request_id', ascending: false);
+      } catch (_) {
         try {
           res = await _supabase
               .from('stock_requests')
               .select('*')
-              .order('created_at', ascending: false);
-        } catch (e2) {
-          res = await _supabase.from('stock_requests').select('*');
+              .order('request_date', ascending: false)
+              .order('request_id', ascending: false);
+        } catch (e1) {
+          try {
+            res = await _supabase
+                .from('stock_requests')
+                .select('*')
+                .order('created_at', ascending: false);
+          } catch (e2) {
+            res = await _supabase.from('stock_requests').select('*');
+          }
         }
       }
 
@@ -120,20 +129,31 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       // 3. Fetch assignments and batches
       List<dynamic> assignmentsRaw = [];
       try {
-        assignmentsRaw = await _supabase.from('assignments').select('assignment_id, batch_id, hog_raiser_id');
-      } catch (_) {}
+        assignmentsRaw = await _supabase
+            .from('assignments')
+            .select('assignment_id, batch_id, hog_raiser_id, status');
+      } catch (_) {
+        try {
+          assignmentsRaw = await _supabase.from('assignments').select('*');
+        } catch (_) {}
+      }
 
       List<dynamic> batchesRaw = [];
       try {
-        batchesRaw = await _supabase.from('batches').select('batch_id, id, batch_name, name');
-      } catch (_) {}
+        batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
+      } catch (_) {
+        try {
+          batchesRaw = await _supabase.from('batches').select('*');
+        } catch (_) {}
+      }
 
       final Map<String, String> batchNameMap = {};
       for (var b in batchesRaw) {
         if (b is! Map) continue;
         final bId = (b['batch_id'] ?? b['id'])?.toString() ?? '';
-        if (bId.isNotEmpty) {
-          batchNameMap[bId] = (b['batch_name'] ?? b['name'])?.toString() ?? 'Batch $bId';
+        final bName = (b['batch_name'] ?? b['name'])?.toString() ?? '';
+        if (bId.isNotEmpty && bName.isNotEmpty) {
+          batchNameMap[bId] = bName;
         }
       }
 
@@ -181,16 +201,43 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         }
 
         String resolvedBatch = 'Unassigned';
-        if (aId.isNotEmpty && assignToBatchMap.containsKey(aId)) {
+        final joinedAssignment = rMap['assignments'] is Map ? rMap['assignments'] as Map : null;
+        final joinedBatch = joinedAssignment?['batches'] is Map ? joinedAssignment!['batches'] as Map : null;
+        final joinedBatchName = (joinedBatch?['batch_name'] ?? '').toString().trim();
+
+        if (joinedBatchName.isNotEmpty && joinedBatchName.toLowerCase() != 'null') {
+          resolvedBatch = joinedBatchName;
+        } else if (aId.isNotEmpty && assignToBatchMap.containsKey(aId)) {
           resolvedBatch = assignToBatchMap[aId]!;
         } else if (rId.isNotEmpty && raiserToActiveBatchMap.containsKey(rId)) {
           resolvedBatch = raiserToActiveBatchMap[rId]!;
+        }
+
+        if (resolvedBatch.contains('(')) {
+          final parts = resolvedBatch.split('(');
+          if (parts.last.endsWith(')')) {
+            resolvedBatch = parts.sublist(0, parts.length - 1).join('(').trim();
+          }
         }
 
         rMap['fetched_raiser_name'] = resolvedName;
         rMap['fetched_batch_name'] = resolvedBatch;
         enriched.add(rMap);
       }
+
+      enriched.sort((a, b) {
+        final dateA = (a['request_date'] ?? '').toString();
+        final dateB = (b['request_date'] ?? '').toString();
+        final dateComp = dateB.compareTo(dateA);
+        if (dateComp != 0) return dateComp;
+        final idA = a['request_id'] is num
+            ? (a['request_id'] as num).toInt()
+            : (int.tryParse(a['request_id']?.toString() ?? '') ?? 0);
+        final idB = b['request_id'] is num
+            ? (b['request_id'] as num).toInt()
+            : (int.tryParse(b['request_id']?.toString() ?? '') ?? 0);
+        return idB.compareTo(idA);
+      });
 
       if (!mounted) return;
       setState(() {
@@ -672,9 +719,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                   OutlinedButton(
                     onPressed: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFEF4444),
-                      side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
-                      backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                      foregroundColor: const Color(0xFFFF758C),
+                      side: BorderSide(color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.35 : 0.3)),
+                      backgroundColor: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.1 : 0.08),
                       minimumSize: const Size(66, 34),
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -984,14 +1031,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               // Rejection Reason (if rejected)
                               if (status == 'REJECTED' && rejectionReason.isNotEmpty) ...[
                                 const SizedBox(height: 18),
-                                _buildDetailSectionTitle('REJECTION REASON', const Color(0xFFEF4444)),
+                                _buildDetailSectionTitle('REJECTION REASON', const Color(0xFFFF758C)),
                                 const SizedBox(height: 8),
                                 Container(
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                    color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.12 : 0.08),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                                    border: Border.all(color: const Color(0xFFFF758C).withValues(alpha: 0.3)),
                                   ),
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
@@ -999,12 +1046,12 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                     children: [
                                       Row(
                                         children: [
-                                          const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFEF4444)),
+                                          const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFFF758C)),
                                           const SizedBox(width: 8),
                                           Text(
                                             'Admin Reason ($decisionDate)',
                                             style: GoogleFonts.plusJakartaSans(
-                                              color: const Color(0xFFEF4444),
+                                              color: const Color(0xFFFF758C),
                                               fontWeight: FontWeight.w700,
                                               fontSize: 12,
                                             ),
@@ -1060,14 +1107,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
                                                 color: isLow
-                                                    ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                                                    ? const Color(0xFFFF758C).withValues(alpha: 0.15)
                                                     : PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15),
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                               child: Text(
                                                 '$inStock in stock',
                                                 style: GoogleFonts.plusJakartaSans(
-                                                  color: isLow ? const Color(0xFFEF4444) : PiggyTrunkTheme.ptSuccess,
+                                                  color: isLow ? const Color(0xFFFF758C) : PiggyTrunkTheme.ptSuccess,
                                                   fontSize: 11.5,
                                                   fontWeight: FontWeight.w700,
                                                 ),
@@ -1102,9 +1149,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         _confirmRejectRequest(req);
                                       },
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFFEF4444),
-                                        side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.5)),
-                                        backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.08),
+                                        foregroundColor: const Color(0xFFFF758C),
+                                        side: BorderSide(color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.35 : 0.3)),
+                                        backgroundColor: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.1 : 0.08),
                                         padding: const EdgeInsets.symmetric(vertical: 14),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       ),
@@ -1424,7 +1471,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w600,
-                                            color: _titleColor,
+                                            color: titleColor,
                                           ),
                                         ),
                                         const SizedBox(height: 2),
@@ -1531,12 +1578,12 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                       decoration: BoxDecoration(
                                         color: hasSufficientStock
                                             ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.12 : 0.08)
-                                            : const Color(0xFFEF4444).withValues(alpha: isDark ? 0.15 : 0.08),
+                                            : const Color(0xFFFF758C).withValues(alpha: isDark ? 0.12 : 0.08),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: hasSufficientStock
                                               ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                                              : const Color(0xFFEF4444).withValues(alpha: 0.3),
+                                              : const Color(0xFFFF758C).withValues(alpha: 0.3),
                                           width: 1,
                                         ),
                                       ),
@@ -1544,7 +1591,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         children: [
                                           Icon(
                                             hasSufficientStock ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
-                                            color: hasSufficientStock ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                            color: hasSufficientStock ? const Color(0xFF10B981) : const Color(0xFFFF758C),
                                             size: 20,
                                           ),
                                           const SizedBox(width: 10),
@@ -1558,7 +1605,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                                 fontWeight: FontWeight.w700,
                                                 color: hasSufficientStock
                                                     ? (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46))
-                                                    : (isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B)),
+                                                    : (isDark ? const Color(0xFFFDA4AF) : const Color(0xFF9F1239)),
                                               ),
                                             ),
                                           ),
@@ -1784,16 +1831,16 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             Container(
                               padding: const EdgeInsets.all(9),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.2 : 0.1),
+                                color: const Color(0xFFFF758C).withValues(alpha: isDark ? 0.15 : 0.1),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                                  color: const Color(0xFFFF758C).withValues(alpha: 0.3),
                                   width: 1,
                                 ),
                               ),
                               child: const Icon(
                                 Icons.cancel_outlined,
-                                color: Color(0xFFEF4444),
+                                color: Color(0xFFFF758C),
                                 size: 20,
                               ),
                             ),
@@ -1839,7 +1886,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Dahilan ng Pag-Reject (Rejection Reason) *',
+                                'Rejection Reason *',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
@@ -1883,7 +1930,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                                    borderSide: const BorderSide(color: Color(0xFFFF758C), width: 1.5),
                                   ),
                                 ),
                               ),
@@ -1936,7 +1983,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                 ),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFEF4444),
+                                  backgroundColor: const Color(0xFFFF758C),
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                   elevation: 0,

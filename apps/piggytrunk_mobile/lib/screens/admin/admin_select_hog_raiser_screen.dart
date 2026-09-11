@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_feed_allocation_screen.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileSelectHogRaiserScreen extends StatefulWidget {
   final VoidCallback? onBackToDashboard;
@@ -186,6 +187,8 @@ class _AdminMobileSelectHogRaiserScreenState
       child: TextField(
         controller: _searchCtrl,
         onChanged: (val) => setState(() => _searchQuery = val.trim()),
+        textCapitalization: TextCapitalization.words,
+        inputFormatters: const [CapitalizeWordsInputFormatter()],
         style: GoogleFonts.plusJakartaSans(
           fontSize: 14.5,
           fontWeight: FontWeight.w600,

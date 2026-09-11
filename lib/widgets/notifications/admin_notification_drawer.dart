@@ -261,24 +261,24 @@ class _AdminNotificationDrawerState extends ConsumerState<AdminNotificationDrawe
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE53935).withValues(alpha: 0.08),
+                            color: const Color(0xFFFF758C).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: const Color(0xFFE53935).withValues(alpha: 0.25),
+                              color: const Color(0xFFFF758C).withValues(alpha: 0.35),
                               width: 1,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.delete_sweep_outlined, size: 15, color: Color(0xFFE53935)),
+                              const Icon(Icons.delete_sweep_outlined, size: 15, color: Color(0xFFFF758C)),
                               const SizedBox(width: 5),
                               Text(
                                 'Clear all',
                                 style: AppTextStyles.jakarta(
                                   size: 12,
                                   weight: FontWeight.w700,
-                                  color: const Color(0xFFE53935),
+                                  color: const Color(0xFFFF758C),
                                 ),
                               ),
                             ],

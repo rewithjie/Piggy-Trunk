@@ -706,321 +706,325 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: sheetBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Drag Handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: borderColor,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-
-                  // Sheet Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Edit Cashier Profile',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: titleColor,
+      builder: (ctx) {
+        final strings = AppStrings.of(ctx);
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: sheetBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Drag Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: borderColor,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close, size: 20),
-                        color: hintColor,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                    ),
 
-                  // Full Name Field
-                  Text(
-                    'Full Name',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
+                    // Sheet Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          strings.editProfileTitle,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: titleColor,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close, size: 20),
+                          color: hintColor,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: nameController,
-                    textCapitalization: TextCapitalization.words,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: titleColor,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter your full name',
-                      hintStyle: GoogleFonts.plusJakartaSans(
+                    const SizedBox(height: 20),
+
+                    // Full Name Field
+                    Text(
+                      strings.fullName,
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
-                        color: hintColor,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
                       ),
-                      filled: true,
-                      fillColor: inputBg,
-                      prefixIcon: Icon(
-                        Icons.person_outline,
-                        size: 20,
-                        color: hintColor,
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nameController,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: titleColor,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: _brandColor,
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        hintText: strings.enterFullNameHint,
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: hintColor,
+                        ),
+                        filled: true,
+                        fillColor: inputBg,
+                        prefixIcon: Icon(
+                          Icons.person_outline,
+                          size: 20,
+                          color: hintColor,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _brandColor,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Phone Number Field
-                  Text(
-                    'Phone Number',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: titleColor,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. 09123456789',
-                      hintStyle: GoogleFonts.plusJakartaSans(
+                    // Phone Number Field
+                    Text(
+                      '${strings.phoneLabel} (${strings.numbersOnlyNotice})',
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
-                        color: hintColor,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
                       ),
-                      filled: true,
-                      fillColor: inputBg,
-                      prefixIcon: Icon(
-                        Icons.phone_iphone,
-                        size: 20,
-                        color: hintColor,
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: titleColor,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: _brandColor,
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        hintText: '09XXXXXXXXX',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: hintColor,
+                        ),
+                        filled: true,
+                        fillColor: inputBg,
+                        prefixIcon: Icon(
+                          Icons.phone_iphone,
+                          size: 20,
+                          color: hintColor,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _brandColor,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Address / Branch Field
-                  Text(
-                    'Address / Branch',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: addressController,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: const [CapitalizeWordsInputFormatter()],
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      color: titleColor,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter branch location or address',
-                      hintStyle: GoogleFonts.plusJakartaSans(
+                    // Address / Branch Field
+                    Text(
+                      strings.address,
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
-                        color: hintColor,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
                       ),
-                      filled: true,
-                      fillColor: inputBg,
-                      prefixIcon: Icon(
-                        Icons.location_on_outlined,
-                        size: 20,
-                        color: hintColor,
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: addressController,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: titleColor,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: _brandColor,
-                          width: 1.5,
+                      decoration: InputDecoration(
+                        hintText: strings.enterAddressHint,
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: hintColor,
+                        ),
+                        filled: true,
+                        fillColor: inputBg,
+                        prefixIcon: Icon(
+                          Icons.location_on_outlined,
+                          size: 20,
+                          color: hintColor,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _brandColor,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                  // Save Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final newName = nameController.text.trim();
-                        final newPhone = phoneController.text.trim();
-                        final newAddress = addressController.text.trim();
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final newName = nameController.text.trim();
+                          final newPhone = phoneController.text.trim();
+                          final newAddress = addressController.text.trim();
 
-                        if (newName.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter your full name.'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Phone number must be exactly 11 digits starting with 09 (e.g. 09123456789).'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.pop(ctx);
-                        final user = _supabase.auth.currentUser;
-                        if (user == null) return;
-
-                        try {
-                          // 1. Update Auth User Metadata
-                          try {
-                            await _supabase.auth.updateUser(
-                              UserAttributes(
-                                data: {'full_name': newName, 'name': newName},
+                          if (newName.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(strings.pleaseEnterFullName),
+                                backgroundColor: Colors.red,
                               ),
                             );
-                          } catch (_) {}
-
-                          // 2. Update app_users table (visible on Admin Web)
-                          await _supabase
-                              .from('app_users')
-                              .update({
-                                'name': newName,
-                                'phone': newPhone.isNotEmpty ? newPhone : null,
-                                'address': newAddress.isNotEmpty
-                                    ? newAddress
-                                    : null,
-                              })
-                              .or(
-                                'supabase_user_id.eq.${user.id},email.eq.${user.email}',
-                              );
-
-                          // 3. Update cashiers table if exists (visible on Admin Web)
-                          if (user.email != null) {
-                            try {
-                              await _supabase
-                                  .from('cashiers')
-                                  .update({
-                                    'name': newName,
-                                    'phone': newPhone.isNotEmpty
-                                        ? newPhone
-                                        : null,
-                                    'address': newAddress.isNotEmpty
-                                        ? newAddress
-                                        : null,
-                                  })
-                                  .eq('email', user.email!);
-                            } catch (_) {}
+                            return;
                           }
 
-                          await _fetchProfile();
-                          _showSnackBar('Profile updated successfully!');
-                        } catch (e) {
-                          _showSnackBar(
-                            'Error updating profile: $e',
-                            isError: true,
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _brandColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(strings.invalidPhoneNumber),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(ctx);
+                          final user = _supabase.auth.currentUser;
+                          if (user == null) return;
+
+                          try {
+                            // 1. Update Auth User Metadata
+                            try {
+                              await _supabase.auth.updateUser(
+                                UserAttributes(
+                                  data: {'full_name': newName, 'name': newName},
+                                ),
+                              );
+                            } catch (_) {}
+
+                            // 2. Update app_users table (visible on Admin Web)
+                            await _supabase
+                                .from('app_users')
+                                .update({
+                                  'name': newName,
+                                  'phone': newPhone.isNotEmpty ? newPhone : null,
+                                  'address': newAddress.isNotEmpty
+                                      ? newAddress
+                                      : null,
+                                })
+                                .or(
+                                  'supabase_user_id.eq.${user.id},email.eq.${user.email}',
+                                );
+
+                            // 3. Update cashiers table if exists (visible on Admin Web)
+                            if (user.email != null) {
+                              try {
+                                await _supabase
+                                    .from('cashiers')
+                                    .update({
+                                      'name': newName,
+                                      'phone': newPhone.isNotEmpty
+                                          ? newPhone
+                                          : null,
+                                      'address': newAddress.isNotEmpty
+                                          ? newAddress
+                                          : null,
+                                    })
+                                    .eq('email', user.email!);
+                              } catch (_) {}
+                            }
+
+                            await _fetchProfile();
+                            _showSnackBar(strings.profileUpdateSuccess);
+                          } catch (e) {
+                            _showSnackBar(
+                              'Error updating profile: $e',
+                              isError: true,
+                            );
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _brandColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'Save Changes',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
+                        child: Text(
+                          strings.saveChanges,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

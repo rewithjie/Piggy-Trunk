@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'cashier_receipt_modal.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierSalesHistoryView extends StatefulWidget {
   final List<Map<String, dynamic>> salesLogs;
@@ -274,6 +275,8 @@ class _CashierSalesHistoryViewState extends State<CashierSalesHistoryView> {
             child: TextField(
               controller: _searchCtrl,
               onChanged: (_) => setState(() {}),
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: titleColor),
               decoration: InputDecoration(
                 hintText: 'Search receipts by product, customer, or ID...',

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/app_strings.dart';
+import '../../../utils/capitalization_formatters.dart';
 import '../request_form_screen.dart';
 import '../request_history_screen.dart';
 import '../widgets/raiser_empty_state.dart';
@@ -35,7 +36,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _successGreen = Color(0xFF10B981);
   static const Color _warningAmber = Color(0xFFF59E0B);
-  static const Color _dangerRed = Color(0xFFEF4444);
+  static const Color _dangerRed = Color(0xFFFF758C);
 
   @override
   void dispose() {
@@ -64,7 +65,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
 
   List<Map<String, dynamic>> get _filteredRequests {
     final query = _searchCtrl.text.trim().toLowerCase();
-    return widget.requestsList.where((req) {
+    final list = widget.requestsList.where((req) {
       final status = (req['status'] ?? '').toString().toLowerCase();
       final category = (req['category'] ?? '').toString().toLowerCase();
       final feedType = (req['feed_type'] ?? '').toString().toLowerCase();
@@ -89,6 +90,22 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
 
       return true;
     }).toList();
+
+    list.sort((a, b) {
+      final dateA = (a['request_date'] ?? '').toString();
+      final dateB = (b['request_date'] ?? '').toString();
+      final dateComp = dateB.compareTo(dateA);
+      if (dateComp != 0) return dateComp;
+      final idA = a['request_id'] is num
+          ? (a['request_id'] as num).toInt()
+          : (int.tryParse(a['request_id']?.toString() ?? '') ?? 0);
+      final idB = b['request_id'] is num
+          ? (b['request_id'] as num).toInt()
+          : (int.tryParse(b['request_id']?.toString() ?? '') ?? 0);
+      return idB.compareTo(idA);
+    });
+
+    return list;
   }
 
   @override
@@ -256,6 +273,8 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
@@ -361,7 +380,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                             icon: Icons.inventory_2_outlined,
                             message: strings.isFilipino ? 'Walang kahilingan.' : 'No requests found.',
                             subtitle: strings.isFilipino
-                                ? 'Pindutin ang "+ Humiling" upang mag-request.'
+                                ? 'Pindutin ang "+ Humiling" upang magsumite ng kahilingan.'
                                 : 'Tap "+ Request" above to request supplies.',
                           ),
                         ),
@@ -398,7 +417,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                             statusBg = isDark ? const Color(0xFF78350F) : const Color(0xFFFFFBEB);
                           } else if (lowerStatus == 'rejected' || lowerStatus == 'cancelled') {
                             statusColor = _dangerRed;
-                            statusBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
+                            statusBg = _dangerRed.withValues(alpha: isDark ? 0.15 : 0.1);
                           } else {
                             statusColor = const Color(0xFF6366F1);
                             statusBg = isDark ? const Color(0xFF312E81) : const Color(0xFFEEF2FF);
@@ -414,15 +433,17 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                             itemBg = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF3E8FF);
                           } else if (category.toLowerCase() == 'medicine') {
                             itemIcon = Icons.medical_services_rounded;
-                            itemColor = const Color(0xFFEF4444);
-                            itemBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEE2E2);
+                            itemColor = _dangerRed;
+                            itemBg = _dangerRed.withValues(alpha: isDark ? 0.15 : 0.1);
                           }
 
-                          String titleText = '$quantity Sacks of $category';
+                          final unitWord = category.toLowerCase() == 'feeds'
+                              ? (quantity == 1 ? (strings.isFilipino ? 'Sako' : 'Sack') : (strings.isFilipino ? 'mga Sako' : 'Sacks'))
+                              : (quantity == 1 ? (strings.isFilipino ? 'Piraso' : 'Unit') : (strings.isFilipino ? 'mga Piraso' : 'Units'));
+                          final ofWord = strings.isFilipino ? 'ng' : 'of';
+                          String titleText = '$quantity $unitWord $ofWord $category';
                           if (category.toLowerCase() == 'feeds' && feedType != null) {
-                            titleText = '$quantity Sacks of $feedType';
-                          } else if (category.toLowerCase() != 'feeds') {
-                            titleText = '$quantity Units of $category';
+                            titleText = '$quantity $unitWord $ofWord $feedType';
                           }
 
                           return Container(
@@ -475,16 +496,16 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                                       ),
                                       if (lowerStatus == 'rejected' && (req['rejection_reason'] != null && req['rejection_reason'].toString().trim().isNotEmpty)) ...[
                                         const SizedBox(height: 3),
-                                        Text(
-                                          'Reason: "${req['rejection_reason']}"',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: const Color(0xFFEF4444),
+                                          Text(
+                                            '${strings.isFilipino ? "Dahilan" : "Reason"}: "${req['rejection_reason']}"',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: _dangerRed,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
                                       ],
                                     ],
                                   ),
@@ -497,7 +518,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                                     border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                                   ),
                                   child: Text(
-                                    status.toUpperCase(),
+                                    strings.formatStatus(status).toUpperCase(),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,

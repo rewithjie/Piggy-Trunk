@@ -500,16 +500,21 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             if (assignRes != null) {
               final newAssignId = assignRes['assignment_id'];
               if (newAssignId != null) {
-                for (int i = 0; i < parsedTotalHog; i++) {
-                  try {
-                    await _supabase.from('hogs').insert({
-                      'assignment_id': newAssignId,
-                      'status': 'active',
-                      'health_status': 'healthy',
-                      'weight': 15.0,
-                    });
-                  } catch (_) {}
-                }
+                try {
+                  final existingHogs = await _supabase.from('hogs').select('hog_id').eq('assignment_id', newAssignId);
+                  final existingCount = (existingHogs as List).length;
+                  final needed = parsedTotalHog - existingCount;
+                  if (needed > 0) {
+                    for (int i = 0; i < needed; i++) {
+                      await _supabase.from('hogs').insert({
+                        'assignment_id': newAssignId,
+                        'status': 'active',
+                        'health_status': 'healthy',
+                        'weight': 15.0,
+                      });
+                    }
+                  }
+                } catch (_) {}
               }
             }
           }

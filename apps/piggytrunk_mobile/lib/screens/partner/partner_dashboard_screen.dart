@@ -276,237 +276,240 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: sheetBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Drag Handle Pill
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
+      builder: (ctx) {
+        final strings = AppStrings.of(ctx);
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: sheetBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Drag Handle Pill
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Header Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(10),
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                Icons.person_outline_rounded,
+                                color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F),
+                                size: 20,
+                              ),
                             ),
-                            child: Icon(
-                              Icons.person_outline_rounded,
-                              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F),
-                              size: 20,
+                            const SizedBox(width: 12),
+                            Text(
+                              strings.editProfileTitle,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: titleColor,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'I-edit ang Profile',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                              color: titleColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Divider(color: borderColor, height: 1),
-                  const SizedBox(height: 18),
-
-                  _buildDialogInputField(
-                    context,
-                    controller: nameCtrl,
-                    label: 'Buong Pangalan',
-                    icon: Icons.person_outline_rounded,
-                    inputFormatters: const [],
-                  ),
-                  const SizedBox(height: 14),
-                  _buildDialogInputField(
-                    context,
-                    controller: phoneCtrl,
-                    label: 'Phone Number (11 digits)',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _buildDialogInputField(
-                    context,
-                    controller: addrCtrl,
-                    label: 'Address',
-                    icon: Icons.location_on_outlined,
-                  ),
-                  const SizedBox(height: 24),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
+                          ],
+                        ),
+                        IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: borderColor, width: 1.2),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            'Kanselahin',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              color: hintColor,
-                              fontWeight: FontWeight.w700,
+                          icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(color: borderColor, height: 1),
+                    const SizedBox(height: 18),
+
+                    _buildDialogInputField(
+                      context,
+                      controller: nameCtrl,
+                      label: strings.fullName,
+                      icon: Icons.person_outline_rounded,
+                      inputFormatters: const [],
+                    ),
+                    const SizedBox(height: 14),
+                    _buildDialogInputField(
+                      context,
+                      controller: phoneCtrl,
+                      label: '${strings.phoneLabel} (${strings.numbersOnlyNotice})',
+                      icon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _buildDialogInputField(
+                      context,
+                      controller: addrCtrl,
+                      label: strings.address,
+                      icon: Icons.location_on_outlined,
+                    ),
+                    const SizedBox(height: 24),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: borderColor, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              strings.cancel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                color: hintColor,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final newName = nameCtrl.text.trim();
-                            final newPhone = phoneCtrl.text.trim();
-                            final newAddr = addrCtrl.text.trim();
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final newName = nameCtrl.text.trim();
+                              final newPhone = phoneCtrl.text.trim();
+                              final newAddr = addrCtrl.text.trim();
 
-                            if (newName.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Mangyaring ilagay ang buong pangalan.'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
-
-                            if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09 (hal. 09123456789).'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                              return;
-                            }
-
-                            setState(() {
-                              if (newName.isNotEmpty) _partnerName = newName;
-                              _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
-                              _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
-                            });
-
-                            Navigator.pop(ctx);
-
-                            try {
-                              final user = Supabase.instance.client.auth.currentUser;
-                              final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : user?.email;
-
-                              if (user != null && newName.isNotEmpty) {
-                                await Supabase.instance.client
-                                    .from('app_users')
-                                    .update({'name': newName})
-                                    .eq('supabase_user_id', user.id);
-                              } else if (emailToUse != null && emailToUse.isNotEmpty && newName.isNotEmpty) {
-                                await Supabase.instance.client
-                                    .from('app_users')
-                                    .update({'name': newName})
-                                    .eq('email', emailToUse);
+                              if (newName.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(strings.pleaseEnterFullName),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
                               }
 
-                              if (emailToUse != null && emailToUse.isNotEmpty) {
-                                final appUser = await Supabase.instance.client
-                                    .from('app_users')
-                                    .select('user_id')
-                                    .eq('email', emailToUse)
-                                    .maybeSingle();
+                              if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(strings.invalidPhoneNumber),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
 
-                                if (appUser != null && appUser['user_id'] != null) {
+                              setState(() {
+                                if (newName.isNotEmpty) _partnerName = newName;
+                                _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
+                                _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
+                              });
+
+                              Navigator.pop(ctx);
+
+                              try {
+                                final user = Supabase.instance.client.auth.currentUser;
+                                final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : user?.email;
+
+                                if (user != null && newName.isNotEmpty) {
                                   await Supabase.instance.client
-                                      .from('partner_investors')
-                                      .update({
-                                        'contact_number': newPhone.isNotEmpty ? newPhone : null,
-                                        'address': newAddr.isNotEmpty ? newAddr : null,
-                                      })
-                                      .eq('user_id', appUser['user_id']);
+                                      .from('app_users')
+                                      .update({'name': newName})
+                                      .eq('supabase_user_id', user.id);
+                                } else if (emailToUse != null && emailToUse.isNotEmpty && newName.isNotEmpty) {
+                                  await Supabase.instance.client
+                                      .from('app_users')
+                                      .update({'name': newName})
+                                      .eq('email', emailToUse);
                                 }
-                              }
-                            } catch (e) {
-                              debugPrint('Error updating user name in DB: $e');
-                            }
 
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Successfully updated profile information!'),
-                                  backgroundColor: Color(0xFF2FB36F),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark ? Colors.white : const Color(0xFF18314F),
-                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            'I-save ang Pagbabago',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                                if (emailToUse != null && emailToUse.isNotEmpty) {
+                                  final appUser = await Supabase.instance.client
+                                      .from('app_users')
+                                      .select('user_id')
+                                      .eq('email', emailToUse)
+                                      .maybeSingle();
+
+                                  if (appUser != null && appUser['user_id'] != null) {
+                                    await Supabase.instance.client
+                                        .from('partner_investors')
+                                        .update({
+                                          'contact_number': newPhone.isNotEmpty ? newPhone : null,
+                                          'address': newAddr.isNotEmpty ? newAddr : null,
+                                        })
+                                        .eq('user_id', appUser['user_id']);
+                                  }
+                                }
+                              } catch (e) {
+                                debugPrint('Error updating user name in DB: $e');
+                              }
+
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(strings.profileUpdateSuccess),
+                                    backgroundColor: const Color(0xFF2FB36F),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white : const Color(0xFF18314F),
+                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              strings.saveChanges,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1061,7 +1064,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
             IconData icon = Icons.assignment_outlined;
             final lower = rType.toLowerCase();
-            if (lower.contains('sick') || lower.contains('health') || lower.contains('observation')) {
+            if (lower.contains('sick') || lower.contains('health') || lower.contains('observation')
+                || lower.contains('fever') || lower.contains('poison') || lower.contains('diarrhea') || lower.contains('injur') || lower.contains('dead')) {
               icon = Icons.health_and_safety_rounded;
             } else if (lower.contains('vaccin') || lower.contains('med')) {
               icon = Icons.medication_rounded;
@@ -1073,8 +1077,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
             liveActivities.add({
               'report_id': rep['report_id'],
-              'title': '$rType Update',
-              'description': desc.isNotEmpty ? '$desc • By $raiserName' : 'Update submitted by $raiserName',
+              'title': '$rType Alert',
+              'description': desc.isNotEmpty ? desc : 'Health update submitted by $raiserName',
               'date': _formatRelativeTime(createdAt),
               'created_at': rep['created_at'],
               'icon': icon,

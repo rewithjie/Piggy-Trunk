@@ -2,7 +2,6 @@
 -- Creates a PostgreSQL view used by the Flutter Dashboard screen to fetch
 -- all KPI metrics (active raisers, batches, total capital, mortality, allocation)
 -- in a single query.
--- Updated to check account_status = 'active' instead of status = 'active' for active raisers.
 
 create or replace view public.dashboard_summary as
 select
@@ -52,5 +51,5 @@ select
     from public.investment_records
   ) as start_of_investment;
 
--- Grant read access to authenticated users
-grant select on public.dashboard_summary to authenticated;
+-- Grant read access to authenticated and anon users
+grant select on public.dashboard_summary to authenticated, anon;

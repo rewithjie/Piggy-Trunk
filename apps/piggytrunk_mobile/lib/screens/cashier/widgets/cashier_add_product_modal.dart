@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierAddProductModal extends StatefulWidget {
   final Future<void> Function({
@@ -172,6 +173,8 @@ class _CashierAddProductModalState extends State<CashierAddProductModal> {
               const SizedBox(height: 6),
               TextFormField(
                 controller: _nameController,
+                textCapitalization: TextCapitalization.words,
+                inputFormatters: const [CapitalizeWordsInputFormatter()],
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),
                 decoration: InputDecoration(
                   hintText: 'e.g. Pigrolac Starter Feed',
@@ -335,6 +338,9 @@ class _CashierAddProductModalState extends State<CashierAddProductModal> {
               TextFormField(
                 controller: _descController,
                 maxLines: 2,
+                keyboardType: TextInputType.text,
+                textCapitalization: TextCapitalization.sentences,
+                inputFormatters: const [CapitalizeSentencesInputFormatter()],
                 style: GoogleFonts.plusJakartaSans(fontSize: 14, color: _brandNavy),
                 decoration: InputDecoration(
                   hintText: 'Add product notes, specifications, or brand info...',

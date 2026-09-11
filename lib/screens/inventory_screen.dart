@@ -997,8 +997,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           onShowSnackBar: _showThemedSnackBar,
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: PiggyTrunkTheme.ptPrimary,
-                          foregroundColor: Colors.white,
+                          backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                           padding: EdgeInsets.symmetric(vertical: isMobile ? 8 : 12, horizontal: 2),
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1006,7 +1006,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_shopping_cart, size: isMobile ? 13 : 15),
+                            Icon(
+                              Icons.add_shopping_cart,
+                              size: isMobile ? 13 : 15,
+                              color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
+                            ),
                             const SizedBox(width: 4),
                             FittedBox(
                               fit: BoxFit.scaleDown,
@@ -1015,6 +1019,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontWeight: FontWeight.w700,
                                   fontSize: isMobile ? 11 : 13,
+                                  color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
                                 ),
                               ),
                             ),

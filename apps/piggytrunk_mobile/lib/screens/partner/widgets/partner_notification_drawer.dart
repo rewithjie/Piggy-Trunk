@@ -71,7 +71,8 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
       return Icons.account_balance_wallet_rounded;
     } else if (t.contains('stage') || t.contains('progress') || t.contains('lifecycle')) {
       return Icons.trending_up_rounded;
-    } else if (t.contains('health') || t.contains('sick') || t.contains('medical')) {
+    } else if (t.contains('health') || t.contains('sick') || t.contains('medical') ||
+        t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead') || t.contains('report')) {
       return Icons.medical_services_rounded;
     } else if (t.contains('feed') || t.contains('weight') || t.contains('routine')) {
       return Icons.scale_rounded;
@@ -86,7 +87,8 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
       return _accentGreen;
     } else if (t.contains('stage') || t.contains('progress')) {
       return _accentBlue;
-    } else if (t.contains('health') || t.contains('sick') || t.contains('medical')) {
+    } else if (t.contains('health') || t.contains('sick') || t.contains('medical') ||
+        t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead') || t.contains('report')) {
       return Colors.redAccent;
     } else if (t.contains('feed') || t.contains('weight') || t.contains('routine')) {
       return _accentAmber;

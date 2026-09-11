@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_restock_screen.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileInventoryScreen extends StatefulWidget {
   final VoidCallback? onBackToDashboard;
@@ -265,6 +266,8 @@ class _AdminMobileInventoryScreenState
     return TextField(
       controller: _searchCtrl,
       onChanged: (_) => setState(() {}),
+      textCapitalization: TextCapitalization.words,
+      inputFormatters: const [CapitalizeWordsInputFormatter()],
       style: GoogleFonts.plusJakartaSans(fontSize: 14),
       decoration: InputDecoration(
         hintText: 'Search feed brand, product or category...',

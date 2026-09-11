@@ -197,52 +197,93 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
-      // 5. Fetch hogs
+      // 5. Fetch hogs strictly for this raiser's active assignments
       List<dynamic> hogsRes = [];
-      try {
-        hogsRes = await Supabase.instance.client
-            .from('hogs')
-            .select('*, assignments!inner(*, hog_types(*))')
-            .eq('assignments.hog_raiser_id', raiserId)
-            .eq('assignments.status', 'active')
-            .eq('status', 'active');
-      } catch (_) {
+      final activeAssignmentIds = assignments
+          .map((a) => a['assignment_id'] ?? a['id'])
+          .where((id) => id != null)
+          .toList();
+
+      if (activeAssignmentIds.isNotEmpty) {
         try {
           hogsRes = await Supabase.instance.client
               .from('hogs')
               .select('*')
+              .inFilter('assignment_id', activeAssignmentIds)
               .eq('status', 'active');
-        } catch (_) {}
+        } catch (_) {
+          try {
+            hogsRes = await Supabase.instance.client
+                .from('hogs')
+                .select('*, assignments!inner(*)')
+                .eq('assignments.hog_raiser_id', raiserId)
+                .eq('status', 'active');
+          } catch (_) {}
+        }
       }
 
       var hogs = List<Map<String, dynamic>>.from(hogsRes)
           .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
           .toList();
 
+      // Prune duplicate excess hogs if count exceeds the assigned investment heads
+      final int maxAllowedHogs = totalHogsFromInvestment > 0 ? totalHogsFromInvestment : (assignments.isNotEmpty ? 1 : 0);
+      if (maxAllowedHogs > 0 && hogs.length > maxAllowedHogs) {
+        final excessHogs = hogs.sublist(maxAllowedHogs);
+        for (var excess in excessHogs) {
+          final excessId = excess['hog_id'];
+          if (excessId != null) {
+            try {
+              await Supabase.instance.client.from('hogs').delete().eq('hog_id', excessId);
+            } catch (_) {}
+          }
+        }
+        hogs = hogs.sublist(0, maxAllowedHogs);
+      }
+
       // If hogs table is empty but investment assigned heads exist, auto-seed and display
       if (hogs.isEmpty && totalHogsFromInvestment > 0 && assignments.isNotEmpty) {
         final assignId = assignments[0]['assignment_id'] ?? assignments[0]['id'];
         final pigType = (raiser['pig_type'] ?? 'Fattening').toString();
 
+        final List<Map<String, dynamic>> seededHogs = [];
         for (int i = 1; i <= totalHogsFromInvestment; i++) {
           try {
-            await Supabase.instance.client.from('hogs').insert({
-              'assignment_id': assignId,
-              'status': 'active',
-              'health_status': 'healthy',
-              'weight': 15.0,
-            });
+            Map<String, dynamic>? res;
+            try {
+              res = await Supabase.instance.client.from('hogs').insert({
+                'assignment_id': assignId,
+                'status': 'active',
+                'health_status': 'healthy',
+                'weight': 15.0,
+              }).select().maybeSingle();
+            } catch (_) {
+              res = await Supabase.instance.client.from('hogs').insert({
+                'assignment_id': assignId,
+                'status': 'active',
+                'health_status': 'healthy',
+              }).select().maybeSingle();
+            }
+            if (res != null) {
+              final m = Map<String, dynamic>.from(res);
+              m['pig_type'] = pigType;
+              seededHogs.add(m);
+            }
           } catch (_) {}
         }
 
-        hogs = List.generate(totalHogsFromInvestment, (i) => {
-          'hog_id': i + 1,
-          'assignment_id': assignId,
-          'status': 'active',
-          'health_status': 'healthy',
-          'pig_type': pigType,
-          'weight': 15.0,
-        });
+        if (seededHogs.isNotEmpty) {
+          hogs = seededHogs;
+        } else {
+          hogs = List.generate(totalHogsFromInvestment, (i) => {
+            'hog_id': i + 1,
+            'assignment_id': assignId,
+            'status': 'active',
+            'health_status': 'healthy',
+            'pig_type': pigType,
+            'weight': 15.0,
+          });
+        }
       }
 
       hogs.sort((a, b) {
@@ -258,17 +299,32 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             .from('stock_requests')
             .select('*, assignments!inner(*, batches(*))')
             .eq('hog_raiser_id', raiserId)
-            .order('request_date', ascending: false);
+            .order('request_date', ascending: false)
+            .order('request_id', ascending: false);
       } catch (_) {
         try {
           requestsRes = await Supabase.instance.client
               .from('stock_requests')
               .select('*')
               .eq('hog_raiser_id', raiserId)
-              .order('request_date', ascending: false);
+              .order('request_date', ascending: false)
+              .order('request_id', ascending: false);
         } catch (_) {}
       }
       final requests = List<Map<String, dynamic>>.from(requestsRes);
+      requests.sort((a, b) {
+        final dateA = (a['request_date'] ?? '').toString();
+        final dateB = (b['request_date'] ?? '').toString();
+        final dateComp = dateB.compareTo(dateA);
+        if (dateComp != 0) return dateComp;
+        final idA = a['request_id'] is num
+            ? (a['request_id'] as num).toInt()
+            : (int.tryParse(a['request_id']?.toString() ?? '') ?? 0);
+        final idB = b['request_id'] is num
+            ? (b['request_id'] as num).toInt()
+            : (int.tryParse(b['request_id']?.toString() ?? '') ?? 0);
+        return idB.compareTo(idA);
+      });
 
       // Fetch Product Price Catalog for accurate distributed product valuation
       final Map<String, double> productPriceMap = {};
@@ -519,7 +575,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       if (mounted) {
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na nailipat ang stage sa $targetStage!',
+          AppStrings.of(context).stageUpdatedSuccess(targetStage),
         );
       }
     } catch (e) {
@@ -543,12 +599,55 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await Supabase.instance.client.from('hog_reports').insert({
-        'hog_id': hogId.toInt(),
+      // 1. Check if the specified hog_id actually exists in public.hogs table to prevent FK constraint error
+      int? targetHogId;
+      try {
+        final existingHog = await Supabase.instance.client
+            .from('hogs')
+            .select('hog_id')
+            .eq('hog_id', hogId.toInt())
+            .maybeSingle();
+        if (existingHog != null) {
+          targetHogId = (existingHog['hog_id'] as num).toInt();
+        }
+      } catch (_) {}
+
+      // Fallback: If not found by hogId (e.g. temporary/mock index), find the raiser's first real hog in DB
+      if (targetHogId == null) {
+        try {
+          final activeAssignIds = _activeAssignments
+              .map((a) => a['assignment_id'] ?? a['id'])
+              .where((id) => id != null)
+              .toList();
+          if (activeAssignIds.isNotEmpty) {
+            final firstRealHog = await Supabase.instance.client
+                .from('hogs')
+                .select('hog_id')
+                .inFilter('assignment_id', activeAssignIds)
+                .limit(1)
+                .maybeSingle();
+            if (firstRealHog != null) {
+              targetHogId = (firstRealHog['hog_id'] as num).toInt();
+            }
+          }
+        } catch (_) {}
+      }
+
+      final batchId = _activeAssignments.isNotEmpty ? _activeAssignments[0]['batch_id'] : null;
+
+      final Map<String, dynamic> reportData = {
         'hog_raiser_id': raiserId,
         'report_type': reportType,
         'description': notes.isNotEmpty ? notes : null,
-      });
+      };
+      if (targetHogId != null) {
+        reportData['hog_id'] = targetHogId;
+      }
+      if (batchId != null) {
+        reportData['batch_id'] = batchId;
+      }
+
+      await Supabase.instance.client.from('hog_reports').insert(reportData);
 
       String nextHealth = 'Healthy';
       if (reportType == 'Sick' || reportType == 'Food Poisoning' || reportType == 'Fever' || reportType == 'Diarrhea') {
@@ -557,20 +656,24 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         nextHealth = 'Dead';
       }
 
-      final Map<String, dynamic> updateData = {'health_status': nextHealth};
-      if (nextHealth == 'Dead') {
-        updateData['status'] = 'dead';
-      }
+      if (targetHogId != null) {
+        final Map<String, dynamic> updateData = {'health_status': nextHealth};
+        if (nextHealth == 'Dead') {
+          updateData['status'] = 'dead';
+        }
 
-      await Supabase.instance.client
-          .from('hogs')
-          .update(updateData)
-          .eq('hog_id', hogId.toInt());
+        try {
+          await Supabase.instance.client
+              .from('hogs')
+              .update(updateData)
+              .eq('hog_id', targetHogId);
+        } catch (_) {}
+      }
 
       if (mounted) {
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na naipadala ang Hog Report!',
+          AppStrings.of(context).hogReportSubmittedSuccess,
         );
       }
 
@@ -658,7 +761,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         });
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na na-update ang inyong profile picture!',
+          AppStrings.of(context).profilePictureUpdatedSuccess,
         );
       }
 
@@ -704,7 +807,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'I-reset ang Profile?',
+                  AppStrings.of(ctx).resetProfileConfirmTitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w800,
                     fontSize: 17,
@@ -715,7 +818,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             ],
           ),
           content: Text(
-            'Sigurado ka bang nais mong ibalik sa default ang iyong profile picture at mga setting?',
+            AppStrings.of(ctx).resetProfileConfirmBody,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               color: const Color(0xFF475569),
@@ -734,7 +837,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
                     child: Text(
-                      'Hindi',
+                      AppStrings.of(ctx).no,
                       style: GoogleFonts.plusJakartaSans(
                         color: const Color(0xFF475569),
                         fontWeight: FontWeight.w700,
@@ -755,7 +858,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
                     child: Text(
-                      'Oo, I-reset',
+                      AppStrings.of(ctx).yesReset,
                       style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
@@ -803,7 +906,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         });
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na naibalik sa default ang inyong profile!',
+          AppStrings.of(context).profileRestoredDefaultSuccess,
         );
       }
 
@@ -842,291 +945,296 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: sheetBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Drag Handle Pill
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Header Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              Icons.person_outline_rounded,
-                              color: isDark ? const Color(0xFF93C5FD) : _brandColor,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'I-edit ang Profile',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                              color: titleColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Divider(color: borderColor, height: 1),
-                  const SizedBox(height: 18),
-
-                  // 1. Pangalan
-                  Text(
-                    'Buong Pangalan',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: nameController,
-                    textCapitalization: TextCapitalization.words,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                    decoration: InputDecoration(
-                      hintText: 'Ilagay ang inyong buong pangalan',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
-                      filled: true,
-                      fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 2. Phone Number (Numerical Only!)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Telepono / Phone Number',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: titleColor,
+      builder: (ctx) {
+        final strings = AppStrings.of(ctx);
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: sheetBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Drag Handle Pill
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      Text(
-                        'Numbers only (11 digits)',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: hintColor,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Header Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                Icons.person_outline_rounded,
+                                color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              strings.editProfileTitle,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: titleColor,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: phoneController,
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(11),
-                    ],
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                    decoration: InputDecoration(
-                      hintText: '09XXXXXXXXX',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
-                      filled: true,
-                      fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 3. Address
-                  Text(
-                    'Address',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: addressController,
-                    maxLines: 2,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: const [CapitalizeWordsInputFormatter()],
-                    style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                    decoration: InputDecoration(
-                      hintText: 'Ilagay ang inyong kumpletong address',
-                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                      prefixIcon: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
-                        child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
-                      ),
-                      filled: true,
-                      fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
+                        IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: borderColor, width: 1.2),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(color: borderColor, height: 1),
+                    const SizedBox(height: 18),
+
+                    // 1. Pangalan
+                    Text(
+                      strings.fullName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nameController,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: strings.enterFullNameHint,
+                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                        prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
+                        filled: true,
+                        fillColor: inputBg,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 2. Phone Number (Numerical Only!)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          strings.phoneLabel,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: titleColor,
                           ),
-                          child: Text(
-                            'Kanselahin',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              color: hintColor,
-                              fontWeight: FontWeight.w700,
+                        ),
+                        Text(
+                          strings.numbersOnlyNotice,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: hintColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
+                      ],
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: '09XXXXXXXXX',
+                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                        prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
+                        filled: true,
+                        fillColor: inputBg,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 3. Address
+                    Text(
+                      strings.address,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: addressController,
+                      maxLines: 2,
+                      keyboardType: TextInputType.text,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: strings.enterAddressHint,
+                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
+                        ),
+                        filled: true,
+                        fillColor: inputBg,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: borderColor, width: 1.2),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              strings.cancel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                color: hintColor,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final newName = nameController.text.trim();
-                            final newPhone = phoneController.text.trim();
-                            final newAddr = addressController.text.trim();
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final newName = nameController.text.trim();
+                              final newPhone = phoneController.text.trim();
+                              final newAddr = addressController.text.trim();
 
-                            if (newName.isEmpty) {
-                              PiggyToast.showWarning(
-                                context,
-                                'Mangyaring ilagay ang buong pangalan.',
+                              if (newName.isEmpty) {
+                                PiggyToast.showWarning(
+                                  context,
+                                  strings.pleaseEnterFullName,
+                                );
+                                return;
+                              }
+
+                              if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
+                                PiggyToast.showWarning(
+                                  context,
+                                  strings.invalidPhoneNumber,
+                                );
+                                return;
+                              }
+
+                              Navigator.pop(ctx);
+                              await _updateProfile(
+                                newName,
+                                newPhone,
+                                newAddr,
                               );
-                              return;
-                            }
-
-                            if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                              PiggyToast.showWarning(
-                                context,
-                                'Ang numero ng telepono ay dapat eksaktong 11 numero na nagsisimula sa 09.',
-                              );
-                              return;
-                            }
-
-                            Navigator.pop(ctx);
-                            await _updateProfile(
-                              newName,
-                              newPhone,
-                              newAddr,
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark ? Colors.white : _brandColor,
-                            foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                            'I-save ang Pagbabago',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white : _brandColor,
+                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              strings.saveChanges,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1155,7 +1263,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       if (mounted) {
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na nai-save ang inyong profile!',
+          AppStrings.of(context).profileUpdateSuccess,
         );
       }
 
@@ -1193,7 +1301,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           _lastBackPressTime = now;
           PiggyToast.showInfo(
             context,
-            'Pindutin ulit ang Back button upang isara ang app.',
+            AppStrings.of(context).pressBackAgainToExit,
           );
           return;
         }

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/services/email_service.dart';
 import '../services/google_auth_service.dart';
 import '../utils/screen_fit_util.dart';
+import '../utils/capitalization_formatters.dart';
 
 const String googleLogoSvg = '''
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -829,6 +830,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   controller: _fullNameController,
                                   cursorColor: const Color(0xFF18314F),
                                   textCapitalization: TextCapitalization.words,
+                                  inputFormatters: const [CapitalizeWordsInputFormatter()],
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: inputFontSize,
                                     fontWeight: FontWeight.w600,

@@ -51,6 +51,27 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args == 'pending' || args == 'pending_raiser') {
         setState(() => _currentTab = 1);
+      } else if (args is Map<String, dynamic>) {
+        final targetRaiserName = (args['raiser_name'] ?? args['name'] ?? '').toString().trim();
+        final targetRaiserId = args['raiser_id']?.toString();
+        if (targetRaiserName.isNotEmpty || targetRaiserId != null) {
+          _searchCtrl.text = targetRaiserName;
+          _loadRaisers(keyword: targetRaiserName).then((_) {
+            if (mounted && _raisers.isNotEmpty) {
+              final match = _raisers.firstWhere(
+                (r) => (targetRaiserId != null && r['hog_raiser_id']?.toString() == targetRaiserId) ||
+                       (targetRaiserName.isNotEmpty && (r['name'] ?? '').toString().toLowerCase() == targetRaiserName.toLowerCase()),
+                orElse: () => _raisers.first,
+              );
+              RaiserProfileDrawer.show(
+                context: context,
+                row: match,
+                onApprove: _approveRaiserDirectly,
+                onDelete: _deleteRaiser,
+              );
+            }
+          });
+        }
       }
     }
   }

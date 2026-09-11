@@ -89,21 +89,9 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
     );
   }
 
-  String _formatTime(dynamic dateValue) {
+  String _formatTime(dynamic dateValue, AppStrings strings) {
     if (dateValue == null) return '';
-    try {
-      final DateTime dt = dateValue is DateTime ? dateValue : DateTime.parse(dateValue.toString());
-      final now = DateTime.now();
-      final diff = now.difference(dt);
-
-      if (diff.inMinutes < 1) return 'Kani-kanina lang';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ang nakalipas';
-      if (diff.inHours < 24) return '${diff.inHours}h ang nakalipas';
-      if (diff.inDays < 7) return '${diff.inDays}d ang nakalipas';
-      return '${dt.month}/${dt.day}/${dt.year}';
-    } catch (_) {
-      return '';
-    }
+    return strings.formatRelativeTime(dateValue);
   }
 
   @override
@@ -331,7 +319,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         final notifId = (notif['notification_id'] ?? notif['id']) as int?;
                         final title = (notif['title'] ?? 'Notification').toString();
                         final message = (notif['message'] ?? notif['content'] ?? '').toString();
-                        final timeStr = _formatTime(notif['created_at']);
+                        final timeStr = _formatTime(notif['created_at'], strings);
                         final type = (notif['type'] ?? notif['category'] ?? '').toString().toLowerCase();
 
                         IconData notifIcon = Icons.notifications_rounded;

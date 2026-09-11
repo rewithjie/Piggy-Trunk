@@ -7,6 +7,7 @@ import 'admin_requests_screen.dart';
 import 'admin_investment_screen.dart';
 import 'admin_distribution_portal_screen.dart';
 import '../../services/auth_session_service.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileDashboardScreen extends StatefulWidget {
   const AdminMobileDashboardScreen({super.key});
@@ -280,6 +281,9 @@ class _AdminMobileDashboardScreenState
             ),
             const SizedBox(height: 24),
             TextField(
+              keyboardType: TextInputType.text,
+              textCapitalization: TextCapitalization.sentences,
+              inputFormatters: const [CapitalizeSentencesInputFormatter()],
               decoration: InputDecoration(
                 labelText: 'Notes / Reference',
                 hintText: 'Enter details for $actionTitle...',

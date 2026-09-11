@@ -12,6 +12,7 @@ import 'package:piggytrunk/widgets/inventory/product_edit_drawer.dart';
 import 'package:piggytrunk/widgets/inventory/product_restock_dialog.dart';
 import 'package:piggytrunk/widgets/inventory/product_add_form.dart';
 import 'package:piggytrunk/widgets/inventory/stock_requests_tab.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierInventoryTab extends StatefulWidget {
   final VoidCallback? onProductsChanged;
@@ -412,6 +413,8 @@ class _CashierInventoryTabState extends State<CashierInventoryTab> {
                   TextField(
                     controller: _searchCtrl,
                     onChanged: (_) => setState(() {}),
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5),
                     decoration: InputDecoration(
                       hintText: 'Search products...',
@@ -444,6 +447,8 @@ class _CashierInventoryTabState extends State<CashierInventoryTab> {
                     child: TextField(
                       controller: _searchCtrl,
                       onChanged: (_) => setState(() {}),
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: const [CapitalizeWordsInputFormatter()],
                       style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Search products by name or description...',

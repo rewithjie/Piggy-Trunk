@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_transaction_checkout_screen.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileSalesScreen extends StatefulWidget {
   final VoidCallback? onBackToDashboard;
@@ -205,6 +206,8 @@ class _AdminMobileSalesScreenState extends State<AdminMobileSalesScreen> {
                   title: const Text('Search Feeds'),
                   content: TextField(
                     controller: searchCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: const [CapitalizeWordsInputFormatter()],
                     decoration: const InputDecoration(hintText: 'Type feed name...'),
                   ),
                   actions: [

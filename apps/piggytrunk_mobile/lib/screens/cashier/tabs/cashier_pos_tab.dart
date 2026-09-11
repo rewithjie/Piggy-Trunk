@@ -5,6 +5,7 @@ import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/screens/best_sellers_screen.dart';
 import 'package:piggytrunk/screens/demand_forecasting_screen.dart';
 import '../../../utils/app_strings.dart';
+import '../../../utils/capitalization_formatters.dart';
 import '../widgets/cashier_empty_state.dart';
 import '../widgets/cashier_sales_history_view.dart';
 import '../widgets/cashier_checkout_modal.dart';
@@ -650,6 +651,8 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                           child: TextField(
                             controller: _searchCtrl,
                             onChanged: (_) => setState(() {}),
+                            textCapitalization: TextCapitalization.words,
+                            inputFormatters: const [CapitalizeWordsInputFormatter()],
                             style: GoogleFonts.plusJakartaSans(fontSize: 13, color: titleColor),
                             decoration: InputDecoration(
                               hintText: strings.searchProducts,

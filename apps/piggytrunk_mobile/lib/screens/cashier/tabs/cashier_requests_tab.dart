@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/app_strings.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierRequestsTab extends StatefulWidget {
   final List<Map<String, dynamic>> pendingRequests;
@@ -25,7 +26,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
   static const Color _brandBlue = Color(0xFF2563EB);
   static const Color _brandGreen = Color(0xFF10B981);
   static const Color _brandAmber = Color(0xFFF59E0B);
-  static const Color _brandRed = Color(0xFFEF4444);
+  static const Color _brandRed = Color(0xFFFF758C);
 
   int _selectedTab = 0; // 0 = Pending Requests, 1 = History
   String _searchQuery = '';
@@ -345,6 +346,8 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                         ),
                         child: TextField(
                           onChanged: (val) => setState(() => _searchQuery = val),
+                          textCapitalization: TextCapitalization.words,
+                          inputFormatters: const [CapitalizeWordsInputFormatter()],
                           style: GoogleFonts.plusJakartaSans(fontSize: 13, color: titleColor),
                           decoration: InputDecoration(
                             hintText: strings.searchRequests,
@@ -831,7 +834,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
             decoration: BoxDecoration(
               color: isApproved
                   ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
-                  : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2)),
+                  : (const Color(0xFFFF758C).withValues(alpha: isDark ? 0.15 : 0.1)),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -851,7 +854,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                     Text(
                       raiserName,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14.5,
+                         fontSize: 14.5,
                         fontWeight: FontWeight.w800,
                         color: titleColor,
                       ),
@@ -861,7 +864,7 @@ class _CashierRequestsTabState extends State<CashierRequestsTab> {
                       decoration: BoxDecoration(
                         color: isApproved
                             ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5))
-                            : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2)),
+                            : (const Color(0xFFFF758C).withValues(alpha: isDark ? 0.15 : 0.1)),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(

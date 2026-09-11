@@ -72,7 +72,14 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
       if (_selectedFilter == 'Health') {
         matchesCategory = type.contains('health') ||
             type.contains('sick') ||
+            type.contains('fever') ||
+            type.contains('poison') ||
+            type.contains('diarrhea') ||
+            type.contains('injur') ||
+            type.contains('dead') ||
             title.contains('health') ||
+            title.contains('fever') ||
+            title.contains('alert') ||
             desc.contains('health') ||
             desc.contains('check');
       } else if (_selectedFilter == 'Medication') {
@@ -112,7 +119,8 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     final t = type.toLowerCase();
     if (t.contains('vaccin') || t.contains('med')) {
       return _accentPurple;
-    } else if (t.contains('sick') || t.contains('health') || t.contains('observation')) {
+    } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
+        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
       return const Color(0xFFEF4444);
     } else if (t.contains('feed') || t.contains('weight') || t.contains('nutrition')) {
       return _accentAmber;
@@ -126,7 +134,8 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     final t = type.toLowerCase();
     if (t.contains('vaccin') || t.contains('med')) {
       return Icons.medication_rounded;
-    } else if (t.contains('sick') || t.contains('health') || t.contains('observation')) {
+    } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
+        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
       return Icons.health_and_safety_rounded;
     } else if (t.contains('feed') || t.contains('weight') || t.contains('nutrition')) {
       return Icons.monitor_weight_rounded;

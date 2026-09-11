@@ -28,14 +28,14 @@ class AppStrings {
   String get viewAll => isFilipino ? 'Tingnan Lahat' : 'View All';
   String get viewBreakdown => isFilipino ? 'Tingnan ang Detalye' : 'View Breakdown';
 
-  // ================= Bottom Navigation Bar (Constant English) =================
-  String get navDashboard => 'DASHBOARD';
-  String get navRequest => 'REQUEST';
-  String get navHogs => 'HOGS';
-  String get navProfile => 'PROFILE';
-  String get navHome => 'HOME';
-  String get navInventory => 'INVENTORY';
-  String get navPOS => 'POS';
+  // ================= Bottom Navigation Bar =================
+  String get navDashboard => isFilipino ? 'DASHBOARD' : 'DASHBOARD';
+  String get navRequest => isFilipino ? 'KAHILINGAN' : 'REQUEST';
+  String get navHogs => isFilipino ? 'MGA BABOY' : 'HOGS';
+  String get navProfile => isFilipino ? 'PROFILE' : 'PROFILE';
+  String get navHome => isFilipino ? 'TAHANAN' : 'HOME';
+  String get navInventory => isFilipino ? 'IMBENTARYO' : 'INVENTORY';
+  String get navPOS => isFilipino ? 'POS' : 'POS';
 
   // ================= Dashboard / Home Tab =================
   String get helloGreeting => isFilipino ? 'Kumusta Tagapag-alaga,' : 'Hello Hog Raiser,';
@@ -71,6 +71,27 @@ class AppStrings {
   String get filterDistributed => isFilipino ? 'Naipamahagi' : 'Distributed';
   String get filterRejected => isFilipino ? 'Tinanggihan' : 'Rejected';
 
+  // ================= Request Form Strings =================
+  String get requestSuppliesTitle => isFilipino ? 'Humiling ng Supplies' : 'Request Supplies';
+  String get selectBatchHogs => isFilipino ? 'Piliin ang Batch / Alagang Baboy' : 'Select Batch / Hogs';
+  String get noActiveBatchAssigned => isFilipino ? 'Walang aktibong batch na nakatalaga.' : 'No active batch assigned.';
+  String get selectCategory => isFilipino ? 'Piliin ang Kategorya' : 'Select Category';
+  String get feedsLabel => 'Feeds';
+  String get feedsSublabel => isFilipino ? 'Pagkain' : 'Feeds';
+  String get medicineLabel => 'Medicine';
+  String get medicineSublabel => isFilipino ? 'Gamot' : 'Medicine';
+  String get vitaminsLabel => 'Vitamins';
+  String get vitaminsSublabel => isFilipino ? 'Bitamina' : 'Vitamins';
+  String get quantityBagsPcs => isFilipino ? 'Dami (Sako / Piraso)' : 'Quantity (Bags / Pieces)';
+  String get feedTypeTitle => isFilipino ? 'Uri ng Feeds' : 'Feed Type';
+  String get notesTitle => isFilipino ? 'Karagdagang Impormasyon / Tala' : 'Additional Information / Notes';
+  String get notesHint => isFilipino ? 'Ipaliwanag kung para saan ito...' : 'Explain the purpose of this request...';
+  String get confirmRequestButton => isFilipino ? 'Kumpirmahin ang Kahilingan' : 'Confirm Request';
+  String get pleaseSelectBatch => isFilipino ? 'Paki-pili ang assignment batch para sa kahilingan.' : 'Please select an assigned batch.';
+  String get pleaseEnterQuantity => isFilipino ? 'Paki-lagay ang dami ng item na hihilingin (dapat higit sa 0).' : 'Please enter a valid quantity (must be greater than 0).';
+  String get requestSuccessToast => isFilipino ? 'Matagumpay na naipadala ang iyong kahilingan!' : 'Stock request submitted successfully!';
+  String get requestFailedToast => isFilipino ? 'Nagka-problema sa pagpapadala ng kahilingan.' : 'Failed to submit request.';
+
   // ================= Notifications Drawer =================
   String get notificationsTitle => isFilipino ? 'Mga Abiso' : 'Notifications';
   String get notificationsSubtitle => isFilipino ? 'Mga live na update at alerto' : 'Live updates and alerts';
@@ -99,8 +120,8 @@ class AppStrings {
   String get myHogsTitle => isFilipino ? 'Aking mga Baboy' : 'My Hogs';
   String get myHogsSubtitle => isFilipino ? 'Subaybayan ang kalusugan ng mga alaga' : 'Monitor daily health and status';
   String get healthReportsActivity => isFilipino ? 'Mga Ulat sa Kalusugan' : 'Health Reports Activity';
-  String get addReportButton => isFilipino ? '+ Mag-ulat' : '+ Add Report';
-  String get submitReportButton => isFilipino ? '+ Magsumite ng Ulat' : '+ Submit Report';
+  String get addReportButton => isFilipino ? 'Mag-ulat' : 'Add Report';
+  String get submitReportButton => isFilipino ? 'Magsumite ng Ulat' : 'Submit Report';
   String get searchHog => isFilipino ? 'Maghanap ng tag number...' : 'Search tag number...';
   String get statusHealthy => isFilipino ? 'Malusog' : 'Healthy';
   String get statusSick => isFilipino ? 'May Sakit' : 'Sick';
@@ -112,6 +133,56 @@ class AppStrings {
   String get noHogsSubtitle => isFilipino ? 'Walang nakatalagang baboy sa batch.' : 'No hogs assigned to this batch.';
   String get noHealthReports => isFilipino ? 'Walang ulat sa kalusugan.' : 'No health reports yet.';
   String get noHealthReportsSubtitle => isFilipino ? 'Lahat ng alaga ay malusog.' : 'All hogs are in healthy condition.';
+  String get healthReportTitle => isFilipino ? 'Ulat sa Kalusugan' : 'Health Report';
+  String get healthReportSubtitle => isFilipino ? 'Mag-ulat ng obserbasyon sa kalusugan ng baboy' : 'Report observation on hog health';
+  String get selectHog => isFilipino ? 'Piliin ang Baboy' : 'Select Hog';
+  String get noHogsAssignedCurrently => isFilipino ? 'Walang nakatalagang baboy sa kasalukuyan.' : 'No hogs currently assigned.';
+  String get reportType => isFilipino ? 'Uri ng Ulat' : 'Report Type';
+  String get foodPoisoning => isFilipino ? 'Pagkalason sa Pagkain' : 'Food Poisoning';
+  String get fever => isFilipino ? 'Lagnat' : 'Fever';
+  String get diarrhea => isFilipino ? 'Pagtatae' : 'Diarrhea';
+  String get injury => isFilipino ? 'Sugat' : 'Injury';
+  String get deceasedReport => isFilipino ? 'Namatay' : 'Deceased';
+  String get additionalDetails => isFilipino ? 'Karagdagang Detalye' : 'Additional Details';
+  String get healthNotesHint => isFilipino ? 'Isulat ang obserbasyon sa baboy...' : 'Write observation about the hog...';
+  String get submitReportAction => isFilipino ? 'Isumite ang Ulat' : 'Submit Report';
+  String get hogReportSubmittedSuccess => isFilipino ? 'Matagumpay na naipadala ang Hog Report!' : 'Hog report submitted successfully!';
+  String stageUpdatedSuccess(String stage) => isFilipino
+      ? 'Matagumpay na nailipat ang stage sa $stage!'
+      : 'Successfully updated stage to $stage!';
+  String get profilePictureUpdatedSuccess => isFilipino ? 'Matagumpay na na-update ang inyong profile picture!' : 'Profile picture updated successfully!';
+  String get profileRestoredDefaultSuccess => isFilipino ? 'Matagumpay na naibalik sa default ang inyong profile!' : 'Profile successfully restored to default!';
+  String get resetProfileConfirmTitle => isFilipino ? 'I-reset ang Profile?' : 'Reset Profile Picture?';
+  String get resetProfileConfirmBody => isFilipino
+      ? 'Sigurado ka bang nais mong ibalik sa default ang iyong profile picture at mga setting?'
+      : 'Are you sure you want to restore your profile picture and settings to default?';
+  String get no => isFilipino ? 'Hindi' : 'No';
+  String get yesReset => isFilipino ? 'Oo, I-reset' : 'Yes, Reset';
+  String get noWeightRecorded => isFilipino ? 'Walang tala ng timbang' : 'No weight recorded';
+  String get noHogsAssignedNotice => isFilipino ? 'Walang nakatalagang alagang baboy.' : 'No hogs assigned yet.';
+  String get farmAdminAssignNotice => isFilipino ? 'I-aassign ng Farm Admin ang iyong batch dito.' : 'Farm Admin will assign your batch here.';
+
+  // ================= Stage Progression =================
+  String get stageProgressionTitle => isFilipino ? 'Progreso ng Yugto' : 'Stage Progression';
+  String advanceStagePrompt(String targetStage) => isFilipino
+      ? 'Nais mo bang i-advance ang growth stage ng batch patungong $targetStage?'
+      : 'Do you want to advance the batch growth stage to $targetStage?';
+  String get update => isFilipino ? 'I-update' : 'Update';
+
+  // ================= Edit Profile Modal =================
+  String get editProfileTitle => isFilipino ? 'I-edit ang Profile' : 'Edit Profile';
+  String get fullName => isFilipino ? 'Buong Pangalan' : 'Full Name';
+  String get enterFullNameHint => isFilipino ? 'Ilagay ang inyong buong pangalan' : 'Enter your full name';
+  String get phoneLabel => isFilipino ? 'Numero ng Telepono' : 'Phone Number';
+  String get numbersOnlyNotice => isFilipino ? 'Numero lamang (11 digits)' : 'Numbers only (11 digits)';
+  String get address => isFilipino ? 'Address' : 'Address';
+  String get enterAddressHint => isFilipino ? 'Ilagay ang inyong kumpletong address' : 'Enter your complete address';
+  String get saveChanges => isFilipino ? 'I-save ang Pagbabago' : 'Save Changes';
+  String get pleaseEnterFullName => isFilipino ? 'Mangyaring ilagay ang buong pangalan.' : 'Please enter your full name.';
+  String get invalidPhoneNumber => isFilipino ? 'Dapat ay 11-digit na numero at nagsisimula sa 09.' : 'Must be an 11-digit number starting with 09.';
+  String get profileUpdateSuccess => isFilipino ? 'Matagumpay na na-update ang iyong profile!' : 'Profile updated successfully!';
+  String get profileUpdateFailed => isFilipino ? 'Hindi na-update ang profile.' : 'Failed to update profile.';
+  String get pressBackAgainToExit => isFilipino ? 'Pindutin ulit ang Back button upang isara ang app.' : 'Press Back button again to exit the app.';
 
   // ================= Cashier Module Strings =================
   String get cashierGreeting => isFilipino ? 'Kumusta Kahera,' : 'Hello Cashier,';
@@ -188,8 +259,8 @@ class AppStrings {
   String get allBatches => isFilipino ? 'Lahat ng Batch' : 'All Batches';
   String get myInvestments => isFilipino ? 'Aking mga Puhunan' : 'My Investments';
   String get myInvestmentsSubtitle => isFilipino ? 'Subaybayan ang iyong mga pinondohang proyekto' : 'Track your funded projects and returns';
-  String get navInvestment => 'INVESTMENT';
-  String get navActivities => 'ACTIVITIES';
+  String get navInvestment => isFilipino ? 'PUHUNAN' : 'INVESTMENT';
+  String get navActivities => isFilipino ? 'AKTIBIDAD' : 'ACTIVITIES';
   String get noReportsYet => isFilipino ? 'Walang Ulat sa Ngayon' : 'No Reports Yet';
   String get noReportsSubtitle => isFilipino ? 'Lalabas dito ang mga update ng tagapag-alaga.' : 'Updates & logs from your raisers will appear here.';
   String get refreshReports => isFilipino ? 'I-refresh' : 'Refresh Reports';
@@ -199,4 +270,40 @@ class AppStrings {
   String get themeSubtitle => isFilipino ? 'Piliin ang light o dark mode' : 'Switch between light and dark mode';
   String get lightMode => isFilipino ? 'Light Mode' : 'Light Mode';
   String get darkMode => isFilipino ? 'Dark Mode' : 'Dark Mode';
+
+  // ================= Formatting Helpers =================
+  String formatStatus(String status) {
+    final s = status.toLowerCase().trim();
+    if (s == 'pending' || s == 'for_approval') return filterPending;
+    if (s == 'approved') return filterApproved;
+    if (s == 'distributed') return filterDistributed;
+    if (s == 'rejected') return filterRejected;
+    if (s == 'healthy') return statusHealthy;
+    if (s == 'sick') return statusSick;
+    if (s == 'under observation') return statusObservation;
+    if (s == 'quarantine') return statusQuarantine;
+    if (s == 'deceased' || s == 'dead') return statusDeceased;
+    if (s == 'food poisoning') return foodPoisoning;
+    if (s == 'fever') return fever;
+    if (s == 'diarrhea') return diarrhea;
+    if (s == 'injury') return injury;
+    return status;
+  }
+
+  String formatRelativeTime(dynamic dateVal) {
+    if (dateVal == null) return isFilipino ? 'Kani-kanina lang' : 'Recent';
+    try {
+      final DateTime dt = dateVal is DateTime ? dateVal : DateTime.parse(dateVal.toString());
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return isFilipino ? 'Kani-kanina lang' : 'Just now';
+      if (diff.inMinutes < 60) return isFilipino ? '${diff.inMinutes}m ang nakalipas' : '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return isFilipino ? '${diff.inHours}h ang nakalipas' : '${diff.inHours}h ago';
+      if (diff.inDays < 7) return isFilipino ? '${diff.inDays}d ang nakalipas' : '${diff.inDays}d ago';
+      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return '${months[dt.month - 1]} ${dt.day}';
+    } catch (_) {
+      return isFilipino ? 'Kamakailan' : 'Recent';
+    }
+  }
 }

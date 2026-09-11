@@ -209,6 +209,18 @@ class ActiveRaisersTab extends StatelessWidget {
         ? const Color(0xFF94A3B8)
         : (isPending ? const Color(0xFFFFAA00) : PiggyTrunkTheme.ptSuccess);
 
+    final dangerColor = const Color(0xFFFF758C);
+    final dangerBg = dangerColor.withValues(alpha: 0.1);
+    final dangerBorder = dangerColor.withValues(alpha: 0.35);
+
+    final successColor = isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess;
+    final successBg = successColor.withValues(alpha: 0.1);
+    final successBorder = successColor.withValues(alpha: 0.35);
+
+    final neutralColor = isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+    final neutralBg = neutralColor.withValues(alpha: 0.08);
+    final neutralBorder = neutralColor.withValues(alpha: 0.22);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -284,27 +296,27 @@ class ActiveRaisersTab extends StatelessWidget {
                         _buildActionButton(
                           icon: Icons.visibility_outlined,
                           label: 'Details',
-                          color: isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptPrimary,
-                          bgColor: isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : const Color(0xFFF1F5F9),
-                          borderColor: isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFE2E8F0),
+                          color: neutralColor,
+                          bgColor: neutralBg,
+                          borderColor: neutralBorder,
                           onTap: () => onShowDetails(row),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         _buildActionButton(
                           icon: Icons.check_circle_outline_rounded,
                           label: 'Approve',
-                          color: isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess,
-                          bgColor: isDark ? const Color(0xFF132F24) : const Color(0xFFECFDF5),
-                          borderColor: isDark ? const Color(0xFF1E4D3B) : const Color(0xFFA7F3D0),
+                          color: successColor,
+                          bgColor: successBg,
+                          borderColor: successBorder,
                           onTap: () => onApproveRaiser(row),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         _buildActionButton(
                           icon: Icons.cancel_outlined,
                           label: 'Reject',
-                          color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent,
-                          bgColor: isDark ? const Color(0xFF2E151B) : const Color(0xFFFEF2F2),
-                          borderColor: isDark ? const Color(0xFF4D232D) : const Color(0xFFFECACA),
+                          color: dangerColor,
+                          bgColor: dangerBg,
+                          borderColor: dangerBorder,
                           onTap: () => onDeleteRaiser(row),
                         ),
                       ],
@@ -316,27 +328,27 @@ class ActiveRaisersTab extends StatelessWidget {
                             _buildActionButton(
                               icon: Icons.visibility_outlined,
                               label: 'Details',
-                              color: isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptPrimary,
-                              bgColor: isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : const Color(0xFFF1F5F9),
-                              borderColor: isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFE2E8F0),
+                              color: neutralColor,
+                              bgColor: neutralBg,
+                              borderColor: neutralBorder,
                               onTap: () => onShowDetails(row),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             _buildActionButton(
                               icon: Icons.unarchive_outlined,
                               label: 'Restore',
-                              color: isDark ? PiggyTrunkTheme.ptSuccessDark : PiggyTrunkTheme.ptSuccess,
-                              bgColor: isDark ? const Color(0xFF132F24) : const Color(0xFFECFDF5),
-                              borderColor: isDark ? const Color(0xFF1E4D3B) : const Color(0xFFA7F3D0),
+                              color: successColor,
+                              bgColor: successBg,
+                              borderColor: successBorder,
                               onTap: () => onRestoreRaiser(row),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             _buildActionButton(
                               icon: Icons.delete_outline_rounded,
                               label: 'Delete',
-                              color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent,
-                              bgColor: isDark ? const Color(0xFF2E151B) : const Color(0xFFFEF2F2),
-                              borderColor: isDark ? const Color(0xFF4D232D) : const Color(0xFFFECACA),
+                              color: dangerColor,
+                              bgColor: dangerBg,
+                              borderColor: dangerBorder,
                               onTap: () => onDeleteRaiser(row),
                             ),
                           ],
@@ -347,27 +359,27 @@ class ActiveRaisersTab extends StatelessWidget {
                             _buildActionButton(
                               icon: Icons.visibility_outlined,
                               label: 'Details',
-                              color: isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptPrimary,
-                              bgColor: isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : const Color(0xFFF1F5F9),
-                              borderColor: isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFE2E8F0),
+                              color: neutralColor,
+                              bgColor: neutralBg,
+                              borderColor: neutralBorder,
                               onTap: () => onShowDetails(row),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             _buildActionButton(
                               icon: Icons.edit_outlined,
                               label: 'Edit',
-                              color: isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptPrimary,
-                              bgColor: isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : const Color(0xFFF1F5F9),
-                              borderColor: isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFE2E8F0),
+                              color: neutralColor,
+                              bgColor: neutralBg,
+                              borderColor: neutralBorder,
                               onTap: () => onEditRaiser(row),
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             _buildActionButton(
                               icon: Icons.archive_outlined,
                               label: 'Archive',
-                              color: isDark ? PiggyTrunkTheme.ptAccentDark : PiggyTrunkTheme.ptAccent,
-                              bgColor: isDark ? const Color(0xFF2E151B) : const Color(0xFFFEF2F2),
-                              borderColor: isDark ? const Color(0xFF4D232D) : const Color(0xFFFECACA),
+                              color: dangerColor,
+                              bgColor: dangerBg,
+                              borderColor: dangerBorder,
                               onTap: () => onArchiveRaiser(row),
                             ),
                           ],
@@ -391,7 +403,7 @@ class ActiveRaisersTab extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5.5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(6),
@@ -400,12 +412,12 @@ class ActiveRaisersTab extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 4),
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
             Text(
               label,
               style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: color,
               ),

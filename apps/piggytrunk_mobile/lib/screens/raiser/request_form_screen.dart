@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../utils/app_strings.dart';
+import '../../utils/capitalization_formatters.dart';
 import '../../widgets/piggy_toast.dart';
 
 class RequestFormScreen extends StatefulWidget {
@@ -61,6 +62,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   }
 
   Future<void> _submitRequest() async {
+    final strings = AppStrings.of(context);
     setState(() {
       _assignmentError = null;
       _quantityError = null;
@@ -69,12 +71,12 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     bool hasError = false;
 
     if (_selectedAssignmentId == null) {
-      _assignmentError = 'Paki-pili ang assignment batch para sa request.';
+      _assignmentError = strings.pleaseSelectBatch;
       hasError = true;
     }
 
     if (_quantity <= 0) {
-      _quantityError = 'Paki-lagay ang dami ng item na ire-request (dapat higit sa 0).';
+      _quantityError = strings.pleaseEnterQuantity;
       hasError = true;
     }
 
@@ -102,8 +104,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
       final notesText = _notesController.text.trim();
       final itemDesc = _selectedCategory == 'Feeds'
-          ? '$_quantity sako ng ${_selectedFeedType ?? "Feeds"}'
-          : '$_quantity pcs ng $_selectedCategory';
+          ? '$_quantity ${_quantity > 1 ? "sacks" : "sack"} of ${_selectedFeedType ?? "Feeds"}'
+          : '$_quantity ${_quantity > 1 ? "pcs" : "pc"} of $_selectedCategory';
       final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
       final notifMessage = notesText.isNotEmpty
           ? '$raiserName requested $itemDesc.\nNotes: "$notesText"'
@@ -121,7 +123,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       if (mounted) {
         PiggyToast.showSuccess(
           context,
-          'Matagumpay na naipadala ang Stock Request!',
+          strings.requestSuccessToast,
         );
         widget.onSuccess();
       }
@@ -129,7 +131,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       if (mounted) {
         PiggyToast.showError(
           context,
-          'Error: ${e.toString()}',
+          '${strings.requestFailedToast}: ${e.toString()}',
         );
       }
     } finally {
@@ -276,6 +278,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
     final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
@@ -293,7 +296,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           onPressed: widget.onBack,
         ),
         title: Text(
-          'Mag-request ng Supplies',
+          strings.requestSuppliesTitle,
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
             fontSize: 18,
@@ -322,7 +325,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                   children: [
                     // Active Batch Selection dropdown
                     Text(
-                      'Piliin ang Batch / Alagang Baboy',
+                      strings.selectBatchHogs,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -340,7 +343,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                               border: Border.all(color: borderColor),
                             ),
                             child: Text(
-                              'Walang aktibong batch na nakatalaga.',
+                              strings.noActiveBatchAssigned,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
                                 color: mutedColor,
@@ -388,7 +391,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                   widget.raiserData['pig_type']?.toString() ??
                                   'Unassigned';
                               final hogType = (rawHogType.isEmpty || rawHogType == 'N/A' || rawHogType.toLowerCase() == 'unassigned')
-                                  ? 'Unassigned'
+                                  ? strings.unassigned
                                   : rawHogType;
                               return DropdownMenuItem<BigInt>(
                                 value: BigInt.from(a['assignment_id'] as num),
@@ -434,7 +437,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
                     // Select Category Group
                     Text(
-                      'Piliin ang Kategorya',
+                      strings.selectCategory,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -446,8 +449,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       children: [
                         _buildCategoryCard(
                           name: 'Feeds',
-                          label: 'Feeds',
-                          sublabel: 'Pagkain',
+                          label: strings.feedsLabel,
+                          sublabel: strings.feedsSublabel,
                           imagePath: 'assets/feeds_icon.png',
                           accentColor: const Color(0xFF10B981),
                           isSelected: _selectedCategory == 'Feeds',
@@ -455,8 +458,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         const SizedBox(width: 10),
                         _buildCategoryCard(
                           name: 'Medicine',
-                          label: 'Medicine',
-                          sublabel: 'Gamot',
+                          label: strings.medicineLabel,
+                          sublabel: strings.medicineSublabel,
                           imagePath: 'assets/medicine_icon.png',
                           accentColor: const Color(0xFFEF4444),
                           isSelected: _selectedCategory == 'Medicine',
@@ -464,8 +467,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         const SizedBox(width: 10),
                         _buildCategoryCard(
                           name: 'Vitamins',
-                          label: 'Vitamins',
-                          sublabel: 'Bitamina',
+                          label: strings.vitaminsLabel,
+                          sublabel: strings.vitaminsSublabel,
                           imagePath: 'assets/vitamins_icon.png',
                           accentColor: const Color(0xFF8B5CF6),
                           isSelected: _selectedCategory == 'Vitamins',
@@ -476,7 +479,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
                     // Quantity Counter
                     Text(
-                      'Dami (Sako / Piraso)',
+                      strings.quantityBagsPcs,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -562,7 +565,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     // Feeds Category Selection (only show if category is Feeds)
                     if (_selectedCategory == 'Feeds') ...[
                       Text(
-                        'Uri ng Feeds',
+                        strings.feedTypeTitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -587,7 +590,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
                     // Notes/Explanation field
                     Text(
-                      'Karagdagang Impormasyon / Notes',
+                      strings.notesTitle,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -598,16 +601,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     TextField(
                       controller: _notesController,
                       maxLines: 4,
+                      keyboardType: TextInputType.text,
                       textCapitalization: TextCapitalization.sentences,
-                      inputFormatters: [
-                        SentenceCapitalizationFormatter(),
+                      inputFormatters: const [
+                        CapitalizeSentencesInputFormatter(),
                       ],
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         color: textColor,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Ipaliwanag kung para saan ito...',
+                        hintText: strings.notesHint,
                         hintStyle: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           color: mutedColor,
@@ -639,7 +643,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         onPressed: widget.activeAssignments.isEmpty ? null : _submitRequest,
                         icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
                         label: Text(
-                          'Kumpirmahin ang Request',
+                          strings.confirmRequestButton,
                           style: GoogleFonts.plusJakartaSans(
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
@@ -659,42 +663,6 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 ),
               ),
             ),
-    );
-  }
-}
-
-/// Auto-capitalizes the first letter of each sentence
-class SentenceCapitalizationFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) return newValue;
-
-    final text = newValue.text;
-    final buffer = StringBuffer();
-    bool capitalizeNext = true;
-
-    for (int i = 0; i < text.length; i++) {
-      final char = text[i];
-      if (capitalizeNext && RegExp(r'[a-zA-Z]').hasMatch(char)) {
-        buffer.write(char.toUpperCase());
-        capitalizeNext = false;
-      } else {
-        buffer.write(char);
-        if (char == '.' || char == '?' || char == '!' || char == '\n') {
-          capitalizeNext = true;
-        } else if (char.trim().isNotEmpty) {
-          capitalizeNext = false;
-        }
-      }
-    }
-
-    final newText = buffer.toString();
-    return newValue.copyWith(
-      text: newText,
-      selection: newValue.selection,
     );
   }
 }

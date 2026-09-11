@@ -4,6 +4,7 @@ import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/app_strings.dart';
+import '../../../utils/capitalization_formatters.dart';
 
 class CashierCheckoutModal extends StatefulWidget {
   final Order currentOrder;
@@ -350,6 +351,8 @@ class _CashierCheckoutModalState extends State<CashierCheckoutModal> {
                     if (_customerType == 'Walk-in') ...[
                       TextField(
                         controller: _walkInNameCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        inputFormatters: const [CapitalizeWordsInputFormatter()],
                         style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor),
                         decoration: InputDecoration(
                           hintText: 'Customer Name / Note',

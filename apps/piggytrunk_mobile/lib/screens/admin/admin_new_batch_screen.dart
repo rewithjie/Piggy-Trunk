@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_pending_hog_raisers_screen.dart';
+import '../../utils/capitalization_formatters.dart';
 
 class AdminMobileNewBatchScreen extends StatefulWidget {
   const AdminMobileNewBatchScreen({super.key});
@@ -390,6 +391,7 @@ class _AdminMobileNewBatchScreenState
             ),
             child: TextField(
               controller: _batchIdCtrl,
+              textCapitalization: TextCapitalization.characters,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -425,6 +427,8 @@ class _AdminMobileNewBatchScreenState
             ),
             child: TextField(
               controller: _batchNameCtrl,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -500,6 +504,8 @@ class _AdminMobileNewBatchScreenState
             ),
             child: TextField(
               controller: _raiserNameCtrl,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: const [CapitalizeWordsInputFormatter()],
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,

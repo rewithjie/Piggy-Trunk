@@ -23,7 +23,20 @@ class CapitalizeWordsInputFormatter extends TextInputFormatter {
         capitalizeNext = false;
       } else {
         buffer.write(char);
-        if (char == ' ' || char == '-' || char == '_' || char == '/' || char == '(' || char == ',' || char == '.') {
+        if (char == ' ' ||
+            char == '\t' ||
+            char == '\n' ||
+            char == '-' ||
+            char == '_' ||
+            char == '/' ||
+            char == '\\' ||
+            char == '(' ||
+            char == '[' ||
+            char == '{' ||
+            char == '"' ||
+            char == '\'' ||
+            char == ',' ||
+            char == '.') {
           capitalizeNext = true;
         }
       }
@@ -58,7 +71,7 @@ class CapitalizeSentencesInputFormatter extends TextInputFormatter {
         capitalizeNext = false;
       } else {
         buffer.write(char);
-        if (char == '.' || char == '!' || char == '?' || char == '\n') {
+        if (char == '.' || char == '!' || char == '?' || char == '\n' || char == ':') {
           capitalizeNext = true;
         }
       }
