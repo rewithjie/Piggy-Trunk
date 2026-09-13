@@ -9,6 +9,7 @@ import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
 import '../services/email_service.dart';
 import '../utils/responsive.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../main.dart';
 
 class UserApprovalsScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
 
   List<Map<String, dynamic>> _users = [];
   bool _isLoading = true;
+  bool _isTableRefreshing = false;
   int _currentTab = 0; // 0 = Active Partners, 1 = Pending Partners, 2 = Active Cashiers, 3 = Pending Cashiers
   String? _loadErrorMessage;
 
@@ -102,8 +104,12 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
     super.dispose();
   }
 
-  Future<void> _loadUsers({String keyword = ''}) async {
-    setState(() => _isLoading = true);
+  Future<void> _loadUsers({String keyword = '', bool isRefresh = false}) async {
+    if (isRefresh) {
+      setState(() => _isTableRefreshing = true);
+    } else {
+      setState(() => _isLoading = true);
+    }
     try {
       dynamic query = _supabase
           .from('app_users')
@@ -191,7 +197,10 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isTableRefreshing = false;
+        });
       }
     }
   }
@@ -391,22 +400,20 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/users',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/users',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
+                  child: SingleChildScrollView(
                           padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
@@ -561,8 +568,17 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: () => _loadUsers(keyword: _searchCtrl.text),
-                    icon: Icon(Icons.refresh_rounded, color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary, size: 24),
+                    onPressed: _isTableRefreshing ? null : () => _loadUsers(keyword: _searchCtrl.text, isRefresh: true),
+                    icon: _isTableRefreshing
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          )
+                        : Icon(Icons.refresh_rounded, color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary, size: 24),
                     tooltip: 'Refresh Users List',
                     style: IconButton.styleFrom(
                       backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
@@ -573,7 +589,20 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              LayoutBuilder(
+              if (_isLoading || _isTableRefreshing)
+                TableSkeletonLoader(
+                  isDark: _isDark,
+                  minWidth: 650,
+                  cardBg: _cardBg,
+                  cardBorder: _cardBorder,
+                  headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                  headers: const ['FULL NAME', 'EMAIL ADDRESS', 'ROLE TYPE', 'STATUS', 'ACTIONS'],
+                  columnFlexes: const [3, 4, 2, 2, 4],
+                  rowCount: 6,
+                  borderRadius: 8,
+                )
+              else
+                LayoutBuilder(
                 builder: (context, constraints) {
                   final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
                   return Scrollbar(

@@ -8,6 +8,7 @@ import '../services/auth_session_service.dart';
 import '../utils/screen_fit_util.dart';
 import '../widgets/piggy_toast.dart';
 import '../widgets/role_selection_modal.dart';
+import '../widgets/forgot_password_modal.dart';
 
 const String googleLogoSvg = '''
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -39,6 +40,30 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _passwordError;
 
   final GoogleAuthService _googleAuthService = GoogleAuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  bool _isDefaultSystemEmail(String text) {
+    final cleaned = text.trim().toLowerCase();
+    if (cleaned.isEmpty) return false;
+    return cleaned == 'admin' ||
+        cleaned == 'admin@piggytrunk.com' ||
+        cleaned == 'admin@gmail.com' ||
+        cleaned == 'piggytrunk@gmail.com';
+  }
+
+  bool _isValidEmailFormat(String text) {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty) return false;
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailRegex.hasMatch(cleaned);
+  }
 
   @override
   void didChangeDependencies() {
@@ -969,22 +994,88 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Forgot Password Link
                               Align(
                                 alignment: Alignment.centerRight,
-                                child: GestureDetector(
-                                  onTap: () {
-                                    PiggyToast.showInfo(
-                                      context,
-                                      'Please contact the Admin to reset your password.',
-                                      title: 'Password Reset',
+                                child: Builder(
+                                  builder: (context) {
+                                    final currentInput = _usernameController.text.trim();
+                                    final isDefault = _isDefaultSystemEmail(currentInput);
+                                    final isValidPersonal = _isValidEmailFormat(currentInput) && !isDefault;
+
+                                    // State 1: Default System Account -> Locked, NO POPUP MODAL
+                                    if (isDefault) {
+                                      return Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.lock_rounded, size: 13, color: Colors.grey.shade500),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Forgot Password?',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey.shade500,
+                                              decoration: TextDecoration.lineThrough,
+                                              decorationColor: Colors.grey.shade400,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    // State 2: Valid Personal Email -> Highlighted Blue with mail icon, opens modal
+                                    if (isValidPersonal) {
+                                      return GestureDetector(
+                                        onTap: () {
+                                          ForgotPasswordModal.show(
+                                            context,
+                                            initialEmail: currentInput,
+                                            onPasswordResetSuccess: (email) {
+                                              setState(() {
+                                                _usernameController.text = email;
+                                                _passwordController.clear();
+                                                _errorMessage = null;
+                                                _identifierError = null;
+                                                _passwordError = null;
+                                              });
+                                            },
+                                          );
+                                        },
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.mark_email_read_outlined, size: 14, color: Color(0xFF2366CC)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'Forgot Password?',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFF2366CC),
+                                                decoration: TextDecoration.underline,
+                                                decorationColor: const Color(0xFF2366CC),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
+
+                                    // State 3: Incomplete / invalid format / empty -> Locked & Muted gray, NO POPUP MODAL
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.lock_outline_rounded, size: 13, color: Colors.grey.shade400),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Forgot Password?',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ],
                                     );
                                   },
-                                  child: Text(
-                                    'Forgot Password?',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF2366CC),
-                                    ),
-                                  ),
                                 ),
                               ),
                               SizedBox(height: fieldSpacing * 1.2),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../common/shimmer_loading.dart';
 
 class BatchTableView extends StatelessWidget {
   final List<Map<String, dynamic>> batches;
@@ -9,6 +10,7 @@ class BatchTableView extends StatelessWidget {
   final String selectedStatusFilter;
   final String? errorMessage;
   final VoidCallback? onRefresh;
+  final bool isRefreshing;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String> onFilterChanged;
   final VoidCallback onCreateBatch;
@@ -24,6 +26,7 @@ class BatchTableView extends StatelessWidget {
     required this.selectedStatusFilter,
     this.errorMessage,
     this.onRefresh,
+    this.isRefreshing = false,
     required this.onSearchChanged,
     required this.onFilterChanged,
     required this.onCreateBatch,
@@ -155,8 +158,22 @@ class BatchTableView extends StatelessWidget {
               _buildSearchAndFilters(isMobile, isDark, fieldBg, fieldBorder, fieldFocus, fieldText, hintText),
               const SizedBox(height: 16),
 
-              // Responsive Table / Card Layout
-              LayoutBuilder(
+              // Table Content
+              if (isRefreshing)
+                TableSkeletonLoader(
+                  isDark: isDark,
+                  minWidth: 650,
+                  cardBg: cardBg,
+                  cardBorder: cardBorder,
+                  headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                  headers: const ['BATCH NAME / CODE', 'DATE CREATED', 'STATUS', 'ACTIONS'],
+                  columnFlexes: const [4, 3, 2, 2],
+                  rowCount: 5,
+                  borderRadius: 12,
+                )
+              else
+                // Responsive Table / Card Layout
+                LayoutBuilder(
                 builder: (context, constraints) {
                   final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
 
@@ -295,15 +312,25 @@ class BatchTableView extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: isMobile ? 15 : 18,
-                    fontWeight: FontWeight.w800,
-                    color: titleColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                isRefreshing
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: ShimmerBox(
+                          width: isMobile ? 36 : 48,
+                          height: isMobile ? 15 : 18,
+                          borderRadius: BorderRadius.circular(4),
+                          isDark: isDark,
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: isMobile ? 15 : 18,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ],
             ),
           ),
@@ -375,8 +402,17 @@ class BatchTableView extends StatelessWidget {
                   if (onRefresh != null) ...[
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: onRefresh,
-                      icon: Icon(Icons.refresh_rounded, color: fieldFocus),
+                      onPressed: isRefreshing ? null : onRefresh,
+                      icon: isRefreshing
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: fieldFocus,
+                              ),
+                            )
+                          : Icon(Icons.refresh_rounded, color: fieldFocus),
                       tooltip: 'Refresh Batches',
                     ),
                   ],
@@ -394,8 +430,17 @@ class BatchTableView extends StatelessWidget {
             if (onRefresh != null) ...[
               const SizedBox(width: 10),
               IconButton(
-                onPressed: onRefresh,
-                icon: Icon(Icons.refresh_rounded, color: fieldFocus),
+                onPressed: isRefreshing ? null : onRefresh,
+                icon: isRefreshing
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: fieldFocus,
+                        ),
+                      )
+                    : Icon(Icons.refresh_rounded, color: fieldFocus),
                 tooltip: 'Refresh Batches',
               ),
             ],

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../utils/responsive.dart';
 import '../main.dart';
 
@@ -33,6 +34,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
   Color get _surfaceDark => _isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
+  Color get _surfaceSoftDark => _isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : PiggyTrunkTheme.ptSurfaceSoft;
   Color get _borderDark => _isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
   Color get _textDark => _isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
   Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
@@ -373,45 +375,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/dashboard',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          /// REUSABLE TOP BAR
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
+            child: Row(
               children: [
-                /// REUSABLE TOP BAR
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/dashboard',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 /// MAIN DASHBOARD CONTENT
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.all(isMobile ? 14 : 16),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final contentWidth = constraints.maxWidth > 1400
-                                  ? 1400.0
-                                  : constraints.maxWidth;
-                              return Align(
-                                alignment: Alignment.topCenter,
-                                child: Container(
-                                  width: contentWidth,
-                                  decoration: isMobile
-                                      ? null
-                                      : BoxDecoration(
-                                          color: _surfaceDark.withValues(alpha: 0.5),
-                                          border: Border.all(
-                                            color: _borderDark,
-                                            width: 1,
-                                          ),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                  padding: EdgeInsets.all(isMobile ? 0 : 32),
-                                  child: Column(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(isMobile ? 14 : 16),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final contentWidth = constraints.maxWidth > 1400
+                            ? 1400.0
+                            : constraints.maxWidth;
+                        return Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: contentWidth,
+                            decoration: isMobile
+                                ? null
+                                : BoxDecoration(
+                                    color: _surfaceDark.withValues(alpha: 0.5),
+                                    border: Border.all(
+                                      color: _borderDark,
+                                      width: 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                            padding: EdgeInsets.all(isMobile ? 0 : 32),
+                            child: _isLoading
+                                ? _buildDashboardSkeleton(isMobile)
+                                : Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       /// Dashboard Title + Refresh
@@ -965,6 +968,186 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }),
         );
       },
+    );
+  }
+
+  Widget _buildDashboardSkeleton(bool isMobile) {
+    final isVeryNarrow = MediaQuery.of(context).size.width < 500;
+
+    return ShimmerProvider(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(
+                width: isMobile ? 140 : 180,
+                height: isMobile ? 24 : 32,
+                borderRadius: BorderRadius.circular(6),
+                isDark: true,
+              ),
+              ShimmerBox(
+                width: 36,
+                height: 36,
+                borderRadius: BorderRadius.circular(10),
+                isDark: true,
+              ),
+            ],
+          ),
+          SizedBox(height: isMobile ? 14 : 24),
+
+          // 2 Real KPI Cards (NUMBER OF HOG BATCH & TOTAL CURRENT INVESTMENT)
+          if (isVeryNarrow)
+            Column(
+              children: [
+                _buildSkeletonKpiCard(isMobile, 'NUMBER OF HOG BATCH', 60),
+                const SizedBox(height: 12),
+                _buildSkeletonKpiCard(isMobile, 'TOTAL CURRENT INVESTMENT', 120),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: _buildSkeletonKpiCard(isMobile, 'NUMBER OF HOG BATCH', 60)),
+                SizedBox(width: isMobile ? 12 : 20),
+                Expanded(child: _buildSkeletonKpiCard(isMobile, 'TOTAL CURRENT INVESTMENT', 120)),
+              ],
+            ),
+          SizedBox(height: isMobile ? 20 : 32),
+
+          // Real Investment Allocation Card (FATTENING & SOW)
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(isMobile ? 14 : 32),
+            decoration: BoxDecoration(
+              color: _surfaceDark,
+              border: Border.all(color: _borderDark, width: 1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'INVESTMENT ALLOCATION',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: isMobile ? 12 : 14,
+                            fontWeight: FontWeight.bold,
+                            color: _mutedDark,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ShimmerBox(width: 85, height: 11, borderRadius: BorderRadius.circular(3), isDark: true),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Text(
+                          'Total: ',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: isMobile ? 12 : 14,
+                            color: _mutedDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        ShimmerBox(width: 70, height: 14, borderRadius: BorderRadius.circular(4), isDark: true),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 16 : 28),
+                if (isVeryNarrow)
+                  Column(
+                    children: [
+                      _buildSkeletonSubCard('FATTENING', 120, isMobile),
+                      const SizedBox(height: 12),
+                      _buildSkeletonSubCard('SOW', 60, isMobile),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: _buildSkeletonSubCard('FATTENING', 120, isMobile)),
+                      SizedBox(width: isMobile ? 12 : 20),
+                      Expanded(child: _buildSkeletonSubCard('SOW', 60, isMobile)),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonKpiCard(bool isMobile, String label, double valueWidth) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(isMobile ? 14 : 20),
+      decoration: BoxDecoration(
+        color: _surfaceDark,
+        border: Border.all(color: _borderDark, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: isMobile ? 10 : 12,
+              fontWeight: FontWeight.w600,
+              color: _mutedDark,
+              letterSpacing: 0.4,
+            ),
+          ),
+          SizedBox(height: isMobile ? 8 : 16),
+          ShimmerBox(
+            width: valueWidth,
+            height: isMobile ? 22 : 28,
+            borderRadius: BorderRadius.circular(6),
+            isDark: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonSubCard(String label, double valueWidth, bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 14 : 20),
+      decoration: BoxDecoration(
+        color: _surfaceSoftDark,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: isMobile ? 10 : 12,
+              fontWeight: FontWeight.bold,
+              color: _mutedDark,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ShimmerBox(
+            width: valueWidth,
+            height: isMobile ? 20 : 26,
+            borderRadius: BorderRadius.circular(6),
+            isDark: true,
+          ),
+        ],
+      ),
     );
   }
 }

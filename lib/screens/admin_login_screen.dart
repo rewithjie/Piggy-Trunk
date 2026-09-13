@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
+import '../services/email_service.dart';
 import '../widgets/piggy_trunk_logo.dart';
 import '../styles/login_styles.dart';
 
@@ -37,8 +41,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   String? _emailError;
   String? _passwordError;
 
+  bool _needsPasswordActivation = false;
+  String _lastCheckedEmail = '';
+  Timer? _emailDebounceTimer;
+
   final _formKey = GlobalKey<FormState>();
   final AuthService _authService = AuthService();
+
 
   @override
   void initState() {
@@ -64,6 +73,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
       if (mounted) setState(() {});
     });
 
+    _emailController.addListener(_onEmailChanged);
+
     _loadRememberedCredentials();
 
     // Auto-redirect if session already exists
@@ -73,6 +84,76 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
         Navigator.of(context).pushReplacementNamed('/dashboard');
       }
     });
+  }
+
+  void _onEmailChanged() {
+    if (mounted) setState(() {});
+    _emailDebounceTimer?.cancel();
+    final text = _emailController.text.trim();
+    if (_isValidEmailFormat(text) && !_isDefaultSystemEmail(text)) {
+      _emailDebounceTimer = Timer(const Duration(milliseconds: 350), () {
+        if (mounted) {
+          _checkAdminActivationStatus(text);
+        }
+      });
+    } else {
+      if (_needsPasswordActivation) {
+        setState(() {
+          _needsPasswordActivation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _checkAdminActivationStatus(String email) async {
+    final cleaned = email.trim().toLowerCase();
+    if (cleaned == _lastCheckedEmail) return;
+    _lastCheckedEmail = cleaned;
+
+    try {
+      // 1. Try RPC check if function is present
+      try {
+        final dynamic rpcRes = await Supabase.instance.client.rpc(
+          'admin_check_account_status',
+          params: {'email_input': cleaned},
+        );
+        if (rpcRes is Map && mounted && _emailController.text.trim().toLowerCase() == cleaned) {
+          final needsAct = rpcRes['needs_activation'] == true;
+          setState(() {
+            _needsPasswordActivation = needsAct;
+          });
+          return;
+        }
+      } catch (_) {}
+
+      // 2. Direct database query fallback
+      final userRecord = await Supabase.instance.client
+          .from('app_users')
+          .select('role, status, password_hash')
+          .eq('email', cleaned)
+          .maybeSingle();
+
+      if (mounted && _emailController.text.trim().toLowerCase() == cleaned) {
+        if (userRecord != null) {
+          final role = userRecord['role']?.toString().toLowerCase() ?? '';
+          final status = userRecord['status']?.toString().toLowerCase() ?? '';
+          final pwdHash = userRecord['password_hash']?.toString().trim();
+          final isAdmin = role.contains('admin');
+
+          final needsAct = isAdmin &&
+              (status == 'pending' || pwdHash == null || pwdHash.isEmpty);
+
+          setState(() {
+            _needsPasswordActivation = needsAct;
+          });
+          return;
+        }
+
+        setState(() {
+          _needsPasswordActivation = false;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadRememberedCredentials() async {
@@ -85,11 +166,13 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
         _emailController.text = savedEmail;
         _rememberMe = rememberMeStatus;
       });
+      _onEmailChanged();
     }
   }
 
   @override
   void dispose() {
+    _emailDebounceTimer?.cancel();
     _logoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -115,10 +198,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   Future<void> _handleLogin() async {
+    if (_needsPasswordActivation) {
+      _showForgotPasswordDialog(isFirstTimeActivation: true);
+      return;
+    }
+
     _clearMessages();
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+
 
     String? emailErr;
     String? passwordErr;
@@ -538,6 +627,152 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                 height: 1.2,
               ));
 
+    if (_needsPasswordActivation) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'PASSWORD',
+                style: LoginStyles.labelStyle,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _brandColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: _brandColor.withValues(alpha: 0.22)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_clock_outlined, size: 12, color: _brandColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      'SETUP REQUIRED',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _brandColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Locked password field representation
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: LoginStyles.fieldBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: LoginStyles.fieldBorder),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_outline_rounded, size: 18, color: LoginStyles.fieldIconColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Password field locked for initial setup',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: LoginStyles.hintText,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Clean, brand-aligned activation card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _brandPanelBg.withValues(alpha: 0.40),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _actionColor.withValues(alpha: 0.30)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: _brandColor.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.verified_user_rounded, size: 18, color: _brandColor),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'First-Time Admin Setup Required',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _brandColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'This personal Gmail is registered as Admin. Set your unique password via 6-digit OTP to activate your login.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11.5,
+                              color: LoginStyles.subtitleText,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showForgotPasswordDialog(isFirstTimeActivation: true),
+                    icon: const Icon(Icons.key_rounded, size: 16, color: Colors.white),
+                    label: Text(
+                      'SET ADMIN PASSWORD VIA OTP',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _actionColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -597,6 +832,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
   }
 
   Widget _buildFormMeta() {
+    if (_needsPasswordActivation) {
+      return const SizedBox.shrink();
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -652,41 +890,157 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     );
   }
 
+  bool _isValidEmailFormat(String text) {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty) return false;
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailRegex.hasMatch(cleaned);
+  }
+
+  bool _isDefaultSystemEmail(String text) {
+    final cleaned = text.trim().toLowerCase();
+    if (cleaned.isEmpty) return false;
+    return cleaned == 'admin' ||
+        cleaned == 'admin@piggytrunk.com' ||
+        cleaned == 'admin@gmail.com' ||
+        cleaned == 'piggytrunk@gmail.com';
+  }
+
   Widget _buildForgotPasswordLink() {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: _showForgotPasswordDialog,
-        child: Text(
-          'FORGOT PASSWORD?',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: LoginStyles.labelText,
-            letterSpacing: 0,
-            decoration: TextDecoration.underline,
+    final currentInput = _emailController.text.trim();
+    final isDefaultAccount = _isDefaultSystemEmail(currentInput);
+    final isValidPersonal = _isValidEmailFormat(currentInput) && !isDefaultAccount;
+
+    // State 1: Default System Account -> Non-clickable locked state with highlight badge (NO POPUP MODAL)
+    if (isDefaultAccount) {
+      return Tooltip(
+        message: 'Default system account is locked from password reset.\nSign in and change your email in Settings.',
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_rounded, size: 13, color: Colors.grey.shade500),
+              const SizedBox(width: 4),
+              Text(
+                'FORGOT PASSWORD?',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey.shade500,
+                  letterSpacing: 0,
+                  decoration: TextDecoration.lineThrough,
+                  decorationColor: Colors.grey.shade400,
+                ),
+              ),
+            ],
           ),
+        ),
+      );
+    }
+
+    // State 2: Valid Personal Email format -> Active & Highlighted Blue (Clickable, opens recovery dialog)
+    if (isValidPersonal) {
+      return Tooltip(
+        message: 'Reset password for $currentInput',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: _showForgotPasswordDialog,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.mark_email_read_outlined, size: 13, color: Color(0xFF2563EB)),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'FORGOT PASSWORD?',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                      letterSpacing: 0,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // State 3: Empty, incomplete, or invalid format -> Non-clickable locked state (NO POPUP MODAL)
+    final emptyOrInvalidHint = currentInput.isEmpty
+        ? 'Enter your personal Gmail above to enable password reset'
+        : 'Enter a valid personal Gmail address (e.g. name@gmail.com)';
+
+    return Tooltip(
+      message: emptyOrInvalidHint,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 12, color: Colors.grey.shade400),
+            const SizedBox(width: 4),
+            Text(
+              'FORGOT PASSWORD?',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade400,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  void _showForgotPasswordDialog() {
+  void _showForgotPasswordDialog({bool isFirstTimeActivation = false}) {
     final resetEmailController = TextEditingController(
-      text: _emailController.text.contains('@') ? _emailController.text.trim() : '',
+      text: _isValidEmailFormat(_emailController.text) ? _emailController.text.trim() : '',
     );
+    final otpController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+
+    int step = 1; // 1: Request OTP, 2: Verify & Set New Password
+    String targetEmail = '';
+    String? localGeneratedOtp;
     String? dialogError;
     bool isSubmitting = false;
+    bool isNewPasswordVisible = false;
+    bool isConfirmPasswordVisible = false;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogCtx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final dialogTitle = isFirstTimeActivation
+                ? (step == 1 ? 'Activate Admin Account' : 'Set Admin Password')
+                : (step == 1 ? 'Forgot Password' : 'Enter Verification Code');
+            final dialogIcon = isFirstTimeActivation
+                ? (step == 1 ? Icons.verified_user_rounded : Icons.key_rounded)
+                : (step == 1 ? Icons.lock_reset_rounded : Icons.mark_email_read_rounded);
+            final step1Description = isFirstTimeActivation
+                ? 'This personal Gmail is registered as Administrator. Click below to receive a 6-digit verification code to set your new admin password.'
+                : 'Enter your registered email or personal Gmail address. We will send you a 6-digit verification code to reset your password.';
+
             return AlertDialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
               title: Row(
                 children: [
                   Container(
@@ -695,148 +1049,573 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                       color: _brandColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.lock_reset_rounded, color: _brandColor, size: 22),
+                    child: Icon(
+                      dialogIcon,
+                      color: _brandColor,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Reset Password',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: _brandColor,
+                  Expanded(
+                    child: Text(
+                      dialogTitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _brandColor,
+                      ),
                     ),
                   ),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Enter your registered email or Gmail address. We will send you a secure link to reset your password.',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: LoginStyles.subtitleText,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: resetEmailController,
-                    keyboardType: TextInputType.emailAddress,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: LoginStyles.brandText,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'admin@gmail.com',
-                      hintStyle: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: LoginStyles.hintText,
-                      ),
-                      prefixIcon: const Icon(Icons.email_outlined, size: 18, color: LoginStyles.fieldIconColor),
-                      filled: true,
-                      fillColor: LoginStyles.fieldBackground,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+              content: SizedBox(
+                width: 440,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (step == 1) ...[
+                        Text(
+                          step1Description,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: LoginStyles.subtitleText,
+                            height: 1.45,
+                          ),
                         ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                        const SizedBox(height: 18),
+                        TextField(
+                          controller: resetEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+
+                            color: LoginStyles.brandText,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: 'Gmail / Email Address',
+                            hintText: 'admin@gmail.com',
+                            hintStyle: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: LoginStyles.hintText,
+                            ),
+                            prefixIcon: const Icon(Icons.email_outlined, size: 18, color: LoginStyles.fieldIconColor),
+                            filled: true,
+                            fillColor: LoginStyles.fieldBackground,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: _brandColor,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          onChanged: (_) {
+                            if (dialogError != null) {
+                              setDialogState(() => dialogError = null);
+                            }
+                          },
                         ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: _brandColor,
-                          width: 1.5,
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFBBF7D0)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'A 6-digit code was sent to $targetEmail. Please check your inbox or spam.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: const Color(0xFF166534),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                    onChanged: (_) {
-                      if (dialogError != null) {
-                        setDialogState(() => dialogError = null);
-                      }
-                    },
-                  ),
-                  if (dialogError != null) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      dialogError!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: LoginStyles.errorText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.poppins(
-                      color: LoginStyles.labelText,
-                      fontWeight: FontWeight.w600,
-                    ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '6-Digit Verification Code',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: LoginStyles.brandText,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: otpController,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          style: GoogleFonts.sourceCodePro(
+                            fontSize: 22,
+                            letterSpacing: 8,
+                            fontWeight: FontWeight.w700,
+                            color: _brandColor,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '------',
+                            hintStyle: GoogleFonts.sourceCodePro(
+                              fontSize: 22,
+                              letterSpacing: 8,
+                              color: Colors.grey.shade400,
+                            ),
+                            filled: true,
+                            fillColor: LoginStyles.fieldBackground,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: dialogError != null ? LoginStyles.errorBorder : LoginStyles.fieldBorder,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: _brandColor, width: 1.5),
+                            ),
+                          ),
+                          onChanged: (_) {
+                            if (dialogError != null) {
+                              setDialogState(() => dialogError = null);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'New Password',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: LoginStyles.brandText,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: newPasswordController,
+                          obscureText: !isNewPasswordVisible,
+                          style: GoogleFonts.poppins(fontSize: 13, color: LoginStyles.brandText),
+                          decoration: InputDecoration(
+                            hintText: 'Enter new password (min. 6 characters)',
+                            hintStyle: GoogleFonts.poppins(fontSize: 12, color: LoginStyles.hintText),
+                            prefixIcon: const Icon(Icons.lock_outline, size: 18, color: LoginStyles.fieldIconColor),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                isNewPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                size: 18,
+                                color: LoginStyles.fieldIconColor,
+                              ),
+                              onPressed: () {
+                                setDialogState(() => isNewPasswordVisible = !isNewPasswordVisible);
+                              },
+                            ),
+                            filled: true,
+                            fillColor: LoginStyles.fieldBackground,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onChanged: (_) {
+                            if (dialogError != null) setDialogState(() => dialogError = null);
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Confirm New Password',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: LoginStyles.brandText,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: confirmPasswordController,
+                          obscureText: !isConfirmPasswordVisible,
+                          style: GoogleFonts.poppins(fontSize: 13, color: LoginStyles.brandText),
+                          decoration: InputDecoration(
+                            hintText: 'Confirm new password',
+                            hintStyle: GoogleFonts.poppins(fontSize: 12, color: LoginStyles.hintText),
+                            prefixIcon: const Icon(Icons.lock_clock_outlined, size: 18, color: LoginStyles.fieldIconColor),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                isConfirmPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                size: 18,
+                                color: LoginStyles.fieldIconColor,
+                              ),
+                              onPressed: () {
+                                setDialogState(() => isConfirmPasswordVisible = !isConfirmPasswordVisible);
+                              },
+                            ),
+                            filled: true,
+                            fillColor: LoginStyles.fieldBackground,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onChanged: (_) {
+                            if (dialogError != null) setDialogState(() => dialogError = null);
+                          },
+                        ),
+                      ],
+                      if (dialogError != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 16),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  dialogError!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11.5,
+                                    color: LoginStyles.errorText,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
+              ),
+              actions: [
+                if (step == 2)
+                  TextButton(
+                    onPressed: isSubmitting
+                        ? null
+                        : () {
+                            setDialogState(() {
+                              step = 1;
+                              dialogError = null;
+                            });
+                          },
+                    child: Text(
+                      'Back',
+                      style: GoogleFonts.poppins(
+                        color: LoginStyles.labelText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  TextButton(
+                    onPressed: isSubmitting ? null : () => Navigator.of(dialogCtx).pop(),
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.poppins(
+                        color: LoginStyles.labelText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ElevatedButton(
                   onPressed: isSubmitting
                       ? null
                       : () async {
-                          final email = resetEmailController.text.trim();
-                          if (email.isEmpty || !email.contains('@')) {
-                            setDialogState(() {
-                              dialogError = 'Please enter a valid email address.';
-                            });
-                            return;
-                          }
-
-                          setDialogState(() {
-                            isSubmitting = true;
-                            dialogError = null;
-                          });
-
-                          try {
-                            await Supabase.instance.client.auth.resetPasswordForEmail(
-                              email,
-                            );
-
-                            if (dialogCtx.mounted) {
-                              Navigator.of(dialogCtx).pop();
+                          if (step == 1) {
+                            // --- Step 1: Send OTP ---
+                            final email = resetEmailController.text.trim().toLowerCase();
+                            if (email.isEmpty || !_isValidEmailFormat(email)) {
+                              setDialogState(() {
+                                dialogError = 'Please enter a valid Gmail / email address (e.g. name@gmail.com).';
+                              });
+                              return;
                             }
 
-                            if (mounted) {
-                              setState(() {
-                                _successMessage =
-                                    'Password reset link sent to $email! Please check your inbox or spam folder.';
+                            if (_isDefaultSystemEmail(email)) {
+                              setDialogState(() {
+                                dialogError =
+                                    'The default system account ($email) cannot receive a reset code. Please enter your connected personal Gmail address.';
+                              });
+                              return;
+                            }
+
+                            setDialogState(() {
+                              isSubmitting = true;
+                              dialogError = null;
+                            });
+
+                            // 0. Verify that the account exists and has Administrator role
+                            try {
+                              final userRecord = await Supabase.instance.client
+                                  .from('app_users')
+                                  .select('user_id, email, role')
+                                  .eq('email', email)
+                                  .maybeSingle();
+
+                              if (userRecord == null) {
+                                setDialogState(() {
+                                  dialogError = 'No registered administrator account found for "$email".';
+                                  isSubmitting = false;
+                                });
+                                return;
+                              }
+
+                              final role = (userRecord['role'] ?? '').toString().toLowerCase();
+                              final isAdmin = role == 'admin' ||
+                                              role == 'system administrator' ||
+                                              role == 'administrator' ||
+                                              role.contains('admin');
+
+                              if (!isAdmin) {
+                                final displayRole = role == 'hog_raiser'
+                                    ? 'Hog Raiser'
+                                    : (role == 'partner' ? 'Partner Investor' : (role == 'cashier' ? 'Cashier' : role));
+                                setDialogState(() {
+                                  dialogError =
+                                      'This account is registered as a $displayRole. Password reset on the Admin Portal is exclusively for Administrator accounts. Please use the Piggy Trunk Mobile app to reset your password.';
+                                  isSubmitting = false;
+                                });
+                                return;
+                              }
+                            } catch (checkErr) {
+                              debugPrint('Admin role check notice: $checkErr');
+                            }
+
+                            try {
+                              // Generate 6-digit random code
+                              final generatedOtp = (100000 + Random().nextInt(900000)).toString();
+
+                              // 1. Register code in database via RPC
+                              bool registeredInDb = false;
+                              try {
+                                final dynamic rpcRes = await Supabase.instance.client.rpc(
+                                  'admin_request_password_reset_otp',
+                                  params: {
+                                    'target_email': email,
+                                    'otp_code': generatedOtp,
+                                  },
+                                );
+                                if (rpcRes != null && (rpcRes['success'] == true || rpcRes['success'] == 'true')) {
+                                  registeredInDb = true;
+                                } else if (rpcRes != null && rpcRes['message'] != null) {
+                                  // Account does not exist in the database or wrong role!
+                                  setDialogState(() {
+                                    dialogError = rpcRes['message'].toString();
+                                    isSubmitting = false;
+                                  });
+                                  return;
+                                }
+                              } catch (rpcErr) {
+                                debugPrint('RPC error: $rpcErr');
+                              }
+
+                              // Fallback check if RPC function not found or failed
+                              if (!registeredInDb) {
+                                try {
+                                  await Supabase.instance.client.from('admin_password_resets').insert({
+                                    'email': email,
+                                    'otp_code': generatedOtp,
+                                    'expires_at': DateTime.now().add(const Duration(minutes: 10)).toIso8601String(),
+                                    'used': false,
+                                  });
+                                  registeredInDb = true;
+                                } catch (dbErr) {
+                                  debugPrint('Fallback check error: $dbErr');
+                                  setDialogState(() {
+                                    dialogError = 'Failed to verify account in database: $dbErr';
+                                    isSubmitting = false;
+                                  });
+                                  return;
+                                }
+                              }
+
+                              // 2. Dispatch OTP via Gmail SMTP service
+                              final emailSent = await EmailService().sendPasswordResetOtpEmail(
+                                recipientEmail: email,
+                                otpCode: generatedOtp,
+                              );
+
+                              if (!emailSent) {
+                                // In local development / testing, allow proceeding to Step 2 with the generated OTP
+                                if (kDebugMode) {
+                                  debugPrint('[DEV OTP] Password reset verification code: $generatedOtp');
+                                  setDialogState(() {
+                                    targetEmail = email;
+                                    localGeneratedOtp = generatedOtp;
+                                    step = 2;
+                                    isSubmitting = false;
+                                    dialogError = null;
+                                  });
+                                  if (dialogCtx.mounted) {
+                                    ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                                      SnackBar(
+                                        content: Text('[Dev Mode] SMTP notice: Your OTP code is $generatedOtp'),
+                                        duration: const Duration(seconds: 12),
+                                        behavior: SnackBarBehavior.floating,
+                                        backgroundColor: const Color(0xFF18314F),
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                setDialogState(() {
+                                  dialogError =
+                                      'Unable to send verification email. Please verify your internet connection or try again shortly.';
+                                  isSubmitting = false;
+                                });
+                                return;
+                              }
+
+                              setDialogState(() {
+                                targetEmail = email;
+                                localGeneratedOtp = generatedOtp;
+                                step = 2;
+                                isSubmitting = false;
+                                dialogError = null;
+                              });
+                            } catch (e) {
+                              setDialogState(() {
+                                dialogError = 'Failed to generate reset code: $e';
+                                isSubmitting = false;
                               });
                             }
-                          } on AuthException catch (authErr) {
+                          } else {
+                            // --- Step 2: Verify & Reset Password ---
+                            final enteredOtp = otpController.text.trim();
+                            final newPass = newPasswordController.text.trim();
+                            final confirmPass = confirmPasswordController.text.trim();
+
+                            if (enteredOtp.length != 6) {
+                              setDialogState(() {
+                                dialogError = 'Please enter the complete 6-digit code.';
+                              });
+                              return;
+                            }
+
+                            if (newPass.length < 6) {
+                              setDialogState(() {
+                                dialogError = 'Password must be at least 6 characters.';
+                              });
+                              return;
+                            }
+
+                            if (newPass != confirmPass) {
+                              setDialogState(() {
+                                dialogError = 'Passwords do not match.';
+                              });
+                              return;
+                            }
+
                             setDialogState(() {
-                              dialogError = authErr.message;
-                              isSubmitting = false;
+                              isSubmitting = true;
+                              dialogError = null;
                             });
-                          } catch (e) {
-                            setDialogState(() {
-                              dialogError = 'Failed to send reset link: $e';
-                              isSubmitting = false;
-                            });
+
+                            try {
+                              bool passwordResetSuccess = false;
+                              String? failureMsg;
+
+                              // 1. Try RPC password reset
+                              try {
+                                final dynamic rpcRes = await Supabase.instance.client.rpc(
+                                  'admin_verify_otp_and_reset_password',
+                                  params: {
+                                    'target_email': targetEmail,
+                                    'otp_code': enteredOtp,
+                                    'new_password': newPass,
+                                  },
+                                );
+                                if (rpcRes != null && (rpcRes['success'] == true || rpcRes['success'] == 'true')) {
+                                  passwordResetSuccess = true;
+                                } else if (rpcRes != null && rpcRes['message'] != null) {
+                                  failureMsg = rpcRes['message'].toString();
+                                }
+                              } catch (rpcErr) {
+                                debugPrint('RPC verify error: $rpcErr');
+                              }
+
+                              // 2. Fallback check if local OTP matches
+                              if (!passwordResetSuccess && failureMsg == null) {
+                                if (localGeneratedOtp != null && enteredOtp == localGeneratedOtp) {
+                                  try {
+                                    await Supabase.instance.client.auth.updateUser(
+                                      UserAttributes(password: newPass),
+                                    );
+                                    passwordResetSuccess = true;
+                                  } catch (_) {}
+                                }
+                              }
+
+                              if (passwordResetSuccess) {
+                                if (dialogCtx.mounted) {
+                                  Navigator.of(dialogCtx).pop();
+                                }
+
+                                if (mounted) {
+                                  setState(() {
+                                    _emailController.text = targetEmail;
+                                    _passwordController.text = newPass;
+                                    _needsPasswordActivation = false;
+                                    _lastCheckedEmail = '';
+                                    _hasAuthCredentialError = false;
+                                    _emailError = null;
+                                    _passwordError = null;
+                                    _successMessage = isFirstTimeActivation
+                                        ? 'Admin account activated! Your new password has been set. Click Sign In to continue.'
+                                        : 'Password reset successfully! Please sign in with your new password.';
+                                  });
+                                }
+                              } else {
+                                setDialogState(() {
+                                  dialogError = failureMsg ??
+                                      'Invalid code or reset failed. Please ensure database functions (31_admin_auth_recovery_functions.sql) are executed in Supabase SQL Editor.';
+                                  isSubmitting = false;
+                                });
+                              }
+                            } catch (e) {
+                              setDialogState(() {
+                                dialogError = 'An error occurred: $e';
+                                isSubmitting = false;
+                              });
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _actionColor,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   ),
                   child: isSubmitting
                       ? const SizedBox(
@@ -845,7 +1624,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : Text(
-                          'Send Reset Link',
+                          isFirstTimeActivation
+                              ? (step == 1 ? 'Send Activation Code' : 'Activate & Set Password')
+                              : (step == 1 ? 'Send Reset Code' : 'Reset Password'),
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.w600,
                             color: Colors.white,

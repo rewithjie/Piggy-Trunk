@@ -27,6 +27,7 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
 
   List<Map<String, dynamic>> _raisers = [];
   bool _isLoading = true;
+  bool _isTableRefreshing = false;
   int _currentTab = 0; // 0 = Active, 1 = Pending, 2 = Archived
   String? _loadErrorMessage;
 
@@ -120,8 +121,13 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
     super.dispose();
   }
 
-  Future<void> _loadRaisers({String? keyword, bool silent = false}) async {
-    if (!silent) {
+  Future<void> _loadRaisers({String? keyword, bool silent = false, bool isRefresh = false}) async {
+    if (isRefresh) {
+      setState(() {
+        _isTableRefreshing = true;
+        _loadErrorMessage = null;
+      });
+    } else if (!silent) {
       setState(() {
         _isLoading = true;
         _loadErrorMessage = null;
@@ -223,7 +229,12 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         _loadErrorMessage = 'Load failed: $e';
       });
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isTableRefreshing = false;
+        });
+      }
     }
   }
 
@@ -259,22 +270,20 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/raisers',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/raisers',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
+                  child: SingleChildScrollView(
                           padding: EdgeInsets.all(isMobile ? 12 : 18),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
@@ -383,6 +392,8 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           raisers: filteredRaisers,
           currentTab: _currentTab,
           searchCtrl: _searchCtrl,
+          onRefresh: () => _loadRaisers(keyword: _searchCtrl.text, isRefresh: true),
+          isRefreshing: _isLoading || _isTableRefreshing,
           onSearch: (keyword) => _loadRaisers(keyword: keyword),
           onShowDetails: (row) => RaiserProfileDrawer.show(
             context: context,

@@ -47,6 +47,17 @@ class NotificationItemCard extends StatelessWidget {
     final message = notif.message.toLowerCase();
     final title = notif.title.toLowerCase();
 
+    // Admin Profile & Security Notifications -> /settings
+    if (type == 'admin_profile' ||
+        type.contains('admin') ||
+        type.contains('security') ||
+        title.contains('admin email') ||
+        title.contains('email updated') ||
+        message.contains('login email') ||
+        message.contains('admin email')) {
+      return '/settings';
+    }
+
     // 0. Stock Requests -> /inventory (Raiser Stock Requests Tab)
     if (type == 'stock_request' ||
         type.contains('stock') ||
@@ -105,6 +116,13 @@ class NotificationItemCard extends StatelessWidget {
   IconData _getCategoryIcon(String type, String message) {
     final lowerType = type.toLowerCase();
     final lowerMsg = message.toLowerCase();
+    if (lowerType.contains('admin') ||
+        lowerType.contains('security') ||
+        lowerType.contains('profile') ||
+        lowerMsg.contains('admin email') ||
+        lowerMsg.contains('login email')) {
+      return Icons.mark_email_read_rounded;
+    }
     if (lowerType.contains('user') || lowerMsg.contains('register') || lowerMsg.contains('account')) {
       return Icons.person_add_rounded;
     }
@@ -123,6 +141,13 @@ class NotificationItemCard extends StatelessWidget {
   Color _getCategoryColor(String type, String message, bool isDark) {
     final lowerType = type.toLowerCase();
     final lowerMsg = message.toLowerCase();
+    if (lowerType.contains('admin') ||
+        lowerType.contains('security') ||
+        lowerType.contains('profile') ||
+        lowerMsg.contains('admin email') ||
+        lowerMsg.contains('login email')) {
+      return isDark ? const Color(0xFF60A5FA) : const Color(0xFF18314F);
+    }
     if (lowerType.contains('user') || lowerMsg.contains('register')) {
       return isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
     }

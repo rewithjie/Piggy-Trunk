@@ -74,18 +74,18 @@ class _MobileAppDistributionScreenState extends State<MobileAppDistributionScree
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/mobile-app',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/mobile-app',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.symmetric(

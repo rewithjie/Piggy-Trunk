@@ -175,18 +175,18 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                 ),
               )
             : null,
-        body: Row(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (!isSmall)
-              AdminSidebar(
-                currentRoute: '/pos',
-                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-              ),
+            const ScreenTopBar(),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Row(
                 children: [
-                  const ScreenTopBar(),
+                  if (!isSmall)
+                    AdminSidebar(
+                      currentRoute: '/pos',
+                      onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                    ),
                   Expanded(child: _buildMainContent()),
                 ],
               ),
@@ -576,174 +576,100 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = isMobile || constraints.maxWidth < 1050;
+          final isStacked = isMobile || constraints.maxWidth < 720;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Row 1: Horizon Selector
-              isCompact
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              // Row 1: Horizon Selector (Expands evenly across available width)
+              Row(
+                children: [
+                  Text(
+                    'Forecast Period:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _titleColor,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Row(
                       children: [
-                        Text(
-                          'Forecast Period:',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: _titleColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildHorizonSegment(7, '7 Days', 'Weekly'),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: _buildHorizonSegment(14, '14 Days', 'Bi-weekly'),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: _buildHorizonSegment(30, '30 Days', 'Monthly'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        Text(
-                          'Forecast Period:',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _titleColor,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _buildHorizonPill(7, 'Next 7 Days (Weekly)'),
+                        Expanded(child: _buildHorizonPill(7, 'Next 7 Days (Weekly)')),
                         const SizedBox(width: 8),
-                        _buildHorizonPill(14, 'Next 14 Days (Bi-weekly)'),
+                        Expanded(child: _buildHorizonPill(14, 'Next 14 Days (Bi-weekly)')),
                         const SizedBox(width: 8),
-                        _buildHorizonPill(30, 'Next 30 Days (Monthly)'),
+                        Expanded(child: _buildHorizonPill(30, 'Next 30 Days (Monthly)')),
                       ],
                     ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               Divider(color: _cardBorder, height: 1),
               const SizedBox(height: 16),
 
-              // Row 2: Search, Category Chips & Status Filter
-              isCompact
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TextField(
-                          controller: _searchCtrl,
-                          onChanged: (_) => setState(() {}),
-                          style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5),
-                          decoration: InputDecoration(
-                            hintText: 'Search products by name...',
-                            hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 13.5),
-                            prefixIcon: Icon(Icons.search_rounded, color: _mutedColor, size: 20),
-                            filled: true,
-                            fillColor: _fieldBg,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: _cardBorder),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: _fieldFocus, width: 1.5),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          'Category:',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: _mutedColor,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: _categoryOptions
-                              .map((c) => _buildCategoryFilterChip(c, isCompact: true))
-                              .toList(),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Stock Urgency:',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: _mutedColor,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            _buildUrgencyChip('All', isCompact: true),
-                            _buildUrgencyChip('Reorder Needed', isCompact: true),
-                            _buildUrgencyChip('Critical', isCompact: true),
-                            _buildUrgencyChip('In Stock', isCompact: true),
-                          ],
-                        ),
-                      ],
-                    )
-                  : Row(
-                      children: [
-                        // Search Input
-                        Expanded(
-                          child: TextField(
-                            controller: _searchCtrl,
-                            onChanged: (_) => setState(() {}),
-                            style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5),
-                            decoration: InputDecoration(
-                              hintText: 'Search products by name...',
-                              hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 13.5),
-                              prefixIcon: Icon(Icons.search_rounded, color: _mutedColor, size: 20),
-                              filled: true,
-                              fillColor: _fieldBg,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: _cardBorder),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: _fieldFocus, width: 1.5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Category Chips (Matching InventoryScreen)
-                        Row(
-                          children: _categoryOptions.map((c) => _buildCategoryFilterChip(c)).toList(),
-                        ),
-                        const SizedBox(width: 14),
-
-                        // Status Chips
-                        Row(
-                          children: [
-                            _buildUrgencyChip('All'),
-                            _buildUrgencyChip('Reorder Needed'),
-                            _buildUrgencyChip('Critical'),
-                            _buildUrgencyChip('In Stock'),
-                          ],
-                        ),
-                      ],
+              // Row 2: Search, Category Chips & Status Filter (Fills 100% of row)
+              if (!isStacked)
+                Row(
+                  children: [
+                    // Search Input (Expands to fill all remaining width)
+                    Expanded(
+                      child: _buildSearchTextField(),
                     ),
+                    const SizedBox(width: 12),
+
+                    // Category & Status Chips with Divider
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ..._categoryOptions.map((c) => _buildCategoryFilterChip(c)),
+                          Container(
+                            height: 20,
+                            width: 1.2,
+                            margin: const EdgeInsets.only(left: 2, right: 10),
+                            color: _cardBorder,
+                          ),
+                          _buildUrgencyChip('All'),
+                          _buildUrgencyChip('Reorder Needed'),
+                          _buildUrgencyChip('Critical'),
+                          _buildUrgencyChip('In Stock'),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Search Input
+                    _buildSearchTextField(),
+                    const SizedBox(height: 12),
+
+                    // Category & Status Pills in a Single Clean Horizontal Scroll
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ..._categoryOptions.map((c) => _buildCategoryFilterChip(c)),
+                          Container(
+                            height: 20,
+                            width: 1.2,
+                            margin: const EdgeInsets.only(left: 2, right: 10),
+                            color: _cardBorder,
+                          ),
+                          _buildUrgencyChip('All'),
+                          _buildUrgencyChip('Reorder Needed'),
+                          _buildUrgencyChip('Critical'),
+                          _buildUrgencyChip('In Stock'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
             ],
           );
         },
@@ -751,55 +677,25 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  Widget _buildHorizonSegment(int days, String title, String subtitle) {
-    final isSelected = _selectedHorizonDays == days;
-    return InkWell(
-      onTap: () {
-        setState(() => _selectedHorizonDays = days);
-        _loadData();
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-              : (_isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD)),
+  Widget _buildSearchTextField() {
+    return TextField(
+      controller: _searchCtrl,
+      onChanged: (_) => setState(() {}),
+      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5),
+      decoration: InputDecoration(
+        hintText: 'Search products by name...',
+        hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 13.5),
+        prefixIcon: Icon(Icons.search_rounded, color: _mutedColor, size: 20),
+        filled: true,
+        fillColor: _fieldBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : _cardBorder,
-            width: 1,
-          ),
+          borderSide: BorderSide(color: _cardBorder),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                color: isSelected
-                    ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-                    : _titleColor,
-              ),
-              maxLines: 1,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? (_isDark ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.8) : Colors.white70)
-                    : _mutedColor,
-              ),
-              maxLines: 1,
-            ),
-          ],
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: _fieldFocus, width: 1.5),
         ),
       ),
     );
@@ -816,6 +712,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected
               ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
@@ -828,6 +725,9 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12.5,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
@@ -840,86 +740,73 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  Widget _buildCategoryFilterChip(String category, {bool isCompact = false}) {
+  Widget _buildCategoryFilterChip(String category) {
     final isSelected = _selectedCategory == category;
-    final chip = InkWell(
-      onTap: () {
-        setState(() => _selectedCategory = category);
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        constraints: BoxConstraints(minHeight: isCompact ? 32 : 38),
-        padding: EdgeInsets.symmetric(horizontal: isCompact ? 11 : 14, vertical: isCompact ? 6 : 8),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-              : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : _cardBorder,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          category,
-          style: GoogleFonts.plusJakartaSans(
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedCategory = category);
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
             color: isSelected
-                ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-                : _mutedColor,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            fontSize: isCompact ? 12 : 13,
+                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? Colors.transparent : _cardBorder,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            category,
+            style: GoogleFonts.plusJakartaSans(
+              color: isSelected
+                  ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
+                  : _mutedColor,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              fontSize: 12.5,
+            ),
           ),
         ),
       ),
-    );
-
-    if (isCompact) return chip;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: chip,
     );
   }
 
-  Widget _buildUrgencyChip(String label, {bool isCompact = false}) {
+  Widget _buildUrgencyChip(String label) {
     final isSel = _urgencyFilter == label;
-    final chip = InkWell(
-      onTap: () => setState(() => _urgencyFilter = label),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        constraints: BoxConstraints(minHeight: isCompact ? 32 : 38),
-        padding: EdgeInsets.symmetric(
-          horizontal: isCompact ? 11 : 14,
-          vertical: isCompact ? 6 : 8,
-        ),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSel
-              ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-              : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSel ? Colors.transparent : _cardBorder,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: () => setState(() => _urgencyFilter = label),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          decoration: BoxDecoration(
             color: isSel
-                ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-                : _mutedColor,
-            fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
-            fontSize: isCompact ? 12 : 13,
+                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSel ? Colors.transparent : _cardBorder,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              color: isSel
+                  ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
+                  : _mutedColor,
+              fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
+              fontSize: 12.5,
+            ),
           ),
         ),
       ),
-    );
-
-    if (isCompact) return chip;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: chip,
     );
   }
 
@@ -929,7 +816,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth > 820 ? constraints.maxWidth : 820.0;
+        final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
 
         return Container(
           decoration: BoxDecoration(

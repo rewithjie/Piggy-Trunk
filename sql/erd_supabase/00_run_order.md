@@ -27,16 +27,19 @@ Run these files sequentially in the Supabase SQL Editor, or run `sql/combined_sc
 18. `18_admin_notifications.sql` - Admin & Cashier notification queue
 19. `19_raiser_notifications.sql` - Raiser mobile notification queue
 20. `20_partner_notifications.sql` - Partner mobile notification queue
+21. `29_admin_password_resets.sql` - Password reset OTP table (3NF, 6 columns)
 
 ### Views, Triggers, Functions & Security
-21. `21_dashboard_summary_view.sql` - KPI aggregation view for dashboard
-22. `22_auth_signup_trigger.sql` - Unified auto-registration trigger (`handle_new_user`)
-23. `23_inventory_triggers.sql` - Real-time restock & low stock notifications
-24. `24_investment_triggers.sql` - Direct investment confirmation & assignment triggers
-25. `25_hog_triggers.sql` - Auto-creation of batches/hogs & health alert triggers
-26. `26_force_delete_user_function.sql` - Clean cascade deletion RPC helper
-27. `27_pos_seed_function.sql` - Historical sales generator for forecasting
-28. `28_rls_policies.sql` - Complete Row Level Security policies
+22. `21_dashboard_summary_view.sql` - KPI aggregation view for dashboard
+23. `22_auth_signup_trigger.sql` - Unified auto-registration trigger (`handle_new_user`)
+24. `23_inventory_triggers.sql` - Real-time restock & low stock notifications
+25. `24_investment_triggers.sql` - Direct investment confirmation & assignment triggers
+26. `25_hog_triggers.sql` - Auto-creation of batches/hogs & health alert triggers
+27. `26_force_delete_user_function.sql` - Clean cascade deletion RPC helper
+28. `27_pos_seed_function.sql` - Historical sales generator for forecasting
+29. `28_rls_policies.sql` - Complete Row Level Security policies
+30. `30_admin_profile_email_function.sql` - Admin email update and in-app audit RPC
+31. `31_admin_auth_recovery_functions.sql` - Admin & User OTP password recovery and activation RPCs
 
 ---
 

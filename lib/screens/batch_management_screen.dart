@@ -25,6 +25,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
   List<Map<String, dynamic>> _batchesList = [];
   List<Map<String, dynamic>> _activeRaisers = [];
   bool _isLoading = true;
+  bool _isTableRefreshing = false;
   bool _showBatchForm = false;
   Map<String, dynamic>? _editingBatch;
   String _searchQuery = '';
@@ -57,10 +58,14 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
     _loadData();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool isRefresh = false}) async {
     if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      if (isRefresh) {
+        _isTableRefreshing = true;
+      } else {
+        _isLoading = true;
+      }
       _loadError = null;
     });
 
@@ -212,6 +217,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
         _batchesList = parsedBatches;
         _activeRaisers = parsedRaisers;
         _isLoading = false;
+        _isTableRefreshing = false;
       });
     } catch (e) {
       debugPrint('Error in _loadData: $e');
@@ -219,6 +225,7 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
         setState(() {
           _loadError = 'Load error: $e';
           _isLoading = false;
+          _isTableRefreshing = false;
         });
       }
     }
@@ -250,26 +257,20 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/batches',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/batches',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
-                  child: _isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                          ),
-                        )
-                      : _showBatchForm
+                  child: _showBatchForm
                           ? BatchFormView(
                               onCancel: () => setState(() {
                                 _showBatchForm = false;
@@ -315,7 +316,8 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
                                         searchQuery: _searchQuery,
                                         selectedStatusFilter: _selectedStatusFilter,
                                         errorMessage: _loadError,
-                                        onRefresh: _loadData,
+                                        onRefresh: () => _loadData(isRefresh: true),
+                                        isRefreshing: _isLoading || _isTableRefreshing,
                                         onSearchChanged: (val) => setState(() => _searchQuery = val),
                                         onFilterChanged: (val) => setState(() => _selectedStatusFilter = val),
                                         onCreateBatch: () => setState(() {

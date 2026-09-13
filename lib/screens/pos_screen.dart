@@ -299,17 +299,18 @@ class _POSScreenState extends State<POSScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/pos',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/pos',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())

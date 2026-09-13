@@ -23,7 +23,7 @@ serve(async (req: Request) => {
     }
 
     const gmailUser = Deno.env.get('GMAIL_USER') || 'piggytrunk@gmail.com';
-    const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD') || 'nuicsizzrnmhnuva';
+    const gmailAppPassword = Deno.env.get('GMAIL_APP_PASSWORD') || 'ptveuzimyoixwtsz';
 
     const client = new SMTPClient({
       connection: {

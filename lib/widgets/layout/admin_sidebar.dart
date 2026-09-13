@@ -16,18 +16,20 @@ import '../../screens/user_approvals_screen.dart';
 import '../../screens/batch_management_screen.dart';
 import '../../screens/mobile_app_distribution_screen.dart';
 
-final sidebarExpandedProvider = StateProvider<bool>((ref) => false);
+final sidebarExpandedProvider = StateProvider<bool>((ref) => true);
 
 class AdminSidebar extends ConsumerStatefulWidget {
   final String currentRoute;
   final VoidCallback onLogout;
   final bool isDrawer;
+  final bool showHeader;
 
   const AdminSidebar({
     super.key,
     required this.currentRoute,
     required this.onLogout,
     this.isDrawer = false,
+    this.showHeader = false,
   });
 
   @override
@@ -147,6 +149,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => screen,
+          settings: RouteSettings(name: route),
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
         ),
@@ -180,7 +183,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
 
     final targetWidth = widget.isDrawer
         ? null
-        : (isExpanded ? (isCompactHeight ? 255.0 : 275.0) : 88.0);
+        : (isExpanded ? (isCompactHeight ? 255.0 : 275.0) : 56.0);
 
     return Container(
       width: targetWidth,
@@ -244,92 +247,66 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
               ? (isUltraCompact ? 44.0 : (isCompactHeight ? 48.0 : 50.0))
               : (isUltraCompact ? 38.0 : (isCompactHeight ? 40.0 : 42.0));
 
+          final shouldShowHeader = widget.showHeader || widget.isDrawer;
+
           return Column(
             children: [
-              /// Sidebar Header with Logo and Collapse/Expand Toggle (Side by Side)
-              Container(
-                height: headerHeight,
-                padding: EdgeInsets.symmetric(
-                  horizontal: showExpandedContent ? 14 : 4,
-                ),
-                decoration: BoxDecoration(
-                  color: surfaceColor,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: borderColor,
-                      width: 1,
+              if (shouldShowHeader)
+                Container(
+                  height: headerHeight,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: borderColor,
+                        width: 1,
+                      ),
                     ),
                   ),
-                ),
-                child: showExpandedContent
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: SizedBox(
-                              width: logoSize,
-                              height: logoSize,
-                              child: Image.asset(
-                                'assets/piggytrunk_logo.png',
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'PiggyTrunk',
-                              style: AppTextStyles.sidebarBrand(textColor).copyWith(
-                                fontSize: isCompactHeight ? 18.5 : 20.5,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          if (widget.isDrawer)
-                            IconButton(
-                              icon: Icon(
-                                Icons.close_rounded,
-                                color: textColor,
-                                size: isCompactHeight ? 20 : 24,
-                              ),
-                              tooltip: 'Close menu',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => Navigator.of(context).pop(),
-                            )
-                          else
-                            _buildSidebarToggle(isExpanded, isCompactHeight),
-                        ],
-                      )
-                    : Center(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: SizedBox(
-                                  width: logoSize,
-                                  height: logoSize,
-                                  child: Image.asset(
-                                    'assets/piggytrunk_logo.png',
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              _buildSidebarToggle(isExpanded, isCompactHeight),
-                            ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: logoSize,
+                          height: logoSize,
+                          child: Image.asset(
+                            'assets/piggytrunk_logo.png',
+                            fit: BoxFit.contain,
                           ),
                         ),
                       ),
-              ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'PiggyTrunk',
+                          style: AppTextStyles.sidebarBrand(textColor).copyWith(
+                            fontSize: isCompactHeight ? 18.5 : 20.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      if (widget.isDrawer)
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: textColor,
+                            size: isCompactHeight ? 20 : 24,
+                          ),
+                          tooltip: 'Close menu',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () => Navigator.of(context).pop(),
+                        )
+                      else
+                        _buildSidebarToggle(isExpanded, isCompactHeight),
+                    ],
+                  ),
+                ),
 
               /// Main Navigation (Fills available space in the middle, zero scroll on 14" screens)
               Expanded(
@@ -427,7 +404,7 @@ class _AdminSidebarState extends ConsumerState<AdminSidebar> {
         child: Container(
           margin: EdgeInsets.symmetric(vertical: itemVerticalMargin),
           padding: EdgeInsets.symmetric(
-            horizontal: isExpanded ? 10 : 8,
+            horizontal: isExpanded ? 10 : 0,
             vertical: itemVerticalPadding,
           ),
           decoration: BoxDecoration(

@@ -26,18 +26,19 @@ class RaisersScreen extends StatelessWidget {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/raisers',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          /// REUSABLE TOP BAR
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
+            child: Row(
               children: [
-                /// REUSABLE TOP BAR
-                ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/raisers',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
                   child: Center(
                     child: Column(

@@ -16,6 +16,7 @@ import '../widgets/inventory/product_edit_drawer.dart';
 import '../widgets/inventory/product_restock_dialog.dart';
 import '../widgets/inventory/product_add_form.dart';
 import '../widgets/inventory/stock_requests_tab.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../main.dart';
 
 class InventoryScreen extends StatefulWidget {
@@ -242,18 +243,18 @@ class _InventoryScreenState extends State<InventoryScreen> {
           });
         },
       ),
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/inventory',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/inventory',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(child: _buildMainContent()),
               ],
             ),
@@ -265,10 +266,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   Widget _buildMainContent() {
     final isMobile = Responsive.isMobile(context);
-
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
 
     if (_showAddProductForm) {
       return ProductAddForm(
@@ -304,8 +301,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
               ),
               padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 14 : 34,
-                vertical: isMobile ? 16 : 32,
+                horizontal: isMobile ? 14 : (constraints.maxWidth < 1100 ? 20 : 30),
+                vertical: isMobile ? 16 : 28,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,7 +581,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
         const SizedBox(height: 18),
 
         // Category Sections
-        if (filteredProducts.isEmpty)
+        if (_isLoading)
+          _buildCatalogSkeleton()
+        else if (filteredProducts.isEmpty)
           Center(
             child: Container(
               padding: const EdgeInsets.all(40),
@@ -681,6 +680,116 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ],
         ],
       ],
+    );
+  }
+
+  Widget _buildCatalogSkeleton() {
+    return ShimmerProvider(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int s = 0; s < 2; s++) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 24, bottom: 12),
+              child: Row(
+                children: [
+                  ShimmerBox(
+                    width: 4,
+                    height: 24,
+                    borderRadius: BorderRadius.circular(2),
+                    isDark: _isDark,
+                  ),
+                  const SizedBox(width: 10),
+                  ShimmerBox(
+                    width: 140,
+                    height: 20,
+                    borderRadius: BorderRadius.circular(4),
+                    isDark: _isDark,
+                  ),
+                  const SizedBox(width: 8),
+                  ShimmerBox(
+                    width: 36,
+                    height: 16,
+                    borderRadius: BorderRadius.circular(8),
+                    isDark: _isDark,
+                  ),
+                ],
+              ),
+            ),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 600,
+                mainAxisExtent: 145,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+              ),
+              itemBuilder: (context, index) {
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    border: Border.all(color: _cardBorder),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      ShimmerBox(
+                        width: 100,
+                        height: 110,
+                        borderRadius: BorderRadius.circular(12),
+                        isDark: _isDark,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ShimmerBox(
+                              width: 140,
+                              height: 16,
+                              borderRadius: BorderRadius.circular(4),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(height: 8),
+                            ShimmerBox(
+                              width: 90,
+                              height: 14,
+                              borderRadius: BorderRadius.circular(4),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                ShimmerBox(
+                                  width: 65,
+                                  height: 22,
+                                  borderRadius: BorderRadius.circular(11),
+                                  isDark: _isDark,
+                                ),
+                                const Spacer(),
+                                ShimmerBox(
+                                  width: 70,
+                                  height: 28,
+                                  borderRadius: BorderRadius.circular(8),
+                                  isDark: _isDark,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
     );
   }
 

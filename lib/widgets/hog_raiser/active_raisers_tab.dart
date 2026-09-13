@@ -3,11 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../common/shimmer_loading.dart';
 
 class ActiveRaisersTab extends StatelessWidget {
   final List<Map<String, dynamic>> raisers;
   final int currentTab;
   final TextEditingController searchCtrl;
+  final VoidCallback? onRefresh;
+  final bool isRefreshing;
   final void Function(String value) onSearch;
   final void Function(Map<String, dynamic> row) onShowDetails;
   final void Function(Map<String, dynamic> row) onEditRaiser;
@@ -21,6 +24,8 @@ class ActiveRaisersTab extends StatelessWidget {
     required this.raisers,
     required this.currentTab,
     required this.searchCtrl,
+    this.onRefresh,
+    this.isRefreshing = false,
     required this.onSearch,
     required this.onShowDetails,
     required this.onEditRaiser,
@@ -102,10 +107,48 @@ class ActiveRaisersTab extends StatelessWidget {
                 ),
                 child: Text('Search', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14)),
               ),
+              if (onRefresh != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: isRefreshing ? null : onRefresh,
+                  icon: isRefreshing
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          ),
+                        )
+                      : Icon(
+                          Icons.refresh_rounded,
+                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          size: 22,
+                        ),
+                  tooltip: 'Refresh Raisers',
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                    minimumSize: const Size(46, 46),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 20),
-          if (raisers.isEmpty)
+          if (isRefreshing)
+            TableSkeletonLoader(
+              isDark: isDark,
+              minWidth: 720,
+              cardBg: cardBg,
+              cardBorder: cardBorder,
+              headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+              headers: const ['NAME', 'ADDRESS', 'PHONE NUMBER', 'STATUS', 'ACTIONS'],
+              columnFlexes: const [2, 2, 2, 1, 4],
+              rowCount: 5,
+              borderRadius: 8,
+            )
+          else if (raisers.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -124,18 +167,20 @@ class ActiveRaisersTab extends StatelessWidget {
           else
             LayoutBuilder(
               builder: (context, constraints) {
-                final tableWidth = constraints.maxWidth > 900 ? constraints.maxWidth : 900.0;
+                final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: tableWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _tableHeader(isDark, cardBorder, hintText),
-                        ...raisers.map((row) => _tableRow(row, isDark, cardBorder, titleColor)),
-                      ],
+                return Scrollbar(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: tableWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _tableHeader(isDark, cardBorder, hintText),
+                          ...raisers.map((row) => _tableRow(row, isDark, cardBorder, titleColor)),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -289,101 +334,104 @@ class ActiveRaisersTab extends StatelessWidget {
           Expanded(
             flex: 4,
             child: Center(
-              child: isPending
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildActionButton(
-                          icon: Icons.visibility_outlined,
-                          label: 'Details',
-                          color: neutralColor,
-                          bgColor: neutralBg,
-                          borderColor: neutralBorder,
-                          onTap: () => onShowDetails(row),
-                        ),
-                        const SizedBox(width: 6),
-                        _buildActionButton(
-                          icon: Icons.check_circle_outline_rounded,
-                          label: 'Approve',
-                          color: successColor,
-                          bgColor: successBg,
-                          borderColor: successBorder,
-                          onTap: () => onApproveRaiser(row),
-                        ),
-                        const SizedBox(width: 6),
-                        _buildActionButton(
-                          icon: Icons.cancel_outlined,
-                          label: 'Reject',
-                          color: dangerColor,
-                          bgColor: dangerBg,
-                          borderColor: dangerBorder,
-                          onTap: () => onDeleteRaiser(row),
-                        ),
-                      ],
-                    )
-                  : (isArchived
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildActionButton(
-                              icon: Icons.visibility_outlined,
-                              label: 'Details',
-                              color: neutralColor,
-                              bgColor: neutralBg,
-                              borderColor: neutralBorder,
-                              onTap: () => onShowDetails(row),
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              icon: Icons.unarchive_outlined,
-                              label: 'Restore',
-                              color: successColor,
-                              bgColor: successBg,
-                              borderColor: successBorder,
-                              onTap: () => onRestoreRaiser(row),
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              icon: Icons.delete_outline_rounded,
-                              label: 'Delete',
-                              color: dangerColor,
-                              bgColor: dangerBg,
-                              borderColor: dangerBorder,
-                              onTap: () => onDeleteRaiser(row),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _buildActionButton(
-                              icon: Icons.visibility_outlined,
-                              label: 'Details',
-                              color: neutralColor,
-                              bgColor: neutralBg,
-                              borderColor: neutralBorder,
-                              onTap: () => onShowDetails(row),
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              icon: Icons.edit_outlined,
-                              label: 'Edit',
-                              color: neutralColor,
-                              bgColor: neutralBg,
-                              borderColor: neutralBorder,
-                              onTap: () => onEditRaiser(row),
-                            ),
-                            const SizedBox(width: 6),
-                            _buildActionButton(
-                              icon: Icons.archive_outlined,
-                              label: 'Archive',
-                              color: dangerColor,
-                              bgColor: dangerBg,
-                              borderColor: dangerBorder,
-                              onTap: () => onArchiveRaiser(row),
-                            ),
-                          ],
-                        )),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: isPending
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildActionButton(
+                            icon: Icons.visibility_outlined,
+                            label: 'Details',
+                            color: neutralColor,
+                            bgColor: neutralBg,
+                            borderColor: neutralBorder,
+                            onTap: () => onShowDetails(row),
+                          ),
+                          const SizedBox(width: 6),
+                          _buildActionButton(
+                            icon: Icons.check_circle_outline_rounded,
+                            label: 'Approve',
+                            color: successColor,
+                            bgColor: successBg,
+                            borderColor: successBorder,
+                            onTap: () => onApproveRaiser(row),
+                          ),
+                          const SizedBox(width: 6),
+                          _buildActionButton(
+                            icon: Icons.cancel_outlined,
+                            label: 'Reject',
+                            color: dangerColor,
+                            bgColor: dangerBg,
+                            borderColor: dangerBorder,
+                            onTap: () => onDeleteRaiser(row),
+                          ),
+                        ],
+                      )
+                    : (isArchived
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildActionButton(
+                                icon: Icons.visibility_outlined,
+                                label: 'Details',
+                                color: neutralColor,
+                                bgColor: neutralBg,
+                                borderColor: neutralBorder,
+                                onTap: () => onShowDetails(row),
+                              ),
+                              const SizedBox(width: 6),
+                              _buildActionButton(
+                                icon: Icons.unarchive_outlined,
+                                label: 'Restore',
+                                color: successColor,
+                                bgColor: successBg,
+                                borderColor: successBorder,
+                                onTap: () => onRestoreRaiser(row),
+                              ),
+                              const SizedBox(width: 6),
+                              _buildActionButton(
+                                icon: Icons.delete_outline_rounded,
+                                label: 'Delete',
+                                color: dangerColor,
+                                bgColor: dangerBg,
+                                borderColor: dangerBorder,
+                                onTap: () => onDeleteRaiser(row),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildActionButton(
+                                icon: Icons.visibility_outlined,
+                                label: 'Details',
+                                color: neutralColor,
+                                bgColor: neutralBg,
+                                borderColor: neutralBorder,
+                                onTap: () => onShowDetails(row),
+                              ),
+                              const SizedBox(width: 6),
+                              _buildActionButton(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                color: neutralColor,
+                                bgColor: neutralBg,
+                                borderColor: neutralBorder,
+                                onTap: () => onEditRaiser(row),
+                              ),
+                              const SizedBox(width: 6),
+                              _buildActionButton(
+                                icon: Icons.archive_outlined,
+                                label: 'Archive',
+                                color: dangerColor,
+                                bgColor: dangerBg,
+                                borderColor: dangerBorder,
+                                onTap: () => onArchiveRaiser(row),
+                              ),
+                            ],
+                          )),
+              ),
             ),
           ),
         ],

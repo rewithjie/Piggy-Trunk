@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../common/shimmer_loading.dart';
 
 class StockRequestsTab extends StatefulWidget {
   final List<Product> products;
@@ -392,11 +393,29 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
         // Requests Table
         if (_isLoadingRequests)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: CircularProgressIndicator(),
-            ),
+          TableSkeletonLoader(
+            isDark: _isDark,
+            minWidth: 720,
+            cardBg: _cardBg,
+            cardBorder: _cardBorder,
+            headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+            columnWidths: const {
+              0: FlexColumnWidth(1.2),
+              1: FlexColumnWidth(0.95),
+              2: FlexColumnWidth(1.2),
+              3: FlexColumnWidth(0.85),
+              4: FlexColumnWidth(0.8),
+              5: FixedColumnWidth(180),
+            },
+            headers: const [
+              'RAISER NAME',
+              'REQUEST DATE',
+              'ITEM & CATEGORY',
+              'QUANTITY',
+              'STATUS',
+              'ACTIONS',
+            ],
+            rowCount: 5,
           )
         else if (filteredRequests.isEmpty)
           Center(
@@ -441,40 +460,40 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
               borderRadius: BorderRadius.circular(17),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 1080 ? constraints.maxWidth : 1080.0;
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: tableWidth,
-                      child: Table(
-                        columnWidths: const {
-                          0: FlexColumnWidth(1.1),
-                          1: FlexColumnWidth(0.9),
-                          2: FlexColumnWidth(0.8),
-                          3: FlexColumnWidth(0.8),
-                          4: FlexColumnWidth(0.7),
-                          5: FlexColumnWidth(0.8),
-                          6: FlexColumnWidth(1.8),
-                        },
-                        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                        children: [
-                          TableRow(
-                            decoration: BoxDecoration(
-                              color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
-                              border: Border(bottom: BorderSide(color: _cardBorder)),
+                  final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
+                  return Scrollbar(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SizedBox(
+                        width: tableWidth,
+                        child: Table(
+                          columnWidths: const {
+                            0: FlexColumnWidth(1.2),
+                            1: FlexColumnWidth(0.95),
+                            2: FlexColumnWidth(1.2),
+                            3: FlexColumnWidth(0.85),
+                            4: FlexColumnWidth(0.8),
+                            5: FixedColumnWidth(180),
+                          },
+                          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                          children: [
+                            TableRow(
+                              decoration: BoxDecoration(
+                                color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                                border: Border(bottom: BorderSide(color: _cardBorder)),
+                              ),
+                              children: [
+                                _tableHeaderCell('RAISER NAME'),
+                                _tableHeaderCell('REQUEST DATE'),
+                                _tableHeaderCell('ITEM & CATEGORY'),
+                                _tableHeaderCell('QUANTITY'),
+                                _tableHeaderCell('STATUS', isCenter: true),
+                                _tableHeaderCell('ACTIONS', isCenter: true),
+                              ],
                             ),
-                            children: [
-                              _tableHeaderCell('RAISER NAME'),
-                              _tableHeaderCell('REQUEST DATE'),
-                              _tableHeaderCell('CATEGORY'),
-                              _tableHeaderCell('FEED TYPE'),
-                              _tableHeaderCell('QUANTITY'),
-                              _tableHeaderCell('STATUS', isCenter: true),
-                              _tableHeaderCell('ACTIONS', isCenter: true),
-                            ],
-                          ),
-                          ...filteredRequests.map((req) => _buildRequestRow(req)),
-                        ],
+                            ...filteredRequests.map((req) => _buildRequestRow(req)),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -488,15 +507,17 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
   Widget _tableHeaderCell(String label, {bool isCenter = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       child: Text(
         label,
         textAlign: isCenter ? TextAlign.center : TextAlign.start,
+        maxLines: 1,
+        softWrap: false,
         style: GoogleFonts.plusJakartaSans(
           color: _titleColor,
           fontWeight: FontWeight.w800,
-          fontSize: 12,
-          letterSpacing: 0.5,
+          fontSize: 11.5,
+          letterSpacing: 0.4,
         ),
       ),
     );
@@ -565,8 +586,13 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         raiser?['name'] ??
         'Unknown Raiser';
     final requestDate = req['request_date']?.toString() ?? 'N/A';
-    final category = req['category']?.toString() ?? 'Feeds';
-    final feedType = req['feed_type']?.toString() ?? 'N/A';
+    final category = req['category']?.toString().trim() ?? 'Feeds';
+    final rawFeedType = req['feed_type']?.toString().trim() ?? '';
+    final hasDistinctFeedType = rawFeedType.isNotEmpty &&
+        rawFeedType.toUpperCase() != 'N/A' &&
+        rawFeedType.toLowerCase() != category.toLowerCase();
+    final mainItem = hasDistinctFeedType ? rawFeedType : category;
+    final subItem = hasDistinctFeedType ? category : null;
     final quantity = req['quantity']?.toString() ?? '0';
     final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
 
@@ -589,65 +615,75 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       ),
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Text(
             raiserName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.plusJakartaSans(
               color: _titleColor,
               fontWeight: FontWeight.w700,
-              fontSize: 13,
+              fontSize: 12.5,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Text(
             requestDate,
             style: GoogleFonts.plusJakartaSans(
               color: _mutedColor,
               fontWeight: FontWeight.w600,
-              fontSize: 13,
+              fontSize: 12.5,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            category,
-            style: GoogleFonts.plusJakartaSans(
-              color: _titleColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                mainItem,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  color: _titleColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                ),
+              ),
+              if (subItem != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subItem,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: _mutedColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            feedType.isNotEmpty && feedType != 'N/A' ? feedType : category,
-            style: GoogleFonts.plusJakartaSans(
-              color: _titleColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Text(
             '$quantity units',
             style: GoogleFonts.plusJakartaSans(
               color: _titleColor,
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 12.5,
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
           child: Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
                 color: statusBg,
                 borderRadius: BorderRadius.circular(8),
@@ -665,77 +701,109 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
           child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showRequestDetailsModal(req),
-                  icon: Icon(
-                    Icons.visibility_outlined,
-                    size: 14,
-                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                  ),
-                  label: Text(
-                    'Details',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: _isDark ? const Color(0xFF28405D) : const Color(0xFFC9D8EC),
-                    ),
-                    backgroundColor: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
-                    minimumSize: const Size(78, 34),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                if (status == 'PENDING') ...[
-                  const SizedBox(width: 6),
-                  ElevatedButton(
-                    onPressed: _isProcessingRequest ? null : () => _showApproveDialog(req),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: PiggyTrunkTheme.ptSuccess,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(76, 34),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Approve',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Details Action Button
+                  InkWell(
+                    onTap: () => _showRequestDetailsModal(req),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.visibility_outlined,
+                            size: 14,
+                            color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Details',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  OutlinedButton(
-                    onPressed: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF758C),
-                      side: BorderSide(color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.35 : 0.3)),
-                      backgroundColor: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.1 : 0.08),
-                      minimumSize: const Size(66, 34),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: Text(
-                      'Reject',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
+                  if (status == 'PENDING') ...[
+                    const SizedBox(width: 5),
+                    // Quick Approve Icon Button
+                    Tooltip(
+                      message: 'Approve Request',
+                      child: InkWell(
+                        onTap: _isProcessingRequest ? null : () => _showApproveDialog(req),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.check_rounded,
+                              size: 16,
+                              color: PiggyTrunkTheme.ptSuccess,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 5),
+                    // Quick Reject Icon Button
+                    Tooltip(
+                      message: 'Reject Request',
+                      child: InkWell(
+                        onTap: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF758C).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFFFF758C).withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 16,
+                              color: Color(0xFFFF758C),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

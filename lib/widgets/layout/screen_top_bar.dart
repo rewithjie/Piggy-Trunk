@@ -8,6 +8,8 @@ import '../../providers/admin_notifications_provider.dart';
 import '../../models/admin_notification_model.dart';
 import '../notifications/admin_notification_drawer.dart';
 import '../../utils/responsive.dart';
+import '../../screens/settings_screen.dart';
+import 'admin_sidebar.dart';
 
 /// Reusable Top Bar Widget with Notification & Admin Profile (No Title)
 class ScreenTopBar extends ConsumerWidget {
@@ -70,13 +72,16 @@ class ScreenTopBar extends ConsumerWidget {
     final headerHeight = isUltraCompact
         ? 56.0
         : (isCompactHeight ? 66.0 : 70.0);
+    final logoSize = isUltraCompact ? 36.0 : (isCompactHeight ? 40.0 : 44.0);
     final isSmall = showHamburger ?? Responsive.isSmallScreen(context);
     final isMobile = Responsive.isMobile(context);
+    final isExpanded = ref.watch(sidebarExpandedProvider);
 
     return Container(
       height: headerHeight,
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 12 : 32,
+      padding: EdgeInsets.only(
+        left: isMobile ? 12 : 8,
+        right: isMobile ? 12 : 32,
       ),
       decoration: BoxDecoration(
         color: surfaceColor,
@@ -94,16 +99,79 @@ class ScreenTopBar extends ConsumerWidget {
         children: [
           if (isSmall) ...[
             Builder(
-              builder: (innerContext) => IconButton(
-                icon: Icon(Icons.menu_rounded, color: textColor, size: 28),
-                tooltip: 'Open navigation',
-                onPressed: () {
-                  Scaffold.of(innerContext).openDrawer();
-                },
+              builder: (innerContext) => MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () {
+                    Scaffold.of(innerContext).openDrawer();
+                  },
+                  child: Container(
+                    width: isCompactHeight ? 36 : 40,
+                    height: isCompactHeight ? 36 : 40,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.menu_rounded,
+                      color: textColor,
+                      size: isCompactHeight ? 22 : 24,
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
+          ] else ...[
+            /// SIDEBAR EXPAND/COLLAPSE TOGGLE (Leftmost, aligned with sidebar menu icons below)
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () {
+                  ref.read(sidebarExpandedProvider.notifier).state = !isExpanded;
+                },
+                child: Tooltip(
+                  message: isExpanded ? 'Collapse sidebar' : 'Expand sidebar',
+                  child: Container(
+                    width: isCompactHeight ? 36 : 40,
+                    height: isCompactHeight ? 36 : 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.transparent,
+                    ),
+                    child: Icon(
+                      isExpanded ? Icons.menu_open_outlined : Icons.menu_outlined,
+                      color: textColor,
+                      size: isCompactHeight ? 20 : 22,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
           ],
+
+          /// PIGGY TRUNK LOGO
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: logoSize,
+              height: logoSize,
+              child: Image.asset(
+                'assets/piggytrunk_logo.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          /// SYSTEM TITLE
+          Text(
+            'PiggyTrunk',
+            style: AppTextStyles.sidebarBrand(textColor).copyWith(
+              fontSize: isCompactHeight ? 18.5 : 20.5,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+
           const Spacer(),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -182,7 +250,20 @@ class ScreenTopBar extends ConsumerWidget {
                 cursor: SystemMouseCursors.click,
                 child: GestureDetector(
                   onTap: () {
-                    Navigator.of(context).pushNamed('/settings');
+                    final currentRoute = ModalRoute.of(context)?.settings.name;
+                    if (currentRoute == '/settings') return;
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    messenger?.hideCurrentSnackBar();
+                    messenger?.removeCurrentSnackBar();
+
+                    Navigator.of(context).pushReplacement(
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) => const SettingsScreen(),
+                        settings: const RouteSettings(name: '/settings'),
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                      ),
+                    );
                   },
                   child: Container(
                     height: 48,

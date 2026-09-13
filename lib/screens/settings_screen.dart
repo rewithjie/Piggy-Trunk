@@ -9,6 +9,7 @@ import '../utils/app_toast.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../providers/admin_profile_provider.dart';
+import '../services/email_service.dart';
 import '../utils/responsive.dart';
 import '../main.dart';
 
@@ -26,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Uint8List? _selectedImageBytes;
   String? _profilePictureUrl;
   String? _profilePicturePath;
+  bool _isLoading = true;
   bool _isUploadingImage = false;
   bool _isSavingProfile = false;
   bool _isChangingPassword = false;
@@ -191,6 +193,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       debugPrint('Error loading admin profile: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -222,20 +228,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/settings',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/settings',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
-                  child: SingleChildScrollView(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : SingleChildScrollView(
                     padding: EdgeInsets.all(isMobile ? 12 : 20),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -1051,29 +1059,83 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         final bool emailChanged = currentAuthEmail.isNotEmpty && newEmail != currentAuthEmail;
 
         if (emailChanged) {
-          // 1. Update email and metadata in Supabase Auth
-          final authRes = await _supabase.auth.updateUser(
-            UserAttributes(
-              email: newEmail,
-              data: metadataPayload,
-            ),
-          );
-
-          emailUpdated = true;
-          // Check if Supabase sent a confirmation email to newEmail
-          if (authRes.user?.newEmail != null && authRes.user!.newEmail!.isNotEmpty) {
-            emailConfirmationRequired = true;
+          // 1. First attempt to update via RPC (bypasses GoTrue email sending failure)
+          bool updatedViaRpc = false;
+          try {
+            final dynamic rpcRes = await _supabase.rpc('admin_update_profile_email', params: {
+              'new_email': newEmail,
+              'new_name': name.isEmpty ? 'Admin' : name,
+              'new_role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+            });
+            if (rpcRes != null) {
+              if (rpcRes is Map && (rpcRes['success'] == true || rpcRes['success'] == 'true')) {
+                updatedViaRpc = true;
+                emailUpdated = true;
+              } else if (rpcRes == true) {
+                updatedViaRpc = true;
+                emailUpdated = true;
+              }
+            }
+          } catch (rpcErr) {
+            debugPrint('Notice calling admin_update_profile_email: $rpcErr');
           }
 
-          // 2. Sync new email, name and role in the app_users table
-          try {
-            await _supabase.from('app_users').update({
-              'name': name.isEmpty ? 'Admin' : name,
-              'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
-              'email': newEmail,
-            }).eq('email', currentAuthEmail);
-          } catch (dbErr) {
-            debugPrint('Notice updating app_users email: $dbErr');
+          if (!updatedViaRpc) {
+            // Fallback to direct Supabase auth.updateUser
+            final authRes = await _supabase.auth.updateUser(
+              UserAttributes(
+                email: newEmail,
+                data: metadataPayload,
+              ),
+            );
+
+            emailUpdated = true;
+            // Check if Supabase sent a confirmation email to newEmail
+            if (authRes.user?.newEmail != null && authRes.user!.newEmail!.isNotEmpty) {
+              emailConfirmationRequired = true;
+            }
+
+            // 2. Sync new email, name and role in the app_users table
+            try {
+              await _supabase.from('app_users').update({
+                'name': name.isEmpty ? 'Admin' : name,
+                'role': _roleController.text.trim().isEmpty ? 'System Administrator' : _roleController.text.trim(),
+                'email': newEmail,
+              }).eq('email', currentAuthEmail);
+            } catch (dbErr) {
+              debugPrint('Notice updating app_users email: $dbErr');
+            }
+          }
+
+          // Trigger in-app notification in admin_notifications table
+          if (emailUpdated) {
+            try {
+              await _supabase.from('admin_notifications').insert({
+                'title': 'Admin Email Updated',
+                'message': 'Administrator login email was successfully updated to $newEmail. You can now use your personal Gmail for admin sign-in and OTP password recovery.',
+                'type': 'admin_profile',
+                'is_read': false,
+                'metadata': {
+                  'new_email': newEmail,
+                  'admin_name': name.isEmpty ? 'Admin' : name,
+                  'updated_at': DateTime.now().toIso8601String(),
+                },
+              });
+            } catch (notifErr) {
+              debugPrint('Notice inserting admin notification: $notifErr');
+            }
+          }
+
+          // Trigger email notification to new Gmail inbox via Gmail SMTP
+          if (emailUpdated && !emailConfirmationRequired) {
+            try {
+              EmailService().sendAdminEmailChangedNotification(
+                recipientEmail: newEmail,
+                adminName: name.isEmpty ? 'Admin' : name,
+              );
+            } catch (emailErr) {
+              debugPrint('Notice sending admin email changed email: $emailErr');
+            }
           }
         } else {
           // Only metadata changed
@@ -1135,12 +1197,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } on AuthException catch (authErr) {
       if (mounted) {
+        String friendlyError = authErr.message;
+        if (friendlyError.contains('Error sending email change email') ||
+            friendlyError.contains('unexpected_failure')) {
+          friendlyError =
+              'Email update requires running "30_admin_profile_email_function.sql" in Supabase SQL Editor, or disabling "Confirm email change" in Supabase Dashboard (Auth > Providers > Email).';
+        }
         setState(() {
-          _emailError = authErr.message;
+          _emailError = friendlyError;
         });
         _showThemedSnackBar(
-          authErr.message,
+          friendlyError,
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         );
       }
     } catch (e) {

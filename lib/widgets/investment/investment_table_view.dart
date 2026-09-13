@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../common/shimmer_loading.dart';
 import 'investment_detail_modal.dart';
 
 class InvestmentTableView extends StatefulWidget {
@@ -10,6 +11,8 @@ class InvestmentTableView extends StatefulWidget {
   final List<Map<String, dynamic>> partnerInvestments;
   final String? initialViewMode;
   final VoidCallback onAddInvestment;
+  final VoidCallback? onRefresh;
+  final bool isRefreshing;
   final void Function(Investment item) onEditInvestment;
   final void Function(Investment item) onArchiveInvestment;
   final void Function(Investment item) onDeleteInvestment;
@@ -21,6 +24,8 @@ class InvestmentTableView extends StatefulWidget {
     required this.investments,
     this.partnerInvestments = const [],
     this.initialViewMode,
+    this.onRefresh,
+    this.isRefreshing = false,
     required this.onAddInvestment,
     required this.onEditInvestment,
     required this.onArchiveInvestment,
@@ -224,8 +229,25 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               const SizedBox(height: 16),
 
               // Table Content
-              LayoutBuilder(
-                builder: (context, constraints) {
+              if (widget.isRefreshing)
+                TableSkeletonLoader(
+                  isDark: isDark,
+                  minWidth: 650,
+                  cardBg: cardBg,
+                  cardBorder: cardBorder,
+                  headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                  headers: _viewMode == 'DIRECT'
+                      ? const ['HOG RAISER', 'BATCH ASSIGN', 'CAPITAL', 'STOCKS SPEND', 'HOG TYPE', 'HEADS', 'DATE', 'ACTIONS']
+                      : const ['PARTNER INVESTOR', 'BATCH NAME', 'AMOUNT', 'DATE', 'STATUS'],
+                  columnFlexes: _viewMode == 'DIRECT'
+                      ? const [3, 2, 2, 2, 2, 2, 2, 2]
+                      : const [3, 3, 2, 2, 2],
+                  rowCount: 5,
+                  borderRadius: 12,
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
                   final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
 
                   return Scrollbar(
@@ -536,15 +558,25 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: isMobile ? 15 : 18,
-                    fontWeight: FontWeight.w800,
-                    color: titleColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                widget.isRefreshing
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: ShimmerBox(
+                          width: isMobile ? 50 : 70,
+                          height: isMobile ? 15 : 18,
+                          borderRadius: BorderRadius.circular(4),
+                          isDark: isDark,
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: isMobile ? 15 : 18,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
               ],
             ),
           ),
@@ -588,11 +620,46 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       ),
     );
 
+    final refreshBtn = widget.onRefresh != null
+        ? Tooltip(
+            message: 'Refresh investments',
+            child: IconButton(
+              onPressed: widget.isRefreshing ? null : widget.onRefresh,
+              icon: widget.isRefreshing
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: fieldFocus,
+                      ),
+                    )
+                  : Icon(Icons.refresh_rounded, color: fieldFocus, size: 22),
+              style: IconButton.styleFrom(
+                backgroundColor: isDark ? const Color(0xFF1A2B44) : const Color(0xFFEEF4FD),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: fieldBorder),
+                ),
+                minimumSize: const Size(44, 44),
+              ),
+            ),
+          )
+        : null;
+
     if (isMobile) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          searchField,
+          Row(
+            children: [
+              Expanded(child: searchField),
+              if (refreshBtn != null) ...[
+                const SizedBox(width: 8),
+                refreshBtn,
+              ],
+            ],
+          ),
           const SizedBox(height: 12),
           filterButtons,
         ],
@@ -604,6 +671,10 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         Expanded(flex: 3, child: searchField),
         const SizedBox(width: 14),
         filterButtons,
+        if (refreshBtn != null) ...[
+          const SizedBox(width: 10),
+          refreshBtn,
+        ],
       ],
     );
   }
@@ -732,7 +803,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 onTap: () => InvestmentDetailModal.show(context: context, investment: inv),
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
@@ -746,14 +817,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                     children: [
                       Icon(
                         Icons.visibility_outlined,
-                        size: 13,
+                        size: 14,
                         color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Text(
                         'Details',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                         ),
@@ -839,9 +910,12 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
           ),
           Expanded(
             flex: 2,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
@@ -898,26 +972,26 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                     onTap: () => widget.onApprovePartnerInvestment?.call(investmentId),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                        color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                          color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
                           width: 1,
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.check_circle_outline_rounded, size: 13, color: Color(0xFF10B981)),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.check_circle_outline_rounded, size: 14, color: PiggyTrunkTheme.ptSuccess),
+                          const SizedBox(width: 5),
                           Text(
                             'Approve',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF10B981),
+                              color: PiggyTrunkTheme.ptSuccess,
                             ),
                           ),
                         ],
@@ -929,7 +1003,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                     onTap: () => widget.onRejectPartnerInvestment?.call(investmentId),
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFF758C).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -941,12 +1015,12 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.cancel_outlined, size: 13, color: Color(0xFFFF758C)),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.cancel_outlined, size: 14, color: Color(0xFFFF758C)),
+                          const SizedBox(width: 5),
                           Text(
-                            'Decline',
+                            'Reject',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: const Color(0xFFFF758C),
                             ),
@@ -959,6 +1033,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
               ],
             ),
           ),
+        ),
         ],
       ),
     );

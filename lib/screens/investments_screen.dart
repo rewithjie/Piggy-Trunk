@@ -25,6 +25,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
   List<Investment> investments = [];
   List<Map<String, dynamic>> partnerInvestments = [];
   bool _isLoading = true;
+  bool _isTableRefreshing = false;
   bool _showInvestmentForm = false;
   Investment? _editingInvestment;
 
@@ -102,8 +103,12 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     return clean;
   }
 
-  Future<void> _loadInvestments() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadInvestments({bool isRefresh = false}) async {
+    if (isRefresh) {
+      setState(() => _isTableRefreshing = true);
+    } else {
+      setState(() => _isLoading = true);
+    }
     try {
       // 1. Fetch Batches
       List<dynamic> batchesRaw = [];
@@ -389,7 +394,12 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     } catch (e) {
       debugPrint('Error loading investments: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isTableRefreshing = false;
+        });
+      }
     }
   }
 
@@ -445,22 +455,20 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               ),
             )
           : null,
-      body: Row(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!isSmall)
-            AdminSidebar(
-              currentRoute: '/investments',
-              onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
-            ),
+          const ScreenTopBar(),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: Row(
               children: [
-                const ScreenTopBar(),
+                if (!isSmall)
+                  AdminSidebar(
+                    currentRoute: '/investments',
+                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                  ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _showInvestmentForm
+                  child: _showInvestmentForm
                           ? InvestmentFormView(
                               onCancel: () => setState(() {
                                 _showInvestmentForm = false;
@@ -503,6 +511,8 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                       child: InvestmentTableView(
                                         investments: investments,
                                         partnerInvestments: partnerInvestments,
+                                        onRefresh: () => _loadInvestments(isRefresh: true),
+                                        isRefreshing: _isLoading || _isTableRefreshing,
                                         onAddInvestment: () => setState(() {
                                           _showInvestmentForm = true;
                                           _editingInvestment = null;

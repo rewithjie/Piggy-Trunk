@@ -1,5 +1,26 @@
 const http = require('http');
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
+
+// Load .env if present
+try {
+  const envPath = path.resolve(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    envContent.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...values] = trimmed.split('=');
+        if (key && values.length > 0) {
+          process.env[key.trim()] = values.join('=').trim();
+        }
+      }
+    });
+  }
+} catch (e) {
+  console.log('Error reading .env:', e.message);
+}
 
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
@@ -7,7 +28,7 @@ const transporter = nodemailer.createTransport({
   secure: true,
   auth: {
     user: process.env.GMAIL_USER || 'piggytrunk@gmail.com',
-    pass: process.env.GMAIL_APP_PASSWORD || 'nuicsizzrnmhnuva',
+    pass: process.env.GMAIL_APP_PASSWORD || 'ptveuzimyoixwtsz',
   },
 });
 
@@ -15,6 +36,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(200);
@@ -59,6 +81,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = 3001;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Piggy Trunk SMTP Bridge running on http://localhost:${PORT}`);
 });
