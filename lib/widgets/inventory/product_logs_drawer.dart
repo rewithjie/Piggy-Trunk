@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/product_log_model.dart';
 import '../../theme/app_theme.dart';
+import '../common/shimmer_loading.dart';
 
 class ProductLogsDrawer extends StatefulWidget {
   final String? filterProductId;
@@ -208,8 +209,17 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.refresh, color: _mutedColor, size: 20),
-                onPressed: _loadLogs,
+                icon: _isLoadingLogs
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                        ),
+                      )
+                    : Icon(Icons.refresh, color: _mutedColor, size: 20),
+                onPressed: _isLoadingLogs ? null : _loadLogs,
                 tooltip: 'Refresh Logs',
               ),
               IconButton(
@@ -241,7 +251,7 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
         const Divider(height: 1),
         Expanded(
           child: _isLoadingLogs
-              ? const Center(child: CircularProgressIndicator())
+              ? _buildLogsSkeleton()
               : _logsErrorMessage != null
                   ? _buildLogsErrorState()
                   : filteredList.isEmpty
@@ -545,4 +555,91 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
       ),
     );
   }
+
+  Widget _buildLogsSkeleton() {
+    return ShimmerProvider(
+      child: ListView.builder(
+        controller: widget.scrollController,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    ShimmerBox(
+                      width: 76,
+                      height: 22,
+                      borderRadius: BorderRadius.circular(6),
+                      isDark: _isDark,
+                    ),
+                    const Spacer(),
+                    ShimmerBox(
+                      width: 110,
+                      height: 12,
+                      borderRadius: BorderRadius.circular(3),
+                      isDark: _isDark,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ShimmerBox(
+                  width: index % 2 == 0 ? 170 : 130,
+                  height: 15,
+                  borderRadius: BorderRadius.circular(4),
+                  isDark: _isDark,
+                ),
+                const SizedBox(height: 8),
+                ShimmerBox(
+                  width: index % 2 == 0 ? 250 : 190,
+                  height: 12,
+                  borderRadius: BorderRadius.circular(3),
+                  isDark: _isDark,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    ShimmerBox(
+                      width: 65,
+                      height: 12,
+                      borderRadius: BorderRadius.circular(3),
+                      isDark: _isDark,
+                    ),
+                    const SizedBox(width: 12),
+                    ShimmerBox(
+                      width: 75,
+                      height: 12,
+                      borderRadius: BorderRadius.circular(3),
+                      isDark: _isDark,
+                    ),
+                    const Spacer(),
+                    ShimmerBox(
+                      width: 65,
+                      height: 11,
+                      borderRadius: BorderRadius.circular(3),
+                      isDark: _isDark,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
+

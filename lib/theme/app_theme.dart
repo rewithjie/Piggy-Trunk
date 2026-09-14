@@ -164,6 +164,16 @@ class PiggyTrunkTheme {
         color: ptPrimary,
       ),
     ),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.linux: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.macOS: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.windows: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: NoAnimationPageTransitionsBuilder(),
+      },
+    ),
   );
   }
 
@@ -304,6 +314,16 @@ class PiggyTrunkTheme {
         color: ptPrimaryDark,
       ),
     ),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.iOS: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.linux: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.macOS: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.windows: NoAnimationPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: NoAnimationPageTransitionsBuilder(),
+      },
+    ),
   );
   }
 
@@ -320,3 +340,19 @@ class PiggyTrunkTheme {
     offset: Offset(0, 18),
   );
 }
+
+class NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
+  const NoAnimationPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
+}
+

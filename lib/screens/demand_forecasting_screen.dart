@@ -13,6 +13,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/inventory/product_restock_dialog.dart';
 import '../widgets/common/shimmer_loading.dart';
+import 'pos_screen.dart';
 
 class DemandForecastingScreen extends StatefulWidget {
   final bool isMobileEmbedded;
@@ -370,10 +371,18 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   Widget _buildBackButton() {
     return InkWell(
       onTap: () {
-        if (widget.isMobileEmbedded) {
+        if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         } else {
-          Navigator.of(context).pushReplacementNamed('/pos');
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  const POSScreen(),
+              settings: const RouteSettings(name: '/pos'),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+            ),
+          );
         }
       },
       borderRadius: BorderRadius.circular(10),

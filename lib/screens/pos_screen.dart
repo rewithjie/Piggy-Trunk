@@ -403,8 +403,12 @@ class _POSScreenState extends State<POSScreen> {
                     InkWell(
                       onTap: () async {
                         await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const DemandForecastingScreen(),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) =>
+                                const DemandForecastingScreen(),
+                            settings: const RouteSettings(name: '/forecasting'),
+                            transitionDuration: Duration.zero,
+                            reverseTransitionDuration: Duration.zero,
                           ),
                         );
                         _loadProductsFromInventory();
@@ -451,8 +455,12 @@ class _POSScreenState extends State<POSScreen> {
                     InkWell(
                       onTap: () async {
                         await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => BestSellersScreen(initialProducts: _products),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) =>
+                                BestSellersScreen(initialProducts: _products),
+                            settings: const RouteSettings(name: '/best-sellers'),
+                            transitionDuration: Duration.zero,
+                            reverseTransitionDuration: Duration.zero,
                           ),
                         );
                         _loadProductsFromInventory();

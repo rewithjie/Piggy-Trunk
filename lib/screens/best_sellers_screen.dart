@@ -10,6 +10,7 @@ import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/common/shimmer_loading.dart';
+import 'pos_screen.dart';
 
 class BestSellersScreen extends StatefulWidget {
   final List<POSProduct>? initialProducts;
@@ -268,7 +269,21 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
         Row(
           children: [
             InkWell(
-              onTap: () => Navigator.of(context).pop(),
+              onTap: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                } else {
+                  Navigator.of(context).pushReplacement(
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) =>
+                          const POSScreen(),
+                      settings: const RouteSettings(name: '/pos'),
+                      transitionDuration: Duration.zero,
+                      reverseTransitionDuration: Duration.zero,
+                    ),
+                  );
+                }
+              },
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 padding: const EdgeInsets.all(8),
