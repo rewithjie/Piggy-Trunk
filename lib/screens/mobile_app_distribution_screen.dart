@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../utils/app_toast.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../utils/responsive.dart';
 
 class MobileAppDistributionScreen extends StatefulWidget {
@@ -185,14 +186,11 @@ class _MobileAppDistributionScreenState extends State<MobileAppDistributionScree
                                     fit: BoxFit.contain,
                                     loadingBuilder: (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
-                                      return SizedBox(
+                                      return ShimmerBox(
                                         width: 220,
                                         height: 220,
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(PiggyTrunkTheme.ptPrimary),
-                                          ),
-                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        isDark: _isDark,
                                       );
                                     },
                                     errorBuilder: (context, error, stackTrace) {

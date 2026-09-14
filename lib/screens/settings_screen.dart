@@ -11,6 +11,7 @@ import '../widgets/screen_top_bar.dart';
 import '../providers/admin_profile_provider.dart';
 import '../services/email_service.dart';
 import '../utils/responsive.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../main.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -241,9 +242,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
                   ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
+                  child: SingleChildScrollView(
                     padding: EdgeInsets.all(isMobile ? 12 : 20),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -272,19 +271,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 20),
-                            LayoutBuilder(
-                              builder: (context, constraints) {
-                                final isStacked = constraints.maxWidth < 1100;
+                            if (_isLoading)
+                              _buildSettingsSkeleton()
+                            else
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final isStacked = constraints.maxWidth < 1100;
 
-                                if (isStacked) {
-                                  return Column(
-                                    children: [
-                                      _buildAdminProfileCard(),
-                                      const SizedBox(height: 16),
-                                      _buildSecurityCard(),
-                                    ],
-                                  );
-                                }
+                                  if (isStacked) {
+                                    return Column(
+                                      children: [
+                                        _buildAdminProfileCard(),
+                                        const SizedBox(height: 16),
+                                        _buildSecurityCard(),
+                                      ],
+                                    );
+                                  }
 
                                 return Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1332,5 +1334,116 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } else {
       AppToast.success(context, message, duration: duration);
     }
+  }
+
+  Widget _buildSettingsSkeleton() {
+    return ShimmerProvider(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isStacked = constraints.maxWidth < 1100;
+          final leftCard = Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _borderDark, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerBox(width: 100, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                const SizedBox(height: 8),
+                ShimmerBox(width: 140, height: 22, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    ShimmerBox(width: 80, height: 80, shape: BoxShape.circle, isDark: _isDark),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: 140, height: 16, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                          const SizedBox(height: 8),
+                          ShimmerBox(width: 180, height: 13, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                          const SizedBox(height: 10),
+                          ShimmerBox(width: 80, height: 22, borderRadius: BorderRadius.circular(11), isDark: _isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                ShimmerBox(width: 90, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                const SizedBox(height: 8),
+                ShimmerBox(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+                const SizedBox(height: 16),
+                ShimmerBox(width: 90, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                const SizedBox(height: 8),
+                ShimmerBox(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+                const SizedBox(height: 20),
+                ShimmerBox(width: 130, height: 40, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+              ],
+            ),
+          );
+
+          final rightCard = Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _surfaceDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _borderDark, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerBox(width: 90, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                const SizedBox(height: 8),
+                ShimmerBox(width: 150, height: 22, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                const SizedBox(height: 24),
+                ...List.generate(3, (i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: 120, height: 15, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                          const SizedBox(height: 6),
+                          ShimmerBox(width: 180, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                        ],
+                      ),
+                      ShimmerBox(width: 48, height: 26, borderRadius: BorderRadius.circular(13), isDark: _isDark),
+                    ],
+                  ),
+                )),
+                const SizedBox(height: 12),
+                ShimmerBox(width: double.infinity, height: 44, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+              ],
+            ),
+          );
+
+          if (isStacked) {
+            return Column(
+              children: [
+                leftCard,
+                const SizedBox(height: 16),
+                rightCard,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: leftCard),
+              const SizedBox(width: 16),
+              Expanded(child: rightCard),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

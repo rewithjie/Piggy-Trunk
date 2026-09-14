@@ -377,13 +377,22 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                       _buildRequestFilterChip('Rejected', 'Rejected'),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: _loadStockRequests,
+                        onPressed: _isLoadingRequests ? null : _loadStockRequests,
                         tooltip: 'Refresh requests',
-                        icon: Icon(
-                          Icons.refresh_rounded,
-                          size: 20,
-                          color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                        ),
+                        icon: _isLoadingRequests
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                ),
+                              )
+                            : Icon(
+                                Icons.refresh_rounded,
+                                size: 20,
+                                color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              ),
                       ),
                     ],
                   ),

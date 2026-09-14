@@ -11,6 +11,7 @@ import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../main.dart';
+import '../widgets/common/shimmer_loading.dart';
 import 'best_sellers_screen.dart';
 import 'demand_forecasting_screen.dart';
 
@@ -312,53 +313,54 @@ class _POSScreenState extends State<POSScreen> {
                     onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
                   ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isMobile = constraints.maxWidth < 800;
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = constraints.maxWidth < 800;
+                      final rightPanelWidth = constraints.maxWidth > 1300
+                          ? 380.0
+                          : (constraints.maxWidth > 1050 ? 340.0 : 310.0);
 
-                            if (isMobile) {
-                              return SingleChildScrollView(
-                                padding: EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16),
-                                child: Column(
-                                  children: [
-                                    _buildProductsPanel(EdgeInsets.zero),
-                                    const SizedBox(height: 16),
-                                    Container(
-                                      constraints: const BoxConstraints(minHeight: 480),
-                                      child: _buildCurrentOrderPanel(context, stacked: true),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
+                      if (_isLoading) {
+                        return _buildPosSkeleton(isMobile, rightPanelWidth);
+                      }
 
-                            // Laptop & Desktop layout (14-inch laptops, 1366x768, 1080p, etc.)
-                            final rightPanelWidth = constraints.maxWidth > 1300
-                                ? 380.0
-                                : (constraints.maxWidth > 1050 ? 340.0 : 310.0);
+                      if (isMobile) {
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16),
+                          child: Column(
+                            children: [
+                              _buildProductsPanel(EdgeInsets.zero),
+                              const SizedBox(height: 16),
+                              Container(
+                                constraints: const BoxConstraints(minHeight: 480),
+                                child: _buildCurrentOrderPanel(context, stacked: true),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
-                            return Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // Left Column: Always scrollable product catalog - prevents any bottom overflow
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    padding: const EdgeInsets.all(16),
-                                    child: _buildProductsPanel(EdgeInsets.zero),
-                                  ),
-                                ),
-                                Container(width: 1, color: _border),
-                                // Right Column: Current Order panel always docked on the side
-                                SizedBox(
-                                  width: rightPanelWidth,
-                                  child: _buildCurrentOrderPanel(context),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
+                      // Laptop & Desktop layout (14-inch laptops, 1366x768, 1080p, etc.)
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Left Column: Always scrollable product catalog - prevents any bottom overflow
+                          Expanded(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: _buildProductsPanel(EdgeInsets.zero),
+                            ),
+                          ),
+                          Container(width: 1, color: _border),
+                          // Right Column: Current Order panel always docked on the side
+                          SizedBox(
+                            width: rightPanelWidth,
+                            child: _buildCurrentOrderPanel(context),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -1223,6 +1225,198 @@ class _POSScreenState extends State<POSScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPosSkeleton(bool isMobile, double rightPanelWidth) {
+    return ShimmerProvider(
+      child: isMobile
+          ? SingleChildScrollView(
+              padding: EdgeInsets.all(Responsive.isMobile(context) ? 10 : 16),
+              child: Column(
+                children: [
+                  _buildProductsPanelSkeleton(isMobile),
+                  const SizedBox(height: 16),
+                  Container(
+                    constraints: const BoxConstraints(minHeight: 440),
+                    decoration: BoxDecoration(
+                      color: _surfaceSoft,
+                      border: Border.all(color: _border, width: 1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: _buildOrderPanelSkeleton(true),
+                  ),
+                ],
+              ),
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: _buildProductsPanelSkeleton(false),
+                  ),
+                ),
+                Container(width: 1, color: _border),
+                SizedBox(
+                  width: rightPanelWidth,
+                  child: _buildOrderPanelSkeleton(false),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildProductsPanelSkeleton(bool isMobile) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _surfaceSoft,
+        border: Border.all(color: _border, width: 1),
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 20),
+      ),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('POS', style: AppTextStyles.sectionTitle(_text)),
+              Row(
+                children: [
+                  ShimmerBox(width: 130, height: 34, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+                  const SizedBox(width: 8),
+                  ShimmerBox(width: 100, height: 34, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(width: 120, height: 18, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+              ShimmerBox(width: 60, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 800 ? 3 : (constraints.maxWidth > 500 ? 2 : 1);
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 6,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  childAspectRatio: 0.82,
+                ),
+                itemBuilder: (context, index) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _border),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: ShimmerBox(
+                              width: double.infinity,
+                              height: double.infinity,
+                              borderRadius: BorderRadius.circular(10),
+                              isDark: _isDark,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ShimmerBox(width: 110, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            ShimmerBox(width: 65, height: 15, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                            ShimmerBox(width: 30, height: 30, borderRadius: BorderRadius.circular(8), isDark: _isDark),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrderPanelSkeleton(bool stacked) {
+    return Container(
+      color: _surfaceSoft,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(width: 120, height: 20, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+              ShimmerBox(width: 26, height: 26, shape: BoxShape.circle, isDark: _isDark),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ...List.generate(3, (i) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                ShimmerBox(width: 40, height: 40, borderRadius: BorderRadius.circular(8), isDark: _isDark),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ShimmerBox(width: 90, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                      const SizedBox(height: 6),
+                      ShimmerBox(width: 55, height: 11, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                    ],
+                  ),
+                ),
+                ShimmerBox(width: 45, height: 22, borderRadius: BorderRadius.circular(6), isDark: _isDark),
+              ],
+            ),
+          )),
+          const SizedBox(height: 24),
+          if (!stacked) const Spacer(),
+          Divider(color: _border),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(width: 60, height: 13, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+              ShimmerBox(width: 70, height: 13, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(width: 45, height: 16, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+              ShimmerBox(width: 90, height: 18, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ShimmerBox(width: double.infinity, height: 46, borderRadius: BorderRadius.circular(12), isDark: _isDark),
+        ],
       ),
     );
   }

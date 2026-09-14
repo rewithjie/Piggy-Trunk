@@ -568,8 +568,8 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    onPressed: _isTableRefreshing ? null : () => _loadUsers(keyword: _searchCtrl.text, isRefresh: true),
-                    icon: _isTableRefreshing
+                    onPressed: (_isLoading || _isTableRefreshing) ? null : () => _loadUsers(keyword: _searchCtrl.text, isRefresh: true),
+                    icon: (_isLoading || _isTableRefreshing)
                         ? SizedBox(
                             width: 18,
                             height: 18,
@@ -665,7 +665,21 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: const Size(185, 48),
       ),
-      child: Text('$label ($count)', style: textStyle),
+      child: (_isLoading && count == 0)
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: textStyle),
+                const SizedBox(width: 6),
+                ShimmerBox(
+                  width: 20,
+                  height: 14,
+                  borderRadius: BorderRadius.circular(4),
+                  isDark: _isDark,
+                ),
+              ],
+            )
+          : Text('$label ($count)', style: textStyle),
     );
   }
 

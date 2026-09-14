@@ -412,46 +412,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                             padding: EdgeInsets.all(isMobile ? 0 : 32),
-                            child: _isLoading
-                                ? _buildDashboardSkeleton(isMobile)
-                                : Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      /// Dashboard Title + Refresh
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Dashboard',
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: isMobile ? 22 : 30,
-                                              fontWeight: FontWeight.w800,
-                                              color: _textDark,
-                                              letterSpacing: -0.04,
-                                            ),
-                                          ),
-                                          IconButton(
-                                            onPressed: _loadDashboardData,
-                                            icon: Icon(Icons.refresh_rounded,
-                                                color: _mutedDark),
-                                            tooltip: 'Refresh',
-                                          ),
-                                        ],
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                /// Dashboard Title + Refresh (Steady Header)
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Dashboard',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: isMobile ? 22 : 30,
+                                        fontWeight: FontWeight.w800,
+                                        color: _textDark,
+                                        letterSpacing: -0.04,
                                       ),
-                                      SizedBox(height: isMobile ? 14 : 24),
+                                    ),
+                                    IconButton(
+                                      onPressed: _isLoading ? null : _loadDashboardData,
+                                      icon: _isLoading
+                                          ? SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                              ),
+                                            )
+                                          : Icon(Icons.refresh_rounded, color: _mutedDark),
+                                      tooltip: 'Refresh',
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: isMobile ? 14 : 24),
 
-                                      /// KPI CARDS ROW
-                                      _buildKpiCardsRow(),
-                                      SizedBox(height: isMobile ? 20 : 32),
+                                if (_isLoading)
+                                  _buildDashboardSkeletonContent(isMobile)
+                                else ...[
+                                  /// KPI CARDS ROW
+                                  _buildKpiCardsRow(),
+                                  SizedBox(height: isMobile ? 20 : 32),
 
-                                      /// INVESTMENT ALLOCATION SECTION
-                                      _buildInvestmentAllocationSection(),
-                                      SizedBox(height: isMobile ? 20 : 32),
+                                  /// INVESTMENT ALLOCATION SECTION
+                                  _buildInvestmentAllocationSection(),
+                                  SizedBox(height: isMobile ? 20 : 32),
 
-                                      /// ACTIVE HOG RAISERS PROGRESS SECTION
-                                      _buildActiveRaisersSection(),
-                                    ],
-                                  ),
+                                  /// ACTIVE HOG RAISERS PROGRESS SECTION
+                                  _buildActiveRaisersSection(),
+                                ],
+                              ],
+                            ),
                                 ),
                               );
                             },
@@ -971,32 +981,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDashboardSkeleton(bool isMobile) {
+  Widget _buildDashboardSkeletonContent(bool isMobile) {
     final isVeryNarrow = MediaQuery.of(context).size.width < 500;
 
     return ShimmerProvider(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              ShimmerBox(
-                width: isMobile ? 140 : 180,
-                height: isMobile ? 24 : 32,
-                borderRadius: BorderRadius.circular(6),
-                isDark: true,
-              ),
-              ShimmerBox(
-                width: 36,
-                height: 36,
-                borderRadius: BorderRadius.circular(10),
-                isDark: true,
-              ),
-            ],
-          ),
-          SizedBox(height: isMobile ? 14 : 24),
-
           // 2 Real KPI Cards (NUMBER OF HOG BATCH & TOTAL CURRENT INVESTMENT)
           if (isVeryNarrow)
             Column(
@@ -1044,7 +1035,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        ShimmerBox(width: 85, height: 11, borderRadius: BorderRadius.circular(3), isDark: true),
+                        ShimmerBox(width: 85, height: 11, borderRadius: BorderRadius.circular(3), isDark: _isDark),
                       ],
                     ),
                     Row(
@@ -1057,7 +1048,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        ShimmerBox(width: 70, height: 14, borderRadius: BorderRadius.circular(4), isDark: true),
+                        ShimmerBox(width: 70, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
                       ],
                     ),
                   ],
@@ -1079,6 +1070,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Expanded(child: _buildSkeletonSubCard('SOW', 60, isMobile)),
                     ],
                   ),
+              ],
+            ),
+          ),
+          SizedBox(height: isMobile ? 20 : 32),
+
+          // Active Hog Raisers Progress Skeleton Card
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(isMobile ? 16 : 32),
+            decoration: BoxDecoration(
+              color: _surfaceDark,
+              border: Border.all(color: _borderDark, width: 1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'ACTIVE HOG RAISERS PROGRESS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: isMobile ? 12 : 14,
+                        fontWeight: FontWeight.bold,
+                        color: _mutedDark,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    ShimmerBox(width: 100, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 18 : 28),
+                Row(
+                  children: List.generate(isMobile ? 3 : 5, (index) {
+                    return Expanded(
+                      child: Column(
+                        children: [
+                          ShimmerBox(width: 44, height: 44, shape: BoxShape.circle, isDark: _isDark),
+                          const SizedBox(height: 8),
+                          ShimmerBox(width: 50, height: 12, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
               ],
             ),
           ),
@@ -1113,7 +1150,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             width: valueWidth,
             height: isMobile ? 22 : 28,
             borderRadius: BorderRadius.circular(6),
-            isDark: true,
+            isDark: _isDark,
           ),
         ],
       ),
@@ -1144,7 +1181,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             width: valueWidth,
             height: isMobile ? 20 : 26,
             borderRadius: BorderRadius.circular(6),
-            isDark: true,
+            isDark: _isDark,
           ),
         ],
       ),

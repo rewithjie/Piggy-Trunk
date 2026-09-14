@@ -9,6 +9,7 @@ import '../utils/inventory_data_adapter.dart';
 import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
+import '../widgets/common/shimmer_loading.dart';
 
 class BestSellersScreen extends StatefulWidget {
   final List<POSProduct>? initialProducts;
@@ -143,37 +144,45 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
       return Scaffold(
         backgroundColor: _bg,
         body: SafeArea(
-          child: _isLoading
-              ? Center(child: CircularProgressIndicator(color: _brandPrimary))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Top Bar Header & Back Button
-                      _buildHeader(true),
-                      const SizedBox(height: 18),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Bar Header & Back Button (Preserved)
+                _buildHeader(true),
+                const SizedBox(height: 18),
 
-                      // KPI Metric Summary Cards
-                      _buildKpiMetrics(true),
-                      const SizedBox(height: 24),
+                if (_isLoading) ...[
+                  _buildKpiMetricsSkeleton(true),
+                  const SizedBox(height: 24),
+                  _buildCategoryPillsSkeleton(),
+                  const SizedBox(height: 20),
+                  _buildPodiumSkeleton(true),
+                  const SizedBox(height: 24),
+                  _buildLeaderboardSkeleton(true),
+                ] else ...[
+                  // KPI Metric Summary Cards
+                  _buildKpiMetrics(true),
+                  const SizedBox(height: 24),
 
-                      // Category Pills (Balanced Spacing)
-                      _buildCategoryPills(),
-                      const SizedBox(height: 20),
+                  // Category Pills (Balanced Spacing)
+                  _buildCategoryPills(),
+                  const SizedBox(height: 20),
 
-                      // Top 3 Podium Spotlight (if available)
-                      if (_rankedProducts.isNotEmpty) ...[
-                        _buildPodiumSection(true),
-                        const SizedBox(height: 24),
-                      ],
+                  // Top 3 Podium Spotlight (if available)
+                  if (_rankedProducts.isNotEmpty) ...[
+                    _buildPodiumSection(true),
+                    const SizedBox(height: 24),
+                  ],
 
-                      // Full Leaderboard Table / Cards
-                      _buildLeaderboardSection(true),
-                    ],
-                  ),
-                ),
+                  // Full Leaderboard Table / Cards
+                  _buildLeaderboardSection(true),
+                ],
+              ],
+            ),
+          ),
         ),
       );
     }
@@ -202,39 +211,47 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
                     onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
                   ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 12 : 24,
-                            vertical: isMobile ? 14 : 20,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Top Bar Header & Back Button
-                              _buildHeader(isMobile),
-                              const SizedBox(height: 18),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 12 : 24,
+                      vertical: isMobile ? 14 : 20,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top Bar Header & Back Button (Preserved)
+                        _buildHeader(isMobile),
+                        const SizedBox(height: 18),
 
-                              // KPI Metric Summary Cards
-                              _buildKpiMetrics(isMobile),
-                              const SizedBox(height: 24),
+                        if (_isLoading) ...[
+                          _buildKpiMetricsSkeleton(isMobile),
+                          const SizedBox(height: 24),
+                          _buildCategoryPillsSkeleton(),
+                          const SizedBox(height: 20),
+                          _buildPodiumSkeleton(isMobile),
+                          const SizedBox(height: 24),
+                          _buildLeaderboardSkeleton(isMobile),
+                        ] else ...[
+                          // KPI Metric Summary Cards
+                          _buildKpiMetrics(isMobile),
+                          const SizedBox(height: 24),
 
-                              // Category Pills (Balanced Spacing)
-                              _buildCategoryPills(),
-                              const SizedBox(height: 20),
+                          // Category Pills (Balanced Spacing)
+                          _buildCategoryPills(),
+                          const SizedBox(height: 20),
 
-                              // Top 3 Podium Spotlight (if available)
-                              if (_rankedProducts.isNotEmpty) ...[
-                                _buildPodiumSection(isMobile),
-                                const SizedBox(height: 24),
-                              ],
+                          // Top 3 Podium Spotlight (if available)
+                          if (_rankedProducts.isNotEmpty) ...[
+                            _buildPodiumSection(isMobile),
+                            const SizedBox(height: 24),
+                          ],
 
-                              // Full Leaderboard Table / Cards
-                              _buildLeaderboardSection(isMobile),
-                            ],
-                          ),
-                        ),
+                          // Full Leaderboard Table / Cards
+                          _buildLeaderboardSection(isMobile),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -316,8 +333,17 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
           ],
         ),
         IconButton(
-          onPressed: _loadProducts,
-          icon: Icon(Icons.refresh_rounded, color: _muted),
+          onPressed: _isLoading ? null : _loadProducts,
+          icon: _isLoading
+              ? SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                  ),
+                )
+              : Icon(Icons.refresh_rounded, color: _muted),
           tooltip: 'Refresh Rankings',
         ),
       ],
@@ -925,6 +951,118 @@ class _BestSellersScreenState extends State<BestSellersScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildKpiMetricsSkeleton(bool isMobile) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = isMobile ? 2 : (constraints.maxWidth > 900 ? 4 : 2);
+        final cardWidth = (constraints.maxWidth - (crossAxisCount - 1) * 14) / crossAxisCount;
+
+        return Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: List.generate(4, (i) => Container(
+            width: cardWidth,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _border, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerBox(width: 80, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                const SizedBox(height: 8),
+                ShimmerBox(width: 110, height: 22, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                const SizedBox(height: 6),
+                ShimmerBox(width: 90, height: 11, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+              ],
+            ),
+          )),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryPillsSkeleton() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: List.generate(5, (i) => Padding(
+          padding: const EdgeInsets.only(right: 10.0),
+          child: ShimmerBox(width: 85, height: 36, borderRadius: BorderRadius.circular(16), isDark: _isDark),
+        )),
+      ),
+    );
+  }
+
+  Widget _buildPodiumSkeleton(bool isMobile) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = isMobile
+            ? double.infinity
+            : (constraints.maxWidth - 28) / 3;
+
+        return Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: List.generate(3, (i) => Container(
+            width: cardWidth,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _border, width: 1.2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ShimmerBox(width: 70, height: 20, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+                    ShimmerBox(width: 28, height: 28, shape: BoxShape.circle, isDark: _isDark),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    ShimmerBox(width: 52, height: 52, borderRadius: BorderRadius.circular(12), isDark: _isDark),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ShimmerBox(width: 100, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                          const SizedBox(height: 6),
+                          ShimmerBox(width: 70, height: 12, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )),
+        );
+      },
+    );
+  }
+
+  Widget _buildLeaderboardSkeleton(bool isMobile) {
+    return TableSkeletonLoader(
+      isDark: _isDark,
+      minWidth: 720,
+      cardBg: _surface,
+      cardBorder: _border,
+      headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+      headers: const ['RANK & PRODUCT', 'CATEGORY', 'UNIT PRICE', 'UNITS SOLD', 'EST. REVENUE'],
+      columnFlexes: const [4, 2, 2, 2, 3],
+      rowCount: 5,
+      borderRadius: 16,
     );
   }
 }

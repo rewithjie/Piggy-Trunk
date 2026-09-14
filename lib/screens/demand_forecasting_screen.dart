@@ -12,6 +12,7 @@ import '../utils/responsive.dart';
 import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/inventory/product_restock_dialog.dart';
+import '../widgets/common/shimmer_loading.dart';
 
 class DemandForecastingScreen extends StatefulWidget {
   final bool isMobileEmbedded;
@@ -200,10 +201,6 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   Widget _buildMainContent() {
     final isMobile = Responsive.isMobile(context) || widget.isMobileEmbedded;
 
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
       child: LayoutBuilder(
@@ -235,16 +232,46 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                   _buildHeader(isMobile),
                   const SizedBox(height: 24),
 
-                  // 4 Practical KPI Summary Cards
-                  _buildKPISection(isMobile),
-                  const SizedBox(height: 24),
+                  if (_isLoading) ...[
+                    // Preserved 4 KPI Summary Cards Skeleton
+                    _buildKpiSkeletonSection(isMobile),
+                    const SizedBox(height: 24),
 
-                  // Horizon Selector & Filter Controls
-                  _buildControlsCard(isMobile),
-                  const SizedBox(height: 24),
+                    // Horizon Selector & Filter Controls (Preserved as requested)
+                    _buildControlsCard(isMobile),
+                    const SizedBox(height: 24),
 
-                  // Forecast & Restock Matrix
-                  _buildForecastMatrixCard(isMobile),
+                    // Forecast Matrix Table Skeleton
+                    TableSkeletonLoader(
+                      isDark: _isDark,
+                      minWidth: 900,
+                      cardBg: _cardBg,
+                      cardBorder: _cardBorder,
+                      headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+                      headers: const [
+                        'PRODUCT / ITEM',
+                        'CURRENT STOCK',
+                        'VELOCITY',
+                        'PROJECTED NEED',
+                        'SUGGESTED RESTOCK',
+                        'ACTIONS',
+                      ],
+                      columnFlexes: const [3, 2, 2, 2, 2, 2],
+                      rowCount: 6,
+                      borderRadius: 16,
+                    ),
+                  ] else ...[
+                    // 4 Practical KPI Summary Cards
+                    _buildKPISection(isMobile),
+                    const SizedBox(height: 24),
+
+                    // Horizon Selector & Filter Controls
+                    _buildControlsCard(isMobile),
+                    const SizedBox(height: 24),
+
+                    // Forecast & Restock Matrix
+                    _buildForecastMatrixCard(isMobile),
+                  ],
                 ],
               ),
             ),
@@ -367,12 +394,21 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
   Widget _buildHeaderActionButtons() {
     return OutlinedButton.icon(
-      onPressed: _loadData,
-      icon: Icon(
-        Icons.refresh_rounded,
-        size: 17,
-        color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-      ),
+      onPressed: _isLoading ? null : _loadData,
+      icon: _isLoading
+          ? SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+              ),
+            )
+          : Icon(
+              Icons.refresh_rounded,
+              size: 17,
+              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+            ),
       label: Text(
         'Refresh',
         style: GoogleFonts.plusJakartaSans(
@@ -1692,6 +1728,81 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildKpiSkeletonSection(bool isMobile) {
+    final cards = [
+      _buildKpiCardSkeleton(isMobile),
+      _buildKpiCardSkeleton(isMobile),
+      _buildKpiCardSkeleton(isMobile),
+      _buildKpiCardSkeleton(isMobile),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cards[0]),
+              const SizedBox(width: 8),
+              Expanded(child: cards[1]),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cards[2]),
+              const SizedBox(width: 8),
+              Expanded(child: cards[3]),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: cards[0]),
+        const SizedBox(width: 14),
+        Expanded(child: cards[1]),
+        const SizedBox(width: 14),
+        Expanded(child: cards[2]),
+        const SizedBox(width: 14),
+        Expanded(child: cards[3]),
+      ],
+    );
+  }
+
+  Widget _buildKpiCardSkeleton(bool isMobile) {
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 18),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder, width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              ShimmerBox(width: 34, height: 34, borderRadius: BorderRadius.circular(10), isDark: _isDark),
+              ShimmerBox(width: 50, height: 18, borderRadius: BorderRadius.circular(9), isDark: _isDark),
+            ],
+          ),
+          SizedBox(height: isMobile ? 8 : 14),
+          ShimmerBox(width: 80, height: 22, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+          const SizedBox(height: 6),
+          ShimmerBox(width: 110, height: 13, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+          const SizedBox(height: 4),
+          ShimmerBox(width: 90, height: 11, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+        ],
+      ),
     );
   }
 }
