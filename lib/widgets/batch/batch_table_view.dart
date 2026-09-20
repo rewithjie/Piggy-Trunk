@@ -199,9 +199,7 @@ class BatchTableView extends StatelessWidget {
                                     Text(
                                       selectedStatusFilter == 'ACTIVE'
                                           ? 'No active batches found.'
-                                          : (selectedStatusFilter == 'COMPLETED'
-                                              ? 'No completed batches found.'
-                                              : 'No batches found matching criteria.'),
+                                          : 'No batches found matching criteria.',
                                       style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w600, color: titleColor),
                                     ),
                                     if (errorMessage != null) ...[
@@ -381,8 +379,6 @@ class BatchTableView extends StatelessWidget {
           _buildFilterPill('ALL', 'All Batches', isDark),
           const SizedBox(width: 8),
           _buildFilterPill('ACTIVE', 'Active', isDark),
-          const SizedBox(width: 8),
-          _buildFilterPill('COMPLETED', 'Completed', isDark),
         ],
       ),
     );
@@ -545,37 +541,33 @@ class BatchTableView extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Center(
-              child: InkWell(
-                onTap: () => onViewDetails(batch),
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.visibility_outlined,
-                        size: 14,
-                        color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Details',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+              child: Tooltip(
+                message: 'View Batch Details',
+                waitDuration: const Duration(milliseconds: 250),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onViewDetails(batch),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                          width: 1,
                         ),
                       ),
-                    ],
+                      child: Center(
+                        child: Icon(
+                          Icons.visibility_outlined,
+                          size: 16,
+                          color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

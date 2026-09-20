@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piggy Trunk - Chapter 4 Code Snippets</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      --card-bg: #1E293B;
+      --card-border: #334155;
+      --accent-blue: #38BDF8;
+      --accent-emerald: #34D399;
+      --accent-purple: #C084FC;
+      --accent-amber: #FBBF24;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --code-bg: #0F172A;
+      --keyword: #F43F5E;
+      --func: #38BDF8;
+      --str: #34D399;
+      --num: #FBBF24;
+      --prop: #A78BFA;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: #0B1120;
+      color: var(--text-main);
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 40px;
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--card-border);
+      padding: 30px;
+      border-radius: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+
+    .page-header p {
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .notice-badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-blue);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .snippet-section {
+      margin-bottom: 50px;
+    }
+
+    .figure-header {
+      margin-bottom: 12px;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .figure-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E2E8F0;
+    }
+
+    .figure-title span {
+      color: var(--accent-blue);
+    }
+
+    .file-badge {
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-muted);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    .ide-window {
+      background: var(--code-bg);
+      border: 1px solid #334155;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.6);
+      margin-bottom: 16px;
+    }
+
+    .window-bar {
+      background: #1E293B;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+
+    .mac-dots {
+      display: flex;
+      gap: 7px;
+      margin-right: 18px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #FF5F56; }
+    .dot.yellow { background: #FFBD2E; }
+    .dot.green { background: #27C93F; }
+
+    .window-title {
+      font-family: 'Fira Code', monospace;
+      font-size: 12.5px;
+      color: #94A3B8;
+      font-weight: 500;
+    }
+
+    .code-content {
+      padding: 20px;
+      font-family: 'Fira Code', monospace;
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: #E2E8F0;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .k { color: var(--keyword); font-weight: 600; }
+    .f { color: var(--func); }
+    .s { color: var(--str); }
+    .n { color: var(--num); }
+    .p { color: var(--prop); }
+
+    .desc-card {
+      background: #1E293B;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px 22px;
+    }
+
+    .desc-card h4 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent-blue);
+      margin-bottom: 8px;
+    }
+
+    .desc-card p {
+      font-size: 13.5px;
+      color: #CBD5E1;
+      line-height: 1.6;
+    }
+
+    .meta-table {
+      margin-top: 12px;
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .meta-table th, .meta-table td {
+      padding: 6px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .meta-table th {
+      color: var(--text-muted);
+      width: 140px;
+    }
+
+    .meta-table td {
+      color: #F1F5F9;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <div class="page-header">
+      <h1>PIGGY TRUNK &bull; CHAPTER 4 SOURCE CODE EXHIBITS</h1>
+      <p>System Implementation & Construction &mdash; Investment and Inventory Modules</p>
+      <div class="notice-badge">&#128247; Ready for Screenshot (Win + Shift + S) for Thesis / Capstone Manuscript</div>
+    </div>
+
+    <!-- ================= FIGURE 4.1 ================= -->
+    <div class="snippet-section">
+      <div class="figure-header">
+        <div class="figure-title"><span>Figure 4.1:</span> Investment Record Loading & Dynamic Stock Spend Calculation</div>
+        <div class="file-badge">lib/screens/investments_screen.dart</div>
+      </div>
+
+      <div class="ide-window">
+        <div class="window-bar">
+          <div class="mac-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="window-title">investments_screen.dart &mdash; _loadInvestments()</div>
+        </div>
+        <div class="code-content"><span class="k">final</span> approvedStockRequests = <span class="k">await</span> _supabase
+    .<span class="f">from</span>(<span class="s">'stock_requests'</span>)
+    .<span class="f">select</span>(<span class="s">'*'</span>)
+    .<span class="f">eq</span>(<span class="s">'status'</span>, <span class="s">'approved'</span>)
+    .<span class="f">order</span>(<span class="s">'request_date'</span>, <span class="p">ascending</span>: <span class="k">false</span>);
+
+<span class="k">final</span> List&lt;Map&lt;String, dynamic&gt;&gt; providedStocksList = [];
+<span class="k">double</span> batchStocksSpend = <span class="n">0.0</span>;
+
+<span class="k">for</span> (<span class="k">var</span> req <span class="k">in</span> approvedStockRequests) {
+  <span class="k">if</span> (isBatchOrRaiserMatch(req, matchedAssignmentId, raiserId)) {
+    <span class="k">final</span> qty = (req[<span class="s">'quantity'</span>] <span class="k">as</span> num?)?.<span class="f">toDouble</span>() ?? <span class="n">1.0</span>;
+    <span class="k">final</span> fType = (req[<span class="s">'feed_type'</span>] ?? <span class="s">''</span>).<span class="f">toString</span>().<span class="f">trim</span>();
+    <span class="k">final</span> unitPrice = productPriceMap[fType.<span class="f">toLowerCase</span>()] ?? <span class="n">1650.0</span>;
+
+    <span class="k">final</span> totalReqVal = qty * unitPrice;
+    batchStocksSpend += totalReqVal;
+
+    providedStocksList.<span class="f">add</span>({
+      <span class="s">'request_id'</span>: req[<span class="s">'request_id'</span>],
+      <span class="s">'product_name'</span>: fType,
+      <span class="s">'quantity'</span>: qty.<span class="f">toInt</span>(),
+      <span class="s">'unit_price'</span>: unitPrice,
+      <span class="s">'total_amount'</span>: totalReqVal,
+      <span class="s">'status'</span>: req[<span class="s">'status'</span>],
+    });
+  }
+}
+
+rMap[<span class="s">'stocks_value'</span>] = batchStocksSpend;
+rMap[<span class="s">'provided_stocks'</span>] = providedStocksList;
+loaded.<span class="f">add</span>(Investment.<span class="f">fromJson</span>(rMap));</div>
+      </div>
+
+      <div class="desc-card">
+        <h4>System Implementation Description</h4>
+        <p>This code dynamically calculates the total feeds and inventory value consumed by each hog raiser's batch. By cross-referencing approved stock requests with product prices, the system accurately displays the current capital utilization without manual bookkeeping.</p>
+        <table class="meta-table">
+          <tr><th>Target Tables:</th><td><code>stock_requests</code>, <code>inventory_products</code>, <code>investment_records</code></td></tr>
+          <tr><th>Operation:</th><td>Relational Data Aggregation & Expense Synthesis</td></tr>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- ================= FIGURE 4.2 ================= -->
+    <div class="snippet-section">
+      <div class="figure-header">
+        <div class="figure-title"><span>Figure 4.2:</span> Strict 1:1 Batch Validation & Investment Record Creation</div>
+        <div class="file-badge">lib/widgets/investment/investment_form_view.dart</div>
+      </div>
+
+      <div class="ide-window">
+        <div class="window-bar">
+          <div class="mac-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="window-title">investment_form_view.dart &mdash; _submitForm()</div>
+        </div>
+        <div class="code-content"><span class="k">final</span> otherAssigns = <span class="k">await</span> _supabase
+    .<span class="f">from</span>(<span class="s">'assignments'</span>)
+    .<span class="f">select</span>(<span class="s">'assignment_id, batch_id'</span>)
+    .<span class="f">eq</span>(<span class="s">'hog_raiser_id'</span>, parsedRaiserId)
+    .<span class="f">eq</span>(<span class="s">'status'</span>, <span class="s">'active'</span>);
+
+<span class="k">if</span> (otherAssigns.isNotEmpty &amp;&amp; otherAssigns.first[<span class="s">'batch_id'</span>] != _selectedBatchId) {
+  <span class="k">throw</span> Exception(<span class="s">'A Hog Raiser can only be assigned to one active batch at a time (1:1 ratio).'</span>);
+}
+
+<span class="k">final</span> payload = &lt;String, dynamic&gt;{
+  <span class="s">'hog_raiser_id'</span>: isRaiserUnassigned ? <span class="k">null</span> : _selectedRaiserId,
+  <span class="s">'raiser_name'</span>: raiserName,
+  <span class="s">'initial_capital'</span>: parsedCapital,
+  <span class="s">'hog_type'</span>: hogTypeStr,
+  <span class="s">'total_hog'</span>: parsedTotalHog,
+  <span class="s">'investment_date'</span>: DateTime.<span class="f">now</span>().<span class="f">toIso8601String</span>(),
+  <span class="s">'stage'</span>: <span class="s">'active'</span>,
+};
+
+<span class="k">if</span> (_isEdit) {
+  <span class="k">await</span> _supabase.<span class="f">from</span>(<span class="s">'investment_records'</span>).<span class="f">update</span>(payload).<span class="f">eq</span>(<span class="s">'id'</span>, widget.existingInvestment!.id);
+} <span class="k">else</span> {
+  <span class="k">await</span> _supabase.<span class="f">from</span>(<span class="s">'investment_records'</span>).<span class="f">insert</span>(payload);
+}</div>
+      </div>
+
+      <div class="desc-card">
+        <h4>System Implementation Description</h4>
+        <p>Demonstrates the farm management business rule enforcing a strict 1:1 ratio between hog raisers and active batches. The transaction prevents double allocation of farm resources and commits verified records to the database.</p>
+        <table class="meta-table">
+          <tr><th>Target Tables:</th><td><code>assignments</code>, <code>investment_records</code></td></tr>
+          <tr><th>Validation Rule:</th><td>Strict 1-to-1 active batch assignment constraint</td></tr>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- ================= FIGURE 4.3 ================= -->
+    <div class="snippet-section">
+      <div class="figure-header">
+        <div class="figure-title"><span>Figure 4.3:</span> Product Restock & Automated Inventory Audit Trail Logging</div>
+        <div class="file-badge">lib/widgets/inventory/product_restock_dialog.dart</div>
+      </div>
+
+      <div class="ide-window">
+        <div class="window-bar">
+          <div class="mac-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="window-title">product_restock_dialog.dart &mdash; onConfirmRestock()</div>
+        </div>
+        <div class="code-content"><span class="k">final</span> newUnits = selectedProduct.units + addUnits;
+
+<span class="k">await</span> _supabase
+    .<span class="f">from</span>(<span class="s">'inventory_products'</span>)
+    .<span class="f">update</span>({<span class="s">'units'</span>: newUnits})
+    .<span class="f">eq</span>(<span class="s">'id'</span>, selectedProduct.id);
+
+<span class="k">await</span> _supabase.<span class="f">from</span>(<span class="s">'inventory_logs'</span>).<span class="f">insert</span>({
+  <span class="s">'product_id'</span>: selectedProduct.id,
+  <span class="s">'product_name'</span>: selectedProduct.name,
+  <span class="s">'action'</span>: <span class="s">'RESTOCK'</span>,
+  <span class="s">'performed_by'</span>: _supabase.auth.currentUser?.email ?? <span class="s">'Admin'</span>,
+  <span class="s">'price'</span>: selectedProduct.price,
+  <span class="s">'units'</span>: addUnits,
+  <span class="s">'details'</span>: <span class="s">'Added $addUnits units to stock. Total is now $newUnits units.'</span>,
+});</div>
+      </div>
+
+      <div class="desc-card">
+        <h4>System Implementation Description</h4>
+        <p>Illustrates the atomic inventory restocking workflow. Every stock replenishment triggers a parallel immutable entry in <code>inventory_logs</code>, tracking the exact date, authenticated administrator, and quantity change for accountability.</p>
+        <table class="meta-table">
+          <tr><th>Target Tables:</th><td><code>inventory_products</code>, <code>inventory_logs</code></td></tr>
+          <tr><th>Security Feature:</th><td>Audit trail logging with authenticated user email</td></tr>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- ================= FIGURE 4.4 ================= -->
+    <div class="snippet-section">
+      <div class="figure-header">
+        <div class="figure-title"><span>Figure 4.4:</span> Stock Request Approval, Auto-Deduction & Push Notification</div>
+        <div class="file-badge">lib/widgets/inventory/stock_requests_tab.dart</div>
+      </div>
+
+      <div class="ide-window">
+        <div class="window-bar">
+          <div class="mac-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="window-title">stock_requests_tab.dart &mdash; _processApproveRequest()</div>
+        </div>
+        <div class="code-content"><span class="k">final</span> newUnits = product.units - requestedUnits;
+<span class="k">await</span> _supabase
+    .<span class="f">from</span>(<span class="s">'inventory_products'</span>)
+    .<span class="f">update</span>({<span class="s">'units'</span>: newUnits})
+    .<span class="f">eq</span>(<span class="s">'id'</span>, product.id);
+
+<span class="k">await</span> _supabase.<span class="f">from</span>(<span class="s">'stock_requests'</span>).<span class="f">update</span>({
+  <span class="s">'status'</span>: <span class="s">'approved'</span>,
+  <span class="s">'decision_date'</span>: DateTime.<span class="f">now</span>().<span class="f">toIso8601String</span>().<span class="f">split</span>(<span class="s">'T'</span>).first,
+}).<span class="f">eq</span>(<span class="s">'request_id'</span>, requestId);
+
+<span class="k">if</span> (raiserId != <span class="k">null</span>) {
+  <span class="k">await</span> _supabase.<span class="f">from</span>(<span class="s">'raiser_notifications'</span>).<span class="f">insert</span>({
+    <span class="s">'hog_raiser_id'</span>: raiserId,
+    <span class="s">'title'</span>: <span class="s">'Stock Request Update'</span>,
+    <span class="s">'message'</span>: <span class="s">'Your request for $requestedUnits ${product.name} has been approved.'</span>,
+    <span class="s">'type'</span>: <span class="s">'request_approved'</span>,
+    <span class="s">'is_read'</span>: <span class="k">false</span>,
+  });
+}</div>
+      </div>
+
+      <div class="desc-card">
+        <h4>System Implementation Description</h4>
+        <p>Demonstrates the end-to-end fulfillment process for mobile stock requests. Approving a request instantly decreases warehouse inventory, updates request status, and fires a real-time event received by the Hog Raiser mobile application.</p>
+        <table class="meta-table">
+          <tr><th>Target Tables:</th><td><code>inventory_products</code>, <code>stock_requests</code>, <code>raiser_notifications</code></td></tr>
+          <tr><th>Real-time Feature:</th><td>Postgres Change Event / Push Notification trigger</td></tr>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

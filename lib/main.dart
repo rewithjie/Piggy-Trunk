@@ -16,6 +16,7 @@ import 'screens/batch_management_screen.dart';
 import 'screens/mobile_app_distribution_screen.dart';
 import 'screens/best_sellers_screen.dart';
 import 'screens/demand_forecasting_screen.dart';
+import 'screens/landing_screen.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
@@ -66,14 +67,15 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
-      title: 'Piggy Trunk Admin',
+      title: 'Piggy Trunk',
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      initialRoute: '/login',
+      initialRoute: '/',
       routes: {
+        '/': (context) => const LandingScreen(),
         '/login': (context) => const AdminLoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/raisers': (context) => const HogRaiserScreen(),

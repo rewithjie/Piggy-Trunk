@@ -13,7 +13,7 @@ class ActiveRaisersTab extends StatelessWidget {
   final bool isRefreshing;
   final void Function(String value) onSearch;
   final void Function(Map<String, dynamic> row) onShowDetails;
-  final void Function(Map<String, dynamic> row) onEditRaiser;
+  final void Function(Map<String, dynamic> row)? onEditRaiser;
   final void Function(Map<String, dynamic> row) onArchiveRaiser;
   final void Function(Map<String, dynamic> row) onRestoreRaiser;
   final void Function(Map<String, dynamic> row) onDeleteRaiser;
@@ -28,7 +28,7 @@ class ActiveRaisersTab extends StatelessWidget {
     this.isRefreshing = false,
     required this.onSearch,
     required this.onShowDetails,
-    required this.onEditRaiser,
+    this.onEditRaiser,
     required this.onArchiveRaiser,
     required this.onRestoreRaiser,
     required this.onDeleteRaiser,
@@ -145,6 +145,7 @@ class ActiveRaisersTab extends StatelessWidget {
               headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
               headers: const ['NAME', 'ADDRESS', 'PHONE NUMBER', 'STATUS', 'ACTIONS'],
               columnFlexes: const [2, 2, 2, 1, 4],
+              actionButtonCount: currentTab == 0 ? 2 : 3,
               rowCount: 5,
               borderRadius: 8,
             )
@@ -342,7 +343,7 @@ class ActiveRaisersTab extends StatelessWidget {
                         children: [
                           _buildActionButton(
                             icon: Icons.visibility_outlined,
-                            label: 'Details',
+                            tooltip: 'View Raiser Profile',
                             color: neutralColor,
                             bgColor: neutralBg,
                             borderColor: neutralBorder,
@@ -351,7 +352,7 @@ class ActiveRaisersTab extends StatelessWidget {
                           const SizedBox(width: 6),
                           _buildActionButton(
                             icon: Icons.check_circle_outline_rounded,
-                            label: 'Approve',
+                            tooltip: 'Approve Raiser',
                             color: successColor,
                             bgColor: successBg,
                             borderColor: successBorder,
@@ -360,7 +361,7 @@ class ActiveRaisersTab extends StatelessWidget {
                           const SizedBox(width: 6),
                           _buildActionButton(
                             icon: Icons.cancel_outlined,
-                            label: 'Reject',
+                            tooltip: 'Reject Raiser',
                             color: dangerColor,
                             bgColor: dangerBg,
                             borderColor: dangerBorder,
@@ -374,7 +375,7 @@ class ActiveRaisersTab extends StatelessWidget {
                             children: [
                               _buildActionButton(
                                 icon: Icons.visibility_outlined,
-                                label: 'Details',
+                                tooltip: 'View Raiser Profile',
                                 color: neutralColor,
                                 bgColor: neutralBg,
                                 borderColor: neutralBorder,
@@ -383,7 +384,7 @@ class ActiveRaisersTab extends StatelessWidget {
                               const SizedBox(width: 6),
                               _buildActionButton(
                                 icon: Icons.unarchive_outlined,
-                                label: 'Restore',
+                                tooltip: 'Restore Raiser',
                                 color: successColor,
                                 bgColor: successBg,
                                 borderColor: successBorder,
@@ -392,7 +393,7 @@ class ActiveRaisersTab extends StatelessWidget {
                               const SizedBox(width: 6),
                               _buildActionButton(
                                 icon: Icons.delete_outline_rounded,
-                                label: 'Delete',
+                                tooltip: 'Delete Raiser',
                                 color: dangerColor,
                                 bgColor: dangerBg,
                                 borderColor: dangerBorder,
@@ -405,7 +406,7 @@ class ActiveRaisersTab extends StatelessWidget {
                             children: [
                               _buildActionButton(
                                 icon: Icons.visibility_outlined,
-                                label: 'Details',
+                                tooltip: 'View Raiser Profile',
                                 color: neutralColor,
                                 bgColor: neutralBg,
                                 borderColor: neutralBorder,
@@ -413,17 +414,8 @@ class ActiveRaisersTab extends StatelessWidget {
                               ),
                               const SizedBox(width: 6),
                               _buildActionButton(
-                                icon: Icons.edit_outlined,
-                                label: 'Edit',
-                                color: neutralColor,
-                                bgColor: neutralBg,
-                                borderColor: neutralBorder,
-                                onTap: () => onEditRaiser(row),
-                              ),
-                              const SizedBox(width: 6),
-                              _buildActionButton(
                                 icon: Icons.archive_outlined,
-                                label: 'Archive',
+                                tooltip: 'Archive Raiser',
                                 color: dangerColor,
                                 bgColor: dangerBg,
                                 borderColor: dangerBorder,
@@ -441,36 +433,36 @@ class ActiveRaisersTab extends StatelessWidget {
 
   Widget _buildActionButton({
     required IconData icon,
-    required String label,
+    required String tooltip,
     required Color color,
     required Color bgColor,
     required Color borderColor,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: borderColor, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 250),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1),
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 16,
                 color: color,
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

@@ -719,37 +719,33 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Details Action Button
-                  InkWell(
-                    onTap: () => _showRequestDetailsModal(req),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.visibility_outlined,
-                            size: 14,
-                            color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Details',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                  Tooltip(
+                    message: 'View Request Details',
+                    waitDuration: const Duration(milliseconds: 250),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _showRequestDetailsModal(req),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                              width: 1,
                             ),
                           ),
-                        ],
+                          child: Center(
+                            child: Icon(
+                              Icons.visibility_outlined,
+                              size: 16,
+                              color: _isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),

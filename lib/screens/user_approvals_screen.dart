@@ -825,194 +825,104 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // View Action Button
-                    InkWell(
+                    // 1. Details Action Button
+                    _buildSquareIconButton(
+                      icon: Icons.visibility_outlined,
+                      iconColor: _isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                      bgColor: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                      borderColor: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                      tooltip: 'View User Details',
                       onTap: () => _showUserDetails(row),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.22),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.visibility_outlined,
-                              size: 14,
-                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Details',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
-                    const SizedBox(width: 8),
 
                     if (status == 'PENDING') ...[
-                      // Approve Action Button
-                      InkWell(
+                      const SizedBox(width: 6),
+                      // 2. Approve Action Button
+                      _buildSquareIconButton(
+                        icon: Icons.check_rounded,
+                        iconColor: PiggyTrunkTheme.ptSuccess,
+                        bgColor: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
+                        borderColor: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
+                        tooltip: 'Approve User',
                         onTap: () => _approveUser(userId, name, email: email, role: role),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.check_circle_outline_rounded,
-                                size: 14,
-                                color: PiggyTrunkTheme.ptSuccess,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Approve',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: PiggyTrunkTheme.ptSuccess,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
 
-                      // Reject Action Button
-                      InkWell(
+                      // 3. Reject Action Button
+                      _buildSquareIconButton(
+                        icon: Icons.close_rounded,
+                        iconColor: const Color(0xFFEF4444),
+                        bgColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        borderColor: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                        tooltip: 'Reject User',
                         onTap: () => _rejectUser(userId, name, email: email, role: role),
-                        borderRadius: BorderRadius.circular(6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF758C).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: const Color(0xFFFF758C).withValues(alpha: 0.35),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.cancel_outlined,
-                                size: 14,
-                                color: Color(0xFFFF758C),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                'Reject',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFFFF758C),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
-                    ] else if (status == 'ACTIVE')
-                    // Suspend Action Button
-                    InkWell(
-                      onTap: () => _suspendUser(userId, name, email: email, role: role),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF758C).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: const Color(0xFFFF758C).withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.block_rounded,
-                              size: 14,
-                              color: Color(0xFFFF758C),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Suspend',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFFFF758C),
-                              ),
-                            ),
-                          ],
-                        ),
+                    ] else if (status == 'ACTIVE') ...[
+                      const SizedBox(width: 6),
+                      // Suspend Action Button
+                      _buildSquareIconButton(
+                        icon: Icons.block_rounded,
+                        iconColor: const Color(0xFFEF4444),
+                        bgColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        borderColor: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                        tooltip: 'Suspend User',
+                        onTap: () => _suspendUser(userId, name, email: email, role: role),
                       ),
-                    )
-                  else if (status == 'SUSPENDED')
-                    // Activate Action Button
-                    InkWell(
-                      onTap: () => _approveUser(userId, name, email: email, role: role),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.lock_open_rounded,
-                              size: 14,
-                              color: PiggyTrunkTheme.ptSuccess,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Activate',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: PiggyTrunkTheme.ptSuccess,
-                              ),
-                            ),
-                          ],
-                        ),
+                    ] else if (status == 'SUSPENDED') ...[
+                      const SizedBox(width: 6),
+                      // Activate Action Button
+                      _buildSquareIconButton(
+                        icon: Icons.lock_open_rounded,
+                        iconColor: PiggyTrunkTheme.ptSuccess,
+                        bgColor: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.1),
+                        borderColor: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35),
+                        tooltip: 'Activate User',
+                        onTap: () => _approveUser(userId, name, email: email, role: role),
                       ),
-                    ),
+                    ],
                 ],
               ),
             ),
           ),
         ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSquareIconButton({
+    required IconData icon,
+    required Color iconColor,
+    required Color bgColor,
+    required Color borderColor,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 250),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1),
+            ),
+            child: Center(
+              child: Icon(
+                icon,
+                size: 16,
+                color: iconColor,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

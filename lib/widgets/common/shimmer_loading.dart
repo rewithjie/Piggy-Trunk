@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../theme/app_theme.dart';
 
 /// Provides a synchronized continuous shimmer animation for all descendant [ShimmerBox] widgets.
 class ShimmerProvider extends StatefulWidget {
@@ -201,6 +200,7 @@ class TableSkeletonLoader extends StatelessWidget {
   final List<int>? columnFlexes;
   final Map<int, TableColumnWidth>? columnWidths;
   final int rowCount;
+  final int? actionButtonCount;
   final double minWidth;
   final double borderRadius;
   final Color? cardBg;
@@ -214,6 +214,7 @@ class TableSkeletonLoader extends StatelessWidget {
     this.columnFlexes,
     this.columnWidths,
     this.rowCount = 5,
+    this.actionButtonCount,
     this.minWidth = 720.0,
     this.borderRadius = 18.0,
     this.cardBg,
@@ -442,75 +443,42 @@ class TableSkeletonLoader extends StatelessWidget {
     required bool dark,
     required int rowIndex,
   }) {
-    // Actions column (last column): Compact action buttons with icons
-    if (colIndex == totalCols - 1) {
+    final currentHeader = (headers != null && colIndex < headers!.length)
+        ? headers![colIndex].toUpperCase()
+        : '';
+    final isActionsCol = currentHeader.contains('ACTION') ||
+        (headers == null && colIndex == totalCols - 1);
+    final isStatusCol = currentHeader.contains('STATUS') ||
+        (headers == null && colIndex == totalCols - 2);
+
+    // Actions column: clean, pure square shimmering placeholders mirroring real 30x30/32x32 action buttons (NO static eye or pencil icons)
+    if (isActionsCol) {
+      final btnCount = actionButtonCount ??
+          ((headers != null && headers!.length <= 4) ? 1 : 3);
       return Center(
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                height: 28,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                      .withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                        .withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.visibility_outlined,
-                      size: 13,
-                      color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                          .withValues(alpha: 0.4),
-                    ),
-                    const SizedBox(width: 5),
-                    ShimmerBox(
-                      width: 42,
-                      height: 10,
-                      borderRadius: BorderRadius.circular(3),
-                      isDark: dark,
-                    ),
-                  ],
+            children: List.generate(
+              btnCount,
+              (i) => Padding(
+                padding: EdgeInsets.only(left: i > 0 ? 6.0 : 0.0),
+                child: ShimmerBox(
+                  width: 30,
+                  height: 30,
+                  borderRadius: BorderRadius.circular(8),
+                  isDark: dark,
                 ),
               ),
-              const SizedBox(width: 6),
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                      .withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                        .withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Center(
-                  child: Icon(
-                    Icons.edit_outlined,
-                    size: 13,
-                    color: (dark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                        .withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       );
     }
 
-    // Status column (second-to-last column): Centered status badge pill
-    if (colIndex == totalCols - 2) {
+    // Status column: Centered status badge pill
+    if (isStatusCol) {
       return Center(
         child: FittedBox(
           fit: BoxFit.scaleDown,

@@ -11,6 +11,7 @@ import '../utils/responsive.dart';
 import '../widgets/investment/investment_form_view.dart';
 import '../widgets/investment/investment_table_view.dart';
 import '../widgets/investment/investment_detail_modal.dart';
+import '../widgets/investment/investment_add_allocation_dialog.dart';
 import '../main.dart';
 
 class InvestmentsScreen extends StatefulWidget {
@@ -521,7 +522,10 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                           _showInvestmentForm = true;
                                           _editingInvestment = item;
                                         }),
+                                        onCompleteInvestment: _completeInvestment,
+                                        onAddAllocation: _addAllocation,
                                         onArchiveInvestment: _archiveInvestment,
+                                        onRestoreInvestment: _restoreInvestment,
                                         onDeleteInvestment: _deleteInvestment,
                                         onApprovePartnerInvestment: _approvePartnerInvestment,
                                         onRejectPartnerInvestment: _rejectPartnerInvestment,
@@ -537,6 +541,35 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _completeInvestment(Investment item) async {
+    final confirmed = await SlideOverConfirmationDrawer.show(
+      context: context,
+      title: 'Complete Investment',
+      message: 'Are you sure you want to mark the investment lifecycle for "${item.raiserName}" as completed?',
+      confirmButtonText: 'Complete Investment',
+      actionType: SlideOverActionType.success,
+      customIcon: Icons.check_circle_outline_rounded,
+    );
+
+    if (confirmed == true) {
+      try {
+        await _supabase.from('investment_records').update({'stage': 'completed'}).eq('id', item.id);
+        _showThemedSnackBar('Investment marked as completed.');
+        _loadInvestments();
+      } catch (e) {
+        _showThemedSnackBar('Completion failed: $e', isError: true);
+      }
+    }
+  }
+
+  void _addAllocation(Investment item) {
+    InvestmentAddAllocationDialog.show(
+      context: context,
+      investment: item,
+      onSuccess: () => _loadInvestments(isRefresh: true),
     );
   }
 
@@ -557,6 +590,27 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         _loadInvestments();
       } catch (e) {
         _showThemedSnackBar('Archive failed: $e', isError: true);
+      }
+    }
+  }
+
+  void _restoreInvestment(Investment item) async {
+    final confirmed = await SlideOverConfirmationDrawer.show(
+      context: context,
+      title: 'Restore Investment',
+      message: 'Are you sure you want to restore the investment record for "${item.raiserName}" back to active?',
+      confirmButtonText: 'Restore',
+      actionType: SlideOverActionType.success,
+      customIcon: Icons.unarchive_outlined,
+    );
+
+    if (confirmed == true) {
+      try {
+        await _supabase.from('investment_records').update({'stage': 'active'}).eq('id', item.id);
+        _showThemedSnackBar('Investment restored to active.');
+        _loadInvestments();
+      } catch (e) {
+        _showThemedSnackBar('Restore failed: $e', isError: true);
       }
     }
   }
