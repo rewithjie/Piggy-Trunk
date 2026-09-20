@@ -70,16 +70,20 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
 
+    // Host detection for Flutter Web
+    final host = kIsWeb ? Uri.base.host.toLowerCase() : '';
+    final isAdminDomain = host.contains('admin');
+
     return MaterialApp(
-      title: 'Piggy Trunk Admin',
+      title: isAdminDomain ? 'Piggy Trunk Admin' : 'Piggy Trunk',
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      initialRoute: '/login',
+      initialRoute: isAdminDomain ? '/login' : '/',
       routes: {
-        '/': (context) => const AdminLoginScreen(),
+        '/': (context) => isAdminDomain ? const AdminLoginScreen() : const LandingScreen(),
         '/login': (context) => const AdminLoginScreen(),
         '/landing': (context) => const LandingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
