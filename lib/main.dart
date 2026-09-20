@@ -67,16 +67,17 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
-      title: 'Piggy Trunk',
+      title: 'Piggy Trunk Admin',
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      initialRoute: '/',
+      initialRoute: '/login',
       routes: {
-        '/': (context) => const LandingScreen(),
+        '/': (context) => const AdminLoginScreen(),
         '/login': (context) => const AdminLoginScreen(),
+        '/landing': (context) => const LandingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/raisers': (context) => const HogRaiserScreen(),
         '/investments': (context) => const InvestmentsScreen(),
