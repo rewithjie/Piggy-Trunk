@@ -17,6 +17,7 @@ import 'screens/mobile_app_distribution_screen.dart';
 import 'screens/best_sellers_screen.dart';
 import 'screens/demand_forecasting_screen.dart';
 import 'screens/landing_screen.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
@@ -27,6 +28,9 @@ const String _defaultSupabaseAnonKey =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    usePathUrlStrategy();
+  }
 
   String supabaseUrl = _defaultSupabaseUrl;
   String supabaseAnonKey = _defaultSupabaseAnonKey;
