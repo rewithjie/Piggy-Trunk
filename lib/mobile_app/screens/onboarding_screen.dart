@@ -147,38 +147,57 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 300),
                     child: _currentPage == _slides.length - 1
-                        ? SizedBox(
+                        ? Column(
                             key: const ValueKey('actions_continue'),
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushReplacementNamed(context, '/signup');
-                                },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF18314F),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Get Started',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                height: 52,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pushReplacementNamed(context, '/signup');
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF18314F),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.arrow_forward_rounded, size: 18),
-                                ],
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Get Started',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 10),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(context, '/login');
+                                },
+                                child: Text(
+                                  'Already have an account? Sign In',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF18314F),
+                                  ),
+                                ),
+                              ),
+                            ],
                           )
                         : SizedBox(
                             key: const ValueKey('action_next'),

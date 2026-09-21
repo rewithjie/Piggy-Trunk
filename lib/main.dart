@@ -120,9 +120,12 @@ class MyApp extends ConsumerWidget {
         '/': (context) => isAdminDomain
             ? const AdminLoginScreen()
             : (isMobileDomain
-                ? const ResponsiveMobileWrapper(child: LoginScreen())
+                ? const ResponsiveMobileWrapper(child: OnboardingScreen())
                 : const LandingScreen()),
-        '/login': (context) => const AdminLoginScreen(),
+        '/login': (context) => isAdminDomain
+            ? const AdminLoginScreen()
+            : const ResponsiveMobileWrapper(child: LoginScreen()),
+        '/admin_login': (context) => const AdminLoginScreen(),
         '/landing': (context) => const LandingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/raisers': (context) => const HogRaiserScreen(),
@@ -137,8 +140,9 @@ class MyApp extends ConsumerWidget {
         '/forecasting': (context) => const DemandForecastingScreen(),
 
         // Mobile App on Web Routes (Responsive Wrapper applied)
-        '/app': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
-        '/mobile': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
+        '/app': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
+        '/mobile': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
+        '/mobile_login': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
         '/signup': (context) => const ResponsiveMobileWrapper(child: SignUpScreen()),
         '/onboarding': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
         '/splash': (context) => const ResponsiveMobileWrapper(child: SplashScreen()),
