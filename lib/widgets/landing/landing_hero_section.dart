@@ -5,13 +5,13 @@ import '../../utils/responsive.dart';
 import 'scroll_reveal.dart';
 
 class LandingHeroSection extends StatefulWidget {
-  final VoidCallback onContactTap;
-  final VoidCallback onLearnMoreTap;
+  final VoidCallback? onContactTap;
+  final VoidCallback? onLearnMoreTap;
 
   const LandingHeroSection({
     super.key,
-    required this.onContactTap,
-    required this.onLearnMoreTap,
+    this.onContactTap,
+    this.onLearnMoreTap,
   });
 
   @override
@@ -125,17 +125,12 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     required double availableWidth,
     required bool isCentered,
   }) {
-    final isMobile = Responsive.isMobile(context);
     final headlineSize = availableWidth >= 1200
         ? 38.0
         : (availableWidth >= 768 ? 30.0 : 25.0);
     final subtitleSize = availableWidth >= 1200
         ? 15.0
         : (availableWidth >= 768 ? 14.0 : 13.5);
-
-    // Official PiggyTrunk Brand Navy (White in Dark Mode, Navy in Light Mode)
-    final primaryButtonBg = isDark ? Colors.white : const Color(0xFF18314F);
-    final primaryButtonFg = isDark ? const Color(0xFF0F172A) : Colors.white;
 
     return Column(
       crossAxisAlignment:
@@ -152,7 +147,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
               border: Border.all(color: pillBorder),
             ),
             child: Text(
-              'HOG RAISING MANAGEMENT & MONITORING SYSTEM',
+              'HOG RAISING MANAGEMENT MONITORING SYSTEM',
               textAlign: isCentered ? TextAlign.center : TextAlign.left,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 10.5,
@@ -208,72 +203,6 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                   fontWeight: FontWeight.w400,
                   height: 1.6,
                   color: subtitleColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 26),
-
-        // Action Buttons: [ Contact Us ]  [ Learn More ]
-        ScrollReveal(
-          delay: const Duration(milliseconds: 300),
-          child: Wrap(
-            alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
-            spacing: 14,
-            runSpacing: 12,
-            children: [
-              // Contact Us
-              FilledButton.icon(
-                onPressed: widget.onContactTap,
-                style: FilledButton.styleFrom(
-                  backgroundColor: primaryButtonBg,
-                  foregroundColor: primaryButtonFg,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 22 : 28,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.mail_outline_rounded, size: 17),
-                label: Text(
-                  'Contact Us',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-
-              // Learn More
-              OutlinedButton.icon(
-                onPressed: widget.onLearnMoreTap,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
-                  side: BorderSide(
-                    color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder,
-                    width: 1.2,
-                  ),
-                  backgroundColor: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 20 : 26,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.arrow_downward_rounded, size: 17),
-                label: Text(
-                  'Learn More',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
-                  ),
                 ),
               ),
             ],

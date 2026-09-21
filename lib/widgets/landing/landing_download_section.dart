@@ -364,7 +364,6 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
     Color titleColor,
     Color subtitleColor,
   ) {
-    final border = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
     final guideIconColor = isDark ? Colors.white : const Color(0xFF18314F);
     final guideIconBg = isDark
         ? Colors.white.withValues(alpha: 0.1)
@@ -437,41 +436,6 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               'Once installed, tap the Piggy Trunk icon on your home screen and log in with your verified Hog Raiser or Partner account.',
           icon: Icons.check_circle_outline_rounded,
           isDark: isDark,
-        ),
-        const SizedBox(height: 24),
-
-        // Help Note
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : PiggyTrunkTheme.ptSurfaceSoft,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: border,
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: guideIconColor,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Need assistance installing? Contact your farm coordinator or technical supervisor for immediate support.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );
