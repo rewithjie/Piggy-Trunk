@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_toast.dart';
 import '../../utils/responsive.dart';
-import '../common/shimmer_loading.dart';
 
 class LandingDownloadSection extends StatefulWidget {
   final GlobalKey? downloadSectionKey;
@@ -243,11 +242,23 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                   fit: BoxFit.contain,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
-                    return ShimmerBox(
+                    return Container(
                       width: 200,
                       height: 200,
-                      borderRadius: BorderRadius.circular(12),
-                      isDark: false,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF18314F),
+                          ),
+                        ),
+                      ),
                     );
                   },
                   errorBuilder: (context, error, stackTrace) {
