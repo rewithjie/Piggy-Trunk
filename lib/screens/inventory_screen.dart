@@ -216,6 +216,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
     _scaffoldKey.currentState?.openEndDrawer();
   }
 
+  void _openProductLogsDrawer(Product product) {
+    setState(() {
+      _logsFilterProductId = product.id;
+      _logsFilterProductName = product.name;
+    });
+    _scaffoldKey.currentState?.openEndDrawer();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isSmall = Responsive.isSmallScreen(context);
@@ -1134,6 +1142,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 6 : 8),
+                    Container(
+                      width: isMobile ? 36 : 42,
+                      height: isMobile ? 36 : 42,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _panelBorder, width: 1.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.history_rounded,
+                          size: isMobile ? 16 : 18,
+                          color: _isDark ? const Color(0xFF9AB1CB) : PiggyTrunkTheme.ptPrimary,
+                        ),
+                        tooltip: 'View Product History',
+                        onPressed: () => _openProductLogsDrawer(product),
                       ),
                     ),
                     SizedBox(width: isMobile ? 6 : 8),

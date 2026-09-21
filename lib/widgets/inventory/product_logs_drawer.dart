@@ -75,6 +75,19 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
     _loadLogs();
   }
 
+  @override
+  void didUpdateWidget(covariant ProductLogsDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.filterProductId != widget.filterProductId ||
+        oldWidget.filterProductName != widget.filterProductName) {
+      setState(() {
+        _activeProductId = widget.filterProductId;
+        _activeProductName = widget.filterProductName;
+      });
+      _loadLogs();
+    }
+  }
+
   Future<void> _loadLogs() async {
     if (!mounted) return;
     setState(() {
@@ -127,9 +140,13 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
 
     final filteredList = _logs.where((log) {
       if (_selectedLogFilter == null) return true;
-      if (_selectedLogFilter == 'ADD') return log.action == 'ADD';
-      if (_selectedLogFilter == 'UPDATE') return log.action == 'UPDATE';
-      if (_selectedLogFilter == 'RESTOCK') return log.action == 'RESTOCK';
+      final actionUpper = log.action.toUpperCase();
+      if (_selectedLogFilter == 'ADD') return actionUpper == 'ADD';
+      if (_selectedLogFilter == 'UPDATE') return actionUpper == 'UPDATE' || actionUpper == 'PRICE UPDATE';
+      if (_selectedLogFilter == 'PRICE UPDATE') {
+        return actionUpper == 'PRICE UPDATE' || (log.details != null && log.details!.toLowerCase().contains('price'));
+      }
+      if (_selectedLogFilter == 'RESTOCK') return actionUpper == 'RESTOCK';
       return true;
     }).toList();
 
@@ -242,6 +259,8 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
                 _buildLogFilterChip('ADD', 'Creations'),
                 const SizedBox(width: 8),
                 _buildLogFilterChip('UPDATE', 'Updates'),
+                const SizedBox(width: 8),
+                _buildLogFilterChip('PRICE UPDATE', 'Price Changes'),
                 const SizedBox(width: 8),
                 _buildLogFilterChip('RESTOCK', 'Restocks'),
               ],
@@ -434,6 +453,11 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
         badgeFg = _isDark ? const Color(0xFF34D399) : const Color(0xFF166534);
         icon = Icons.add_circle_outline_rounded;
         break;
+      case 'PRICE UPDATE':
+        badgeBg = _isDark ? const Color(0x22F59E0B) : const Color(0xFFFEF3C7);
+        badgeFg = _isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309);
+        icon = Icons.price_change_outlined;
+        break;
       case 'UPDATE':
         badgeBg = _isDark ? const Color(0x223B82F6) : const Color(0xFFDBEAFE);
         badgeFg = _isDark ? const Color(0xFF60A5FA) : const Color(0xFF1E40AF);
@@ -510,13 +534,44 @@ class _ProductLogsDrawerState extends State<ProductLogsDrawer> {
             ),
           ),
           if (log.details != null && log.details!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              log.details!,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5,
-                color: _isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                fontWeight: FontWeight.w500,
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isDark ? const Color(0xFF132035) : const Color(0xFFEFF5FC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _isDark ? const Color(0xFF283B55) : const Color(0xFFD6E4F5),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1, right: 8),
+                    child: Icon(
+                      log.action.toUpperCase() == 'PRICE UPDATE' || (log.details?.contains('Price:') == true)
+                          ? Icons.price_change_outlined
+                          : Icons.info_outline_rounded,
+                      size: 15,
+                      color: log.action.toUpperCase() == 'PRICE UPDATE' || (log.details?.contains('Price:') == true)
+                          ? (_isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706))
+                          : _mutedColor,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      log.details!,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        color: _isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

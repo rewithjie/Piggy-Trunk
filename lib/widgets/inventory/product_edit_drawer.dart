@@ -7,6 +7,7 @@ import '../../models/product_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
 import '../../utils/capitalization_formatters.dart';
+import 'product_logs_drawer.dart';
 
 class ProductEditDrawer {
   static const List<String> categoryOptions = <String>[
@@ -164,6 +165,22 @@ class ProductEditDrawer {
                                       ),
                                     ],
                                   ),
+                                ),
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.history_rounded,
+                                    color: isDark ? const Color(0xFF9AB1CB) : PiggyTrunkTheme.ptPrimary,
+                                    size: 20,
+                                  ),
+                                  tooltip: 'View Product History',
+                                  splashRadius: 20,
+                                  onPressed: () {
+                                    ProductLogsDrawer.showBottomSheet(
+                                      context: dialogCtx,
+                                      filterProductId: existing.id,
+                                      filterProductName: existing.name,
+                                    );
+                                  },
                                 ),
                                 IconButton(
                                   icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
@@ -550,20 +567,22 @@ class ProductEditDrawer {
                                                   .eq('id', existing.id);
 
                                               List<String> changes = [];
-                                              if (existing.name != name) changes.add('Name: "${existing.name}" -> "$name"');
-                                              if (existing.category != selectedCategory) changes.add('Category: "${existing.category}" -> "$selectedCategory"');
+                                              if (existing.name != name) changes.add('Name: "${existing.name}" → "$name"');
+                                              if (existing.category != selectedCategory) changes.add('Category: "${existing.category}" → "$selectedCategory"');
                                               if ((existing.price - priceVal).abs() > 0.001) {
-                                                changes.add('Price: ₱${existing.price.toStringAsFixed(2)} -> ₱${priceVal.toStringAsFixed(2)}');
+                                                changes.add('Price: ₱${existing.price.toStringAsFixed(2)} → ₱${priceVal.toStringAsFixed(2)}');
                                               }
                                               if (existing.description != descriptionCtrl.text.trim()) changes.add('Description updated');
-                                              if (imageUrl != existing.image) changes.add('Image updated');
+                                              if (imageUrl != existing.image) changes.add('Photo updated');
 
-                                              final detailsStr = changes.isEmpty ? 'No field changes' : changes.join(', ');
+                                              final detailsStr = changes.isEmpty ? 'No field changes' : changes.join(' • ');
+                                              final bool priceChanged = (existing.price - priceVal).abs() > 0.001;
+                                              final String logAction = (priceChanged && changes.length == 1) ? 'PRICE UPDATE' : 'UPDATE';
 
                                               await onInsertLog(
                                                 productId: existing.id,
                                                 productName: name,
-                                                action: 'UPDATE',
+                                                action: logAction,
                                                 price: priceVal,
                                                 units: existing.units,
                                                 details: detailsStr,
