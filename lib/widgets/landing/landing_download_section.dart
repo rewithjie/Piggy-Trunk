@@ -108,7 +108,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
                 child: Text(
-                  'Download the Piggy Trunk Mobile APK directly to your Android device or scan the QR code with your smartphone camera to install.',
+                  'Download the Piggy Trunk Mobile APK directly to your Android device, or scan the QR code. For iPhone & iPad, install instantly via Safari using "Add to Home Screen".',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: isMobile ? 14 : 16,
@@ -220,6 +220,61 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // OS Badges
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.android_rounded, size: 14, color: Color(0xFF10B981)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Android APK',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.apple, size: 14, color: isDark ? Colors.white : const Color(0xFF1E293B)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'iOS Web App',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1E293B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
         // QR Code Box
         Container(
           padding: const EdgeInsets.all(18),
@@ -354,6 +409,54 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
             ),
           ),
         ),
+        const SizedBox(height: 14),
+
+        // iOS Notice Box
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF162338) : const Color(0xFFF1F6FD),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark ? const Color(0xFF28405D) : const Color(0xFFD4E2F4),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.apple,
+                    size: 18,
+                    color: isDark ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Using an iPhone or iPad?',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: titleColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'APKs are exclusively for Android. For iOS, open this website in Safari, tap Share (⎋), and select "Add to Home Screen" to install.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                  color: subtitleColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -436,6 +539,125 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               'Once installed, tap the Piggy Trunk icon on your home screen and log in with your verified Hog Raiser or Partner account.',
           icon: Icons.check_circle_outline_rounded,
           isDark: isDark,
+        ),
+        const SizedBox(height: 22),
+
+        // iOS Step-by-Step Box
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF132035) : const Color(0xFFF8FAFD),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? const Color(0xFF263A53) : const Color(0xFFD5E3F5),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.apple,
+                      size: 16,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'iOS (iPhone / iPad) Guide',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: titleColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'PWA / Web App',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildIosStepItem(
+                step: '1',
+                text: 'Open this website in Safari on your iPhone.',
+                isDark: isDark,
+              ),
+              const SizedBox(height: 8),
+              _buildIosStepItem(
+                step: '2',
+                text: 'Tap the Share icon at the bottom of the Safari screen.',
+                isDark: isDark,
+              ),
+              const SizedBox(height: 8),
+              _buildIosStepItem(
+                step: '3',
+                text: 'Scroll down and tap "Add to Home Screen" to install.',
+                isDark: isDark,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIosStepItem({
+    required String step,
+    required String text,
+    required bool isDark,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            step,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF18314F),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+            ),
+          ),
         ),
       ],
     );
