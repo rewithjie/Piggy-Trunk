@@ -7,6 +7,7 @@ import '../widgets/landing/landing_roles_section.dart';
 import '../widgets/landing/landing_download_section.dart';
 import '../widgets/landing/landing_footer.dart';
 import '../widgets/landing/landing_contact_dialog.dart';
+import '../widgets/landing/scroll_reveal.dart';
 
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
@@ -89,7 +90,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Hero Section (Updated copy matching Image 1)
+                        // Hero Section
                         Container(
                           key: _heroKey,
                           child: LandingHeroSection(
@@ -98,32 +99,45 @@ class _LandingScreenState extends State<LandingScreen> {
                           ),
                         ),
 
-                        // How to Get Started Section (Synthesized from Images 2 & 3)
-                        Container(
-                          key: _howItWorksKey,
-                          child: LandingHowItWorksSection(
-                            onContactTap: _openContactDialog,
+                        // How to Get Started Section
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 60),
+                          child: Container(
+                            key: _howItWorksKey,
+                            child: LandingHowItWorksSection(
+                              onContactTap: _openContactDialog,
+                            ),
                           ),
                         ),
 
                         // Role Breakdown Section
-                        Container(
-                          key: _rolesKey,
-                          child: const LandingRolesSection(),
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 60),
+                          child: Container(
+                            key: _rolesKey,
+                            child: const LandingRolesSection(),
+                          ),
                         ),
 
                         // Download & Android Installation Guide Section
-                        LandingDownloadSection(
-                          downloadSectionKey: _downloadKey,
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 60),
+                          child: LandingDownloadSection(
+                            downloadSectionKey: _downloadKey,
+                          ),
                         ),
 
-                        // Footer with discrete Admin link and support email
-                        LandingFooter(
-                          onScrollToOverview: () => _scrollToKey(_heroKey),
-                          onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
-                          onScrollToPlatforms: () => _scrollToKey(_rolesKey),
-                          onScrollToDownload: () => _scrollToKey(_downloadKey),
-                          onContactTap: _openContactDialog,
+                        // Footer
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 60),
+                          fadeOnly: true,
+                          child: LandingFooter(
+                            onScrollToOverview: () => _scrollToKey(_heroKey),
+                            onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
+                            onScrollToPlatforms: () => _scrollToKey(_rolesKey),
+                            onScrollToDownload: () => _scrollToKey(_downloadKey),
+                            onContactTap: _openContactDialog,
+                          ),
                         ),
                       ],
                     ),

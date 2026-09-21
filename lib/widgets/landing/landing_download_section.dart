@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_toast.dart';
 import '../../utils/responsive.dart';
+import 'scroll_reveal.dart';
 
 class LandingDownloadSection extends StatefulWidget {
   final GlobalKey? downloadSectionKey;
@@ -124,11 +125,13 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                 builder: (context, cardConstraints) {
                   final isWideCard = cardConstraints.maxWidth >= 820;
 
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: cardBorder, width: 1.5),
+                  return HoverCard(
+                    translateY: -5.0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: cardBorder, width: 1.5),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.05),
@@ -193,6 +196,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                               ),
                             ],
                           ),
+                    ),
                   );
                 },
               ),

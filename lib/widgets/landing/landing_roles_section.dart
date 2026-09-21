@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import 'scroll_reveal.dart';
 
 class LandingRolesSection extends StatelessWidget {
   const LandingRolesSection({super.key});
@@ -97,11 +98,26 @@ class LandingRolesSection extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _buildRaiserCard(context, isDark)),
+                        Expanded(
+                          child: ScrollReveal(
+                            delay: const Duration(milliseconds: 80),
+                            child: _buildRaiserCard(context, isDark),
+                          ),
+                        ),
                         const SizedBox(width: 20),
-                        Expanded(child: _buildPartnerCard(context, isDark)),
+                        Expanded(
+                          child: ScrollReveal(
+                            delay: const Duration(milliseconds: 160),
+                            child: _buildPartnerCard(context, isDark),
+                          ),
+                        ),
                         const SizedBox(width: 20),
-                        Expanded(child: _buildCashierCard(context, isDark)),
+                        Expanded(
+                          child: ScrollReveal(
+                            delay: const Duration(milliseconds: 240),
+                            child: _buildCashierCard(context, isDark),
+                          ),
+                        ),
                       ],
                     )
                   else
@@ -109,11 +125,20 @@ class LandingRolesSection extends StatelessWidget {
                       constraints: const BoxConstraints(maxWidth: 680),
                       child: Column(
                         children: [
-                          _buildRaiserCard(context, isDark),
+                          ScrollReveal(
+                            delay: const Duration(milliseconds: 80),
+                            child: _buildRaiserCard(context, isDark),
+                          ),
                           const SizedBox(height: 18),
-                          _buildPartnerCard(context, isDark),
+                          ScrollReveal(
+                            delay: const Duration(milliseconds: 160),
+                            child: _buildPartnerCard(context, isDark),
+                          ),
                           const SizedBox(height: 18),
-                          _buildCashierCard(context, isDark),
+                          ScrollReveal(
+                            delay: const Duration(milliseconds: 240),
+                            child: _buildCashierCard(context, isDark),
+                          ),
                         ],
                       ),
                     ),
@@ -222,12 +247,14 @@ class _RoleCard extends StatelessWidget {
         ? Colors.white.withValues(alpha: 0.12)
         : const Color(0xFF18314F).withValues(alpha: 0.08);
 
-    return Container(
-      constraints: BoxConstraints(minHeight: isMobile ? 0 : 480),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cardBorder, width: 1.2),
+    return HoverCard(
+      translateY: -7.0,
+      child: Container(
+        constraints: BoxConstraints(minHeight: isMobile ? 0 : 480),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: cardBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
@@ -335,6 +362,7 @@ class _RoleCard extends StatelessWidget {
           }),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

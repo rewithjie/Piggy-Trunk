@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import 'scroll_reveal.dart';
 
 class LandingHowItWorksSection extends StatelessWidget {
   final VoidCallback onContactTap;
@@ -105,43 +106,52 @@ class LandingHowItWorksSection extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                            child: _buildStepCard(
-                              context,
-                              stepNumber: '01',
-                              stepTitle: 'CONTACT US',
-                              arrowSubtext: 'Send us your business details',
-                              bodyText:
-                                  'Interested businesses can contact the PIGGY TRUNK development team to request system access and provide the necessary business information.',
-                              icon: Icons.mail_outline_rounded,
-                              isDark: isDark,
+                            child: ScrollReveal(
+                              delay: const Duration(milliseconds: 80),
+                              child: _buildStepCard(
+                                context,
+                                stepNumber: '01',
+                                stepTitle: 'CONTACT US',
+                                arrowSubtext: 'Send us your business details',
+                                bodyText:
+                                    'Interested businesses can contact the PIGGY TRUNK development team to request system access and provide the necessary business information.',
+                                icon: Icons.mail_outline_rounded,
+                                isDark: isDark,
+                              ),
                             ),
                           ),
                           _buildHorizontalConnector(isDark),
                           Expanded(
-                            child: _buildStepCard(
-                              context,
-                              stepNumber: '02',
-                              stepTitle: 'ACCOUNT SETUP',
-                              arrowSubtext:
-                                  'Our developers create/seed your organization account',
-                              bodyText:
-                                  'The development team creates and seeds the initial business account and administrator access. The administrator can then manage the organization\'s authorized users and assigned roles.',
-                              icon: Icons.verified_user_outlined,
-                              isDark: isDark,
+                            child: ScrollReveal(
+                              delay: const Duration(milliseconds: 160),
+                              child: _buildStepCard(
+                                context,
+                                stepNumber: '02',
+                                stepTitle: 'ACCOUNT SETUP',
+                                arrowSubtext:
+                                    'Our developers create/seed your organization account',
+                                bodyText:
+                                    'The development team creates and seeds the initial business account and administrator access. The administrator can then manage the organization\'s authorized users and assigned roles.',
+                                icon: Icons.verified_user_outlined,
+                                isDark: isDark,
+                              ),
                             ),
                           ),
                           _buildHorizontalConnector(isDark),
                           Expanded(
-                            child: _buildStepCard(
-                              context,
-                              stepNumber: '03',
-                              stepTitle: 'ACCESS SYSTEM',
-                              arrowSubtext: 'Receive your account access',
-                              bodyText:
-                                  'Once the account has been set up, authorized users can access the features assigned to their roles through the appropriate platform.',
-                              icon: Icons.devices_rounded,
-                              isDark: isDark,
-                              platformBreakdown: true,
+                            child: ScrollReveal(
+                              delay: const Duration(milliseconds: 240),
+                              child: _buildStepCard(
+                                context,
+                                stepNumber: '03',
+                                stepTitle: 'ACCESS SYSTEM',
+                                arrowSubtext: 'Receive your account access',
+                                bodyText:
+                                    'Once the account has been set up, authorized users can access the features assigned to their roles through the appropriate platform.',
+                                icon: Icons.devices_rounded,
+                                isDark: isDark,
+                                platformBreakdown: true,
+                              ),
                             ),
                           ),
                         ],
@@ -150,39 +160,48 @@ class LandingHowItWorksSection extends StatelessWidget {
                   } else {
                     return Column(
                       children: [
-                        _buildStepCard(
-                          context,
-                          stepNumber: '01',
-                          stepTitle: 'CONTACT US',
-                          arrowSubtext: 'Send us your business details',
-                          bodyText:
-                              'Interested businesses can contact the PIGGY TRUNK development team to request system access and provide the necessary business information.',
-                          icon: Icons.mail_outline_rounded,
-                          isDark: isDark,
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 80),
+                          child: _buildStepCard(
+                            context,
+                            stepNumber: '01',
+                            stepTitle: 'CONTACT US',
+                            arrowSubtext: 'Send us your business details',
+                            bodyText:
+                                'Interested businesses can contact the PIGGY TRUNK development team to request system access and provide the necessary business information.',
+                            icon: Icons.mail_outline_rounded,
+                            isDark: isDark,
+                          ),
                         ),
                         _buildVerticalConnector(isDark),
-                        _buildStepCard(
-                          context,
-                          stepNumber: '02',
-                          stepTitle: 'ACCOUNT SETUP',
-                          arrowSubtext:
-                              'Our developers create/seed your organization account',
-                          bodyText:
-                              'The development team creates and seeds the initial business account and administrator access. The administrator can then manage the organization\'s authorized users and assigned roles.',
-                          icon: Icons.verified_user_outlined,
-                          isDark: isDark,
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 160),
+                          child: _buildStepCard(
+                            context,
+                            stepNumber: '02',
+                            stepTitle: 'ACCOUNT SETUP',
+                            arrowSubtext:
+                                'Our developers create/seed your organization account',
+                            bodyText:
+                                'The development team creates and seeds the initial business account and administrator access. The administrator can then manage the organization\'s authorized users and assigned roles.',
+                            icon: Icons.verified_user_outlined,
+                            isDark: isDark,
+                          ),
                         ),
                         _buildVerticalConnector(isDark),
-                        _buildStepCard(
-                          context,
-                          stepNumber: '03',
-                          stepTitle: 'ACCESS SYSTEM',
-                          arrowSubtext: 'Receive your account access',
-                          bodyText:
-                              'Once the account has been set up, authorized users can access the features assigned to their roles through the appropriate platform.',
-                          icon: Icons.devices_rounded,
-                          isDark: isDark,
-                          platformBreakdown: true,
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 240),
+                          child: _buildStepCard(
+                            context,
+                            stepNumber: '03',
+                            stepTitle: 'ACCESS SYSTEM',
+                            arrowSubtext: 'Receive your account access',
+                            bodyText:
+                                'Once the account has been set up, authorized users can access the features assigned to their roles through the appropriate platform.',
+                            icon: Icons.devices_rounded,
+                            isDark: isDark,
+                            platformBreakdown: true,
+                          ),
                         ),
                       ],
                     );
@@ -243,13 +262,22 @@ class LandingHowItWorksSection extends StatelessWidget {
     final textColor = isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
     final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1.2),
-      ),
-      padding: const EdgeInsets.all(24),
+    return HoverCard(
+      translateY: -6.0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -359,8 +387,9 @@ class LandingHowItWorksSection extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPlatformItem({
     required String title,
