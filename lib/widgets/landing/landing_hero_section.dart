@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
-import 'scroll_reveal.dart';
 
 class LandingHeroSection extends StatefulWidget {
   final VoidCallback onContactTap;
@@ -142,146 +141,126 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           isCentered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
         // Tagline Pill
-        ScrollReveal(
-          delay: const Duration(milliseconds: 60),
-          duration: const Duration(milliseconds: 550),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            decoration: BoxDecoration(
-              color: pillBg,
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: pillBorder),
-            ),
-            child: Text(
-              'HOG RAISING MANAGEMENT & MONITORING SYSTEM',
-              textAlign: isCentered ? TextAlign.center : TextAlign.left,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: isDark ? PiggyTrunkTheme.ptPrimaryDark : const Color(0xFF18314F),
-              ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: pillBg,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: pillBorder),
+          ),
+          child: Text(
+            'HOG RAISING MANAGEMENT & MONITORING SYSTEM',
+            textAlign: isCentered ? TextAlign.center : TextAlign.left,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: isDark ? PiggyTrunkTheme.ptPrimaryDark : const Color(0xFF18314F),
             ),
           ),
         ),
         const SizedBox(height: 18),
 
         // Headline
-        ScrollReveal(
-          delay: const Duration(milliseconds: 140),
-          duration: const Duration(milliseconds: 600),
-          child: Text(
-            'Manage Your Retail Business and Hog-Raising Operations in One Place',
-            textAlign: isCentered ? TextAlign.center : TextAlign.left,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: headlineSize,
-              fontWeight: FontWeight.w800,
-              height: 1.22,
-              letterSpacing: -0.8,
-              color: titleColor,
-            ),
+        Text(
+          'Manage Your Retail Business and Hog-Raising Operations in One Place',
+          textAlign: isCentered ? TextAlign.center : TextAlign.left,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: headlineSize,
+            fontWeight: FontWeight.w800,
+            height: 1.22,
+            letterSpacing: -0.8,
+            color: titleColor,
           ),
         ),
         const SizedBox(height: 16),
 
-        // Paragraph 1 & 2
-        ScrollReveal(
-          delay: const Duration(milliseconds: 220),
-          duration: const Duration(milliseconds: 600),
-          child: Column(
-            crossAxisAlignment:
-                isCentered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-            children: [
-              Text(
-                'PIGGY TRUNK helps business owners monitor inventory, stock distribution, retail sales, and hog-raising progress through one centralized system.',
-                textAlign: isCentered ? TextAlign.center : TextAlign.left,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: subtitleSize,
-                  fontWeight: FontWeight.w400,
-                  height: 1.6,
-                  color: subtitleColor,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Whether you manage your operation through the Admin Portal or access your assigned functions through the mobile application, PIGGY TRUNK keeps your business information organized and accessible.',
-                textAlign: isCentered ? TextAlign.center : TextAlign.left,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: subtitleSize,
-                  fontWeight: FontWeight.w400,
-                  height: 1.6,
-                  color: subtitleColor,
-                ),
-              ),
-            ],
+        // Paragraph 1
+        Text(
+          'PIGGY TRUNK helps business owners monitor inventory, stock distribution, retail sales, and hog-raising progress through one centralized system.',
+          textAlign: isCentered ? TextAlign.center : TextAlign.left,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: subtitleSize,
+            fontWeight: FontWeight.w400,
+            height: 1.6,
+            color: subtitleColor,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Paragraph 2
+        Text(
+          'Whether you manage your operation through the Admin Portal or access your assigned functions through the mobile application, PIGGY TRUNK keeps your business information organized and accessible.',
+          textAlign: isCentered ? TextAlign.center : TextAlign.left,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: subtitleSize,
+            fontWeight: FontWeight.w400,
+            height: 1.6,
+            color: subtitleColor,
           ),
         ),
         const SizedBox(height: 26),
 
         // Action Buttons: [ Contact Us ]  [ Learn More ]
-        ScrollReveal(
-          delay: const Duration(milliseconds: 300),
-          duration: const Duration(milliseconds: 600),
-          child: Wrap(
-            alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
-            spacing: 14,
-            runSpacing: 12,
-            children: [
-              // Contact Us
-              FilledButton.icon(
-                onPressed: widget.onContactTap,
-                style: FilledButton.styleFrom(
-                  backgroundColor: primaryButtonBg,
-                  foregroundColor: primaryButtonFg,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 22 : 28,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
+        Wrap(
+          alignment: isCentered ? WrapAlignment.center : WrapAlignment.start,
+          spacing: 14,
+          runSpacing: 12,
+          children: [
+            // Contact Us
+            FilledButton.icon(
+              onPressed: widget.onContactTap,
+              style: FilledButton.styleFrom(
+                backgroundColor: primaryButtonBg,
+                foregroundColor: primaryButtonFg,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 22 : 28,
+                  vertical: 15,
                 ),
-                icon: const Icon(Icons.mail_outline_rounded, size: 17),
-                label: Text(
-                  'Contact Us',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+              icon: const Icon(Icons.mail_outline_rounded, size: 17),
+              label: Text(
+                'Contact Us',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+            ),
 
-              // Learn More
-              OutlinedButton.icon(
-                onPressed: widget.onLearnMoreTap,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
-                  side: BorderSide(
-                    color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder,
-                    width: 1.2,
-                  ),
-                  backgroundColor: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 20 : 26,
-                    vertical: 15,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+            // Learn More
+            OutlinedButton.icon(
+              onPressed: widget.onLearnMoreTap,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
+                side: BorderSide(
+                  color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder,
+                  width: 1.2,
                 ),
-                icon: const Icon(Icons.arrow_downward_rounded, size: 17),
-                label: Text(
-                  'Learn More',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
-                  ),
+                backgroundColor: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 20 : 26,
+                  vertical: 15,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-            ],
-          ),
+              icon: const Icon(Icons.arrow_downward_rounded, size: 17),
+              label: Text(
+                'Learn More',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF18314F),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -316,55 +295,40 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                       top: 10,
                       child: SizedBox(
                         width: stageWidth * 0.72,
-                        child: ScrollReveal(
-                          delay: const Duration(milliseconds: 150),
-                          duration: const Duration(milliseconds: 650),
-                          child: _buildWebBrowserCard(isDark, width: stageWidth * 0.72, height: 420),
-                        ),
+                        child: _buildWebBrowserCard(isDark, width: stageWidth * 0.72, height: 420),
                       ),
                     ),
 
-                    // Mobile Phone Mockup (Front, right overlapping with depth + continuous gentle float)
+                    // Mobile Phone Mockup (Front, right overlapping with depth)
                     Positioned(
                       right: 0,
                       bottom: 0,
-                      child: FloatingWidget(
-                        offsetY: 7.0,
-                        duration: const Duration(milliseconds: 3400),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            _buildPhoneSubTabs(isDark),
-                            const SizedBox(height: 8),
-                            _buildPhoneMockup(
-                              isDark,
-                              width: 225,
-                              height: 430,
-                              hasShadow: true,
-                            ),
-                          ],
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          _buildPhoneSubTabs(isDark),
+                          const SizedBox(height: 8),
+                          _buildPhoneMockup(
+                            isDark,
+                            width: 225,
+                            height: 430,
+                            hasShadow: true,
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               );
             } else {
-              // Narrow screens: Stacked smoothly with floating effect
+              // Narrow screens: Stacked smoothly
               return Column(
                 children: [
-                  ScrollReveal(
-                    delay: const Duration(milliseconds: 150),
-                    child: _buildWebBrowserCard(isDark, width: double.infinity, height: 360),
-                  ),
+                  _buildWebBrowserCard(isDark, width: double.infinity, height: 360),
                   const SizedBox(height: 24),
                   _buildPhoneSubTabs(isDark),
                   const SizedBox(height: 10),
-                  FloatingWidget(
-                    offsetY: 6.0,
-                    duration: const Duration(milliseconds: 3200),
-                    child: _buildPhoneMockup(isDark, width: 250, height: 480),
-                  ),
+                  _buildPhoneMockup(isDark, width: 250, height: 480),
                 ],
               );
             }

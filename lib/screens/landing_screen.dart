@@ -8,8 +8,6 @@ import '../widgets/landing/landing_download_section.dart';
 import '../widgets/landing/landing_footer.dart';
 import '../widgets/landing/landing_contact_dialog.dart';
 
-import '../widgets/landing/scroll_reveal.dart';
-
 class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
 
@@ -82,12 +80,6 @@ class _LandingScreenState extends State<LandingScreen> {
               onContactTap: _openContactDialog,
             ),
 
-            // Sleek Scroll Progress Bar (glowing feedback on every scroll)
-            ScrollProgressBar(
-              scrollController: _scrollController,
-              height: 2.8,
-            ),
-
             // Scrollable Landing Content
             Expanded(
               child: Stack(
@@ -97,7 +89,7 @@ class _LandingScreenState extends State<LandingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Hero Section
+                        // Hero Section (Updated copy matching Image 1)
                         Container(
                           key: _heroKey,
                           child: LandingHeroSection(
@@ -106,89 +98,61 @@ class _LandingScreenState extends State<LandingScreen> {
                           ),
                         ),
 
-                        // How to Get Started Section (Scroll Reveal)
-                        ScrollReveal(
-                          delay: const Duration(milliseconds: 50),
-                          duration: const Duration(milliseconds: 600),
-                          child: Container(
-                            key: _howItWorksKey,
-                            child: LandingHowItWorksSection(
-                              onContactTap: _openContactDialog,
-                            ),
-                          ),
-                        ),
-
-                        // Role Breakdown Section (Scroll Reveal)
-                        ScrollReveal(
-                          delay: const Duration(milliseconds: 50),
-                          duration: const Duration(milliseconds: 600),
-                          child: Container(
-                            key: _rolesKey,
-                            child: const LandingRolesSection(),
-                          ),
-                        ),
-
-                        // Download & Android Installation Guide Section (Scroll Reveal)
-                        ScrollReveal(
-                          delay: const Duration(milliseconds: 50),
-                          duration: const Duration(milliseconds: 600),
-                          child: LandingDownloadSection(
-                            downloadSectionKey: _downloadKey,
-                          ),
-                        ),
-
-                        // Footer (Scroll Reveal)
-                        ScrollReveal(
-                          delay: const Duration(milliseconds: 50),
-                          duration: const Duration(milliseconds: 500),
-                          fadeOnly: true,
-                          child: LandingFooter(
-                            onScrollToOverview: () => _scrollToKey(_heroKey),
-                            onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
-                            onScrollToPlatforms: () => _scrollToKey(_rolesKey),
-                            onScrollToDownload: () => _scrollToKey(_downloadKey),
+                        // How to Get Started Section (Synthesized from Images 2 & 3)
+                        Container(
+                          key: _howItWorksKey,
+                          child: LandingHowItWorksSection(
                             onContactTap: _openContactDialog,
                           ),
+                        ),
+
+                        // Role Breakdown Section
+                        Container(
+                          key: _rolesKey,
+                          child: const LandingRolesSection(),
+                        ),
+
+                        // Download & Android Installation Guide Section
+                        LandingDownloadSection(
+                          downloadSectionKey: _downloadKey,
+                        ),
+
+                        // Footer with discrete Admin link and support email
+                        LandingFooter(
+                          onScrollToOverview: () => _scrollToKey(_heroKey),
+                          onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
+                          onScrollToPlatforms: () => _scrollToKey(_rolesKey),
+                          onScrollToDownload: () => _scrollToKey(_downloadKey),
+                          onContactTap: _openContactDialog,
                         ),
                       ],
                     ),
                   ),
 
-                  // Floating Back-to-Top Button with smooth slide & scale
-                  Positioned(
-                    bottom: 24,
-                    right: 24,
-                    child: AnimatedSlide(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOutBack,
-                      offset: _showBackToTop ? Offset.zero : const Offset(0, 1.8),
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 250),
-                        opacity: _showBackToTop ? 1.0 : 0.0,
-                        child: IgnorePointer(
-                          ignoring: !_showBackToTop,
-                          child: FloatingActionButton.small(
-                            backgroundColor: isDark
-                                ? const Color(0xFF1E293B)
-                                : Colors.white,
-                            foregroundColor: isDark
-                                ? Colors.white
-                                : PiggyTrunkTheme.ptPrimary,
-                            elevation: 4,
-                            onPressed: () {
-                              _scrollController.animateTo(
-                                0,
-                                duration: const Duration(milliseconds: 600),
-                                curve: Curves.easeInOutCubic,
-                              );
-                            },
-                            tooltip: 'Back to top',
-                            child: const Icon(Icons.arrow_upward_rounded),
-                          ),
-                        ),
+                  // Floating Back-to-Top Button
+                  if (_showBackToTop)
+                    Positioned(
+                      bottom: 24,
+                      right: 24,
+                      child: FloatingActionButton.small(
+                        backgroundColor: isDark
+                            ? const Color(0xFF1E293B)
+                            : Colors.white,
+                        foregroundColor: isDark
+                            ? Colors.white
+                            : PiggyTrunkTheme.ptPrimary,
+                        elevation: 4,
+                        onPressed: () {
+                          _scrollController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeInOutCubic,
+                          );
+                        },
+                        tooltip: 'Back to top',
+                        child: const Icon(Icons.arrow_upward_rounded),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

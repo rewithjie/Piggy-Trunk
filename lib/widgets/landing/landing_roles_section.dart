@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
-import 'scroll_reveal.dart';
 
 class LandingRolesSection extends StatelessWidget {
   const LandingRolesSection({super.key});
@@ -93,31 +92,16 @@ class LandingRolesSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 40),
 
-                  // Roles Bento Cards (Fluid 3-column or Stacked with staggered reveal)
+                  // Roles Bento Cards (Fluid 3-column or Stacked)
                   if (isThreeColumn)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: ScrollReveal(
-                            delay: const Duration(milliseconds: 100),
-                            child: _buildRaiserCard(context, isDark),
-                          ),
-                        ),
+                        Expanded(child: _buildRaiserCard(context, isDark)),
                         const SizedBox(width: 20),
-                        Expanded(
-                          child: ScrollReveal(
-                            delay: const Duration(milliseconds: 200),
-                            child: _buildPartnerCard(context, isDark),
-                          ),
-                        ),
+                        Expanded(child: _buildPartnerCard(context, isDark)),
                         const SizedBox(width: 20),
-                        Expanded(
-                          child: ScrollReveal(
-                            delay: const Duration(milliseconds: 300),
-                            child: _buildCashierCard(context, isDark),
-                          ),
-                        ),
+                        Expanded(child: _buildCashierCard(context, isDark)),
                       ],
                     )
                   else
@@ -125,20 +109,11 @@ class LandingRolesSection extends StatelessWidget {
                       constraints: const BoxConstraints(maxWidth: 680),
                       child: Column(
                         children: [
-                          ScrollReveal(
-                            delay: const Duration(milliseconds: 100),
-                            child: _buildRaiserCard(context, isDark),
-                          ),
+                          _buildRaiserCard(context, isDark),
                           const SizedBox(height: 18),
-                          ScrollReveal(
-                            delay: const Duration(milliseconds: 200),
-                            child: _buildPartnerCard(context, isDark),
-                          ),
+                          _buildPartnerCard(context, isDark),
                           const SizedBox(height: 18),
-                          ScrollReveal(
-                            delay: const Duration(milliseconds: 300),
-                            child: _buildCashierCard(context, isDark),
-                          ),
+                          _buildCashierCard(context, isDark),
                         ],
                       ),
                     ),
@@ -247,27 +222,24 @@ class _RoleCard extends StatelessWidget {
         ? Colors.white.withValues(alpha: 0.12)
         : const Color(0xFF18314F).withValues(alpha: 0.08);
 
-    return HoverCard(
-      translateY: -8.0,
-      duration: const Duration(milliseconds: 220),
-      child: Container(
-        constraints: BoxConstraints(minHeight: isMobile ? 0 : 480),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cardBorder, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: EdgeInsets.all(isMobile ? 18 : 22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return Container(
+      constraints: BoxConstraints(minHeight: isMobile ? 0 : 480),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(isMobile ? 18 : 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           // Top Icon & Badge Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -363,7 +335,6 @@ class _RoleCard extends StatelessWidget {
           }),
         ],
       ),
-    ),
-  );
-}
+    );
+  }
 }
