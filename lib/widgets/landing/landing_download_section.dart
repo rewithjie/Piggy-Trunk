@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_toast.dart';
 import '../../utils/responsive.dart';
 import '../common/shimmer_loading.dart';
+import 'scroll_reveal.dart';
 
 class LandingDownloadSection extends StatefulWidget {
   final GlobalKey? downloadSectionKey;
@@ -125,21 +126,24 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                 builder: (context, cardConstraints) {
                   final isWideCard = cardConstraints.maxWidth >= 820;
 
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: cardBorder, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.05),
-                          blurRadius: 24,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    padding: EdgeInsets.all(isMobile ? 18 : 28),
-                    child: isWideCard
+                  return HoverCard(
+                    translateY: -5.0,
+                    duration: const Duration(milliseconds: 220),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: cardBorder, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.05),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      padding: EdgeInsets.all(isMobile ? 18 : 28),
+                      child: isWideCard
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -194,6 +198,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                               ),
                             ],
                           ),
+                    ),
                   );
                 },
               ),
@@ -232,53 +237,57 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               ),
             ],
           ),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  qrUrl,
-                  width: 200,
-                  height: 200,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return ShimmerBox(
-                      width: 200,
-                      height: 200,
-                      borderRadius: BorderRadius.circular(12),
-                      isDark: false,
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: 200,
-                      height: 200,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Icon(Icons.qr_code_2_rounded, size: 70, color: Color(0xFF64748B)),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.camera_alt_outlined, size: 15, color: Color(0xFF475569)),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Scan with Phone Camera',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF334155),
-                    ),
+          child: FloatingWidget(
+            offsetY: 4.0,
+            duration: const Duration(milliseconds: 3600),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    qrUrl,
+                    width: 200,
+                    height: 200,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return ShimmerBox(
+                        width: 200,
+                        height: 200,
+                        borderRadius: BorderRadius.circular(12),
+                        isDark: false,
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 200,
+                        height: 200,
+                        color: const Color(0xFFF1F5F9),
+                        child: const Center(
+                          child: Icon(Icons.qr_code_2_rounded, size: 70, color: Color(0xFF64748B)),
+                        ),
+                      );
+                    },
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, size: 15, color: Color(0xFF475569)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Point phone camera to scan',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 24),
