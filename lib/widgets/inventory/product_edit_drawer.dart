@@ -33,14 +33,17 @@ class ProductEditDrawer {
   }) {
     final nameCtrl = TextEditingController(text: existing.name);
     String selectedCategory = existing.category.isNotEmpty ? existing.category : 'Feeds';
-    final unitsCtrl = TextEditingController(text: existing.units.toString());
+    final priceStr = existing.price % 1 == 0
+        ? existing.price.toInt().toString()
+        : existing.price.toStringAsFixed(2);
+    final priceCtrl = TextEditingController(text: priceStr);
     final descriptionCtrl = TextEditingController(text: existing.description);
     Uint8List? localImageBytes;
     String? localImageName;
     final ImagePicker imagePicker = ImagePicker();
 
     String? nameError;
-    String? stockError;
+    String? priceError;
     bool isSaving = false;
 
     showGeneralDialog<void>(
@@ -152,7 +155,7 @@ class ProductEditDrawer {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Update photo, stock & details',
+                                        'Update photo, price & details',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
@@ -304,7 +307,7 @@ class ProductEditDrawer {
                                   ],
                                   const SizedBox(height: 16),
 
-                                  // Row: Category & Stock
+                                  // Row: Category & Unit Price
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -366,7 +369,7 @@ class ProductEditDrawer {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              'STOCK (UNITS) *',
+                                              'UNIT PRICE (PHP) *',
                                               style: GoogleFonts.plusJakartaSans(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w800,
@@ -376,15 +379,27 @@ class ProductEditDrawer {
                                             ),
                                             const SizedBox(height: 6),
                                             TextField(
-                                              controller: unitsCtrl,
-                                              keyboardType: TextInputType.number,
-                                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                              controller: priceCtrl,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                                              ],
                                               onChanged: (_) {
-                                                if (stockError != null) setDrawerState(() => stockError = null);
+                                                if (priceError != null) setDrawerState(() => priceError = null);
                                               },
-                                              style: GoogleFonts.plusJakartaSans(color: titleColor, fontSize: 14, fontWeight: FontWeight.w600),
+                                              style: GoogleFonts.plusJakartaSans(
+                                                color: titleColor,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                               decoration: InputDecoration(
-                                                hintText: '0',
+                                                prefixText: '₱ ',
+                                                prefixStyle: GoogleFonts.plusJakartaSans(
+                                                  color: titleColor,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                                hintText: '0.00',
                                                 hintStyle: GoogleFonts.plusJakartaSans(color: mutedColor, fontSize: 14),
                                                 filled: true,
                                                 fillColor: fieldBg,
@@ -392,71 +407,34 @@ class ProductEditDrawer {
                                                 enabledBorder: OutlineInputBorder(
                                                   borderRadius: BorderRadius.circular(10),
                                                   borderSide: BorderSide(
-                                                    color: stockError != null ? const Color(0xFFE53E3E) : fieldBorder,
-                                                    width: stockError != null ? 1.5 : 1,
+                                                    color: priceError != null ? const Color(0xFFE53E3E) : fieldBorder,
+                                                    width: priceError != null ? 1.5 : 1,
                                                   ),
                                                 ),
                                                 focusedBorder: OutlineInputBorder(
                                                   borderRadius: BorderRadius.circular(10),
                                                   borderSide: BorderSide(
-                                                    color: stockError != null ? const Color(0xFFE53E3E) : PiggyTrunkTheme.ptPrimary,
+                                                    color: priceError != null ? const Color(0xFFE53E3E) : PiggyTrunkTheme.ptPrimary,
                                                     width: 1.5,
                                                   ),
                                                 ),
                                               ),
                                             ),
-                                            if (stockError != null) ...[
+                                            if (priceError != null) ...[
                                               const SizedBox(height: 4),
                                               Text(
-                                                stockError!,
-                                                style: GoogleFonts.plusJakartaSans(color: const Color(0xFFE53E3E), fontSize: 11.5, fontWeight: FontWeight.w600),
+                                                priceError!,
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  color: const Color(0xFFE53E3E),
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                               ),
                                             ],
                                           ],
                                         ),
                                       ),
                                     ],
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // Locked Unit Price Box
-                                  Text(
-                                    'UNIT PRICE (PHP) – LOCKED',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: mutedColor,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: isDark ? const Color(0xFF162338) : const Color(0xFFEDF2F7),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(color: fieldBorder),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          '₱ ${existing.price.toStringAsFixed(2)}',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            color: titleColor,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Icon(Icons.lock_outline_rounded, size: 16, color: mutedColor),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Price is locked after initial product creation.',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: mutedColor, fontStyle: FontStyle.italic),
                                   ),
                                   const SizedBox(height: 16),
 
@@ -535,19 +513,19 @@ class ProductEditDrawer {
                                         ? null
                                         : () async {
                                             final name = nameCtrl.text.trim();
-                                            final units = int.tryParse(unitsCtrl.text.trim());
+                                            final priceVal = double.tryParse(priceCtrl.text.trim());
                                             if (name.isEmpty) {
                                               setDrawerState(() => nameError = 'Product name is required.');
                                               return;
                                             }
-                                            if (units == null || units < 0) {
-                                              setDrawerState(() => stockError = 'Please enter valid stock units.');
+                                            if (priceVal == null || priceVal <= 0) {
+                                              setDrawerState(() => priceError = 'Please enter a valid price greater than 0.');
                                               return;
                                             }
 
                                             setDrawerState(() {
                                               nameError = null;
-                                              stockError = null;
+                                              priceError = null;
                                               isSaving = true;
                                             });
 
@@ -562,7 +540,7 @@ class ProductEditDrawer {
                                                 'category_id': selectedCategory.toLowerCase().replaceAll(' ', '_'),
                                                 'category': selectedCategory,
                                                 'description': descriptionCtrl.text.trim(),
-                                                'units': units,
+                                                'price': priceVal,
                                                 'image': imageUrl,
                                               };
 
@@ -574,8 +552,11 @@ class ProductEditDrawer {
                                               List<String> changes = [];
                                               if (existing.name != name) changes.add('Name: "${existing.name}" -> "$name"');
                                               if (existing.category != selectedCategory) changes.add('Category: "${existing.category}" -> "$selectedCategory"');
-                                              if (existing.units != units) changes.add('Stock: ${existing.units} -> $units');
+                                              if ((existing.price - priceVal).abs() > 0.001) {
+                                                changes.add('Price: ₱${existing.price.toStringAsFixed(2)} -> ₱${priceVal.toStringAsFixed(2)}');
+                                              }
                                               if (existing.description != descriptionCtrl.text.trim()) changes.add('Description updated');
+                                              if (imageUrl != existing.image) changes.add('Image updated');
 
                                               final detailsStr = changes.isEmpty ? 'No field changes' : changes.join(', ');
 
@@ -583,8 +564,8 @@ class ProductEditDrawer {
                                                 productId: existing.id,
                                                 productName: name,
                                                 action: 'UPDATE',
-                                                price: existing.price,
-                                                units: units,
+                                                price: priceVal,
+                                                units: existing.units,
                                                 details: detailsStr,
                                               );
 
