@@ -142,39 +142,40 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                     ),
                     padding: EdgeInsets.all(isMobile ? 18 : 28),
                     child: isWideCard
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Left QR & Download Buttons
-                              Expanded(
-                                flex: 5,
-                                child: _buildQrAndActionGroup(
-                                  context,
-                                  qrUrl,
-                                  isDark,
-                                  titleColor,
-                                  subtitleColor,
+                        ? IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Left QR & Download Buttons
+                                Expanded(
+                                  flex: 5,
+                                  child: _buildQrAndActionGroup(
+                                    context,
+                                    qrUrl,
+                                    isDark,
+                                    titleColor,
+                                    subtitleColor,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 32),
-                              // Vertical divider
-                              Container(
-                                width: 1,
-                                height: 420,
-                                color: cardBorder,
-                              ),
-                              const SizedBox(width: 32),
-                              // Right Installation Guide
-                              Expanded(
-                                flex: 6,
-                                child: _buildInstallationGuide(
-                                  context,
-                                  isDark,
-                                  titleColor,
-                                  subtitleColor,
+                                const SizedBox(width: 32),
+                                // Vertical divider
+                                Container(
+                                  width: 1,
+                                  color: cardBorder,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 32),
+                                // Right Installation Guide
+                                Expanded(
+                                  flex: 6,
+                                  child: _buildInstallationGuide(
+                                    context,
+                                    isDark,
+                                    titleColor,
+                                    subtitleColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           )
                         : Column(
                             children: [
@@ -409,54 +410,6 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
             ),
           ),
         ),
-        const SizedBox(height: 14),
-
-        // iOS Notice Box
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF162338) : const Color(0xFFF1F6FD),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? const Color(0xFF28405D) : const Color(0xFFD4E2F4),
-              width: 1.2,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.apple,
-                    size: 18,
-                    color: isDark ? Colors.white : const Color(0xFF1E293B),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Using an iPhone or iPad?',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: titleColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'APKs are exclusively for Android. For iOS, open this website in Safari, tap Share (⎋), and select "Add to Home Screen" to install.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                  color: subtitleColor,
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -467,11 +420,6 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
     Color titleColor,
     Color subtitleColor,
   ) {
-    final guideIconColor = isDark ? Colors.white : const Color(0xFF18314F);
-    final guideIconBg = isDark
-        ? Colors.white.withValues(alpha: 0.1)
-        : const Color(0xFF18314F).withValues(alpha: 0.08);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -480,15 +428,13 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: guideIconBg,
+                color: const Color(0xFF10B981).withValues(alpha: 0.12),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : const Color(0xFF18314F).withValues(alpha: 0.12),
+                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
                 ),
               ),
-              child: Icon(Icons.help_outline_rounded, color: guideIconColor, size: 20),
+              child: const Icon(Icons.android_rounded, color: Color(0xFF10B981), size: 20),
             ),
             const SizedBox(width: 12),
             Text(
@@ -542,7 +488,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
         ),
         const SizedBox(height: 22),
 
-        // iOS Step-by-Step Box
+        // Unified iOS (iPhone / iPad) Guide Box
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
@@ -597,6 +543,16 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'APKs are exclusively for Android. For iOS devices, install Piggy Trunk directly as a Web App in 3 simple steps:',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                  color: subtitleColor,
+                ),
               ),
               const SizedBox(height: 12),
               _buildIosStepItem(
