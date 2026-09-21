@@ -91,10 +91,20 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
 
-    // Host detection for Flutter Web
+    // Host detection for Flutter Web (strip .vercel.app / .app suffix so main domain is not misidentified as mobile app)
     final host = kIsWeb ? Uri.base.host.toLowerCase() : '';
-    final isAdminDomain = host.contains('admin');
-    final isMobileDomain = host.contains('app') || host.contains('mobile');
+    final subdomain = host.endsWith('.vercel.app')
+        ? host.substring(0, host.length - 11)
+        : (host.endsWith('.app') ? host.substring(0, host.length - 4) : host);
+
+    final isAdminDomain = subdomain.contains('admin');
+    final isMobileDomain = subdomain.contains('mobile') ||
+        subdomain.startsWith('app') ||
+        subdomain.endsWith('app') ||
+        subdomain.contains('-app') ||
+        subdomain.contains('app-') ||
+        subdomain.contains('.app') ||
+        subdomain == 'app';
 
     final String initialRoute;
     if (isAdminDomain) {
