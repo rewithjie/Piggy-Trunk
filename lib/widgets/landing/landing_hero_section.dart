@@ -18,7 +18,7 @@ class LandingHeroSection extends StatefulWidget {
 }
 
 class _LandingHeroSectionState extends State<LandingHeroSection> {
-  // Mobile App screen index: 0: Raiser, 1: Investor, 2: Restock
+  // Mobile App screen index: 0: Raiser, 1: Partner, 2: Restock
   int _activePhoneScreenIndex = 0;
 
   @override
@@ -149,7 +149,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             border: Border.all(color: pillBorder),
           ),
           child: Text(
-            'HOG RAISING INVESTMENT MONITORING SYSTEM',
+            'HOG RAISING MANAGEMENT & MONITORING SYSTEM',
             textAlign: isCentered ? TextAlign.center : TextAlign.left,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 10.5,
@@ -163,7 +163,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
 
         // Headline
         Text(
-          'Manage Your Retail Business and Hog-Raising Investments in One Place',
+          'Manage Your Retail Business and Hog-Raising Operations in One Place',
           textAlign: isCentered ? TextAlign.center : TextAlign.left,
           style: GoogleFonts.plusJakartaSans(
             fontSize: headlineSize,
@@ -177,7 +177,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
 
         // Paragraph 1
         Text(
-          'PIGGY TRUNK helps business owners monitor investments, inventory, stock distribution, retail sales, and hog-raising progress through one centralized system.',
+          'PIGGY TRUNK helps business owners monitor inventory, stock distribution, retail sales, and hog-raising progress through one centralized system.',
           textAlign: isCentered ? TextAlign.center : TextAlign.left,
           style: GoogleFonts.plusJakartaSans(
             fontSize: subtitleSize,
@@ -207,31 +207,6 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           spacing: 14,
           runSpacing: 12,
           children: [
-            // Open Web App
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).pushNamed('/app'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 22 : 28,
-                  vertical: 15,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 2,
-              ),
-              icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-              label: Text(
-                'Open Web App',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-
             // Contact Us
             FilledButton.icon(
               onPressed: widget.onContactTap,
@@ -377,7 +352,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildPhonePillItem(0, '🐷 Raiser', isDark),
-          _buildPhonePillItem(1, '💼 Investor', isDark),
+          _buildPhonePillItem(1, '💼 Partner', isDark),
           _buildPhonePillItem(2, '📦 Stock', isDark),
         ],
       ),
@@ -594,9 +569,9 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildMetricMini(
-                            'Investments',
+                            'Farm Output',
                             '₱2.45M',
-                            '+22.4% ROI',
+                            '+22.4% vs last mo',
                             Icons.trending_up_rounded,
                             const Color(0xFF8B5CF6),
                             cardBg,
@@ -811,7 +786,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   Widget _buildPhoneScreen(int index) {
     switch (index) {
       case 1:
-        return _buildInvestorMock();
+        return _buildPartnerMock();
       case 2:
         return _buildRestockMock();
       default:
@@ -930,7 +905,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     );
   }
 
-  Widget _buildInvestorMock() {
+  Widget _buildPartnerMock() {
     return KeyedSubtree(
       key: const ValueKey(1),
       child: Column(
@@ -961,7 +936,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Invested Capital', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 8)),
+                        Text('Allocated Capital', style: GoogleFonts.plusJakartaSans(color: Colors.white70, fontSize: 8)),
                         Text('₱250,000.00', style: GoogleFonts.plusJakartaSans(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 6),
                         Row(

@@ -352,7 +352,7 @@ class LandingHowItWorksSection extends StatelessWidget {
             const SizedBox(height: 10),
             _buildPlatformItem(
               title: 'Mobile Application',
-              description: 'Available for Partner Investors, Hog Raisers, and Cashiers to access their assigned functions.',
+              description: 'Available for Farm Partners, Hog Raisers, and Cashiers to access their assigned functions.',
               badge: 'ANDROID / IOS',
               isDark: isDark,
             ),

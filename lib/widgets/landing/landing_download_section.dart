@@ -313,31 +313,6 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
         ),
         const SizedBox(height: 10),
 
-        // Open Web App in Browser (No installation needed)
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).pushNamed('/app'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-            icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-            label: Text(
-              'Open Web App in Browser (No Download)',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
 
         // Copy Link Secondary Button
         SizedBox(

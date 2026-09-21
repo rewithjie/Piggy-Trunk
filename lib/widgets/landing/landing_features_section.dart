@@ -125,7 +125,7 @@ class LandingFeaturesSection extends StatelessWidget {
                             color: const Color(0xFF10B981),
                             title: '100% Transparent Financial Ledger',
                             description:
-                                'Every expense has an itemized audit trail and digital timestamp, giving investors total confidence and zero guesswork during harvest payouts.',
+                                'Every expense has an itemized audit trail and digital timestamp, giving farm owners and partners total confidence and zero guesswork during harvest payouts.',
                             isDark: isDark,
                           ),
                           _buildFeatureCard(

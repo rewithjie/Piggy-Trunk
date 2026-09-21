@@ -129,7 +129,7 @@ class LandingFooter extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'Next-generation swine farm management and investment monitoring platform. Centralizing retail sales, inventory, stock distribution, and hog-raising operations.',
+          'Next-generation swine farm management and operations monitoring platform. Centralizing retail sales, inventory, stock distribution, and hog-raising operations.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w400,

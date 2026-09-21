@@ -145,9 +145,9 @@ class LandingRolesSection extends StatelessWidget {
 
   Widget _buildPartnerCard(BuildContext context, bool isDark) {
     return _RoleCard(
-      badgeLabel: 'INVESTORS & PARTNERS',
+      badgeLabel: 'FARM PARTNERS',
       icon: Icons.trending_up_rounded,
-      title: 'Partner / Investor Portal',
+      title: 'Farm Partner Portal',
       description:
           '100% transparent tracking of funded batches with real-time audit trails and harvest return computations.',
       features: const [
