@@ -98,6 +98,28 @@ class LandingNavBar extends ConsumerWidget {
                 // Theme Mode Switcher
                 _ThemeToggleButton(ref: ref, isDark: isDark),
                 const SizedBox(width: 14),
+                // Open Web App CTA
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/app'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                  label: Text(
+                    'Open App',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 // Admin Portal CTA
                 OutlinedButton.icon(
                   onPressed: () => Navigator.of(context).pushNamed('/login'),
@@ -155,6 +177,16 @@ class LandingNavBar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _ThemeToggleButton(ref: ref, isDark: isDark),
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Open App',
+                  onPressed: () => Navigator.of(context).pushNamed('/app'),
+                  icon: const Icon(
+                    Icons.open_in_browser_rounded,
+                    size: 22,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
                 const SizedBox(width: 6),
                 IconButton(
                   tooltip: 'Admin Portal',

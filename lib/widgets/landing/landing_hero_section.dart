@@ -207,6 +207,31 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           spacing: 14,
           runSpacing: 12,
           children: [
+            // Open Web App
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pushNamed('/app'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 22 : 28,
+                  vertical: 15,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+              icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+              label: Text(
+                'Open Web App',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+
             // Contact Us
             FilledButton.icon(
               onPressed: widget.onContactTap,

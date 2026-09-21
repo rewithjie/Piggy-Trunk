@@ -15,6 +15,10 @@ class NotificationService {
   /// Initializes native notification settings and Android notification channel
   Future<void> initialize() async {
     if (_isInitialized) return;
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
 
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
@@ -89,6 +93,10 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    if (kIsWeb) {
+      debugPrint('[Web Notification] $title: $body');
+      return;
+    }
     await initialize();
 
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(

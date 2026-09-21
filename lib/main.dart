@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'theme/app_theme.dart';
+import 'services/notification_service.dart';
 import 'screens/admin_login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/hog_raiser_screen.dart';
@@ -17,7 +19,18 @@ import 'screens/mobile_app_distribution_screen.dart';
 import 'screens/best_sellers_screen.dart';
 import 'screens/demand_forecasting_screen.dart';
 import 'screens/landing_screen.dart';
-import 'package:flutter_web_plugins/url_strategy.dart';
+
+// Mobile Web App screens and wrappers
+import 'mobile_app/screens/login_screen.dart';
+import 'mobile_app/screens/signup_screen.dart';
+import 'mobile_app/screens/splash_screen.dart';
+import 'mobile_app/screens/onboarding_screen.dart';
+import 'mobile_app/screens/raiser/dashboard_screen.dart';
+import 'mobile_app/screens/partner/partner_dashboard_screen.dart';
+import 'mobile_app/screens/cashier/cashier_dashboard_screen.dart';
+import 'mobile_app/screens/admin/admin_dashboard_screen.dart';
+import 'mobile_app/services/locale_provider.dart';
+import 'mobile_app/widgets/responsive_mobile_wrapper.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.light);
 bool isInitialLaunch = true;
@@ -56,9 +69,17 @@ void main() async {
     debugPrint('Supabase init warning: $e');
   }
 
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('NotificationService init warning: $e');
+  }
+
   runApp(
     const ProviderScope(
-      child: MyApp(),
+      child: SettingsProvider(
+        child: MyApp(),
+      ),
     ),
   );
 }
@@ -73,17 +94,34 @@ class MyApp extends ConsumerWidget {
     // Host detection for Flutter Web
     final host = kIsWeb ? Uri.base.host.toLowerCase() : '';
     final isAdminDomain = host.contains('admin');
+    final isMobileDomain = host.contains('app') || host.contains('mobile');
+
+    final String initialRoute;
+    if (isAdminDomain) {
+      initialRoute = '/login';
+    } else if (isMobileDomain) {
+      initialRoute = '/app';
+    } else {
+      initialRoute = '/';
+    }
 
     return MaterialApp(
-      title: isAdminDomain ? 'Piggy Trunk Admin' : 'Piggy Trunk',
+      title: isAdminDomain
+          ? 'Piggy Trunk Admin'
+          : (isMobileDomain ? 'Piggy Trunk Mobile Web' : 'Piggy Trunk'),
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       themeAnimationCurve: Curves.linear,
-      initialRoute: isAdminDomain ? '/login' : '/',
+      initialRoute: initialRoute,
       routes: {
-        '/': (context) => isAdminDomain ? const AdminLoginScreen() : const LandingScreen(),
+        // Web Admin & Landing Routes
+        '/': (context) => isAdminDomain
+            ? const AdminLoginScreen()
+            : (isMobileDomain
+                ? const ResponsiveMobileWrapper(child: LoginScreen())
+                : const LandingScreen()),
         '/login': (context) => const AdminLoginScreen(),
         '/landing': (context) => const LandingScreen(),
         '/dashboard': (context) => const DashboardScreen(),
@@ -97,6 +135,17 @@ class MyApp extends ConsumerWidget {
         '/mobile-app': (context) => const MobileAppDistributionScreen(),
         '/best-sellers': (context) => const BestSellersScreen(),
         '/forecasting': (context) => const DemandForecastingScreen(),
+
+        // Mobile App on Web Routes (Responsive Wrapper applied)
+        '/app': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
+        '/mobile': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
+        '/signup': (context) => const ResponsiveMobileWrapper(child: SignUpScreen()),
+        '/onboarding': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
+        '/splash': (context) => const ResponsiveMobileWrapper(child: SplashScreen()),
+        '/raiser_dashboard': (context) => const ResponsiveMobileWrapper(child: MobileDashboardScreen()),
+        '/partner_dashboard': (context) => const ResponsiveMobileWrapper(child: PartnerDashboardScreen()),
+        '/cashier_dashboard': (context) => const ResponsiveMobileWrapper(child: CashierDashboardScreen()),
+        '/admin_dashboard': (context) => const ResponsiveMobileWrapper(child: AdminMobileDashboardScreen()),
       },
       debugShowCheckedModeBanner: false,
     );
