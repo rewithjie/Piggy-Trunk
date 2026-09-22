@@ -23,17 +23,9 @@ class LandingDownloadSection extends StatefulWidget {
 class _LandingDownloadSectionState extends State<LandingDownloadSection> {
   static const String _apkUrl =
       'https://ywwwrshblzyqmxkbkxsp.supabase.co/storage/v1/object/public/piggytrunkmobile/PiggyTrunkMobile.apk';
-  static const String _webAppUrl = 'https://mobilepiggytrunk.vercel.app';
+  static const String _webAppUrl = 'https://mobile.piggytrunk.site';
 
-  String get _effectiveWebAppUrl {
-    if (kIsWeb) {
-      final host = Uri.base.host.toLowerCase();
-      if (host.contains('piggytrunk.site')) {
-        return 'https://mobile.piggytrunk.site';
-      }
-    }
-    return _webAppUrl;
-  }
+  String get _effectiveWebAppUrl => _webAppUrl;
 
   // 0 = Android APK, 1 = iOS Web App
   int _selectedPlatform = 0;
