@@ -135,6 +135,7 @@ class MyApp extends ConsumerWidget {
         '/login': (context) => isAdminDomain
             ? const AdminLoginScreen()
             : const ResponsiveMobileWrapper(child: LoginScreen()),
+        '/admin': (context) => const AdminLoginScreen(),
         '/admin_login': (context) => const AdminLoginScreen(),
         '/landing': (context) => const LandingScreen(),
         '/dashboard': (context) => const DashboardScreen(),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,11 +25,21 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
       'https://ywwwrshblzyqmxkbkxsp.supabase.co/storage/v1/object/public/piggytrunkmobile/PiggyTrunkMobile.apk';
   static const String _webAppUrl = 'https://mobilepiggytrunk.vercel.app';
 
+  String get _effectiveWebAppUrl {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      if (host.contains('piggytrunk.site')) {
+        return 'https://mobile.piggytrunk.site';
+      }
+    }
+    return _webAppUrl;
+  }
+
   // 0 = Android APK, 1 = iOS Web App
   int _selectedPlatform = 0;
 
   Future<void> _handlePrimaryAction() async {
-    final url = _selectedPlatform == 0 ? _apkUrl : _webAppUrl;
+    final url = _selectedPlatform == 0 ? _apkUrl : _effectiveWebAppUrl;
     final uri = Uri.parse(url);
     try {
       if (await canLaunchUrl(uri)) {
@@ -44,7 +55,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
   }
 
   void _copyLink() {
-    final url = _selectedPlatform == 0 ? _apkUrl : _webAppUrl;
+    final url = _selectedPlatform == 0 ? _apkUrl : _effectiveWebAppUrl;
     Clipboard.setData(ClipboardData(text: url));
     AppToast.success(
       context,
@@ -65,7 +76,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
     final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
     final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
 
-    final targetQrData = _selectedPlatform == 0 ? _apkUrl : _webAppUrl;
+    final targetQrData = _selectedPlatform == 0 ? _apkUrl : _effectiveWebAppUrl;
     final qrUrl =
         'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${Uri.encodeComponent(targetQrData)}';
 
@@ -613,7 +624,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
             stepNumber: '1',
             title: 'Open Mobile App in Safari',
             description:
-                'Scan the QR code with your iPhone camera or open mobilepiggytrunk.vercel.app directly in Safari.',
+                'Scan the QR code with your iPhone camera or open ${_effectiveWebAppUrl.replaceFirst("https://", "")} directly in Safari.',
             icon: Icons.explore_outlined,
             isDark: isDark,
           ),

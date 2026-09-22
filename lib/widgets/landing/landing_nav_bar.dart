@@ -94,6 +94,11 @@ class LandingNavBar extends ConsumerWidget {
                   title: 'Install Guide',
                   onTap: onScrollToDownload,
                 ),
+                const SizedBox(width: 12),
+                _NavLink(
+                  title: 'Admin Portal',
+                  onTap: () => Navigator.pushNamed(context, '/admin'),
+                ),
                 const SizedBox(width: 20),
                 // Theme Mode Switcher
                 _ThemeToggleButton(ref: ref, isDark: isDark),
@@ -130,6 +135,15 @@ class LandingNavBar extends ConsumerWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  tooltip: 'Admin Portal',
+                  onPressed: () => Navigator.pushNamed(context, '/admin'),
+                  icon: Icon(
+                    Icons.admin_panel_settings_outlined,
+                    size: 20,
+                    color: brandTitleColor,
+                  ),
+                ),
                 _ThemeToggleButton(ref: ref, isDark: isDark),
                 const SizedBox(width: 6),
                 IconButton(
