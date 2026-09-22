@@ -145021,7 +145021,7 @@ V(){return new A.R_()}}
 A.R_.prototype={
 wv(){var s=0,r=A.D(t.H),q=1,p=[],o=this,n,m,l,k,j
 var $async$wv=A.z(function(a,b){if(a===1){p.push(b)
-s=q}for(;;)switch(s){case 0:k=A.dp(o.d===0?u.I:"https://piggytrunk.vercel.app",0,null)
+s=q}for(;;)switch(s){case 0:k=A.dp(o.d===0?u.I:"https://mobilepiggytrunk.vercel.app",0,null)
 q=3
 s=9
 return A.l(A.boz(k),$async$wv)
@@ -145048,12 +145048,12 @@ break
 case 5:return A.B(null,r)
 case 1:return A.A(p.at(-1),r)}})
 return A.C($async$wv,r)},
-av4(){A.pU(new A.pT(this.d===0?u.I:"https://piggytrunk.vercel.app"))
+av4(){A.pU(new A.pT(this.d===0?u.I:"https://mobilepiggytrunk.vercel.app"))
 var s=this.c
 s.toString
 A.k9(s,this.d===0?"APK download link copied to clipboard!":"Web App link copied to clipboard!",null,null)},
 J(a){var s,r,q,p,o,n=null,m=A.e(a).ax.a===B.f,l=t.w,k=A.aw(a,n,l).w,j=A.aw(a,n,l).w.a.a<600,i=m?B.a4:B.m,h=m?B.J:B.u,g=m?B.Z:B.c,f=m?B.R:B.ak
-l=A.o6(2,this.d===0?u.I:"https://piggytrunk.vercel.app",B.bb,!1)
+l=A.o6(2,this.d===0?u.I:"https://mobilepiggytrunk.vercel.app",B.bb,!1)
 s=this.a.c
 if(j)k=16
 else k=k.a.a>=1024?64:32
@@ -145108,7 +145108,7 @@ s=A.n(A.a([h,B.W,i,A.k(l,A.d(r,l,l,l,l,l,A.c().$3$color$fontSize$fontWeight(j,11
 i=k?"Because Piggy Trunk Mobile is distributed directly as an APK, follow these 3 simple steps:":"APKs are exclusively for Android. For iOS devices, install Piggy Trunk directly as a Web App in 3 simple steps:"
 i=A.a([A.v(A.a([s,B.P,A.d(i,l,l,l,l,l,A.c().$3$color$fontSize$fontWeight(e,13,B.B),l,l,l)],q),B.q,l,B.e,B.d),B.b4],q)
 if(k)B.h.C(i,A.a([m.w6('Tap "Download APK File" on the left or scan the QR code using your phone camera.',B.a1Y,b,"1","Download the APK File"),B.ar,m.w6('If your mobile browser displays a security alert like "File might be harmful", tap "Download anyway" and enable "Allow from this source / Install".',B.uM,b,"2","Allow Installation (Unknown Apps)"),B.ar,m.w6("Once installed, tap the Piggy Trunk icon on your home screen and log in with your verified Hog Raiser or Partner account.",B.f6,b,"3","Launch & Sign In")],q))
-else B.h.C(i,A.a([m.w6("Scan the QR code with your iPhone camera or open piggytrunk.vercel.app directly in Safari.",B.a1W,b,"1","Open this website in Safari"),B.ar,m.w6("Tap the Share icon (the square icon with an upward arrow) at the bottom toolbar of Safari.",B.a2I,b,"2","Tap the Share Icon"),B.ar,m.w6('Select "Add to Home Screen" to install Piggy Trunk. It will appear on your home screen and run full screen just like a native app.',B.a2m,b,"3",'Scroll down & tap "Add to Home Screen"')],q))
+else B.h.C(i,A.a([m.w6("Scan the QR code with your iPhone camera or open mobilepiggytrunk.vercel.app directly in Safari.",B.a1W,b,"1","Open Mobile App in Safari"),B.ar,m.w6("Tap the Share icon (the square icon with an upward arrow) at the bottom toolbar of Safari.",B.a2I,b,"2","Tap the Share Icon"),B.ar,m.w6('Select "Add to Home Screen" to install Piggy Trunk. It will appear on your home screen and run full screen just like a native app.',B.a2m,b,"3",'Scroll down & tap "Add to Home Screen"')],q))
 i.push(B.b4)
 h=b?B.rg:B.X
 g=A.f(10)

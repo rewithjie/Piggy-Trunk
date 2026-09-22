@@ -22,7 +22,7 @@ class LandingDownloadSection extends StatefulWidget {
 class _LandingDownloadSectionState extends State<LandingDownloadSection> {
   static const String _apkUrl =
       'https://ywwwrshblzyqmxkbkxsp.supabase.co/storage/v1/object/public/piggytrunkmobile/PiggyTrunkMobile.apk';
-  static const String _webAppUrl = 'https://piggytrunk.vercel.app';
+  static const String _webAppUrl = 'https://mobilepiggytrunk.vercel.app';
 
   // 0 = Android APK, 1 = iOS Web App
   int _selectedPlatform = 0;
@@ -611,9 +611,9 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
         ] else ...[
           _buildStepItem(
             stepNumber: '1',
-            title: 'Open this website in Safari',
+            title: 'Open Mobile App in Safari',
             description:
-                'Scan the QR code with your iPhone camera or open piggytrunk.vercel.app directly in Safari.',
+                'Scan the QR code with your iPhone camera or open mobilepiggytrunk.vercel.app directly in Safari.',
             icon: Icons.explore_outlined,
             isDark: isDark,
           ),
