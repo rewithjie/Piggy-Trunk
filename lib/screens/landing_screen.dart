@@ -5,8 +5,8 @@ import '../widgets/landing/landing_hero_section.dart';
 import '../widgets/landing/landing_how_it_works_section.dart';
 import '../widgets/landing/landing_roles_section.dart';
 import '../widgets/landing/landing_download_section.dart';
+import '../widgets/landing/landing_contact_section.dart';
 import '../widgets/landing/landing_footer.dart';
-import '../widgets/landing/landing_contact_dialog.dart';
 import '../widgets/landing/scroll_reveal.dart';
 
 class LandingScreen extends StatefulWidget {
@@ -23,6 +23,7 @@ class _LandingScreenState extends State<LandingScreen> {
   final GlobalKey _howItWorksKey = GlobalKey();
   final GlobalKey _rolesKey = GlobalKey();
   final GlobalKey _downloadKey = GlobalKey();
+  final GlobalKey _contactKey = GlobalKey();
 
   bool _showBackToTop = false;
 
@@ -58,8 +59,8 @@ class _LandingScreenState extends State<LandingScreen> {
     }
   }
 
-  void _openContactDialog() {
-    LandingContactDialog.show(context);
+  void _scrollToContact() {
+    _scrollToKey(_contactKey);
   }
 
   @override
@@ -78,7 +79,7 @@ class _LandingScreenState extends State<LandingScreen> {
               onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
               onScrollToPlatforms: () => _scrollToKey(_rolesKey),
               onScrollToDownload: () => _scrollToKey(_downloadKey),
-              onContactTap: _openContactDialog,
+              onContactTap: _scrollToContact,
             ),
 
             // Scrollable Landing Content
@@ -94,7 +95,7 @@ class _LandingScreenState extends State<LandingScreen> {
                         Container(
                           key: _heroKey,
                           child: LandingHeroSection(
-                            onContactTap: _openContactDialog,
+                            onContactTap: _scrollToContact,
                             onLearnMoreTap: () => _scrollToKey(_howItWorksKey),
                           ),
                         ),
@@ -105,7 +106,7 @@ class _LandingScreenState extends State<LandingScreen> {
                           child: Container(
                             key: _howItWorksKey,
                             child: LandingHowItWorksSection(
-                              onContactTap: _openContactDialog,
+                              onContactTap: _scrollToContact,
                             ),
                           ),
                         ),
@@ -127,6 +128,14 @@ class _LandingScreenState extends State<LandingScreen> {
                           ),
                         ),
 
+                        // Dedicated In-Page Contact & Inquiries Section (Option 2)
+                        ScrollReveal(
+                          delay: const Duration(milliseconds: 60),
+                          child: LandingContactSection(
+                            contactSectionKey: _contactKey,
+                          ),
+                        ),
+
                         // Footer
                         ScrollReveal(
                           delay: const Duration(milliseconds: 60),
@@ -136,7 +145,7 @@ class _LandingScreenState extends State<LandingScreen> {
                             onScrollToHowItWorks: () => _scrollToKey(_howItWorksKey),
                             onScrollToPlatforms: () => _scrollToKey(_rolesKey),
                             onScrollToDownload: () => _scrollToKey(_downloadKey),
-                            onContactTap: _openContactDialog,
+                            onContactTap: _scrollToContact,
                           ),
                         ),
                       ],
