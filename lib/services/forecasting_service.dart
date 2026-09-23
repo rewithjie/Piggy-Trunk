@@ -24,13 +24,21 @@ class ForecastingService {
     // 1. Fetch active products
     final products = await _fetchProducts();
 
-    // 2. Fetch historical sales from pos_sales (with inventory_logs fallback)
+    // 2. Fetch actual historical sales from pos_sales AND distributions from inventory_logs
     final salesList = await _fetchSales(lookbackDays);
 
-    // 3. Group sales by product ID
-    final Map<String, List<POSSale>> salesByProduct = {};
+    // 3. Group actual sales & distributions by product ID and product Name
+    final Map<String, List<POSSale>> salesByProductId = {};
+    final Map<String, List<POSSale>> salesByProductName = {};
     for (final sale in salesList) {
-      salesByProduct.putIfAbsent(sale.productId, () => []).add(sale);
+      if (sale.productId.isNotEmpty) {
+        salesByProductId.putIfAbsent(sale.productId, () => []).add(sale);
+      }
+      if (sale.productName.isNotEmpty) {
+        salesByProductName
+            .putIfAbsent(sale.productName.trim().toLowerCase(), () => [])
+            .add(sale);
+      }
     }
 
     final DateTime today = DateTime.now();
@@ -52,7 +60,18 @@ class ForecastingService {
         if (!matchName && !matchCat) continue;
       }
 
-      final prodSales = salesByProduct[product.id] ?? [];
+      // Collect actual sales and raiser distributions for this product
+      final prodSalesById = salesByProductId[product.id] ?? [];
+      final prodSalesByName =
+          salesByProductName[product.name.trim().toLowerCase()] ?? [];
+
+      final Set<String> seenSaleIds = {};
+      final List<POSSale> prodSales = [];
+      for (final s in [...prodSalesById, ...prodSalesByName]) {
+        if (seenSaleIds.add(s.id)) {
+          prodSales.add(s);
+        }
+      }
 
       // Build daily sales series for all lookbackDays (including 0-sale days)
       final List<DailySalesPoint> dailyHistory = [];
@@ -76,50 +95,48 @@ class ForecastingService {
         dailyHistory.add(DailySalesPoint(date: d, quantity: qty, revenue: rev));
       }
 
-      // If pos_sales was completely empty for this product, build a realistic historical baseline based on category and stock
+      // STRICTLY ACTUAL DATA:
+      // If no pos_sales or distribution logs recorded for this product in lookback period:
       if (totalUnitsSold == 0) {
-        final isFeeds = product.category.toLowerCase().contains('feed');
-        final baseVelocity = isFeeds
-            ? (product.sold > 0 ? (product.sold / 30.0).clamp(1.5, 8.0) : 3.4)
-            : (product.sold > 0 ? (product.sold / 30.0).clamp(0.5, 4.0) : 1.2);
-        averageDailySales = baseVelocity;
-
-        final rng = Random(product.id.hashCode);
-        totalUnitsSold = 0;
-        dailyHistory.clear();
-        for (int i = 0; i < lookbackDays; i++) {
-          final d = startDate.add(Duration(days: i));
-          final dayOfWeek = d.weekday;
-          final weekendBoost = (dayOfWeek == 6 || dayOfWeek == 7) ? 1.25 : 1.0;
-          final variation = (rng.nextDouble() - 0.45) * 1.5;
-          final qty = max(1, ((baseVelocity * weekendBoost) + variation).round());
-          final rev = qty * product.price;
-          totalUnitsSold += qty;
-          dailyHistory.add(DailySalesPoint(date: d, quantity: qty, revenue: rev));
+        if (product.sold > 0) {
+          // If the product record itself has actual historical units sold counter, use it
+          totalUnitsSold = product.sold;
+          averageDailySales = product.sold / lookbackDays.toDouble();
+        } else {
+          // 100% Actual 0: No sales, no raiser distributions
+          totalUnitsSold = 0;
+          averageDailySales = 0.0;
         }
       } else {
         averageDailySales = totalUnitsSold / lookbackDays.toDouble();
       }
 
       // Compute standard deviation of daily sales
-      double varianceSum = 0.0;
-      for (final pt in dailyHistory) {
-        final diff = pt.quantity - averageDailySales;
-        varianceSum += diff * diff;
+      double standardDeviation = 0.0;
+      if (averageDailySales > 0) {
+        double varianceSum = 0.0;
+        for (final pt in dailyHistory) {
+          final diff = pt.quantity - averageDailySales;
+          varianceSum += diff * diff;
+        }
+        standardDeviation = sqrt(varianceSum / max(1, lookbackDays));
       }
-      final standardDeviation = sqrt(varianceSum / max(1, lookbackDays));
 
       // Calculate both SES and SMA velocities for comparison
-      final sesVelocity = _calculateExponentialSmoothing(
-        dailyHistory,
-        alpha: alpha,
-        fallbackAverage: averageDailySales,
-      );
-      final smaVelocity = _calculateSimpleMovingAverage(
-        dailyHistory,
-        window: min(14, lookbackDays),
-        fallbackAverage: averageDailySales,
-      );
+      final sesVelocity = averageDailySales > 0
+          ? _calculateExponentialSmoothing(
+              dailyHistory,
+              alpha: alpha,
+              fallbackAverage: averageDailySales,
+            )
+          : 0.0;
+      final smaVelocity = averageDailySales > 0
+          ? _calculateSimpleMovingAverage(
+              dailyHistory,
+              window: min(14, lookbackDays),
+              fallbackAverage: averageDailySales,
+            )
+          : 0.0;
 
       final forecastedDailyVelocity = modelType == ForecastModelType.exponentialSmoothing
           ? sesVelocity
@@ -136,7 +153,9 @@ class ForecastingService {
       for (int i = 1; i <= horizonDays; i++) {
         final projDate = DateTime(today.year, today.month, today.day).add(Duration(days: i));
         final varianceFactor = 1.0 + ((random.nextDouble() - 0.45) * 0.14);
-        final projQty = max(1, (sesVelocity * varianceFactor).round());
+        final projQty = sesVelocity > 0
+            ? max(0, (sesVelocity * varianceFactor).round())
+            : 0;
         projectedDailySales.add(DailySalesPoint(
           date: projDate,
           quantity: projQty,
@@ -145,7 +164,7 @@ class ForecastingService {
         ));
 
         // SMA projection (flatter curve reflecting lagging average)
-        final smaQty = max(1, smaVelocity.round());
+        final smaQty = smaVelocity > 0 ? max(0, smaVelocity.round()) : 0;
         smaProjectedDailySales.add(DailySalesPoint(
           date: projDate,
           quantity: smaQty,
@@ -155,26 +174,24 @@ class ForecastingService {
       }
 
       // Inventory Reorder Planning Formula:
-      // Lead time (default 3 days if not set)
       final int leadTimeDays = 3;
       final double leadTimeDemand = forecastedDailyVelocity * leadTimeDays;
 
-      // Safety stock: Z * sigma * sqrt(leadTime) (Z = 1.65 for 95% service level)
-      // or heuristic minimum 5 units
-      final int calculatedSafetyStock = max(
-        5,
-        (1.65 * standardDeviation * sqrt(leadTimeDays)).round(),
-      );
+      // Safety stock only if there is real sales velocity
+      final int calculatedSafetyStock = forecastedDailyVelocity > 0
+          ? max(0, (1.65 * standardDeviation * sqrt(leadTimeDays)).round())
+          : 0;
 
       // Reorder Point (ROP) = Lead Time Demand + Safety Stock
       final int reorderPoint = (leadTimeDemand + calculatedSafetyStock).round();
 
       // Recommended Reorder Quantity:
-      // Target stock for horizon + safety stock - current stock
-      final int suggestedReorderQty = max(
-        0,
-        ((predictedDemand + calculatedSafetyStock) - product.units).ceil(),
-      );
+      final int suggestedReorderQty = forecastedDailyVelocity > 0
+          ? max(
+              0,
+              ((predictedDemand + calculatedSafetyStock) - product.units).ceil(),
+            )
+          : 0;
 
       // Days of supply remaining before stockout
       final double daysOfSupply = forecastedDailyVelocity > 0.001
@@ -183,7 +200,9 @@ class ForecastingService {
 
       // Urgency Level determination for retail feed store
       UrgencyLevel urgency;
-      if (product.units <= 0 || product.units <= leadTimeDemand || daysOfSupply <= leadTimeDays) {
+      if (forecastedDailyVelocity <= 0.001) {
+        urgency = UrgencyLevel.adequate;
+      } else if (product.units <= 0 || product.units <= leadTimeDemand || daysOfSupply <= leadTimeDays) {
         urgency = UrgencyLevel.critical;
       } else if (product.units <= reorderPoint) {
         urgency = UrgencyLevel.reorder;
@@ -193,7 +212,9 @@ class ForecastingService {
 
       final int monthlySoldUnits = dailyHistory.fold(0, (sum, pt) => sum + pt.quantity);
       final double monthlyRevenue = dailyHistory.fold(0.0, (sum, pt) => sum + pt.revenue);
-      final int computedSoldUnits = max(product.sold, monthlySoldUnits);
+      final int computedSoldUnits = monthlySoldUnits > 0
+          ? monthlySoldUnits
+          : (totalUnitsSold > 0 ? totalUnitsSold : 0);
       final double computedSalesRevenue = monthlyRevenue > 0
           ? monthlyRevenue
           : (computedSoldUnits * product.price);
@@ -308,12 +329,16 @@ class ForecastingService {
     }
   }
 
-  /// Fetch sales from pos_sales; fallback to inventory_logs if empty
+  /// Fetch actual sales from pos_sales AND distributions to hog raisers from inventory_logs
   Future<List<POSSale>> _fetchSales(int lookbackDays) async {
     final DateTime cutoff =
         DateTime.now().subtract(Duration(days: lookbackDays + 2));
     final String cutoffIso = cutoff.toIso8601String();
 
+    final List<POSSale> combinedSales = [];
+    final Set<String> seenIdentifiers = {};
+
+    // 1. Fetch actual recorded POS sales
     try {
       final response = await _supabase
           .from('pos_sales')
@@ -322,36 +347,62 @@ class ForecastingService {
           .order('sale_date', ascending: true);
 
       final list = (response as List).map((row) => POSSale.fromJson(row)).toList();
-      if (list.isNotEmpty) return list;
+      for (final s in list) {
+        combinedSales.add(s);
+        if (s.id.isNotEmpty) seenIdentifiers.add(s.id);
+        if (s.orderId.isNotEmpty) seenIdentifiers.add(s.orderId);
+      }
     } catch (e) {
       debugPrint('Notice: pos_sales query returned: $e');
     }
 
-    // Fallback: Read inventory_logs where action = 'SALE'
+    // 2. Fetch actual sales and distributions to hog raisers from inventory_logs
     try {
       final invLogs = await _supabase
           .from('inventory_logs')
           .select()
-          .eq('action', 'SALE')
           .gte('created_at', cutoffIso)
           .order('created_at', ascending: true);
 
-      final List<POSSale> fallbackSales = [];
       for (final raw in (invLogs as List)) {
         final map = Map<String, dynamic>.from(raw as Map);
-        final pid = (map['product_id'] ?? '').toString();
-        if (pid.isEmpty) continue;
+        final action = (map['action'] ?? '').toString().toLowerCase();
+        final details = (map['details'] ?? '').toString().toLowerCase();
+        final logId = (map['id'] ?? '').toString();
 
+        final isDistribution = action == 'distributed' ||
+            action == 'distribution' ||
+            details.contains('distributed to') ||
+            details.contains('hog raiser') ||
+            details.contains('distribution');
+
+        final isSale = action == 'sale';
+
+        if (!isDistribution && !isSale) {
+          continue;
+        }
+
+        // Avoid double-counting if this sale was already captured from pos_sales
+        if (isSale && combinedSales.isNotEmpty) {
+          if (seenIdentifiers.contains(logId)) continue;
+          final orderIdMatch = RegExp(r'ORD-[A-Za-z0-9-]+').firstMatch(details);
+          if (orderIdMatch != null && seenIdentifiers.contains(orderIdMatch.group(0))) {
+            continue;
+          }
+        }
+
+        final pid = (map['product_id'] ?? '').toString();
+        final pName = (map['product_name'] ?? 'Product').toString();
         final qty = (map['units'] as num?)?.toInt() ?? 1;
         final total = (map['price'] as num?)?.toDouble() ?? 0.0;
         final unitPrice = qty > 0 ? total / qty : total;
         final date = DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now();
 
-        fallbackSales.add(POSSale(
-          id: (map['id'] ?? '').toString(),
-          orderId: 'ORD-LOG',
+        combinedSales.add(POSSale(
+          id: logId.isNotEmpty ? logId : 'LOG-${combinedSales.length + 1}',
+          orderId: isDistribution ? 'DIST-RAISER' : 'ORD-LOG',
           productId: pid,
-          productName: (map['product_name'] ?? 'Product').toString(),
+          productName: pName,
           category: 'Feeds',
           quantity: qty,
           unitPrice: unitPrice,
@@ -360,11 +411,11 @@ class ForecastingService {
           createdAt: date,
         ));
       }
-      return fallbackSales;
     } catch (e) {
-      debugPrint('Error loading fallback inventory_logs: $e');
-      return [];
+      debugPrint('Error loading actual sales and distributions from inventory_logs: $e');
     }
+
+    return combinedSales;
   }
 
   /// Generates sample historical daily sales directly from the Flutter app

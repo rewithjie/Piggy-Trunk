@@ -124,6 +124,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
   bool _isTopSelling(ProductForecast f) {
     if (_forecasts.isEmpty) return false;
+    if (f.calculatedTotalSold <= 0) return false;
     if (_forecasts.length <= 2) {
       final maxSold = _forecasts.map((p) => p.calculatedTotalSold).reduce(max);
       return f.calculatedTotalSold == maxSold && f.calculatedTotalSold > 0;
