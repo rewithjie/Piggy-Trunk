@@ -15,6 +15,13 @@ import '../widgets/inventory/product_restock_dialog.dart';
 import '../widgets/common/shimmer_loading.dart';
 import 'pos_screen.dart';
 
+enum SalesForecastViewTab {
+  topSelling,
+  historicalSales,
+  forecastSummary,
+  financialPlanning,
+}
+
 class DemandForecastingScreen extends StatefulWidget {
   final bool isMobileEmbedded;
 
@@ -35,6 +42,9 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   List<ProductForecast> _forecasts = [];
   List<Product> _allProducts = [];
   bool _isLoading = true;
+
+  // Active View Tab (Top-Selling Items, Historical Sales, Forecast, Financial Planning)
+  SalesForecastViewTab _activeTab = SalesForecastViewTab.topSelling;
 
   // Practical filters
   int _selectedHorizonDays = 7;
@@ -132,6 +142,96 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     return f.calculatedTotalSold < median || (f.calculatedTotalSold == 0);
   }
 
+  List<ProductForecast> get _allRankedForecasts {
+    final list = List<ProductForecast>.from(_forecasts);
+    list.sort((a, b) {
+      final cmp = b.calculatedTotalSold.compareTo(a.calculatedTotalSold);
+      if (cmp != 0) return cmp;
+      return b.calculatedTotalRevenue.compareTo(a.calculatedTotalRevenue);
+    });
+    return list;
+  }
+
+  int _getSalesRank(ProductForecast f) {
+    final ranked = _allRankedForecasts;
+    final index = ranked.indexWhere((p) => p.productId == f.productId);
+    return index >= 0 ? index + 1 : 1;
+  }
+
+  List<String> get _activeTabHeaders {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return const [
+          'RANK',
+          'PRODUCT NAME',
+          'CATEGORY',
+          'UNITS SOLD',
+          'TOTAL SALES / REVENUE',
+        ];
+      case SalesForecastViewTab.historicalSales:
+        return const [
+          'PRODUCT / ITEM',
+          'DAILY SALES',
+          'WEEKLY / MONTHLY',
+          'UNITS SOLD',
+          'REVENUE PER PRODUCT',
+        ];
+      case SalesForecastViewTab.forecastSummary:
+        return const [
+          'PRODUCT / ITEM',
+          'FORECASTED DEMAND',
+          'EXPECTED NEED',
+          'SUGGESTED REORDER',
+          'FORECAST PERIOD',
+        ];
+      case SalesForecastViewTab.financialPlanning:
+        return const [
+          'PRODUCT / ITEM',
+          'HISTORICAL REVENUE',
+          'EST. FUTURE SALES',
+          'PURCHASING REQ.',
+          'EXPECTED SPENDING',
+        ];
+    }
+  }
+
+  List<int> get _activeTabFlexes {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return const [1, 3, 2, 2, 2];
+      case SalesForecastViewTab.historicalSales:
+      case SalesForecastViewTab.forecastSummary:
+      case SalesForecastViewTab.financialPlanning:
+        return const [3, 2, 2, 2, 2];
+    }
+  }
+
+  String get _activeTabTitle {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return 'Top-Selling Items';
+      case SalesForecastViewTab.historicalSales:
+        return 'Historical Sales Summary';
+      case SalesForecastViewTab.forecastSummary:
+        return 'Forecast Summary';
+      case SalesForecastViewTab.financialPlanning:
+        return 'Financial Planning Summary';
+    }
+  }
+
+  String get _activeTabSubtitle {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return 'Product sales ranking, units sold, and total revenue performance';
+      case SalesForecastViewTab.historicalSales:
+        return 'Daily, weekly, and monthly sales volume and revenue per product';
+      case SalesForecastViewTab.forecastSummary:
+        return 'Demand projections, expected units needed, and suggested restock quantities';
+      case SalesForecastViewTab.financialPlanning:
+        return 'Historical revenue, estimated future sales, and purchasing capital requirements';
+    }
+  }
+
   List<ProductForecast> get _filteredForecasts {
     final q = _searchCtrl.text.trim().toLowerCase();
     var list = _forecasts.where((f) {
@@ -148,11 +248,31 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
       return true;
     }).toList();
 
-    // Default sorting by sales performance
-    if (_salesFilter == 'Low Selling') {
-      list.sort((a, b) => a.calculatedTotalSold.compareTo(b.calculatedTotalSold));
-    } else {
-      list.sort((a, b) => b.calculatedTotalSold.compareTo(a.calculatedTotalSold));
+    // Sort based on active tab and filter
+    if (_activeTab == SalesForecastViewTab.topSelling) {
+      if (_salesFilter == 'Low Selling') {
+        list.sort((a, b) => a.calculatedTotalSold.compareTo(b.calculatedTotalSold));
+      } else {
+        list.sort((a, b) => b.calculatedTotalSold.compareTo(a.calculatedTotalSold));
+      }
+    } else if (_activeTab == SalesForecastViewTab.historicalSales) {
+      if (_salesFilter == 'Low Selling') {
+        list.sort((a, b) => a.calculatedTotalRevenue.compareTo(b.calculatedTotalRevenue));
+      } else {
+        list.sort((a, b) => b.calculatedTotalRevenue.compareTo(a.calculatedTotalRevenue));
+      }
+    } else if (_activeTab == SalesForecastViewTab.forecastSummary) {
+      if (_salesFilter == 'Low Selling') {
+        list.sort((a, b) => a.predictedDemand.compareTo(b.predictedDemand));
+      } else {
+        list.sort((a, b) => b.predictedDemand.compareTo(a.predictedDemand));
+      }
+    } else if (_activeTab == SalesForecastViewTab.financialPlanning) {
+      if (_salesFilter == 'Low Selling') {
+        list.sort((a, b) => a.calculatedTotalRevenue.compareTo(b.calculatedTotalRevenue));
+      } else {
+        list.sort((a, b) => (b.predictedDemand * b.unitPrice).compareTo(a.predictedDemand * a.unitPrice));
+      }
     }
 
     return list;
@@ -290,14 +410,8 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                       cardBg: _cardBg,
                       cardBorder: _cardBorder,
                       headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
-                      headers: const [
-                        'PRODUCT / ITEM',
-                        'TOTAL SALES',
-                        'AVG DAILY SALES',
-                        'PROJECTED DEMAND',
-                        'SALES STATUS',
-                      ],
-                      columnFlexes: const [3, 2, 2, 2, 2],
+                      headers: _activeTabHeaders,
+                      columnFlexes: _activeTabFlexes,
                       rowCount: 6,
                       borderRadius: 16,
                     ),
@@ -337,7 +451,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Demand Forecast',
+                          'Sales Forecast Summary',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
@@ -346,7 +460,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Predict sales & stock replenishment',
+                          'Predict product sales & financial planning',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             color: _mutedColor,
@@ -378,7 +492,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Demand Forecast',
+                            'Sales Forecast Summary',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 28,
                               fontWeight: FontWeight.w800,
@@ -387,7 +501,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Predict product sales demand & recommended stock replenishment based on POS history',
+                            'Predict product sales demand, top-selling items & financial planning based on POS history',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               color: _mutedColor,
@@ -905,13 +1019,161 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     }
   }
 
+  Widget _buildTabBar(bool isMobile) {
+    final tabs = [
+      (
+        tab: SalesForecastViewTab.topSelling,
+        label: 'Top-Selling Items',
+        icon: Icons.leaderboard_rounded,
+      ),
+      (
+        tab: SalesForecastViewTab.historicalSales,
+        label: 'Historical Sales Summary',
+        icon: Icons.history_rounded,
+      ),
+      (
+        tab: SalesForecastViewTab.forecastSummary,
+        label: 'Forecast Summary',
+        icon: Icons.insights_rounded,
+      ),
+      (
+        tab: SalesForecastViewTab.financialPlanning,
+        label: 'Financial Planning Summary',
+        icon: Icons.account_balance_wallet_outlined,
+      ),
+    ];
+
+    final buttonWidgets = tabs.map((item) {
+      final isSelected = _activeTab == item.tab;
+      final Color activeColor = _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
+
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _activeTab = item.tab;
+            });
+          },
+          borderRadius: BorderRadius.circular(10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 16,
+              vertical: isMobile ? 9 : 10,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? (_isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD))
+                  : (_isDark ? const Color(0xFF132034) : const Color(0xFFF8FAFC)),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isSelected ? activeColor : _cardBorder,
+                width: isSelected ? 1.6 : 1.0,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: activeColor.withValues(alpha: 0.15),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      )
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  item.icon,
+                  size: isMobile ? 16 : 18,
+                  color: isSelected ? activeColor : _mutedColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  item.label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: isMobile ? 12.5 : 13.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                        : _mutedColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }).toList();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      child: Row(
+        children: buttonWidgets,
+      ),
+    );
+  }
+
+  Widget _buildRankBadge(int rank) {
+    Color bg;
+    Color border;
+    Color text;
+
+    if (rank == 1) {
+      bg = const Color(0xFFFEF3C7);
+      border = const Color(0xFFF59E0B);
+      text = const Color(0xFFB45309);
+    } else if (rank == 2) {
+      bg = const Color(0xFFE2E8F0);
+      border = const Color(0xFF94A3B8);
+      text = const Color(0xFF475569);
+    } else if (rank == 3) {
+      bg = const Color(0xFFFFEDD5);
+      border = const Color(0xFFFB923C);
+      text = const Color(0xFFC2410C);
+    } else {
+      bg = _isDark ? const Color(0xFF1E2F47) : const Color(0xFFF1F5F9);
+      border = _cardBorder;
+      text = _mutedColor;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (rank == 1)
+            const Padding(
+              padding: EdgeInsets.only(right: 3),
+              child: Icon(Icons.emoji_events_rounded, size: 13, color: Color(0xFFB45309)),
+            ),
+          Text(
+            '#$rank',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: text,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- Forecast & Reorder Matrix Card ---
   Widget _buildForecastMatrixCard(bool isMobile) {
     final list = _filteredForecasts;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
+        final tableWidth = constraints.maxWidth > 840 ? constraints.maxWidth : 840.0;
 
         return Container(
           decoration: BoxDecoration(
@@ -923,7 +1185,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -932,7 +1194,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Sales Forecast Summary',
+                            _activeTabTitle,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -941,7 +1203,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Sales history, daily sales velocity, and projected demand for $_selectedHorizonDays-day window',
+                            _activeTabSubtitle,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               color: _mutedColor,
@@ -953,17 +1215,29 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${list.length} item(s)',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: _mutedColor,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _fieldBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _cardBorder),
+                      ),
+                      child: Text(
+                        '${list.length} item(s)',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _titleColor,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // Interactive 4 Buttons Tab Bar
+              _buildTabBar(isMobile),
+
               Divider(color: _cardBorder, height: 1),
 
               if (list.isEmpty)
@@ -998,7 +1272,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                       onTap: () => _showProductDeepDive(f),
                       hoverColor: _isDark ? const Color(0xFF1E2F48) : const Color(0xFFF8FAFC),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: _buildMobileRow(f),
                       ),
                     );
@@ -1021,11 +1295,11 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                             ),
                             child: Row(
                               children: [
-                                Expanded(flex: 3, child: Text('PRODUCT / ITEM', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('TOTAL SALES', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('AVG DAILY SALES', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('PROJECTED DEMAND', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('SALES STATUS', style: _tableHeaderStyle)),
+                                for (int i = 0; i < _activeTabHeaders.length; i++)
+                                  Expanded(
+                                    flex: _activeTabFlexes[i],
+                                    child: Text(_activeTabHeaders[i], style: _tableHeaderStyle),
+                                  ),
                               ],
                             ),
                           ),
@@ -1117,9 +1391,32 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   }
 
   Widget _buildDesktopRow(ProductForecast f) {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return _buildTopSellingDesktopRow(f);
+      case SalesForecastViewTab.historicalSales:
+        return _buildHistoricalSalesDesktopRow(f);
+      case SalesForecastViewTab.forecastSummary:
+        return _buildForecastSummaryDesktopRow(f);
+      case SalesForecastViewTab.financialPlanning:
+        return _buildFinancialPlanningDesktopRow(f);
+    }
+  }
+
+  Widget _buildTopSellingDesktopRow(ProductForecast f) {
+    final rank = _getSalesRank(f);
     return Row(
       children: [
-        // Product Info (Image + Title + Category + Price)
+        // Rank
+        Expanded(
+          flex: 1,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: _buildRankBadge(rank),
+          ),
+        ),
+
+        // Product Name
         Expanded(
           flex: 3,
           child: Row(
@@ -1141,33 +1438,13 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _fieldBg,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            f.category,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              color: _mutedColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '₱${f.unitPrice.toStringAsFixed(2)}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            color: _mutedColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '₱${f.unitPrice.toStringAsFixed(2)} / unit',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -1176,7 +1453,469 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
           ),
         ),
 
-        // Total Sales (Revenue + Units Sold)
+        // Category
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _fieldBg,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _cardBorder),
+                  ),
+                  child: Text(
+                    f.category,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _titleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                _buildSalesPerformanceBadge(f),
+              ],
+            ),
+          ),
+        ),
+
+        // Units Sold
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${f.calculatedTotalSold} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${f.averageDailySales.toStringAsFixed(1)} units/day avg',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Total Sales / Revenue
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatCurrency(f.calculatedTotalRevenue),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Total Revenue',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHistoricalSalesDesktopRow(ProductForecast f) {
+    final dailyRevenue = f.averageDailySales * f.unitPrice;
+    final monthlyRevenue = f.averageDailySales * 30 * f.unitPrice;
+
+    return Row(
+      children: [
+        // Product / Item
+        Expanded(
+          flex: 3,
+          child: Row(
+            children: [
+              _buildProductThumbnail(f.imageUrl, size: 44, radius: 8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      f.productName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _titleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Daily Sales
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${f.averageDailySales.toStringAsFixed(1)} units / day',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${_formatCurrency(dailyRevenue)} / day',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Weekly / Monthly
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${(f.averageDailySales * 7).round()} wk • ${(f.averageDailySales * 30).round()} mo',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${_formatCurrency(monthlyRevenue)} / mo',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Units Sold per Product
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${f.calculatedTotalSold} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Recorded sales',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Revenue per Product
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatCurrency(f.calculatedTotalRevenue),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Total Revenue',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForecastSummaryDesktopRow(ProductForecast f) {
+    final expectedNeeded = (f.predictedDemand + f.safetyStock).round();
+    final periodLabel = f.horizonDays <= 7
+        ? 'Next Week'
+        : (f.horizonDays <= 14 ? 'Next 2 Weeks' : 'Next Month');
+
+    return Row(
+      children: [
+        // Product / Item
+        Expanded(
+          flex: 3,
+          child: Row(
+            children: [
+              _buildProductThumbnail(f.imageUrl, size: 44, radius: 8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      f.productName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _titleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Forecasted Demand for Next Period
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${f.predictedDemand.round()} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Projected sales',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Expected Quantity Needed
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$expectedNeeded units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Incl. ${f.safetyStock.round()} buffer',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Suggested Reorder Quantity
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${f.recommendedReorderQty} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: f.recommendedReorderQty > 0
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                f.recommendedReorderQty > 0 ? 'Restock suggested' : 'Adequate stock',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Forecast Period
+        Expanded(
+          flex: 2,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    periodLabel,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${f.horizonDays} days',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w500,
+                      color: _mutedColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFinancialPlanningDesktopRow(ProductForecast f) {
+    final estFutureSales = f.predictedDemand * f.unitPrice;
+    final purchasingUnits = f.recommendedReorderQty > 0
+        ? f.recommendedReorderQty
+        : f.predictedDemand.ceil();
+    final expectedSpending = purchasingUnits * f.unitPrice;
+
+    return Row(
+      children: [
+        // Product / Item
+        Expanded(
+          flex: 3,
+          child: Row(
+            children: [
+              _buildProductThumbnail(f.imageUrl, size: 44, radius: 8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      f.productName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _titleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Historical Sales Revenue
         Expanded(
           flex: 2,
           child: Column(
@@ -1196,48 +1935,21 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   color: _mutedColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Daily Sales Velocity
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${f.averageDailySales.toStringAsFixed(1)} / day',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _titleColor,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Daily sales velocity',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: _mutedColor,
                 ),
               ),
             ],
           ),
         ),
 
-        // Projected Demand
+        // Estimated Future Sales
         Expanded(
           flex: 2,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${f.predictedDemand.round()} units',
+                _formatCurrency(estFutureSales),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -1246,22 +1958,68 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'in $_selectedHorizonDays days',
+                'Proj. ${f.predictedDemand.round()} units (${f.horizonDays}d)',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   color: _mutedColor,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
 
-        // Sales Performance Status Badge
+        // Estimated Inventory Purchasing Requirement
         Expanded(
           flex: 2,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: _buildSalesPerformanceBadge(f),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$purchasingUnits units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Purchasing requirement',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Expected Inventory Spending
+        Expanded(
+          flex: 2,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatCurrency(expectedSpending),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFF59E0B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Estimated spending',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1269,14 +2027,25 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   }
 
   Widget _buildMobileRow(ProductForecast f) {
+    switch (_activeTab) {
+      case SalesForecastViewTab.topSelling:
+        return _buildTopSellingMobileRow(f);
+      case SalesForecastViewTab.historicalSales:
+        return _buildHistoricalSalesMobileRow(f);
+      case SalesForecastViewTab.forecastSummary:
+        return _buildForecastSummaryMobileRow(f);
+      case SalesForecastViewTab.financialPlanning:
+        return _buildFinancialPlanningMobileRow(f);
+    }
+  }
+
+  Widget _buildTopSellingMobileRow(ProductForecast f) {
+    final rank = _getSalesRank(f);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Product Thumbnail Image
-        _buildProductThumbnail(f.imageUrl, size: 70, radius: 12),
+        _buildProductThumbnail(f.imageUrl, size: 60, radius: 10),
         const SizedBox(width: 12),
-
-        // Product Details Column
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1297,7 +2066,176 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _buildSalesPerformanceBadge(f),
+                  _buildRankBadge(rank),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)} / unit',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: _mutedColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    _formatCurrency(f.calculatedTotalRevenue),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                  const Text(' • '),
+                  Text(
+                    '${f.calculatedTotalSold} units sold',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _titleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHistoricalSalesMobileRow(ProductForecast f) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildProductThumbnail(f.imageUrl, size: 60, radius: 10),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                f.productName,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _titleColor,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: _mutedColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    'Velocity: ${f.averageDailySales.toStringAsFixed(1)}u/d',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _titleColor,
+                    ),
+                  ),
+                  const Text(' • '),
+                  Text(
+                    '${(f.averageDailySales * 30).round()}u/mo',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _mutedColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    'Sold: ${f.calculatedTotalSold} units',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _mutedColor,
+                    ),
+                  ),
+                  const Text(' • '),
+                  Text(
+                    _formatCurrency(f.calculatedTotalRevenue),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildForecastSummaryMobileRow(ProductForecast f) {
+    final expectedNeeded = (f.predictedDemand + f.safetyStock).round();
+    final periodLabel = f.horizonDays <= 7
+        ? 'Next 7d'
+        : (f.horizonDays <= 14 ? 'Next 14d' : 'Next 30d');
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildProductThumbnail(f.imageUrl, size: 60, radius: 10),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      f.productName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _titleColor,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: _isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3),
+                      ),
+                    ),
+                    child: Text(
+                      periodLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 3),
@@ -1313,20 +2251,86 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               Row(
                 children: [
                   Text(
-                    'Sales: ${_formatCurrency(f.calculatedTotalRevenue)}',
+                    'Demand: ${f.predictedDemand.round()} units',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF10B981),
+                      color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
                     ),
                   ),
                   const Text(' • '),
                   Text(
-                    '${f.calculatedTotalSold} sold',
+                    'Need: $expectedNeeded units',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: _mutedColor,
+                      color: _titleColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Suggested Reorder: ${f.recommendedReorderQty} units',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: f.recommendedReorderQty > 0
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFinancialPlanningMobileRow(ProductForecast f) {
+    final estFutureSales = f.predictedDemand * f.unitPrice;
+    final purchasingUnits = f.recommendedReorderQty > 0
+        ? f.recommendedReorderQty
+        : f.predictedDemand.ceil();
+    final expectedSpending = purchasingUnits * f.unitPrice;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildProductThumbnail(f.imageUrl, size: 60, radius: 10),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                f.productName,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _titleColor,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${f.category} • ₱${f.unitPrice.toStringAsFixed(2)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: _mutedColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Text(
+                    'Hist. Rev: ${_formatCurrency(f.calculatedTotalRevenue)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
                     ),
                   ),
                 ],
@@ -1335,23 +2339,32 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               Row(
                 children: [
                   Text(
-                    'Velocity: ${f.averageDailySales.toStringAsFixed(1)}/day',
+                    'Est. Sales: ${_formatCurrency(estFutureSales)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                    ),
+                  ),
+                  const Text(' • '),
+                  Text(
+                    'Req: $purchasingUnits units',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       color: _titleColor,
                     ),
                   ),
-                  const Text(' • '),
-                  Text(
-                    'Demand: ${f.predictedDemand.round()}u (${_selectedHorizonDays}d)',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                    ),
-                  ),
                 ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Expected Spending: ${_formatCurrency(expectedSpending)}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFF59E0B),
+                ),
               ),
             ],
           ),
@@ -1398,7 +2411,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
             'performed_by': _supabase.auth.currentUser?.email ?? (widget.isMobileEmbedded ? 'Cashier' : 'Admin'),
             'price': price,
             'units': units,
-            'details': details ?? 'Inventory Restock via Demand Forecast Recommendation',
+            'details': details ?? 'Inventory Restock via Sales Forecast Recommendation',
           });
         } catch (_) {}
       },

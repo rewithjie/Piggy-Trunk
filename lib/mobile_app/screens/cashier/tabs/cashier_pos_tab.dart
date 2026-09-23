@@ -790,7 +790,7 @@ class _CashierPOSTabState extends State<CashierPOSTab> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Demand Forecast',
+                                  'Sales Forecast Summary',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,

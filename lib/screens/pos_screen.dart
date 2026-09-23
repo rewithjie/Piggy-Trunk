@@ -441,7 +441,7 @@ class _POSScreenState extends State<POSScreen> {
                             ),
                             const SizedBox(width: 7),
                             Text(
-                              'Demand Forecasting',
+                              'Sales Forecast Summary',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
