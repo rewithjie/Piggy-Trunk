@@ -47,7 +47,9 @@ class ProductForecast {
   final double standardDeviation;
   final List<DailySalesPoint> historicalDailySales;
   final List<DailySalesPoint> projectedDailySales;
+  final List<DailySalesPoint> smaProjectedDailySales;
   final double predictedDemand;
+  final double smaPredictedDemand;
   final int recommendedReorderQty;
   final double daysOfSupply;
   final UrgencyLevel urgency;
@@ -69,14 +71,17 @@ class ProductForecast {
     required this.standardDeviation,
     required this.historicalDailySales,
     required this.projectedDailySales,
+    List<DailySalesPoint>? smaProjectedDailySales,
     required this.predictedDemand,
+    double? smaPredictedDemand,
     required this.recommendedReorderQty,
     required this.daysOfSupply,
     required this.urgency,
     required this.modelType,
     required this.alpha,
     required this.horizonDays,
-  });
+  })  : smaProjectedDailySales = smaProjectedDailySales ?? projectedDailySales,
+        smaPredictedDemand = smaPredictedDemand ?? predictedDemand;
 
   String get urgencyLabel {
     if (currentStock <= 0) return 'OUT OF STOCK';

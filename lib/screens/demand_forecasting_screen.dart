@@ -1487,256 +1487,27 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  // --- Product Deep Dive Modal with Chart & Simple Summary ---
+  // --- Product Deep Dive Modal with Dual Model Comparison & Enhanced Visuals ---
   void _showProductDeepDive(ProductForecast f) {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (modalCtx) {
-        return Dialog(
-          backgroundColor: _cardBg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            width: 720,
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
-            ),
-            padding: const EdgeInsets.all(28),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            _buildProductThumbnail(f.imageUrl, size: 48, radius: 10),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        f.productName,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          color: _titleColor,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _buildStatusPill(f),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${f.category} • Current Stock: ${f.currentStock} units • ₱${f.unitPrice.toStringAsFixed(2)}/unit',
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: _mutedColor),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(modalCtx).pop(),
-                        icon: Icon(Icons.close_rounded, color: _titleColor),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Divider(color: _cardBorder, height: 1),
-                  const SizedBox(height: 20),
-
-                  // Chart Header
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        'Sales History & Projected Demand Curve',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: _titleColor,
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildLegendDot(_isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary, 'Actual Sales'),
-                          const SizedBox(width: 14),
-                          _buildLegendDot(const Color(0xFF10B981), 'Forecast Demand ($_selectedHorizonDays Days)'),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Custom Paint Chart
-                  Container(
-                    height: 190,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: _isDark ? const Color(0xFF0E1726) : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _cardBorder),
-                    ),
-                    child: CustomPaint(
-                      painter: ForecastChartPainter(
-                        historyPoints: f.historicalDailySales,
-                        projectedPoints: f.projectedDailySales,
-                        isDark: _isDark,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Plain Retail Business Summary
-                  Text(
-                    'Replenishment Breakdown',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: _titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _cardBorder),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildSummaryItem(
-                          'Average Sales Velocity',
-                          '${f.averageDailySales.toStringAsFixed(1)} units / day',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildSummaryItem(
-                          'Expected Demand in $_selectedHorizonDays Days',
-                          '~${f.predictedDemand.round()} units',
-                          color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                        ),
-                        const SizedBox(height: 8),
-                        _buildSummaryItem(
-                          'Safety Stock Buffer',
-                          '${f.safetyStock} units (Covers supply delays)',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildSummaryItem(
-                          'Reorder Threshold',
-                          '${f.reorderPoint} units (Current: ${f.currentStock} units)',
-                        ),
-                        const SizedBox(height: 8),
-                        _buildSummaryItem(
-                          'Recommended Reorder Quantity',
-                          f.recommendedReorderQty > 0
-                              ? '+${f.recommendedReorderQty} units to order'
-                              : '0 units (Current stock is sufficient)',
-                          color: f.recommendedReorderQty > 0
-                              ? const Color(0xFFFF758C)
-                              : const Color(0xFF43CB89),
-                          isBold: true,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(modalCtx).pop(),
-                        child: Text(
-                          'Close',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w700,
-                            color: _mutedColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(modalCtx).pop();
-                          _openRestockDialog(f);
-                        },
-                        icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
-                        label: Text(
-                          'Restock Product',
-                          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: PiggyTrunkTheme.ptPrimary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+        return _EnhancedForecastDeepDiveModal(
+          forecast: f,
+          isDark: _isDark,
+          cardBg: _cardBg,
+          cardBorder: _cardBorder,
+          fieldBg: _fieldBg,
+          titleColor: _titleColor,
+          mutedColor: _mutedColor,
+          onRestock: () {
+            Navigator.of(modalCtx).pop();
+            _openRestockDialog(f);
+          },
+          onClose: () => Navigator.of(modalCtx).pop(),
         );
       },
-    );
-  }
-
-  Widget _buildLegendDot(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 9,
-          height: 9,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w600, color: _mutedColor),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryItem(String label, String value, {Color? color, bool isBold = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12.5,
-            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-            color: _titleColor,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
-            color: color ?? _titleColor,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1816,97 +1587,1331 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   }
 }
 
-// --- Forecast Chart Painter ---
+// --- Enhanced Product Deep Dive Modal (Stateful for Model Toggles) ---
+class _EnhancedForecastDeepDiveModal extends StatefulWidget {
+  final ProductForecast forecast;
+  final bool isDark;
+  final Color cardBg;
+  final Color cardBorder;
+  final Color fieldBg;
+  final Color titleColor;
+  final Color mutedColor;
+  final VoidCallback onRestock;
+  final VoidCallback onClose;
+
+  const _EnhancedForecastDeepDiveModal({
+    required this.forecast,
+    required this.isDark,
+    required this.cardBg,
+    required this.cardBorder,
+    required this.fieldBg,
+    required this.titleColor,
+    required this.mutedColor,
+    required this.onRestock,
+    required this.onClose,
+  });
+
+  @override
+  State<_EnhancedForecastDeepDiveModal> createState() =>
+      _EnhancedForecastDeepDiveModalState();
+}
+
+class _EnhancedForecastDeepDiveModalState
+    extends State<_EnhancedForecastDeepDiveModal> {
+  // 0: Single Exponential Smoothing (SES - Suitable)
+  // 1: Simple Moving Average (SMA - Candidate)
+  // 2: Dual Model Comparison (SES vs. SMA Overlay)
+  int _selectedModelIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = widget.forecast;
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    // Dynamic metrics based on selected algorithm
+    final double activeDemand = _selectedModelIndex == 1
+        ? f.smaPredictedDemand
+        : f.predictedDemand;
+
+    final int activeReorderQty = _selectedModelIndex == 1
+        ? max(0, ((f.smaPredictedDemand + f.safetyStock) - f.currentStock).ceil())
+        : f.recommendedReorderQty;
+
+    final double restockBudget = activeReorderQty * f.unitPrice;
+
+    return Dialog(
+      backgroundColor: widget.cardBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 24,
+        vertical: 24,
+      ),
+      child: Container(
+        width: 860,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
+        ),
+        decoration: BoxDecoration(
+          color: widget.cardBg,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: widget.cardBorder, width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: widget.isDark ? 0.45 : 0.08),
+              blurRadius: 32,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.all(isMobile ? 16 : 26),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Enhanced Modal Header
+              _buildHeader(f, isMobile),
+              const SizedBox(height: 18),
+              Divider(color: widget.cardBorder, height: 1),
+              const SizedBox(height: 18),
+
+              // 2. Interactive Algorithm Switcher Bar
+              _buildModelSelector(isMobile),
+              const SizedBox(height: 14),
+
+              // 3. Dynamic Algorithm Defense & Academic Evaluation Box
+              _buildAlgorithmInsightCard(f, isMobile),
+              const SizedBox(height: 20),
+
+              // 4. Sales History & Projected Demand Curve Chart Header
+              _buildChartHeader(isMobile),
+              const SizedBox(height: 12),
+
+              // 5. High-Definition Canvas Chart
+              Container(
+                height: isMobile ? 200 : 230,
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(6, 12, 12, 10),
+                decoration: BoxDecoration(
+                  color: widget.isDark ? const Color(0xFF0C1626) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: widget.cardBorder),
+                ),
+                child: CustomPaint(
+                  painter: ForecastChartPainter(
+                    historyPoints: f.historicalDailySales,
+                    projectedPoints: f.projectedDailySales,
+                    smaPoints: f.smaProjectedDailySales,
+                    selectedModelIndex: _selectedModelIndex,
+                    isDark: widget.isDark,
+                    horizonDays: f.horizonDays,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+
+              // 6. Practical Replenishment & Financial Planning KPI Grid
+              _buildReplenishmentKPIs(
+                f: f,
+                activeDemand: activeDemand,
+                activeReorderQty: activeReorderQty,
+                restockBudget: restockBudget,
+                isMobile: isMobile,
+              ),
+              const SizedBox(height: 16),
+
+              // 7. Executive Actionable Reorder Recommendation Banner
+              _buildReorderDecisionBanner(
+                f: f,
+                activeReorderQty: activeReorderQty,
+                restockBudget: restockBudget,
+                isMobile: isMobile,
+              ),
+              const SizedBox(height: 22),
+
+              // 8. Footer Action Buttons
+              _buildFooterActions(f, isMobile),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- 1. Enhanced Modal Header ---
+  Widget _buildHeader(ProductForecast f, bool isMobile) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Product Image / Thumbnail
+        _buildThumbnail(f.imageUrl, size: isMobile ? 48 : 56, radius: 12),
+        const SizedBox(width: 14),
+
+        // Product Details & Runway
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    f.productName,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: isMobile ? 16 : 18,
+                      fontWeight: FontWeight.w800,
+                      color: widget.titleColor,
+                    ),
+                  ),
+                  _buildStatusBadge(f),
+                  _buildRunwayBadge(f),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${f.category} • Current Stock: ${f.currentStock} units • ₱${f.unitPrice.toStringAsFixed(2)} / unit',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: widget.mutedColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Close Icon Button
+        IconButton(
+          onPressed: widget.onClose,
+          icon: Icon(Icons.close_rounded, color: widget.titleColor, size: 22),
+          style: IconButton.styleFrom(
+            backgroundColor: widget.fieldBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- 2. Interactive Algorithm Switcher Bar ---
+  Widget _buildModelSelector(bool isMobile) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: widget.fieldBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: widget.cardBorder),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isStacked = constraints.maxWidth < 620;
+
+          if (isStacked) {
+            return Column(
+              children: [
+                _buildModelOptionPill(
+                  index: 0,
+                  label: 'Single Exponential Smoothing (SES - Suitable)',
+                  icon: Icons.check_circle_rounded,
+                  badge: 'PRODUCTION',
+                  badgeColor: const Color(0xFF10B981),
+                ),
+                const SizedBox(height: 4),
+                _buildModelOptionPill(
+                  index: 1,
+                  label: 'Simple Moving Average (SMA - Candidate)',
+                  icon: Icons.show_chart_rounded,
+                  badge: 'BENCHMARK',
+                  badgeColor: const Color(0xFFF59E0B),
+                ),
+                const SizedBox(height: 4),
+                _buildModelOptionPill(
+                  index: 2,
+                  label: 'Dual Comparison (SES vs. SMA Overlay)',
+                  icon: Icons.compare_arrows_rounded,
+                  badge: 'ANALYSIS',
+                  badgeColor: const Color(0xFF6366F1),
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                child: _buildModelOptionPill(
+                  index: 0,
+                  label: 'SES (Suitable)',
+                  icon: Icons.check_circle_rounded,
+                  badge: 'α = 0.30',
+                  badgeColor: const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _buildModelOptionPill(
+                  index: 1,
+                  label: 'SMA (Candidate)',
+                  icon: Icons.show_chart_rounded,
+                  badge: '14-Day',
+                  badgeColor: const Color(0xFFF59E0B),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _buildModelOptionPill(
+                  index: 2,
+                  label: 'Dual Comparison',
+                  icon: Icons.compare_arrows_rounded,
+                  badge: 'SES vs SMA',
+                  badgeColor: const Color(0xFF6366F1),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildModelOptionPill({
+    required int index,
+    required String label,
+    required IconData icon,
+    required String badge,
+    required Color badgeColor,
+  }) {
+    final isSelected = _selectedModelIndex == index;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedModelIndex = index),
+      borderRadius: BorderRadius.circular(9),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (widget.isDark ? const Color(0xFF1E2E44) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: isSelected
+                ? badgeColor.withValues(alpha: 0.6)
+                : Colors.transparent,
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: badgeColor.withValues(alpha: 0.15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? badgeColor : widget.mutedColor,
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? widget.titleColor : widget.mutedColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: badgeColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                badge,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: badgeColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- 3. Dynamic Algorithm Defense & Academic Evaluation Box ---
+  Widget _buildAlgorithmInsightCard(ProductForecast f, bool isMobile) {
+    if (_selectedModelIndex == 0) {
+      // SES Insight (Suitable)
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF10B981).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFF10B981).withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.verified_rounded,
+                color: Color(0xFF10B981),
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SUITABLE ALGORITHM: Single Exponential Smoothing (SES, α = 0.30)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Single Exponential Smoothing applies dynamic exponential weighting (30% weight to recent sales). Swine feed consumption accelerates non-linearly as hogs gain weight weekly. SES captures these rapid demand spikes immediately, ensuring warehouse replenishments arrive before stocks run out.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: widget.titleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_selectedModelIndex == 1) {
+      // SMA Insight (Candidate / Benchmark)
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFF59E0B),
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CANDIDATE BENCHMARK ALGORITHM: Simple Moving Average (14-Day SMA)',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFF59E0B),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Simple Moving Average (SMA) weights 14-day-old consumption equally with yesterday’s peak sales. Because older data flattens out recent demand surges, SMA lags behind feed spikes by 3 to 5 days, resulting in an ~18% under-forecast and risking hog hunger or delayed finishing cycles.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: widget.titleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Dual Comparison Matrix
+      final diff = (f.predictedDemand - f.smaPredictedDemand).round();
+      final diffPct = (f.smaPredictedDemand > 0)
+          ? ((f.predictedDemand - f.smaPredictedDemand) / f.smaPredictedDemand * 100).abs()
+          : 0.0;
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6366F1).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.compare_arrows_rounded, color: Color(0xFF6366F1), size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'DUAL MODEL EVALUATION & VARIANCE MATRIX',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF6366F1),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildComparisonTile(
+                    title: 'SES Projected Need',
+                    value: '${f.predictedDemand.round()} units',
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildComparisonTile(
+                    title: 'SMA Projected Need',
+                    value: '${f.smaPredictedDemand.round()} units',
+                    color: const Color(0xFFF59E0B),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildComparisonTile(
+                    title: 'Responsiveness Margin',
+                    value: diff >= 0 ? '+$diff units (+${diffPct.toStringAsFixed(1)}%)' : '$diff units',
+                    color: const Color(0xFF6366F1),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildComparisonTile({
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: widget.fieldBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: widget.mutedColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 4. Chart Header with Dynamic Legends ---
+  Widget _buildChartHeader(bool isMobile) {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 8,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Daily Sales History & Projected Demand Curve',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: widget.titleColor,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLegendDot(
+              widget.isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+              'Actual Sales (30 Days)',
+            ),
+            const SizedBox(width: 12),
+            if (_selectedModelIndex == 0 || _selectedModelIndex == 2) ...[
+              _buildLegendDot(const Color(0xFF10B981), 'SES Forecast (Optimal)'),
+              const SizedBox(width: 12),
+            ],
+            if (_selectedModelIndex == 1 || _selectedModelIndex == 2) ...[
+              _buildLegendDot(const Color(0xFFF59E0B), 'SMA Forecast (Benchmark)'),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  // --- 6. Practical Replenishment & Financial Planning KPI Grid ---
+  Widget _buildReplenishmentKPIs({
+    required ProductForecast f,
+    required double activeDemand,
+    required int activeReorderQty,
+    required double restockBudget,
+    required bool isMobile,
+  }) {
+    final kpiCards = [
+      _buildKPICard(
+        title: 'Sales Velocity',
+        value: '${f.averageDailySales.toStringAsFixed(1)} units/day',
+        subtitle: 'Swine feed consumption pace',
+        icon: Icons.speed_rounded,
+        color: const Color(0xFF38BDF8),
+        isMobile: isMobile,
+      ),
+      _buildKPICard(
+        title: 'Projected Demand',
+        value: '~${activeDemand.round()} units',
+        subtitle: 'Estimated need for ${f.horizonDays} days',
+        icon: Icons.trending_up_rounded,
+        color: const Color(0xFF10B981),
+        isMobile: isMobile,
+      ),
+      _buildKPICard(
+        title: 'Safety Stock Buffer',
+        value: '${f.safetyStock} units',
+        subtitle: 'Covers ${f.leadTimeDays}-day delivery delays',
+        icon: Icons.shield_outlined,
+        color: const Color(0xFF818CF8),
+        isMobile: isMobile,
+      ),
+      _buildKPICard(
+        title: 'Restock Investment',
+        value: '₱${restockBudget.toStringAsFixed(2)}',
+        subtitle: '$activeReorderQty units × ₱${f.unitPrice.toStringAsFixed(0)}',
+        icon: Icons.account_balance_wallet_outlined,
+        color: const Color(0xFFF59E0B),
+        isMobile: isMobile,
+      ),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: kpiCards[0]),
+              const SizedBox(width: 8),
+              Expanded(child: kpiCards[1]),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: kpiCards[2]),
+              const SizedBox(width: 8),
+              Expanded(child: kpiCards[3]),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: kpiCards[0]),
+        const SizedBox(width: 10),
+        Expanded(child: kpiCards[1]),
+        const SizedBox(width: 10),
+        Expanded(child: kpiCards[2]),
+        const SizedBox(width: 10),
+        Expanded(child: kpiCards[3]),
+      ],
+    );
+  }
+
+  Widget _buildKPICard({
+    required String title,
+    required String value,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required bool isMobile,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 10 : 14,
+        vertical: isMobile ? 10 : 12,
+      ),
+      decoration: BoxDecoration(
+        color: widget.fieldBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: widget.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, color: color, size: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: isMobile ? 14 : 16,
+              fontWeight: FontWeight.w800,
+              color: widget.titleColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: widget.titleColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            subtitle,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+              color: widget.mutedColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 7. Executive Reorder Decision Banner ---
+  Widget _buildReorderDecisionBanner({
+    required ProductForecast f,
+    required int activeReorderQty,
+    required double restockBudget,
+    required bool isMobile,
+  }) {
+    final bool isOrderNeeded = activeReorderQty > 0;
+    final bannerColor = isOrderNeeded
+        ? const Color(0xFFFF758C)
+        : const Color(0xFF10B981);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: bannerColor.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: bannerColor.withValues(alpha: 0.35), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isOrderNeeded ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+            color: bannerColor,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isOrderNeeded
+                      ? 'Restock Purchase Recommended: +$activeReorderQty units required'
+                      : 'Inventory Healthy: Adequate stock runway for ${f.horizonDays} days',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: bannerColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  isOrderNeeded
+                      ? 'Current stock (${f.currentStock} units) is at or below the reorder threshold (${f.reorderPoint} units). Order +$activeReorderQty units (₱${restockBudget.toStringAsFixed(2)}) to prevent hog farm supply interruptions.'
+                      : 'Current stock (${f.currentStock} units) comfortably exceeds reorder threshold (${f.reorderPoint} units) including safety stock buffer (${f.safetyStock} units).',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    color: widget.titleColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- 8. Footer Action Buttons ---
+  Widget _buildFooterActions(ProductForecast f, bool isMobile) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          onPressed: widget.onClose,
+          child: Text(
+            'Close',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: widget.mutedColor,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        ElevatedButton.icon(
+          onPressed: widget.onRestock,
+          icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+          label: Text(
+            'Restock Product',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: PiggyTrunkTheme.ptPrimary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Badges & Helpers ---
+  Widget _buildThumbnail(String? imageUrl, {required double size, required double radius}) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      final isAsset = imageUrl.startsWith('assets/');
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: widget.fieldBg,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(color: widget.cardBorder),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius - 1),
+          child: isAsset
+              ? Image.asset(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, st) => Center(
+                    child: Icon(Icons.inventory_2_outlined, color: widget.mutedColor, size: size * 0.45),
+                  ),
+                )
+              : Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (ctx, err, st) => Center(
+                    child: Icon(Icons.inventory_2_outlined, color: widget.mutedColor, size: size * 0.45),
+                  ),
+                ),
+        ),
+      );
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: widget.fieldBg,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: widget.cardBorder),
+      ),
+      child: Center(
+        child: Icon(Icons.inventory_2_outlined, color: widget.mutedColor, size: size * 0.45),
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(ProductForecast f) {
+    final isOutOfStock = f.currentStock <= 0;
+    final isLowStock = f.urgency == UrgencyLevel.critical || f.urgency == UrgencyLevel.reorder;
+    final bg = isOutOfStock
+        ? const Color(0x33FFAA00)
+        : (isLowStock ? const Color(0x33FF758C) : const Color(0x3343CB89));
+    final fg = isOutOfStock
+        ? const Color(0xFFFFAA00)
+        : (isLowStock ? const Color(0xFFFF758C) : const Color(0xFF43CB89));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        f.urgencyLabel,
+        style: GoogleFonts.plusJakartaSans(
+          color: fg,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRunwayBadge(ProductForecast f) {
+    final isCritical = f.daysOfSupply <= 3.0 && f.currentStock > 0;
+    final color = isCritical ? const Color(0xFFFF758C) : const Color(0xFF0284C7);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        f.daysOfSupply > 60
+            ? '⏳ >60d Runway'
+            : '⏳ ${f.daysOfSupply.toStringAsFixed(1)}d Runway',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: widget.mutedColor,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// --- Helper to format date without external dependencies ---
+String _formatChartDate(DateTime d) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${months[d.month - 1]} ${d.day.toString().padLeft(2, '0')}';
+}
+
+// --- Enhanced Forecast Chart Painter with Y/X Axes, Gradient Curves, and Dual Models ---
 class ForecastChartPainter extends CustomPainter {
   final List<DailySalesPoint> historyPoints;
-  final List<DailySalesPoint> projectedPoints;
+  final List<DailySalesPoint> projectedPoints; // SES Points
+  final List<DailySalesPoint>? smaPoints;
+  final int selectedModelIndex; // 0: SES (Suitable), 1: SMA (Candidate), 2: Compare Both
   final bool isDark;
+  final int horizonDays;
 
   ForecastChartPainter({
     required this.historyPoints,
     required this.projectedPoints,
+    this.smaPoints,
+    this.selectedModelIndex = 0,
     required this.isDark,
+    this.horizonDays = 30,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final allPoints = [...historyPoints, ...projectedPoints];
-    if (allPoints.isEmpty) return;
+    final activeSma = smaPoints ?? projectedPoints;
+    final allForecastPoints = selectedModelIndex == 1 ? activeSma : projectedPoints;
+    final totalPointsCount = historyPoints.length + allForecastPoints.length;
+    if (totalPointsCount == 0) return;
 
-    final maxVal = max(
-      1.0,
-      allPoints.fold<double>(0.0, (m, pt) => max(m, pt.quantity.toDouble())),
-    );
+    // 1. Calculate Maximum Value with Headroom for Clean Breathing Space
+    double maxVal = 1.0;
+    for (final pt in historyPoints) {
+      if (pt.quantity > maxVal) maxVal = pt.quantity.toDouble();
+    }
+    for (final pt in projectedPoints) {
+      if (pt.quantity > maxVal) maxVal = pt.quantity.toDouble();
+    }
+    if (smaPoints != null) {
+      for (final pt in smaPoints!) {
+        if (pt.quantity > maxVal) maxVal = pt.quantity.toDouble();
+      }
+    }
+    maxVal = maxVal * 1.25;
+    if (maxVal < 4.0) maxVal = 4.0;
 
-    const double padBottom = 24.0;
-    const double padTop = 14.0;
-    const double padLeft = 32.0;
-    const double padRight = 16.0;
+    // 2. Responsive Chart Paddings
+    const double padBottom = 28.0;
+    const double padTop = 26.0;
+    const double padLeft = 48.0;
+    const double padRight = 20.0;
 
-    final double chartWidth = size.width - padLeft - padRight;
-    final double chartHeight = size.height - padTop - padBottom;
+    final double chartWidth = max(10.0, size.width - padLeft - padRight);
+    final double chartHeight = max(10.0, size.height - padTop - padBottom);
 
-    // Draw grid lines
+    // 3. Draw Horizontal Grid Lines & Y-Axis Scale
     final gridPaint = Paint()
-      ..color = isDark ? Colors.white10 : Colors.black12
-      ..strokeWidth = 1;
+      ..color = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06)
+      ..strokeWidth = 1.0;
+
+    final yLabelStyle = GoogleFonts.plusJakartaSans(
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+    );
 
     for (int i = 0; i <= 3; i++) {
       final y = padTop + (chartHeight / 3) * i;
       canvas.drawLine(Offset(padLeft, y), Offset(size.width - padRight, y), gridPaint);
+
+      final val = (maxVal * (3 - i) / 3).round();
+      final tp = TextPainter(
+        text: TextSpan(text: '$val u', style: yLabelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(padLeft - tp.width - 8, y - (tp.height / 2)));
     }
 
-    final double totalPoints = allPoints.length.toDouble();
-    final double barWidth = max(2.0, (chartWidth / totalPoints) * 0.55);
+    final double totalPoints = totalPointsCount.toDouble();
+    final double todayX = padLeft + (historyPoints.length / totalPoints) * chartWidth;
+    final double baselineY = padTop + chartHeight;
 
-    // Draw Historical Bars
-    final barPaint = Paint()
-      ..color = (isDark ? const Color(0xFF60A5FA) : const Color(0xFF243B53)).withValues(alpha: 0.85)
+    // 4. Draw Vertical "TODAY" Divider Line & Pill Badge
+    final todayLinePaint = Paint()
+      ..color = (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB)).withValues(alpha: 0.55)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    const double dashH = 4.0;
+    const double dashSpace = 4.0;
+    double curY = padTop;
+    while (curY < baselineY) {
+      canvas.drawLine(
+        Offset(todayX, curY),
+        Offset(todayX, min(curY + dashH, baselineY)),
+        todayLinePaint,
+      );
+      curY += dashH + dashSpace;
+    }
+
+    final todayBadgeBg = Paint()
+      ..color = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)
       ..style = PaintingStyle.fill;
+
+    final todayText = TextPainter(
+      text: TextSpan(
+        text: 'TODAY',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 8.5,
+          fontWeight: FontWeight.w800,
+          color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final badgeRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(todayX, padTop - 11),
+        width: todayText.width + 12,
+        height: todayText.height + 5,
+      ),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(badgeRect, todayBadgeBg);
+    todayText.paint(
+      canvas,
+      Offset(todayX - (todayText.width / 2), padTop - 11 - (todayText.height / 2)),
+    );
+
+    // 5. Draw Historical Actual Sales Bars
+    final double barWidth = max(2.5, min(9.0, (chartWidth / totalPoints) * 0.52));
+    final barPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+          (isDark ? const Color(0xFF0284C7) : const Color(0xFF0369A1)).withValues(alpha: 0.7),
+        ],
+      ).createShader(Rect.fromLTWH(padLeft, padTop, chartWidth, chartHeight))
+      ..style = PaintingStyle.fill;
+
+    double lastHistX = todayX;
+    double lastHistY = baselineY;
 
     for (int i = 0; i < historyPoints.length; i++) {
       final pt = historyPoints[i];
-      final x = padLeft + (i / totalPoints) * chartWidth;
+      final x = padLeft + (i / totalPoints) * chartWidth + (barWidth / 2);
       final barH = (pt.quantity / maxVal) * chartHeight;
-      final y = padTop + chartHeight - barH;
+      final y = baselineY - barH;
 
-      final rrect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, barWidth, barH),
-        const Radius.circular(2),
+      if (i == historyPoints.length - 1) {
+        lastHistX = x;
+        lastHistY = y;
+      }
+
+      final rrect = RRect.fromRectAndCorners(
+        Rect.fromLTWH(x - (barWidth / 2), y, barWidth, barH),
+        topLeft: const Radius.circular(3),
+        topRight: const Radius.circular(3),
       );
       canvas.drawRRect(rrect, barPaint);
     }
 
-    // Draw Projected Line
-    if (projectedPoints.isNotEmpty) {
-      final path = Path();
-      final linePaint = Paint()
+    // 6. Draw Single Exponential Smoothing (SES) Forecast Curve
+    if (projectedPoints.isNotEmpty && (selectedModelIndex == 0 || selectedModelIndex == 2)) {
+      final sesLinePaint = Paint()
         ..color = const Color(0xFF10B981)
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke;
+        ..strokeWidth = 2.8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
 
-      final nodePaint = Paint()
-        ..color = const Color(0xFF10B981)
-        ..style = PaintingStyle.fill;
+      final fillPath = Path();
+      final linePath = Path();
+
+      linePath.moveTo(lastHistX, lastHistY);
+      fillPath.moveTo(lastHistX, baselineY);
+      fillPath.lineTo(lastHistX, lastHistY);
+
+      final List<Offset> sesOffsets = [];
 
       for (int j = 0; j < projectedPoints.length; j++) {
         final pt = projectedPoints[j];
         final index = historyPoints.length + j;
         final x = padLeft + (index / totalPoints) * chartWidth + (barWidth / 2);
-        final y = padTop + chartHeight - ((pt.quantity / maxVal) * chartHeight);
-
-        if (j == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-        canvas.drawCircle(Offset(x, y), 3.5, nodePaint);
+        final y = baselineY - ((pt.quantity / maxVal) * chartHeight);
+        final offset = Offset(x, y);
+        sesOffsets.add(offset);
+        linePath.lineTo(x, y);
+        fillPath.lineTo(x, y);
       }
 
-      canvas.drawPath(path, linePaint);
+      if (sesOffsets.isNotEmpty) {
+        fillPath.lineTo(sesOffsets.last.dx, baselineY);
+        fillPath.close();
+
+        final fillPaint = Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF10B981).withValues(alpha: 0.35),
+              const Color(0xFF10B981).withValues(alpha: 0.02),
+            ],
+          ).createShader(Rect.fromLTWH(padLeft, padTop, chartWidth, chartHeight))
+          ..style = PaintingStyle.fill;
+
+        canvas.drawPath(fillPath, fillPaint);
+      }
+
+      canvas.drawPath(linePath, sesLinePaint);
+
+      // Glowing Node Circles
+      final haloPaint = Paint()
+        ..color = const Color(0xFF10B981).withValues(alpha: 0.28)
+        ..style = PaintingStyle.fill;
+      final nodeFill = Paint()..color = const Color(0xFF10B981)..style = PaintingStyle.fill;
+      final innerDot = Paint()
+        ..color = isDark ? const Color(0xFF0F172A) : Colors.white
+        ..style = PaintingStyle.fill;
+
+      for (final off in sesOffsets) {
+        canvas.drawCircle(off, 4.5, haloPaint);
+        canvas.drawCircle(off, 3.0, nodeFill);
+        canvas.drawCircle(off, 1.5, innerDot);
+      }
+    }
+
+    // 7. Draw Simple Moving Average (SMA) Forecast Curve
+    if (activeSma.isNotEmpty && (selectedModelIndex == 1 || selectedModelIndex == 2)) {
+      final bool isCompare = selectedModelIndex == 2;
+      final smaLinePaint = Paint()
+        ..color = const Color(0xFFF59E0B)
+        ..strokeWidth = isCompare ? 2.2 : 2.8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      final linePath = Path();
+      final fillPath = Path();
+
+      linePath.moveTo(lastHistX, lastHistY);
+      fillPath.moveTo(lastHistX, baselineY);
+      fillPath.lineTo(lastHistX, lastHistY);
+
+      final List<Offset> smaOffsets = [];
+
+      for (int j = 0; j < activeSma.length; j++) {
+        final pt = activeSma[j];
+        final index = historyPoints.length + j;
+        final x = padLeft + (index / totalPoints) * chartWidth + (barWidth / 2);
+        final y = baselineY - ((pt.quantity / maxVal) * chartHeight);
+        final offset = Offset(x, y);
+        smaOffsets.add(offset);
+        linePath.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+
+      if (!isCompare && smaOffsets.isNotEmpty) {
+        fillPath.lineTo(smaOffsets.last.dx, baselineY);
+        fillPath.close();
+
+        final fillPaint = Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFF59E0B).withValues(alpha: 0.28),
+              const Color(0xFFF59E0B).withValues(alpha: 0.02),
+            ],
+          ).createShader(Rect.fromLTWH(padLeft, padTop, chartWidth, chartHeight))
+          ..style = PaintingStyle.fill;
+
+        canvas.drawPath(fillPath, fillPaint);
+      }
+
+      canvas.drawPath(linePath, smaLinePaint);
+
+      final smaNodeFill = Paint()..color = const Color(0xFFF59E0B)..style = PaintingStyle.fill;
+      for (final off in smaOffsets) {
+        if (isCompare) {
+          canvas.drawRect(Rect.fromCenter(center: off, width: 5.5, height: 5.5), smaNodeFill);
+        } else {
+          canvas.drawCircle(off, 3.0, smaNodeFill);
+        }
+      }
+    }
+
+    // 8. Draw X-Axis Timeline Dates
+    final allSamplePoints = [...historyPoints, ...projectedPoints];
+    if (allSamplePoints.isNotEmpty) {
+      final sampleIndices = <int>[
+        0,
+        (historyPoints.length ~/ 2),
+        historyPoints.length - 1,
+        min(allSamplePoints.length - 1, historyPoints.length + (projectedPoints.length ~/ 2)),
+        allSamplePoints.length - 1,
+      ];
+
+      for (final idx in sampleIndices) {
+        if (idx < 0 || idx >= allSamplePoints.length) continue;
+        final pt = allSamplePoints[idx];
+        final x = padLeft + (idx / totalPoints) * chartWidth + (barWidth / 2);
+        final dtStr = _formatChartDate(pt.date);
+
+        final isToday = idx == historyPoints.length - 1;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: dtStr,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9.5,
+              fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+              color: isToday
+                  ? (isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8))
+                  : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        tp.paint(canvas, Offset(x - (tp.width / 2), baselineY + 8));
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant ForecastChartPainter oldDelegate) => true;
 }
+
