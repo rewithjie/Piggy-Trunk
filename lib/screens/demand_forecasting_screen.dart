@@ -38,16 +38,13 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
   // Practical filters
   int _selectedHorizonDays = 7;
-  String _selectedCategory = 'All';
-  String _urgencyFilter = 'All'; // 'All', 'Reorder Needed', 'Critical', 'In Stock'
+  String _salesFilter = 'All'; // 'All', 'Top Selling', 'Low Selling'
   final TextEditingController _searchCtrl = TextEditingController();
 
-  static const List<String> _categoryOptions = <String>[
-    'All',
-    'Feeds',
-    'Vitamins',
-    'Medicines',
-    'Others',
+  static const List<String> _salesFilterOptions = <String>[
+    'All Products',
+    'Top Selling',
+    'Low Selling',
   ];
 
   // System Theme Helpers (identical to InventoryScreen)
@@ -93,8 +90,6 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
         modelType: ForecastModelType.exponentialSmoothing,
         alpha: 0.30,
         horizonDays: _selectedHorizonDays,
-        categoryFilter: _selectedCategory,
-        searchQuery: _searchCtrl.text,
       );
 
       if (!mounted) return;
@@ -109,38 +104,84 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     }
   }
 
+  // Performance classification helpers
+  double get _medianSoldUnits {
+    if (_forecasts.isEmpty) return 0;
+    final values = _forecasts.map((f) => f.calculatedTotalSold.toDouble()).toList()..sort();
+    final mid = values.length ~/ 2;
+    return values.length % 2 == 1 ? values[mid] : (values[mid - 1] + values[mid]) / 2.0;
+  }
+
+  bool _isTopSelling(ProductForecast f) {
+    if (_forecasts.isEmpty) return false;
+    if (_forecasts.length <= 2) {
+      final maxSold = _forecasts.map((p) => p.calculatedTotalSold).reduce(max);
+      return f.calculatedTotalSold == maxSold && f.calculatedTotalSold > 0;
+    }
+    final median = _medianSoldUnits;
+    return f.calculatedTotalSold > median || (f.calculatedTotalSold == median && f.averageDailySales >= 1.5);
+  }
+
+  bool _isLowSelling(ProductForecast f) {
+    if (_forecasts.isEmpty) return false;
+    if (_forecasts.length <= 2) {
+      final minSold = _forecasts.map((p) => p.calculatedTotalSold).reduce(min);
+      return f.calculatedTotalSold == minSold;
+    }
+    final median = _medianSoldUnits;
+    return f.calculatedTotalSold < median || (f.calculatedTotalSold == 0);
+  }
 
   List<ProductForecast> get _filteredForecasts {
-    return _forecasts.where((f) {
-      if (_selectedCategory != 'All' &&
-          f.category.toLowerCase() != _selectedCategory.toLowerCase()) {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    var list = _forecasts.where((f) {
+      if (q.isNotEmpty &&
+          !f.productName.toLowerCase().contains(q) &&
+          !f.category.toLowerCase().contains(q)) {
         return false;
       }
-      final q = _searchCtrl.text.trim().toLowerCase();
-      if (q.isNotEmpty && !f.productName.toLowerCase().contains(q)) {
-        return false;
-      }
-      if (_urgencyFilter == 'Reorder Needed') {
-        return f.urgency == UrgencyLevel.critical || f.urgency == UrgencyLevel.reorder;
-      } else if (_urgencyFilter == 'Critical') {
-        return f.urgency == UrgencyLevel.critical;
-      } else if (_urgencyFilter == 'In Stock') {
-        return f.urgency == UrgencyLevel.adequate || f.urgency == UrgencyLevel.overstocked;
+      if (_salesFilter == 'Top Selling') {
+        return _isTopSelling(f);
+      } else if (_salesFilter == 'Low Selling') {
+        return _isLowSelling(f);
       }
       return true;
     }).toList();
+
+    // Default sorting by sales performance
+    if (_salesFilter == 'Low Selling') {
+      list.sort((a, b) => a.calculatedTotalSold.compareTo(b.calculatedTotalSold));
+    } else {
+      list.sort((a, b) => b.calculatedTotalSold.compareTo(a.calculatedTotalSold));
+    }
+
+    return list;
   }
 
-  // Summary Metrics
-  int get _reorderNeededCount => _forecasts
-      .where((f) => f.urgency == UrgencyLevel.critical || f.urgency == UrgencyLevel.reorder)
-      .length;
+  // Summary Metrics (2 KPI Cards)
+  double get _totalMonthlySales =>
+      _forecasts.fold(0.0, (sum, f) => sum + f.calculatedTotalRevenue);
 
-  double get _totalProjectedDemand =>
-      _forecasts.fold(0.0, (sum, f) => sum + f.predictedDemand);
+  int get _totalMonthlyUnits =>
+      _forecasts.fold(0, (sum, f) => sum + f.calculatedTotalSold);
 
-  int get _highRiskCount =>
-      _forecasts.where((f) => f.daysOfSupply <= 3.0 && f.currentStock > 0).length;
+  double get _estimatedPurchasingCapital {
+    return _forecasts.fold(0.0, (sum, f) {
+      final qty = f.recommendedReorderQty > 0
+          ? f.recommendedReorderQty
+          : f.predictedDemand.ceil();
+      return sum + (qty * f.unitPrice);
+    });
+  }
+
+  String _formatCurrency(double amount) {
+    final parts = amount.toStringAsFixed(2).split('.');
+    final intPart = parts[0].replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]},',
+    );
+    return '₱$intPart.${parts[1]}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -234,35 +275,34 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                   const SizedBox(height: 24),
 
                   if (_isLoading) ...[
-                    // Preserved 4 KPI Summary Cards Skeleton
+                    // 2 Practical KPI Summary Cards Skeleton
                     _buildKpiSkeletonSection(isMobile),
                     const SizedBox(height: 24),
 
-                    // Horizon Selector & Filter Controls (Preserved as requested)
+                    // Horizon Selector & Filter Controls
                     _buildControlsCard(isMobile),
                     const SizedBox(height: 24),
 
-                    // Forecast Matrix Table Skeleton
+                    // Sales Forecast Summary Table Skeleton
                     TableSkeletonLoader(
                       isDark: _isDark,
-                      minWidth: 900,
+                      minWidth: 780,
                       cardBg: _cardBg,
                       cardBorder: _cardBorder,
                       headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
                       headers: const [
                         'PRODUCT / ITEM',
-                        'CURRENT STOCK',
-                        'VELOCITY',
-                        'PROJECTED NEED',
-                        'SUGGESTED RESTOCK',
-                        'ACTIONS',
+                        'TOTAL SALES',
+                        'AVG DAILY SALES',
+                        'PROJECTED DEMAND',
+                        'SALES STATUS',
                       ],
-                      columnFlexes: const [3, 2, 2, 2, 2, 2],
+                      columnFlexes: const [3, 2, 2, 2, 2],
                       rowCount: 6,
                       borderRadius: 16,
                     ),
                   ] else ...[
-                    // 4 Practical KPI Summary Cards
+                    // 2 Practical KPI Summary Cards
                     _buildKPISection(isMobile),
                     const SizedBox(height: 24),
 
@@ -270,7 +310,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     _buildControlsCard(isMobile),
                     const SizedBox(height: 24),
 
-                    // Forecast & Restock Matrix
+                    // Sales Forecast Summary Matrix Card
                     _buildForecastMatrixCard(isMobile),
                   ],
                 ],
@@ -438,79 +478,44 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  // --- 4 Practical KPI Summary Cards ---
+  // --- 2 Practical KPI Summary Cards ---
   Widget _buildKPISection(bool isMobile) {
-    final cards = [
-      _buildKPICard(
-        title: 'Items to Reorder',
-        value: '$_reorderNeededCount',
-        subtitle: _reorderNeededCount > 0
-            ? 'Stock at or below reorder point'
-            : 'All stock levels are optimal',
-        icon: Icons.warning_amber_rounded,
-        color: const Color(0xFFFF758C),
-        badgeText: isMobile
-            ? (_reorderNeededCount > 0 ? 'RESTOCK' : 'STOCKED')
-            : (_reorderNeededCount > 0 ? 'ACTION NEEDED' : 'ALL STOCKED'),
-        isMobile: isMobile,
-      ),
-      _buildKPICard(
-        title: 'Projected Demand',
-        value: '${_totalProjectedDemand.round()} units',
-        subtitle: 'Estimated sales for next $_selectedHorizonDays days',
-        icon: Icons.trending_up_rounded,
-        color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-        badgeText: isMobile ? '${_selectedHorizonDays}D HORIZON' : '$_selectedHorizonDays DAYS HORIZON',
-        isMobile: isMobile,
-      ),
-      _buildKPICard(
-        title: 'Critical Stockout Risk',
-        value: '$_highRiskCount items',
-        subtitle: 'Inventory remaining for <= 3 days',
-        icon: Icons.timer_outlined,
-        color: const Color(0xFFFFAA00),
-        badgeText: isMobile
-            ? (_highRiskCount > 0 ? 'HIGH RISK' : 'STABLE')
-            : (_highRiskCount > 0 ? 'CRITICAL RUNOUT' : 'BUFFER OK'),
-        isMobile: isMobile,
-      ),
-      _buildKPICard(
-        title: 'Monitored Products',
-        value: '${_forecasts.length} items',
-        subtitle: 'Tracked with daily sales velocity',
-        icon: Icons.inventory_2_outlined,
-        color: const Color(0xFF43CB89),
-        badgeText: 'REAL-TIME',
-        isMobile: isMobile,
-      ),
-    ];
+    final leftCard = _buildKPICard(
+      title: 'Total Monthly Sales',
+      value: _formatCurrency(_totalMonthlySales),
+      subtitle: '$_totalMonthlyUnits total units sold this month',
+      icon: Icons.payments_rounded,
+      color: const Color(0xFF10B981),
+      badgeText: 'MONTHLY TOTAL',
+      isMobile: isMobile,
+    );
+
+    final rightCard = _buildKPICard(
+      title: 'Estimated Purchasing Capital',
+      value: _formatCurrency(_estimatedPurchasingCapital),
+      subtitle: 'Estimated budget to replenish inventory based on demand',
+      icon: Icons.account_balance_wallet_outlined,
+      color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+      badgeText: 'RESTOCK CAPITAL',
+      isMobile: isMobile,
+    );
 
     if (isMobile) {
       return Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 8),
-              Expanded(child: cards[1]),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: cards[2]),
-              const SizedBox(width: 8),
-              Expanded(child: cards[3]),
-            ],
-          ),
+          leftCard,
+          const SizedBox(height: 10),
+          rightCard,
         ],
       );
     }
 
     return Row(
-      children: cards.map((c) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: c))).toList(),
+      children: [
+        Expanded(child: leftCard),
+        const SizedBox(width: 14),
+        Expanded(child: rightCard),
+      ],
     );
   }
 
@@ -655,34 +660,21 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               Divider(color: _cardBorder, height: 1),
               const SizedBox(height: 16),
 
-              // Row 2: Search, Category Chips & Status Filter (Fills 100% of row)
+              // Row 2: Search & Performance Filters (All Products, Top Selling, Low Selling)
               if (!isStacked)
                 Row(
                   children: [
-                    // Search Input (Expands to fill all remaining width)
+                    // Search Input (Expands to fill remaining width)
                     Expanded(
                       child: _buildSearchTextField(),
                     ),
                     const SizedBox(width: 12),
 
-                    // Category & Status Chips with Divider
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ..._categoryOptions.map((c) => _buildCategoryFilterChip(c)),
-                          Container(
-                            height: 20,
-                            width: 1.2,
-                            margin: const EdgeInsets.only(left: 2, right: 10),
-                            color: _cardBorder,
-                          ),
-                          _buildUrgencyChip('All'),
-                          _buildUrgencyChip('Reorder Needed'),
-                          _buildUrgencyChip('Critical'),
-                          _buildUrgencyChip('In Stock'),
-                        ],
-                      ),
+                    // Sales Performance Chips
+                    Row(
+                      children: _salesFilterOptions
+                          .map((f) => _buildSalesFilterChip(f))
+                          .toList(),
                     ),
                   ],
                 )
@@ -694,23 +686,13 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     _buildSearchTextField(),
                     const SizedBox(height: 12),
 
-                    // Category & Status Pills in a Single Clean Horizontal Scroll
+                    // Sales Performance Chips in Horizontal Scroll
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
-                        children: [
-                          ..._categoryOptions.map((c) => _buildCategoryFilterChip(c)),
-                          Container(
-                            height: 20,
-                            width: 1.2,
-                            margin: const EdgeInsets.only(left: 2, right: 10),
-                            color: _cardBorder,
-                          ),
-                          _buildUrgencyChip('All'),
-                          _buildUrgencyChip('Reorder Needed'),
-                          _buildUrgencyChip('Critical'),
-                          _buildUrgencyChip('In Stock'),
-                        ],
+                        children: _salesFilterOptions
+                            .map((f) => _buildSalesFilterChip(f))
+                            .toList(),
                       ),
                     ),
                   ],
@@ -720,6 +702,12 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
         },
       ),
     );
+  }
+
+  IconData _getSalesFilterIcon(String label) {
+    if (label == 'Top Selling') return Icons.trending_up_rounded;
+    if (label == 'Low Selling') return Icons.trending_down_rounded;
+    return Icons.apps_rounded;
   }
 
   Widget _buildSearchTextField() {
@@ -785,74 +773,136 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  Widget _buildCategoryFilterChip(String category) {
-    final isSelected = _selectedCategory == category;
+  Widget _buildSalesFilterChip(String label) {
+    final icon = _getSalesFilterIcon(label);
+    final isSelected = (_salesFilter == label) ||
+        (label == 'All Products' && _salesFilter == 'All');
+    final Color activeColor = label == 'Top Selling'
+        ? const Color(0xFF10B981)
+        : (label == 'Low Selling'
+            ? const Color(0xFFF59E0B)
+            : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary));
+
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: InkWell(
         onTap: () {
-          setState(() => _selectedCategory = category);
+          setState(() => _salesFilter = (label == 'All Products' ? 'All' : label));
         },
         borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: isSelected
-                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                ? (_isDark ? const Color(0xFF1E2F47) : const Color(0xFFEEF4FD))
                 : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? Colors.transparent : _cardBorder,
-              width: 1,
+              color: isSelected ? activeColor : _cardBorder,
+              width: isSelected ? 1.5 : 1,
             ),
           ),
-          child: Text(
-            category,
-            style: GoogleFonts.plusJakartaSans(
-              color: isSelected
-                  ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-                  : _mutedColor,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-              fontSize: 12.5,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? activeColor : _mutedColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  color: isSelected
+                      ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                      : _mutedColor,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildUrgencyChip(String label) {
-    final isSel = _urgencyFilter == label;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        onTap: () => setState(() => _urgencyFilter = label),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-          decoration: BoxDecoration(
-            color: isSel
-                ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                : (_isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9)),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSel ? Colors.transparent : _cardBorder,
-              width: 1,
-            ),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              color: isSel
-                  ? (_isDark ? PiggyTrunkTheme.ptPrimary : Colors.white)
-                  : _mutedColor,
-              fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
-              fontSize: 12.5,
-            ),
-          ),
+  Widget _buildSalesPerformanceBadge(ProductForecast f) {
+    if (_isTopSelling(f)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFF10B981).withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
         ),
-      ),
-    );
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.trending_up_rounded, size: 12, color: Color(0xFF10B981)),
+            const SizedBox(width: 4),
+            Text(
+              'TOP SELLER',
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF10B981),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_isLowSelling(f)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.trending_down_rounded, size: 12, color: Color(0xFFF59E0B)),
+            const SizedBox(width: 4),
+            Text(
+              'LOW SELLER',
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFFF59E0B),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFF60A5FA).withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF60A5FA).withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.remove_rounded, size: 12, color: Color(0xFF60A5FA)),
+            const SizedBox(width: 4),
+            Text(
+              'STEADY',
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFF60A5FA),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   // --- Forecast & Reorder Matrix Card ---
@@ -882,7 +932,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Stock Replenishment Matrix',
+                            'Sales Forecast Summary',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -891,7 +941,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Demand forecast for $_selectedHorizonDays-day window • Safety buffer lead time: 3 days',
+                            'Sales history, daily sales velocity, and projected demand for $_selectedHorizonDays-day window',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               color: _mutedColor,
@@ -971,12 +1021,11 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                             ),
                             child: Row(
                               children: [
-                                Expanded(flex: 3, child: Text('PRODUCT', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('CURRENT STOCK', style: _tableHeaderStyle)),
+                                Expanded(flex: 3, child: Text('PRODUCT / ITEM', style: _tableHeaderStyle)),
+                                Expanded(flex: 2, child: Text('TOTAL SALES', style: _tableHeaderStyle)),
                                 Expanded(flex: 2, child: Text('AVG DAILY SALES', style: _tableHeaderStyle)),
                                 Expanded(flex: 2, child: Text('PROJECTED DEMAND', style: _tableHeaderStyle)),
-                                Expanded(flex: 2, child: Text('RECOMMENDED RESTOCK', style: _tableHeaderStyle)),
-                                SizedBox(width: 104, child: Text('ACTION', style: _tableHeaderStyle)),
+                                Expanded(flex: 2, child: Text('SALES STATUS', style: _tableHeaderStyle)),
                               ],
                             ),
                           ),
@@ -1127,22 +1176,29 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
           ),
         ),
 
-        // Current Stock & Badge (System Styled)
+        // Total Sales (Revenue + Units Sold)
         Expanded(
           flex: 2,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${f.currentStock} units',
+                _formatCurrency(f.calculatedTotalRevenue),
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: _titleColor,
+                  color: const Color(0xFF10B981),
                 ),
               ),
-              const SizedBox(height: 4),
-              _buildStatusPill(f),
+              const SizedBox(height: 2),
+              Text(
+                '${f.calculatedTotalSold} units sold',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: _mutedColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
@@ -1163,13 +1219,11 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                f.daysOfSupply > 60
-                    ? '> 60 days supply'
-                    : '${f.daysOfSupply.toStringAsFixed(0)} days left',
+                'Daily sales velocity',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: f.daysOfSupply <= 3 ? const Color(0xFFFF758C) : _mutedColor,
+                  color: _mutedColor,
                 ),
               ),
             ],
@@ -1202,116 +1256,15 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
           ),
         ),
 
-        // Recommended Restock
+        // Sales Performance Status Badge
         Expanded(
           flex: 2,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: f.recommendedReorderQty > 0
-                ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF758C).withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFFFF758C).withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.add_shopping_cart_rounded, size: 14, color: Color(0xFFFF758C)),
-                        const SizedBox(width: 5),
-                        Text(
-                          '+${f.recommendedReorderQty} units',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFFFF758C),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0x3343CB89),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Sufficient',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF43CB89),
-                      ),
-                    ),
-                  ),
-          ),
-        ),
-
-        // Quick Restock Action Button
-        SizedBox(
-          width: 104,
-          child: ElevatedButton(
-            onPressed: () => _openRestockDialog(f),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-              foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.add_shopping_cart,
-                  size: 14,
-                  color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  'Restock',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                  ),
-                ),
-              ],
-            ),
+            child: _buildSalesPerformanceBadge(f),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStatusPill(ProductForecast f) {
-    final isOutOfStock = f.currentStock <= 0;
-    final isLowStock = f.urgency == UrgencyLevel.critical || f.urgency == UrgencyLevel.reorder;
-    final bg = isOutOfStock
-        ? const Color(0x33FFAA00)
-        : (isLowStock ? const Color(0x33FF758C) : const Color(0x3343CB89));
-    final fg = isOutOfStock
-        ? const Color(0xFFFFAA00)
-        : (isLowStock ? const Color(0xFFFF758C) : const Color(0xFF43CB89));
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        f.urgencyLabel,
-        style: GoogleFonts.plusJakartaSans(
-          color: fg,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
     );
   }
 
@@ -1344,7 +1297,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _buildStatusPill(f),
+                  _buildSalesPerformanceBadge(f),
                 ],
               ),
               const SizedBox(height: 3),
@@ -1360,10 +1313,32 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
               Row(
                 children: [
                   Text(
-                    'Stock: ${f.currentStock} units',
+                    'Sales: ${_formatCurrency(f.calculatedTotalRevenue)}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF10B981),
+                    ),
+                  ),
+                  const Text(' • '),
+                  Text(
+                    '${f.calculatedTotalSold} sold',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _mutedColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    'Velocity: ${f.averageDailySales.toStringAsFixed(1)}/day',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
                       color: _titleColor,
                     ),
                   ),
@@ -1371,62 +1346,9 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                   Text(
                     'Demand: ${f.predictedDemand.round()}u (${_selectedHorizonDays}d)',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
                       color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (f.recommendedReorderQty > 0)
-                    Text(
-                      'Reorder: +${f.recommendedReorderQty} units',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFFFF758C),
-                      ),
-                    )
-                  else
-                    Text(
-                      'Stock Healthy',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF43CB89),
-                      ),
-                    ),
-                  ElevatedButton(
-                    onPressed: () => _openRestockDialog(f),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                      foregroundColor: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      elevation: 0,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_shopping_cart,
-                          size: 13,
-                          color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Restock',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ],
@@ -1512,33 +1434,15 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   }
 
   Widget _buildKpiSkeletonSection(bool isMobile) {
-    final cards = [
-      _buildKpiCardSkeleton(isMobile),
-      _buildKpiCardSkeleton(isMobile),
-      _buildKpiCardSkeleton(isMobile),
-      _buildKpiCardSkeleton(isMobile),
-    ];
+    final card1 = _buildKpiCardSkeleton(isMobile);
+    final card2 = _buildKpiCardSkeleton(isMobile);
 
     if (isMobile) {
       return Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 8),
-              Expanded(child: cards[1]),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: cards[2]),
-              const SizedBox(width: 8),
-              Expanded(child: cards[3]),
-            ],
-          ),
+          card1,
+          const SizedBox(height: 10),
+          card2,
         ],
       );
     }
@@ -1546,13 +1450,9 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: cards[0]),
+        Expanded(child: card1),
         const SizedBox(width: 14),
-        Expanded(child: cards[1]),
-        const SizedBox(width: 14),
-        Expanded(child: cards[2]),
-        const SizedBox(width: 14),
-        Expanded(child: cards[3]),
+        Expanded(child: card2),
       ],
     );
   }

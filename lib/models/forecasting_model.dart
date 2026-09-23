@@ -56,6 +56,8 @@ class ProductForecast {
   final ForecastModelType modelType;
   final double alpha;
   final int horizonDays;
+  final int totalSoldUnits;
+  final double totalSalesRevenue;
 
   ProductForecast({
     required this.productId,
@@ -80,8 +82,20 @@ class ProductForecast {
     required this.modelType,
     required this.alpha,
     required this.horizonDays,
+    this.totalSoldUnits = 0,
+    this.totalSalesRevenue = 0.0,
   })  : smaProjectedDailySales = smaProjectedDailySales ?? projectedDailySales,
         smaPredictedDemand = smaPredictedDemand ?? predictedDemand;
+
+  int get calculatedTotalSold => totalSoldUnits > 0
+      ? totalSoldUnits
+      : historicalDailySales.fold(0, (sum, pt) => sum + pt.quantity);
+
+  double get calculatedTotalRevenue => totalSalesRevenue > 0
+      ? totalSalesRevenue
+      : (historicalDailySales.fold(0.0, (sum, pt) => sum + pt.revenue) > 0
+          ? historicalDailySales.fold(0.0, (sum, pt) => sum + pt.revenue)
+          : (calculatedTotalSold * unitPrice));
 
   String get urgencyLabel {
     if (currentStock <= 0) return 'OUT OF STOCK';

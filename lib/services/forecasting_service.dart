@@ -191,6 +191,13 @@ class ForecastingService {
         urgency = UrgencyLevel.adequate;
       }
 
+      final int monthlySoldUnits = dailyHistory.fold(0, (sum, pt) => sum + pt.quantity);
+      final double monthlyRevenue = dailyHistory.fold(0.0, (sum, pt) => sum + pt.revenue);
+      final int computedSoldUnits = max(product.sold, monthlySoldUnits);
+      final double computedSalesRevenue = monthlyRevenue > 0
+          ? monthlyRevenue
+          : (computedSoldUnits * product.price);
+
       forecasts.add(ProductForecast(
         productId: product.id,
         productName: product.name,
@@ -214,6 +221,8 @@ class ForecastingService {
         modelType: modelType,
         alpha: alpha,
         horizonDays: horizonDays,
+        totalSoldUnits: computedSoldUnits,
+        totalSalesRevenue: computedSalesRevenue,
       ));
     }
 
