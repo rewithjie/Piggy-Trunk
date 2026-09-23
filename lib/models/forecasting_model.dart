@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 enum ForecastModelType {
   exponentialSmoothing,
   simpleMovingAverage,
+  weightedMovingAverage,
 }
 
 enum UrgencyLevel {
@@ -48,8 +49,10 @@ class ProductForecast {
   final List<DailySalesPoint> historicalDailySales;
   final List<DailySalesPoint> projectedDailySales;
   final List<DailySalesPoint> smaProjectedDailySales;
+  final List<DailySalesPoint> wmaProjectedDailySales;
   final double predictedDemand;
   final double smaPredictedDemand;
+  final double wmaPredictedDemand;
   final int recommendedReorderQty;
   final double daysOfSupply;
   final UrgencyLevel urgency;
@@ -58,6 +61,8 @@ class ProductForecast {
   final int horizonDays;
   final int totalSoldUnits;
   final double totalSalesRevenue;
+  final String dataSource;
+  final bool isTopSeller;
 
   ProductForecast({
     required this.productId,
@@ -74,8 +79,10 @@ class ProductForecast {
     required this.historicalDailySales,
     required this.projectedDailySales,
     List<DailySalesPoint>? smaProjectedDailySales,
+    List<DailySalesPoint>? wmaProjectedDailySales,
     required this.predictedDemand,
     double? smaPredictedDemand,
+    double? wmaPredictedDemand,
     required this.recommendedReorderQty,
     required this.daysOfSupply,
     required this.urgency,
@@ -84,8 +91,40 @@ class ProductForecast {
     required this.horizonDays,
     this.totalSoldUnits = 0,
     this.totalSalesRevenue = 0.0,
+    this.dataSource = 'Historical Sales Data',
+    this.isTopSeller = false,
   })  : smaProjectedDailySales = smaProjectedDailySales ?? projectedDailySales,
-        smaPredictedDemand = smaPredictedDemand ?? predictedDemand;
+        smaPredictedDemand = smaPredictedDemand ?? predictedDemand,
+        wmaProjectedDailySales = wmaProjectedDailySales ?? projectedDailySales,
+        wmaPredictedDemand = wmaPredictedDemand ?? predictedDemand;
+
+  bool get hasDetailedHistoricalSales =>
+      historicalDailySales.where((pt) => pt.quantity > 0).length >= 2;
+
+  String get dataSourceLabel {
+    if (dataSource.isNotEmpty && dataSource != 'Historical Sales Data') {
+      return dataSource;
+    }
+    if (hasDetailedHistoricalSales) {
+      return isTopSeller
+          ? 'Historical Sales Data (Top-Selling)'
+          : 'Historical Sales Data';
+    }
+    if (calculatedTotalSold > 0) {
+      return 'Top-Selling Items Data';
+    }
+    return 'Baseline Inventory (0 Sales)';
+  }
+
+  String get dataSourceShortBadge {
+    if (hasDetailedHistoricalSales) {
+      return 'Historical Sales Data';
+    }
+    if (calculatedTotalSold > 0) {
+      return 'Top-Selling Items';
+    }
+    return 'Baseline Inventory';
+  }
 
   int get calculatedTotalSold => totalSoldUnits > 0
       ? totalSoldUnits
@@ -129,6 +168,8 @@ class ProductForecast {
         return 'Adaptive Exponential Smoothing (α = ${alpha.toStringAsFixed(2)})';
       case ForecastModelType.simpleMovingAverage:
         return 'Simple Moving Average (SMA)';
+      case ForecastModelType.weightedMovingAverage:
+        return 'Weighted Moving Average (WMA)';
     }
   }
 }
