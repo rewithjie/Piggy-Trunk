@@ -5,19 +5,19 @@ import '../../utils/app_toast.dart';
 import '../../utils/responsive.dart';
 
 class LandingFooter extends StatelessWidget {
-  final VoidCallback onScrollToOverview;
-  final VoidCallback onScrollToHowItWorks;
-  final VoidCallback onScrollToPlatforms;
-  final VoidCallback onScrollToDownload;
-  final VoidCallback onContactTap;
+  final VoidCallback? onScrollToOverview;
+  final VoidCallback? onScrollToHowItWorks;
+  final VoidCallback? onScrollToPlatforms;
+  final VoidCallback? onScrollToDownload;
+  final VoidCallback? onContactTap;
 
   const LandingFooter({
     super.key,
-    required this.onScrollToOverview,
-    required this.onScrollToHowItWorks,
-    required this.onScrollToPlatforms,
-    required this.onScrollToDownload,
-    required this.onContactTap,
+    this.onScrollToOverview,
+    this.onScrollToHowItWorks,
+    this.onScrollToPlatforms,
+    this.onScrollToDownload,
+    this.onContactTap,
   });
 
   static const String contactEmail = 'piggytrunk@gmail.com';
@@ -58,18 +58,13 @@ class LandingFooter extends StatelessWidget {
                   children: [
                     // Brand Info
                     Expanded(
-                      flex: 5,
+                      flex: 6,
                       child: _buildBrandInfo(context, textHeader, textMuted),
                     ),
-                    const SizedBox(width: 48),
-                    // Quick Links
-                    Expanded(
-                      flex: 3,
-                      child: _buildNavLinks(context, textHeader, textMuted),
-                    ),
+                    const SizedBox(width: 64),
                     // App Specs
                     Expanded(
-                      flex: 4,
+                      flex: 5,
                       child: _buildAppSpecs(context, textHeader, textMuted),
                     ),
                   ],
@@ -79,8 +74,6 @@ class LandingFooter extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildBrandInfo(context, textHeader, textMuted),
-                    const SizedBox(height: 32),
-                    _buildNavLinks(context, textHeader, textMuted),
                     const SizedBox(height: 32),
                     _buildAppSpecs(context, textHeader, textMuted),
                   ],
@@ -147,55 +140,6 @@ class LandingFooter extends StatelessWidget {
     );
   }
 
-  Widget _buildNavLinks(BuildContext context, Color textHeader, Color textMuted) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 10),
-          child: Text(
-            'Quick Navigation',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: textHeader,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        _FooterLinkItem(
-          label: 'Overview',
-          onTap: onScrollToOverview,
-          textMuted: textMuted,
-        ),
-        const SizedBox(height: 2),
-        _FooterLinkItem(
-          label: 'How to Get Started',
-          onTap: onScrollToHowItWorks,
-          textMuted: textMuted,
-        ),
-        const SizedBox(height: 2),
-        _FooterLinkItem(
-          label: 'Platform Roles',
-          onTap: onScrollToPlatforms,
-          textMuted: textMuted,
-        ),
-        const SizedBox(height: 2),
-        _FooterLinkItem(
-          label: 'Android Installation Guide',
-          onTap: onScrollToDownload,
-          textMuted: textMuted,
-        ),
-        const SizedBox(height: 2),
-        _FooterLinkItem(
-          label: 'Contact Us (Inquiries)',
-          onTap: onContactTap,
-          textMuted: textMuted,
-        ),
-      ],
-    );
-  }
-
   Widget _buildAppSpecs(BuildContext context, Color textHeader, Color textMuted) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,85 +187,6 @@ class LandingFooter extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FooterLinkItem extends StatefulWidget {
-  final String label;
-  final VoidCallback onTap;
-  final Color textMuted;
-
-  const _FooterLinkItem({
-    required this.label,
-    required this.onTap,
-    required this.textMuted,
-  });
-
-  @override
-  State<_FooterLinkItem> createState() => _FooterLinkItemState();
-}
-
-class _FooterLinkItemState extends State<_FooterLinkItem> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _isHovered
-                  ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
-                  : Colors.transparent,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                width: _isHovered ? 16 : 0,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 180),
-                  opacity: _isHovered ? 1.0 : 0.0,
-                  child: const Padding(
-                    padding: EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 14,
-                      color: Color(0xFF38BDF8),
-                    ),
-                  ),
-                ),
-              ),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 180),
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: _isHovered ? FontWeight.w600 : FontWeight.w500,
-                  color: _isHovered ? Colors.white : widget.textMuted,
-                ),
-                child: Text(widget.label),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
