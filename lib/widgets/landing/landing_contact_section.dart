@@ -118,10 +118,14 @@ class _LandingContactSectionState extends State<LandingContactSection> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : brandNavy.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : brandNavy.withValues(alpha: 0.18),
                   ),
                 ),
                 child: Text(
@@ -130,7 +134,7 @@ class _LandingContactSectionState extends State<LandingContactSection> {
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
-                    color: const Color(0xFF3B82F6),
+                    color: isDark ? Colors.white : brandNavy,
                   ),
                 ),
               ),
@@ -187,7 +191,7 @@ class _LandingContactSectionState extends State<LandingContactSection> {
                           // Left Information
                           Expanded(
                             flex: 5,
-                            child: _buildInfoColumn(isDark, titleColor, subtitleColor),
+                            child: _buildInfoColumn(isDark, titleColor, subtitleColor, brandNavy),
                           ),
                           const SizedBox(width: 48),
                           // Divider
@@ -207,7 +211,7 @@ class _LandingContactSectionState extends State<LandingContactSection> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildInfoColumn(isDark, titleColor, subtitleColor),
+                          _buildInfoColumn(isDark, titleColor, subtitleColor, brandNavy),
                           const SizedBox(height: 28),
                           Divider(color: cardBorder),
                           const SizedBox(height: 24),
@@ -222,7 +226,7 @@ class _LandingContactSectionState extends State<LandingContactSection> {
     );
   }
 
-  Widget _buildInfoColumn(bool isDark, Color titleColor, Color subtitleColor) {
+  Widget _buildInfoColumn(bool isDark, Color titleColor, Color subtitleColor, Color brandNavy) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -276,27 +280,31 @@ class _LandingContactSectionState extends State<LandingContactSection> {
           ],
         ),
         const SizedBox(height: 20),
-        _buildFeatureItem(Icons.bolt_rounded, 'Fast Response', 'Messages are reviewed and answered promptly by our administration team.', isDark),
+        _buildFeatureItem(Icons.bolt_rounded, 'Fast Response', 'Messages are reviewed and answered promptly by our administration team.', isDark, brandNavy),
         const SizedBox(height: 12),
-        _buildFeatureItem(Icons.agriculture_rounded, 'Farm Onboarding', 'Assistance with setting up batches, raiser profiles, and inventory stocks.', isDark),
+        _buildFeatureItem(Icons.agriculture_rounded, 'Farm Onboarding', 'Assistance with setting up batches, raiser profiles, and inventory stocks.', isDark, brandNavy),
         const SizedBox(height: 12),
-        _buildFeatureItem(Icons.verified_user_outlined, 'Admin Verification', 'Accounts and access roles are managed securely with admin approval.', isDark),
+        _buildFeatureItem(Icons.verified_user_outlined, 'Admin Verification', 'Accounts and access roles are managed securely with admin approval.', isDark, brandNavy),
       ],
     );
   }
 
-  Widget _buildFeatureItem(IconData icon, String title, String desc, bool isDark) {
-    const iconColor = Color(0xFF3B82F6);
+  Widget _buildFeatureItem(IconData icon, String title, String desc, bool isDark, Color brandNavy) {
+    final iconColor = isDark ? Colors.white : brandNavy;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : brandNavy.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: iconColor.withValues(alpha: 0.25),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.25)
+                  : brandNavy.withValues(alpha: 0.18),
               width: 1,
             ),
           ),
