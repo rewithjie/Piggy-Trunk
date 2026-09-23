@@ -175,22 +175,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
       const double defaultFeedPrice = 1650.0;
 
-      // 5. Fetch Direct Investment Records
+      // 5. Fetch Direct Investment Records directly
       dynamic response;
       try {
-        response = await _supabase
-            .from('investment_records')
-            .select('*, hog_raisers(name, app_users(name))');
-      } catch (e1) {
-        debugPrint('Notice joining hog_raisers on investment_records: $e1. Retrying basic...');
-        try {
-          response = await _supabase
-              .from('investment_records')
-              .select('*, hog_raisers(name)');
-        } catch (e2) {
-          debugPrint('Notice loading with hog_raisers: $e2. Retrying plain select...');
-          response = await _supabase.from('investment_records').select('*');
-        }
+        response = await _supabase.from('investment_records').select('*');
+      } catch (e) {
+        debugPrint('Error fetching investment_records: $e');
+        response = [];
       }
 
       final List<Investment> loaded = [];
