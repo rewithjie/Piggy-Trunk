@@ -137,24 +137,11 @@ class LandingFooter extends StatelessWidget {
             color: textMuted,
           ),
         ),
-        const SizedBox(height: 16),
-        InkWell(
+        const SizedBox(height: 14),
+        _EmailCopyButton(
+          email: contactEmail,
           onTap: () => _copyEmail(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.mail_outline_rounded, size: 15, color: textMuted),
-              const SizedBox(width: 6),
-              Text(
-                contactEmail,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
+          textMuted: textMuted,
         ),
       ],
     );
@@ -164,24 +151,47 @@ class LandingFooter extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Quick Navigation',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            color: textHeader,
+        Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Text(
+            'Quick Navigation',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: textHeader,
+            ),
           ),
         ),
-        const SizedBox(height: 14),
-        _buildFooterLink('Overview', onScrollToOverview, textMuted),
-        const SizedBox(height: 8),
-        _buildFooterLink('How to Get Started', onScrollToHowItWorks, textMuted),
-        const SizedBox(height: 8),
-        _buildFooterLink('Platform Roles', onScrollToPlatforms, textMuted),
-        const SizedBox(height: 8),
-        _buildFooterLink('Android Installation Guide', onScrollToDownload, textMuted),
-        const SizedBox(height: 8),
-        _buildFooterLink('Contact Us (Inquiries)', onContactTap, textMuted),
+        const SizedBox(height: 10),
+        _FooterLinkItem(
+          label: 'Overview',
+          onTap: onScrollToOverview,
+          textMuted: textMuted,
+        ),
+        const SizedBox(height: 2),
+        _FooterLinkItem(
+          label: 'How to Get Started',
+          onTap: onScrollToHowItWorks,
+          textMuted: textMuted,
+        ),
+        const SizedBox(height: 2),
+        _FooterLinkItem(
+          label: 'Platform Roles',
+          onTap: onScrollToPlatforms,
+          textMuted: textMuted,
+        ),
+        const SizedBox(height: 2),
+        _FooterLinkItem(
+          label: 'Android Installation Guide',
+          onTap: onScrollToDownload,
+          textMuted: textMuted,
+        ),
+        const SizedBox(height: 2),
+        _FooterLinkItem(
+          label: 'Contact Us (Inquiries)',
+          onTap: onContactTap,
+          textMuted: textMuted,
+        ),
       ],
     );
   }
@@ -210,20 +220,6 @@ class LandingFooter extends StatelessWidget {
     );
   }
 
-  Widget _buildFooterLink(String label, VoidCallback onTap, Color textMuted) {
-    return InkWell(
-      onTap: onTap,
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: textMuted,
-        ),
-      ),
-    );
-  }
-
   Widget _buildSpecRow(String label, String value, Color textMuted) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,6 +243,152 @@ class LandingFooter extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FooterLinkItem extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+  final Color textMuted;
+
+  const _FooterLinkItem({
+    required this.label,
+    required this.onTap,
+    required this.textMuted,
+  });
+
+  @override
+  State<_FooterLinkItem> createState() => _FooterLinkItemState();
+}
+
+class _FooterLinkItemState extends State<_FooterLinkItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _isHovered
+                  ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                width: _isHovered ? 16 : 0,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity: _isHovered ? 1.0 : 0.0,
+                  child: const Padding(
+                    padding: EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 14,
+                      color: Color(0xFF38BDF8),
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 180),
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: _isHovered ? FontWeight.w600 : FontWeight.w500,
+                  color: _isHovered ? Colors.white : widget.textMuted,
+                ),
+                child: Text(widget.label),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmailCopyButton extends StatefulWidget {
+  final String email;
+  final VoidCallback onTap;
+  final Color textMuted;
+
+  const _EmailCopyButton({
+    required this.email,
+    required this.onTap,
+    required this.textMuted,
+  });
+
+  @override
+  State<_EmailCopyButton> createState() => _EmailCopyButtonState();
+}
+
+class _EmailCopyButtonState extends State<_EmailCopyButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _isHovered
+                  ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.mail_outline_rounded,
+                size: 15,
+                color: _isHovered ? const Color(0xFF38BDF8) : widget.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.email,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
