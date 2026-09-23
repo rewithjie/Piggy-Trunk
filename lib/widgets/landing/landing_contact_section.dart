@@ -286,16 +286,21 @@ class _LandingContactSectionState extends State<LandingContactSection> {
   }
 
   Widget _buildFeatureItem(IconData icon, String title, String desc, bool isDark) {
+    const iconColor = Color(0xFF3B82F6);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+            color: iconColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: iconColor.withValues(alpha: 0.25),
+              width: 1,
+            ),
           ),
-          child: Icon(icon, size: 16, color: const Color(0xFF10B981)),
+          child: Icon(icon, size: 16, color: iconColor),
         ),
         const SizedBox(width: 12),
         Expanded(
