@@ -199,7 +199,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
   List<int> get _activeTabFlexes {
     switch (_activeTab) {
       case SalesForecastViewTab.topSelling:
-        return const [1, 3, 2, 2, 2];
+        return const [1, 3, 3, 2, 2];
       case SalesForecastViewTab.historicalSales:
       case SalesForecastViewTab.forecastSummary:
       case SalesForecastViewTab.financialPlanning:
@@ -407,7 +407,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     // Sales Forecast Summary Table Skeleton
                     TableSkeletonLoader(
                       isDark: _isDark,
-                      minWidth: 780,
+                      minWidth: 940,
                       cardBg: _cardBg,
                       cardBorder: _cardBorder,
                       headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
@@ -1117,20 +1117,22 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
     );
   }
 
-  Widget _buildRankBadge(int rank) {
+  Widget _buildRankBadge(int rank, {int unitsSold = 0}) {
     Color bg;
     Color border;
     Color text;
 
-    if (rank == 1) {
+    final hasSales = unitsSold > 0;
+
+    if (rank == 1 && hasSales) {
       bg = const Color(0xFFFEF3C7);
       border = const Color(0xFFF59E0B);
       text = const Color(0xFFB45309);
-    } else if (rank == 2) {
+    } else if (rank == 2 && hasSales) {
       bg = const Color(0xFFE2E8F0);
       border = const Color(0xFF94A3B8);
       text = const Color(0xFF475569);
-    } else if (rank == 3) {
+    } else if (rank == 3 && hasSales) {
       bg = const Color(0xFFFFEDD5);
       border = const Color(0xFFFB923C);
       text = const Color(0xFFC2410C);
@@ -1150,7 +1152,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (rank == 1)
+          if (rank == 1 && hasSales)
             const Padding(
               padding: EdgeInsets.only(right: 3),
               child: Icon(Icons.emoji_events_rounded, size: 13, color: Color(0xFFB45309)),
@@ -1174,7 +1176,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final tableWidth = constraints.maxWidth > 840 ? constraints.maxWidth : 840.0;
+        final tableWidth = constraints.maxWidth > 940 ? constraints.maxWidth : 940.0;
 
         return Container(
           decoration: BoxDecoration(
@@ -1413,7 +1415,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
           flex: 1,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: _buildRankBadge(rank),
+            child: _buildRankBadge(rank, unitsSold: f.calculatedTotalSold),
           ),
         ),
 
@@ -1456,32 +1458,33 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
 
         // Category
         Expanded(
-          flex: 2,
+          flex: 3,
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 6,
-              runSpacing: 4,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _fieldBg,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _cardBorder),
-                  ),
-                  child: Text(
-                    f.category,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: _titleColor,
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _fieldBg,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _cardBorder),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    child: Text(
+                      f.category,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: _titleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 6),
                 _buildSalesPerformanceBadge(f),
               ],
             ),
@@ -2067,7 +2070,7 @@ class _DemandForecastingScreenState extends State<DemandForecastingScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _buildRankBadge(rank),
+                  _buildRankBadge(rank, unitsSold: f.calculatedTotalSold),
                 ],
               ),
               const SizedBox(height: 3),
