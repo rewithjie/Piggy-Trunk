@@ -181,10 +181,6 @@ class LandingFooter extends StatelessWidget {
         const SizedBox(height: 8),
         _buildFooterLink('Android Installation Guide', onScrollToDownload, textMuted),
         const SizedBox(height: 8),
-        _buildFooterLink('Admin Portal Login', () => Navigator.pushNamed(context, '/admin'), textMuted),
-        const SizedBox(height: 8),
-        _buildFooterLink('Mobile Web App (PWA)', () => Navigator.pushNamed(context, '/app'), textMuted),
-        const SizedBox(height: 8),
         _buildFooterLink('Contact Us (Inquiries)', onContactTap, textMuted),
       ],
     );
