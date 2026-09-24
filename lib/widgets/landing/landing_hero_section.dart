@@ -20,7 +20,10 @@ class LandingHeroSection extends StatefulWidget {
 }
 
 class _LandingHeroSectionState extends State<LandingHeroSection> {
-  bool _isPeekingAdmin = false;
+  // 0: Hog Raiser (1st), 1: Cashier (2nd), 2: Partner Investor (3rd), 3: Admin Web
+  int _activeRoleIndex = 0;
+  // Hover tracking for desktop: 0: Left (Hog Raiser), 1: Center (Cashier), 2: Right (Partner Investor), -1: none
+  int _hoveredPhoneIndex = -1;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +52,9 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           ),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1240),
+              constraints: BoxConstraints(
+                maxWidth: availableWidth >= 1440 ? 1380 : 1240,
+              ),
               child: isDesktop
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -213,7 +218,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   }
 
   // -------------------------------------------------------------
-  // RIGHT: MULTI-PLATFORM ECOSYSTEM VISUAL (Image 2 Mockup: Windows Dark Chrome Admin + 3 Theme-Synced Phones)
+  // RIGHT: MULTI-PLATFORM ECOSYSTEM VISUAL (Admin Web Mockup + 3 Theme-Synced Phones)
   // -------------------------------------------------------------
   Widget _buildRightSideVisual(
     BuildContext context, {
@@ -223,15 +228,24 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stageWidth = constraints.maxWidth;
-        // Proportional stage height
-        final stageHeight = (stageWidth / 1.34).clamp(320.0, 520.0);
+        final isMobile = Responsive.isMobile(context) || stageWidth < 600;
+        // Fluid responsive stage height: proportional on desktop, generous on mobile
+        final stageHeight = isMobile
+            ? (stageWidth * 0.94).clamp(320.0, 440.0)
+            : (stageWidth / 1.34).clamp(340.0, 540.0);
 
-        return MouseRegion(
-          onEnter: (_) => setState(() => _isPeekingAdmin = true),
-          onExit: (_) => setState(() => _isPeekingAdmin = false),
-          child: GestureDetector(
-            onTap: () => setState(() => _isPeekingAdmin = !_isPeekingAdmin),
-            child: Container(
+        final isSpotlightAdmin = _activeRoleIndex == 3;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // TOUCH & DESKTOP FRIENDLY ROLE SELECTOR PILLS
+            _buildRoleSelectorPills(isDark, stageWidth),
+            const SizedBox(height: 14),
+
+            // MAIN VISUAL CONTAINER
+            Container(
               width: stageWidth,
               height: stageHeight,
               decoration: BoxDecoration(
@@ -252,7 +266,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // LAYER 0: AMBIENT VIBRANT GLOW MESH (Seen through the admin web opacity)
+                    // LAYER 0: AMBIENT VIBRANT GLOW MESH
                     Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
@@ -301,12 +315,12 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                       ),
                     ),
 
-                    // LAYER 1: ADMIN WEB DASHBOARD (Translucent Opacity + Windows Dark Chrome)
+                    // LAYER 1: ADMIN WEB DASHBOARD (Matching Image 2 ScreenTopBar & Chrome)
                     Positioned.fill(
                       child: _buildAdminWebWidget(isDark, stageWidth, stageHeight),
                     ),
 
-                    // LAYER 2: 3 FLOATING PHONES (Left: Partner, Center: Cashier, Right: Raiser)
+                    // LAYER 2: 3 FLOATING PHONES (1st: Hog Raiser, 2nd: Cashier, 3rd: Partner)
                     Positioned(
                       left: 0,
                       right: 0,
@@ -314,71 +328,14 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 240),
                         curve: Curves.easeInOut,
-                        opacity: _isPeekingAdmin ? 0.15 : 1.0,
+                        opacity: isSpotlightAdmin ? 0.18 : 1.0,
                         child: AnimatedSlide(
                           duration: const Duration(milliseconds: 240),
                           curve: Curves.easeOutCubic,
-                          offset: _isPeekingAdmin
-                              ? const Offset(0, 0.07)
+                          offset: isSpotlightAdmin
+                              ? const Offset(0, 0.08)
                               : Offset.zero,
                           child: _buildThreePhonesRow(stageWidth, stageHeight, isDark),
-                        ),
-                      ),
-                    ),
-
-                    // LAYER 3: INTERACTIVE PEEK HINT CHIP
-                    Positioned(
-                      top: 10,
-                      right: 12,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 180),
-                        opacity: _isPeekingAdmin ? 0.95 : 0.80,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF0F1724).withValues(alpha: 0.92)
-                                : Colors.white.withValues(alpha: 0.94),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF28354A)
-                                  : const Color(0xFFCBD5E1),
-                              width: 0.8,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.12),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _isPeekingAdmin
-                                    ? Icons.visibility_rounded
-                                    : Icons.touch_app_rounded,
-                                size: 11,
-                                color: const Color(0xFF10B981),
-                              ),
-                              const SizedBox(width: 4.5),
-                              Text(
-                                _isPeekingAdmin
-                                    ? 'Admin Web Uncovered'
-                                    : 'Hover / Tap to Peek',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark
-                                      ? PiggyTrunkTheme.ptTextDark
-                                      : const Color(0xFF18314F),
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                       ),
                     ),
@@ -386,7 +343,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 ),
               ),
             ),
-          ),
+          ],
         );
       },
     );
@@ -427,8 +384,9 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             _buildWindowsBrowserBar(isDark),
 
             // 2. WEB APP HEADER BAR
+            // 2. WEB APP HEADER BAR (Exact match to Image 2 from Admin Web ScreenTopBar)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                 color: sidebarBg,
                 border: Border(
@@ -443,19 +401,27 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.menu_rounded, size: 14, color: textDark),
+                      Icon(
+                        Icons.menu_open_rounded,
+                        size: 15,
+                        color: textDark,
+                      ),
                       const SizedBox(width: 8),
-                      Image.asset(
-                        'assets/piggytrunk_logo.png',
-                        width: 14,
-                        height: 14,
-                        errorBuilder: (_, _, _) => const Icon(
-                          Icons.pets_rounded,
-                          size: 13,
-                          color: Color(0xFF0284C7),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.asset(
+                          'assets/piggytrunk_logo.png',
+                          width: 15,
+                          height: 15,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const Icon(
+                            Icons.pets_rounded,
+                            size: 13,
+                            color: Color(0xFF0284C7),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 6),
                       Text(
                         'PiggyTrunk',
                         style: GoogleFonts.plusJakartaSans(
@@ -468,51 +434,120 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                   ),
                   Row(
                     children: [
-                      Icon(Icons.notifications_none_rounded, size: 14, color: textMuted),
-                      const SizedBox(width: 9),
+                      // Notification Bell Button with '1' Badge (Image 2)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        width: 26,
+                        height: 26,
                         decoration: BoxDecoration(
-                          color: activeNavBg,
-                          borderRadius: BorderRadius.circular(6),
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(7),
                           border: Border.all(
-                            color: const Color(0xFF0284C7).withValues(alpha: 0.25),
-                            width: 0.6,
+                            color: cardBorder,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.notifications_none_rounded,
+                              size: 13.5,
+                              color: textDark,
+                            ),
+                            Positioned(
+                              top: -2.5,
+                              right: -2.5,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF152238) : Colors.white,
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Text(
+                                    '1',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 5.5,
+                                      fontWeight: FontWeight.w800,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+
+                      // Admin Profile Box (Image 2: Rounded container with circle pig avatar, Admin, SYSTEM ADMINISTRATOR)
+                      Container(
+                        height: 26,
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(7),
+                          border: Border.all(
+                            color: cardBorder,
+                            width: 0.8,
                           ),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 14,
-                              height: 14,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF0284C7),
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: isDark ? textDark.withValues(alpha: 0.75) : const Color(0xFF2F4A6A),
+                                  width: 1.1,
+                                ),
                               ),
-                              child: const Center(
-                                child: Icon(Icons.person_rounded, size: 9, color: Colors.white),
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/piggytrunk_logo.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) => const Icon(
+                                    Icons.pets_rounded,
+                                    size: 9,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
                               ),
                             ),
                             if (!isCompact) ...[
-                              const SizedBox(width: 4.5),
+                              const SizedBox(width: 5),
                               Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     'Admin',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 8.5,
+                                      fontSize: 7.5,
                                       fontWeight: FontWeight.w800,
                                       color: textDark,
+                                      height: 1.1,
                                     ),
                                   ),
                                   Text(
                                     'SYSTEM ADMINISTRATOR',
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 5.5,
+                                      fontSize: 4.8,
                                       fontWeight: FontWeight.w700,
                                       color: textMuted,
-                                      letterSpacing: 0.3,
+                                      letterSpacing: 0.25,
+                                      height: 1.1,
                                     ),
                                   ),
                                 ],
@@ -878,12 +913,195 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   }
 
   // -------------------------------------------------------------
-  // LAYER 2: 3 FLOATING PHONES (Left: Partner, Center: Cashier, Right: Raiser)
+  // ROLE SELECTOR PILLS (Touch & Desktop Friendly)
+  // -------------------------------------------------------------
+  Widget _buildRoleSelectorPills(bool isDark, double availableWidth) {
+    final isMobile = availableWidth < 560;
+    final bg = isDark ? const Color(0xFF131D2E) : Colors.white;
+    final border = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
+
+    final tabs = [
+      (0, '🐷', 'Hog Raiser'),
+      (1, '💼', 'Cashier'),
+      (2, '📈', 'Partner Investor'),
+      (3, '🖥️', 'Admin Web'),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Container(
+        padding: const EdgeInsets.all(3.5),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: border, width: 0.9),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: tabs.map((tab) {
+            final isSelected = _activeRoleIndex == tab.$1;
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _activeRoleIndex = tab.$1;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 9 : 13,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF0284C7)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      tab.$2,
+                      style: const TextStyle(fontSize: 11.5),
+                    ),
+                    const SizedBox(width: 4.5),
+                    Text(
+                      tab.$3,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: isMobile ? 10.5 : 11.5,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // Helper to get phone widget by role index
+  Widget _getPhoneWidgetForIndex(int index, bool isDark) {
+    switch (index) {
+      case 0:
+        return _buildPhoneHogRaiser(isDark);
+      case 1:
+        return _buildPhoneCashier(isDark);
+      case 2:
+      default:
+        return _buildPhonePartnerInvestor(isDark);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // LAYER 2: 3 FLOATING PHONES
+  // Order: 1st Screen = Hog Raiser, 2nd Screen = Cashier, 3rd Screen = Partner Investor
   // -------------------------------------------------------------
   Widget _buildThreePhonesRow(double stageWidth, double stageHeight, bool isDark) {
-    final phoneHeight = (stageHeight * 0.77).clamp(240.0, 385.0);
+    final isNarrow = stageWidth < 520;
+    final phoneHeight = (stageHeight * (isNarrow ? 0.82 : 0.77)).clamp(230.0, 390.0);
     // Standard mobile aspect ratio
     final phoneWidth = phoneHeight * (225.0 / 460.0);
+
+    if (isNarrow) {
+      // MOBILE / TOUCH-FRIENDLY VIEW: Spotlight active role, peek adjacent
+      final activeIndex = (_activeRoleIndex >= 3) ? 0 : _activeRoleIndex;
+      final leftIndex = (activeIndex == 0) ? 2 : (activeIndex - 1);
+      final rightIndex = (activeIndex + 1) % 3;
+
+      return SizedBox(
+        height: phoneHeight + 20,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          clipBehavior: Clip.none,
+          children: [
+            // Left Peeking Phone
+            Positioned(
+              left: (stageWidth * 0.5) - (phoneWidth * 1.10),
+              bottom: 4,
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = leftIndex),
+                child: Opacity(
+                  opacity: 0.65,
+                  child: _buildPhoneFrame(
+                    width: phoneWidth * 0.88,
+                    height: phoneHeight * 0.88,
+                    isDark: isDark,
+                    rotation: -0.08,
+                    child: _getPhoneWidgetForIndex(leftIndex, isDark),
+                  ),
+                ),
+              ),
+            ),
+
+            // Right Peeking Phone
+            Positioned(
+              right: (stageWidth * 0.5) - (phoneWidth * 1.10),
+              bottom: 4,
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = rightIndex),
+                child: Opacity(
+                  opacity: 0.65,
+                  child: _buildPhoneFrame(
+                    width: phoneWidth * 0.88,
+                    height: phoneHeight * 0.88,
+                    isDark: isDark,
+                    rotation: 0.08,
+                    child: _getPhoneWidgetForIndex(rightIndex, isDark),
+                  ),
+                ),
+              ),
+            ),
+
+            // Center Active Focused Phone
+            Positioned(
+              bottom: 12,
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = (activeIndex + 1) % 3),
+                child: _buildPhoneFrame(
+                  width: phoneWidth * 1.04,
+                  height: phoneHeight * 1.04,
+                  isDark: isDark,
+                  rotation: 0.0,
+                  isCenter: true,
+                  child: _getPhoneWidgetForIndex(activeIndex, isDark),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // DESKTOP & TABLET VIEW: 3 PHONES FANNED OUT
+    // 1st (Left): Hog Raiser, 2nd (Center): Cashier, 3rd (Right): Partner Investor
+    final isLeftFocused = _hoveredPhoneIndex == 0 || (_hoveredPhoneIndex == -1 && _activeRoleIndex == 0);
+    final isCenterFocused = _hoveredPhoneIndex == 1 || (_hoveredPhoneIndex == -1 && (_activeRoleIndex == 1 || _activeRoleIndex >= 3));
+    final isRightFocused = _hoveredPhoneIndex == 2 || (_hoveredPhoneIndex == -1 && _activeRoleIndex == 2);
 
     return SizedBox(
       height: phoneHeight + 24,
@@ -891,42 +1109,83 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
         children: [
-          // 1. LEFT PHONE: Partner Investor ("rej") - Tilted Counter-Clockwise
-          Positioned(
+          // 1. LEFT PHONE: 1st Screen -> Hog Raiser
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             left: (stageWidth * 0.5) - (phoneWidth * 1.34),
-            bottom: 4,
-            child: _buildPhoneFrame(
-              width: phoneWidth,
-              height: phoneHeight,
-              isDark: isDark,
-              rotation: -0.09,
-              child: _buildPhonePartnerInvestor(isDark),
+            bottom: isLeftFocused ? 14 : 4,
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hoveredPhoneIndex = 0),
+              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = 0),
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  scale: isLeftFocused ? 1.05 : 1.0,
+                  child: _buildPhoneFrame(
+                    width: phoneWidth,
+                    height: phoneHeight,
+                    isDark: isDark,
+                    rotation: isLeftFocused ? 0.0 : -0.08,
+                    isCenter: isLeftFocused,
+                    child: _buildPhoneHogRaiser(isDark),
+                  ),
+                ),
+              ),
             ),
           ),
 
-          // 2. RIGHT PHONE: Hog Raiser ("Just Rejie") - Tilted Clockwise
-          Positioned(
+          // 3. RIGHT PHONE: 3rd Screen -> Partner Investor
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
             right: (stageWidth * 0.5) - (phoneWidth * 1.34),
-            bottom: 4,
-            child: _buildPhoneFrame(
-              width: phoneWidth,
-              height: phoneHeight,
-              isDark: isDark,
-              rotation: 0.09,
-              child: _buildPhoneHogRaiser(isDark),
+            bottom: isRightFocused ? 14 : 4,
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hoveredPhoneIndex = 2),
+              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = 2),
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  scale: isRightFocused ? 1.05 : 1.0,
+                  child: _buildPhoneFrame(
+                    width: phoneWidth,
+                    height: phoneHeight,
+                    isDark: isDark,
+                    rotation: isRightFocused ? 0.0 : 0.08,
+                    isCenter: isRightFocused,
+                    child: _buildPhonePartnerInvestor(isDark),
+                  ),
+                ),
+              ),
             ),
           ),
 
-          // 3. CENTER PHONE: Cashier ("maryazxc") - Upright & In Front
-          Positioned(
-            bottom: 12,
-            child: _buildPhoneFrame(
-              width: phoneWidth * 1.05,
-              height: phoneHeight * 1.05,
-              isDark: isDark,
-              rotation: 0.0,
-              isCenter: true,
-              child: _buildPhoneCashier(isDark),
+          // 2. CENTER PHONE: 2nd Screen -> Cashier (Upright & In Front)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            bottom: isCenterFocused ? 16 : 8,
+            child: MouseRegion(
+              onEnter: (_) => setState(() => _hoveredPhoneIndex = 1),
+              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
+              child: GestureDetector(
+                onTap: () => setState(() => _activeRoleIndex = 1),
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  scale: isCenterFocused ? 1.05 : 1.0,
+                  child: _buildPhoneFrame(
+                    width: phoneWidth * 1.05,
+                    height: phoneHeight * 1.05,
+                    isDark: isDark,
+                    rotation: 0.0,
+                    isCenter: true,
+                    child: _buildPhoneCashier(isDark),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1095,8 +1354,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello Partner Investor,',
-            name: 'rej',
+            greeting: 'Hello,',
+            name: 'Partner Investor',
             isDark: isDark,
           ),
           Expanded(
@@ -1517,8 +1776,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello Cashier,',
-            name: 'maryazxc',
+            greeting: 'Hello,',
+            name: 'Cashier',
             isDark: isDark,
           ),
           Expanded(
@@ -1962,8 +2221,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:35'),
           _buildPhoneHeader(
-            greeting: 'Hello Hog Raiser,',
-            name: 'Just Rejie',
+            greeting: 'Hello,',
+            name: 'Hog Raiser',
             isDark: isDark,
           ),
           Expanded(
