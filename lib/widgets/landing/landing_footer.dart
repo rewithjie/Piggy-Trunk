@@ -279,12 +279,12 @@ class _TerminalWatermarkState extends State<_TerminalWatermark> {
           // Scale font size seamlessly with available footer width
           final fontSize = (availableWidth / 7.6).clamp(28.0, 136.0);
           final letterSpacing = (fontSize * 0.08).clamp(2.0, 12.0);
-          // Show top 50% of the terminal letters, cutting off the bottom half
-          final visibleHeight = fontSize * 0.50;
-          final totalTextHeight = fontSize * 1.30;
+          // Truly expose top ~56% of the terminal letters so "PIGGY TRUNK" is clearly legible while keeping the half-cut bottom aesthetic
+          final visibleHeight = fontSize * 0.56;
+          final totalTextHeight = fontSize * 1.15;
 
-          final baseAlpha = widget.isDark ? 0.12 : 0.14;
-          final hoverAlpha = widget.isDark ? 0.28 : 0.32;
+          final baseAlpha = widget.isDark ? 0.18 : 0.20;
+          final hoverAlpha = widget.isDark ? 0.36 : 0.40;
           final currentAlpha = _isHovered ? hoverAlpha : baseAlpha;
 
           return ClipRect(
@@ -295,9 +295,11 @@ class _TerminalWatermarkState extends State<_TerminalWatermark> {
                 alignment: Alignment.topCenter,
                 maxHeight: totalTextHeight,
                 minHeight: totalTextHeight,
-                child: Center(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
+                    alignment: Alignment.topCenter,
                     child: AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 250),
                       curve: Curves.easeOutCubic,
