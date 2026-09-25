@@ -1,6 +1,6 @@
 ---
 name: auto-release
-description: Automatically builds the Flutter web release, creates a simple commit matching the repo history, and pushes to git on every completed task.
+description: Builds the Flutter web release, creates a simple commit identifying the edited section, and pushes to git on completed tasks.
 ---
 
 # Automated Web Release and Git Push
@@ -15,17 +15,17 @@ Follow this runbook upon completing code or UI changes in the Piggy-Trunk projec
    flutter build web --release
    ```
 
-2. **Commit with Simple Message**:
+2. **Commit with Simple Section-Specific Message**:
    - Inspect git diff:
      ```powershell
      git status
      ```
-   - Match the user's direct, simple commit message style (e.g. `Update landing hero and download sections`, `Add scroll reveal and card hover animations`).
+   - Match the user's direct, simple commit message style, clearly stating the section/module edited (e.g. `Update landing hero and download sections`, `Fix admin inventory table`, `Update mobile raiser drawer`).
    - Do NOT use complex conventional commit formatting or lengthy multi-line descriptions.
    - Stage and commit:
      ```powershell
      git add .
-     git commit -m "<Simple message>"
+     git commit -m "<Simple message mentioning edited section>"
      ```
 
 3. **Push to Remote**:

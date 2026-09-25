@@ -1,21 +1,20 @@
 # Agent Behavior & Workflow Rules
 
-## 1. Automated Web Release & Git Push on Every Task
-On every task and session where code changes or web updates are made in this repository:
+## 1. Automated Web Release & Git Push with Section-Specific Simple Commits
+On tasks and sessions where code changes or web updates are made in this repository:
 1. **Build Web Release**:
-   Always run the release build for Flutter Web:
+   Execute the release build for Flutter Web to generate updated assets in `build/web/`:
    ```powershell
    flutter build web --release
    ```
 2. **Commit Style**:
-   - Align commit messages directly with the user's commit history style.
-   - Use simple, direct, concise commit messages (e.g., `Update landing hero and download sections`, `Add scroll reveal and card hover animations`, `Fix table styling`, `Update inventory screen`).
-   - Do **NOT** use complex, verbose conventional commit prefixes or semantic commit structures.
+   - Use simple, direct, concise commit messages that clearly mention which section/part was edited (e.g., `Update landing hero and download sections`, `Fix admin inventory table`, `Update mobile raiser drawer`, `Align admin sidebar active tabs`).
+   - Do **NOT** use complex conventional commit prefixes (e.g. `feat:`, `chore:`, `refactor:`) or long multi-line descriptions.
 3. **Automatically Stage and Push**:
-   - Stage the modified files, including updated `build/web` release artifacts:
+   - Stage modified files (including `build/web` release artifacts) and push:
      ```powershell
      git add .
-     git commit -m "<Simple direct message>"
+     git commit -m "<Simple direct message mentioning the edited section>"
      git push origin main
      ```
 
