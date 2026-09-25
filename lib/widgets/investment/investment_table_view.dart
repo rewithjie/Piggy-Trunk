@@ -981,9 +981,9 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                     // 1. Details Icon Button (👁)
                     _buildSquareIconButton(
                       icon: Icons.visibility_outlined,
-                      iconColor: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
-                      bgColor: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
-                      borderColor: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                      iconColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      bgColor: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.08 : 0.1),
+                      borderColor: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.22 : 0.3),
                       tooltip: 'View Details',
                       onTap: () => InvestmentDetailModal.show(context: context, investment: inv),
                     ),

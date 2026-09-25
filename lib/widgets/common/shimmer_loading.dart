@@ -69,6 +69,8 @@ class ShimmerBox extends StatelessWidget {
   final BorderRadius? borderRadius;
   final BoxShape shape;
   final bool? isDark;
+  final Color? baseColor;
+  final Color? highlightColor;
 
   const ShimmerBox({
     super.key,
@@ -77,6 +79,8 @@ class ShimmerBox extends StatelessWidget {
     this.borderRadius,
     this.shape = BoxShape.rectangle,
     this.isDark,
+    this.baseColor,
+    this.highlightColor,
   });
 
   @override
@@ -84,8 +88,8 @@ class ShimmerBox extends StatelessWidget {
     final anim = ShimmerProvider.of(context);
     final dark = isDark ?? (Theme.of(context).brightness == Brightness.dark);
 
-    final baseColor = dark ? const Color(0xFF1E2D44) : const Color(0xFFE2E8F0);
-    final highlightColor = dark ? const Color(0xFF2C4161) : const Color(0xFFF8FAFC);
+    final effectiveBase = baseColor ?? (dark ? const Color(0xFF1E2D44) : const Color(0xFFE2E8F0));
+    final effectiveHighlight = highlightColor ?? (dark ? const Color(0xFF2C4161) : const Color(0xFFF8FAFC));
 
     if (anim == null) {
       return _StandaloneShimmerBox(
@@ -93,8 +97,8 @@ class ShimmerBox extends StatelessWidget {
         height: height,
         borderRadius: borderRadius,
         shape: shape,
-        baseColor: baseColor,
-        highlightColor: highlightColor,
+        baseColor: effectiveBase,
+        highlightColor: effectiveHighlight,
       );
     }
 
@@ -112,7 +116,7 @@ class ShimmerBox extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment(-2.0 + 4.0 * anim.value, -0.3),
               end: Alignment(0.0 + 4.0 * anim.value, 0.3),
-              colors: [baseColor, highlightColor, baseColor],
+              colors: [effectiveBase, effectiveHighlight, effectiveBase],
               stops: const [0.0, 0.5, 1.0],
             ),
           ),

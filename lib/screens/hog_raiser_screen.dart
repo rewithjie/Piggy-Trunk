@@ -12,6 +12,7 @@ import '../utils/responsive.dart';
 import '../widgets/hog_raiser/raiser_profile_drawer.dart';
 import '../widgets/hog_raiser/edit_raiser_drawer.dart';
 import '../widgets/hog_raiser/active_raisers_tab.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../services/email_service.dart';
 
 class HogRaiserScreen extends StatefulWidget {
@@ -441,7 +442,35 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text('$label ($count)', style: textStyle),
+        child: (_isLoading || _isTableRefreshing)
+            ? Text.rich(
+                TextSpan(
+                  text: '$label (',
+                  style: textStyle,
+                  children: [
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                        child: ShimmerBox(
+                          width: 14,
+                          height: isMobile ? 11 : 13,
+                          borderRadius: BorderRadius.circular(3),
+                          baseColor: isSelected
+                              ? (_isDark ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.3))
+                              : (_isDark ? const Color(0xFF283D59) : const Color(0xFFD6E2F0)),
+                          highlightColor: isSelected
+                              ? (_isDark ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.45) : Colors.white.withValues(alpha: 0.65))
+                              : (_isDark ? const Color(0xFF385275) : const Color(0xFFEAF1F9)),
+                        ),
+                      ),
+                    ),
+                    TextSpan(text: ')', style: textStyle),
+                  ],
+                ),
+                textAlign: TextAlign.center,
+              )
+            : Text('$label ($count)', style: textStyle),
       ),
     );
   }

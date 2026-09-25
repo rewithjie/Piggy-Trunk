@@ -553,10 +553,10 @@ class BatchTableView extends StatelessWidget {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                        color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.08 : 0.1),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: (isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                          color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.22 : 0.3),
                           width: 1,
                         ),
                       ),
@@ -564,7 +564,7 @@ class BatchTableView extends StatelessWidget {
                         child: Icon(
                           Icons.visibility_outlined,
                           size: 16,
-                          color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                         ),
                       ),
                     ),

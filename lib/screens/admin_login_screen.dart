@@ -270,27 +270,37 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           }
         });
       } else {
-        final msg = (result['message'] ?? 'Invalid email/username or password. Please check your credentials.').toString();
-        if (result['errorField'] == 'email') {
-          setState(() {
+        final msg = (result['message'] ?? 'Incorrect password. Please try again.').toString();
+        final errorField = result['errorField']?.toString();
+
+        setState(() {
+          if (errorField == 'email') {
             _emailError = msg;
-          });
-        } else if (result['errorField'] == 'password') {
-          setState(() {
+            _passwordError = null;
+            _hasAuthCredentialError = false;
+          } else {
             _passwordError = msg;
-          });
+            _emailError = null;
+            _hasAuthCredentialError = false;
+          }
+        });
+
+        // Auto-clear password field on failed login
+        _passwordController.clear();
+        if (errorField == 'email') {
+          _emailFocus.requestFocus();
         } else {
-          setState(() {
-            _hasAuthCredentialError = true;
-            _passwordError = msg;
-          });
+          _passwordFocus.requestFocus();
         }
       }
     } catch (e) {
       setState(() {
-        _hasAuthCredentialError = true;
-        _passwordError = 'Invalid email/username or password. Please check your credentials.';
+        _hasAuthCredentialError = false;
+        _emailError = null;
+        _passwordError = 'Incorrect password. Please try again.';
       });
+      _passwordController.clear();
+      _passwordFocus.requestFocus();
     } finally {
       if (mounted) {
         setState(() {
@@ -576,7 +586,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           ),
           decoration: LoginStyles.emailFieldDecoration(
             hintText: 'Enter your email or username',
-            hasError: _emailError != null || _hasAuthCredentialError,
+            hasError: _emailError != null,
             prefixIcon: const Icon(
               Icons.person_outline_rounded,
               size: 20,
@@ -793,7 +803,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
           style: fieldStyle,
           decoration: LoginStyles.passwordFieldDecoration(
             hintText: 'Enter your password',
-            hasError: _passwordError != null || _hasAuthCredentialError,
+            hasError: _passwordError != null,
             suffixIcon: MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(

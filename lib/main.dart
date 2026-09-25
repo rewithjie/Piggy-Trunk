@@ -97,7 +97,20 @@ class MyApp extends ConsumerWidget {
         ? host.substring(0, host.length - 11)
         : (host.endsWith('.app') ? host.substring(0, host.length - 4) : host);
 
-    final isAdminDomain = subdomain.contains('admin');
+    final uri = kIsWeb ? Uri.base : Uri();
+    final isLocalhost = host == 'localhost' || host == '127.0.0.1' || host.startsWith('192.168.');
+    final hasAdminQuery = uri.queryParameters.containsKey('admin') || uri.queryParameters['role'] == 'admin';
+    final hasAdminPath = uri.path.startsWith('/admin') ||
+        uri.path.startsWith('/dashboard') ||
+        uri.path.startsWith('/users') ||
+        uri.path.startsWith('/raisers') ||
+        uri.path.startsWith('/inventory') ||
+        uri.path.startsWith('/investments') ||
+        uri.path.startsWith('/pos') ||
+        uri.path.startsWith('/batches') ||
+        uri.path.startsWith('/settings');
+
+    final isAdminDomain = subdomain.contains('admin') || (isLocalhost && (hasAdminQuery || hasAdminPath));
     final isMobileDomain = subdomain.contains('mobile') ||
         subdomain.startsWith('app') ||
         subdomain.endsWith('app') ||
@@ -132,7 +145,7 @@ class MyApp extends ConsumerWidget {
             : (isMobileDomain
                 ? const ResponsiveMobileWrapper(child: OnboardingScreen())
                 : const LandingScreen()),
-        '/login': (context) => isAdminDomain
+        '/login': (context) => (isAdminDomain || isLocalhost)
             ? const AdminLoginScreen()
             : const ResponsiveMobileWrapper(child: LoginScreen()),
         '/admin': (context) => const AdminLoginScreen(),

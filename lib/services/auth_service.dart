@@ -13,33 +13,48 @@ class AuthService {
     required String password,
     required bool rememberMe,
   }) async {
+    String resolvedEmail = email.trim().toLowerCase();
+    final cleanPassword = password.trim();
+
+    // Check if user/email exists in app_users
+    bool userExistsInDb = false;
+    String? matchedEmail;
     try {
-      String resolvedEmail = email.trim().toLowerCase();
-      final cleanPassword = password.trim();
+      final query = Supabase.instance.client.from('app_users').select('email, name, role');
+      final record = await (resolvedEmail.contains('@')
+          ? query.ilike('email', resolvedEmail).maybeSingle()
+          : query.ilike('name', resolvedEmail).maybeSingle());
 
-      // 1. Smart Username Resolver: If input doesn't contain '@', look up email from app_users
-      if (!resolvedEmail.contains('@')) {
-        try {
-          final userRecord = await Supabase.instance.client
-              .from('app_users')
-              .select('email')
-              .ilike('name', resolvedEmail)
-              .maybeSingle();
-
-          if (userRecord != null && userRecord['email'] != null) {
-            resolvedEmail = userRecord['email'].toString().trim().toLowerCase();
-          } else {
-            return {
-              'success': false,
-              'errorField': 'email',
-              'message': 'Username "$email" was not found.',
-            };
-          }
-        } catch (_) {
-          // If query fails, fall back to input as-is
+      if (record != null) {
+        userExistsInDb = true;
+        if (record['email'] != null) {
+          matchedEmail = record['email'].toString().trim().toLowerCase();
         }
       }
+    } catch (_) {
+      // Query failed, fall back
+    }
 
+    if (matchedEmail != null && matchedEmail.isNotEmpty) {
+      resolvedEmail = matchedEmail;
+    }
+
+    // Default system accounts are always known valid accounts
+    final isKnownSystemAccount = resolvedEmail == 'admin' ||
+        resolvedEmail == 'admin@piggytrunk.com' ||
+        resolvedEmail == 'admin@gmail.com' ||
+        resolvedEmail == 'piggytrunk@gmail.com';
+
+    // If username was entered and neither DB nor known accounts match
+    if (!resolvedEmail.contains('@') && !userExistsInDb && !isKnownSystemAccount) {
+      return {
+        'success': false,
+        'errorField': 'email',
+        'message': 'Username "$email" was not found.',
+      };
+    }
+
+    try {
       final authResponse = await Supabase.instance.client.auth.signInWithPassword(
         email: resolvedEmail,
         password: cleanPassword,
@@ -51,6 +66,7 @@ class AuthService {
       if (session == null || user == null) {
         return {
           'success': false,
+          'errorField': 'password',
           'message': 'Unable to sign in to Supabase. Please verify your credentials.',
         };
       }
@@ -86,11 +102,22 @@ class AuthService {
       };
     } catch (e) {
       String errorMessage = 'An unexpected error occurred. Please try again.';
+      String? errorField;
+
+      final isKnownEmail = userExistsInDb || isKnownSystemAccount;
+
       if (e is AuthException) {
         final msg = e.message.toLowerCase();
         if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
-          errorMessage = 'Invalid email/username or password. Please check your credentials.';
+          if (isKnownEmail) {
+            errorField = 'password';
+            errorMessage = 'Incorrect password. Please try again.';
+          } else {
+            errorField = 'email';
+            errorMessage = 'No account found with this email or username.';
+          }
         } else if (msg.contains('email not confirmed')) {
+          errorField = 'email';
           errorMessage = 'Email address has not been confirmed.';
         } else {
           errorMessage = e.message;
@@ -98,12 +125,19 @@ class AuthService {
       } else {
         final errStr = e.toString().toLowerCase();
         if (errStr.contains('invalid login credentials') || errStr.contains('invalid_credentials')) {
-          errorMessage = 'Invalid email/username or password. Please check your credentials.';
+          if (isKnownEmail) {
+            errorField = 'password';
+            errorMessage = 'Incorrect password. Please try again.';
+          } else {
+            errorField = 'email';
+            errorMessage = 'No account found with this email or username.';
+          }
         }
       }
 
       return {
         'success': false,
+        'errorField': errorField ?? (isKnownEmail ? 'password' : 'email'),
         'message': errorMessage,
       };
     }

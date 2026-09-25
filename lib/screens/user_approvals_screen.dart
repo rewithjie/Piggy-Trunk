@@ -665,7 +665,35 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: const Size(185, 48),
       ),
-      child: Text('$label ($count)', style: textStyle),
+      child: (_isLoading || _isTableRefreshing)
+          ? Text.rich(
+              TextSpan(
+                text: '$label (',
+                style: textStyle,
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                      child: ShimmerBox(
+                        width: 14,
+                        height: 13,
+                        borderRadius: BorderRadius.circular(3),
+                        baseColor: isSelected
+                            ? (_isDark ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.3))
+                            : (_isDark ? const Color(0xFF283D59) : const Color(0xFFD6E2F0)),
+                        highlightColor: isSelected
+                            ? (_isDark ? PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.45) : Colors.white.withValues(alpha: 0.65))
+                            : (_isDark ? const Color(0xFF385275) : const Color(0xFFEAF1F9)),
+                      ),
+                    ),
+                  ),
+                  TextSpan(text: ')', style: textStyle),
+                ],
+              ),
+              textAlign: TextAlign.center,
+            )
+          : Text('$label ($count)', style: textStyle),
     );
   }
 
@@ -814,9 +842,9 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     // 1. Details Action Button
                     _buildSquareIconButton(
                       icon: Icons.visibility_outlined,
-                      iconColor: _isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
-                      bgColor: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
-                      borderColor: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                      iconColor: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                      bgColor: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.08 : 0.1),
+                      borderColor: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.22 : 0.3),
                       tooltip: 'View User Details',
                       onTap: () => _showUserDetails(row),
                     ),

@@ -731,10 +731,10 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
-                            color: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                            color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.08 : 0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: (_isDark ? const Color(0xFF3B82F6) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
+                              color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.22 : 0.3),
                               width: 1,
                             ),
                           ),
@@ -742,7 +742,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             child: Icon(
                               Icons.visibility_outlined,
                               size: 16,
-                              color: _isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                             ),
                           ),
                         ),
