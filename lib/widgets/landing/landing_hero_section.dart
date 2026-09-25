@@ -338,7 +338,9 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         : const Color(0xFFE2E8F0);
     final textDark = isDark ? const Color(0xFFECF2FF) : const Color(0xFF0F172A);
     final textMuted = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-    final activeNavBg = isDark ? const Color(0xFF0369A1).withValues(alpha: 0.25) : const Color(0xFFE0F2FE);
+    final activeNavBg = isDark
+        ? const Color(0xFF28354A).withValues(alpha: 0.60)
+        : const Color(0xFFE2E8F0).withValues(alpha: 0.85);
 
     final isCompact = stageWidth < 460;
     final sidebarWidth = isCompact ? 36.0 : 132.0;
@@ -554,18 +556,18 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildSidebarItem(Icons.grid_view_rounded, 'Dashboard', true, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.pets_rounded, 'Hog Raiser', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.people_outline_rounded, 'User Approvals', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.layers_outlined, 'Batch Management', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.trending_up_rounded, 'Investment Management', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.inventory_2_outlined, 'Inventory', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.point_of_sale_rounded, 'POS', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.phone_android_rounded, 'Mobile App', false, activeNavBg, textDark, textMuted, isCompact),
+                        _buildSidebarItem(Icons.grid_view_rounded, 'Dashboard', true, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.pets_rounded, 'Hog Raiser', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.people_outline_rounded, 'User Approvals', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.layers_outlined, 'Batch Management', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.trending_up_rounded, 'Investment Management', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.inventory_2_outlined, 'Inventory', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.point_of_sale_rounded, 'POS', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.phone_android_rounded, 'Mobile App', false, activeNavBg, textDark, textMuted, isCompact, isDark),
                         const Spacer(),
-                        _buildSidebarItem(Icons.wb_sunny_outlined, 'Theme', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.settings_outlined, 'Settings', false, activeNavBg, textDark, textMuted, isCompact),
-                        _buildSidebarItem(Icons.logout_rounded, 'Sign out', false, activeNavBg, textDark, textMuted, isCompact),
+                        _buildSidebarItem(Icons.wb_sunny_outlined, 'Theme', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.settings_outlined, 'Settings', false, activeNavBg, textDark, textMuted, isCompact, isDark),
+                        _buildSidebarItem(Icons.logout_rounded, 'Sign out', false, activeNavBg, textDark, textMuted, isCompact, isDark),
                       ],
                     ),
                   ),
@@ -2417,20 +2419,28 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     Color textDark,
     Color textMuted,
     bool isCompact,
+    bool isDark,
   ) {
+    final activeBorder = isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
+    final activeColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3.5),
+      margin: const EdgeInsets.only(bottom: 2.5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: isActive ? activeBg : Colors.transparent,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isActive ? activeBorder : Colors.transparent,
+          width: 0.8,
+        ),
       ),
       child: Row(
         children: [
           Icon(
             icon,
             size: 11,
-            color: isActive ? const Color(0xFF0284C7) : textMuted,
+            color: isActive ? activeColor : textMuted,
           ),
           if (!isCompact) ...[
             const SizedBox(width: 5),
@@ -2441,7 +2451,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 7.5,
                   fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  color: isActive ? const Color(0xFF0284C7) : textMuted,
+                  color: isActive ? activeColor : textMuted,
                 ),
               ),
             ),
