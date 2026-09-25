@@ -43,14 +43,17 @@ class LandingFooter extends StatelessWidget {
     return Container(
       width: double.infinity,
       color: footerBg,
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 20 : (isDesktop ? 64 : 32),
-        vertical: 48,
+      padding: EdgeInsets.only(
+        left: isMobile ? 20 : (isDesktop ? 64 : 32),
+        right: isMobile ? 20 : (isDesktop ? 64 : 32),
+        top: 48,
+        bottom: 0,
       ),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               if (isDesktop)
                 Row(
@@ -80,16 +83,10 @@ class LandingFooter extends StatelessWidget {
                 ),
               const SizedBox(height: 40),
               Divider(color: borderColor, height: 1),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
-              // Copyright bar
-              Text(
-                '© 2026 Piggy Trunk. All rights reserved.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  color: textMuted,
-                ),
-              ),
+              // Half-Cut Terminal Text Watermark
+              _TerminalWatermark(isDark: isDark),
             ],
           ),
         ),
@@ -257,3 +254,74 @@ class _EmailCopyButtonState extends State<_EmailCopyButton> {
     );
   }
 }
+
+class _TerminalWatermark extends StatefulWidget {
+  final bool isDark;
+
+  const _TerminalWatermark({required this.isDark});
+
+  @override
+  State<_TerminalWatermark> createState() => _TerminalWatermarkState();
+}
+
+class _TerminalWatermarkState extends State<_TerminalWatermark> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          // Scale font size seamlessly with available footer width
+          final fontSize = (availableWidth / 7.6).clamp(28.0, 136.0);
+          final letterSpacing = (fontSize * 0.08).clamp(2.0, 12.0);
+          // Show top 50% of the terminal letters, cutting off the bottom half
+          final visibleHeight = fontSize * 0.50;
+          final totalTextHeight = fontSize * 1.30;
+
+          final baseAlpha = widget.isDark ? 0.12 : 0.14;
+          final hoverAlpha = widget.isDark ? 0.28 : 0.32;
+          final currentAlpha = _isHovered ? hoverAlpha : baseAlpha;
+
+          return ClipRect(
+            child: SizedBox(
+              height: visibleHeight,
+              width: availableWidth,
+              child: OverflowBox(
+                alignment: Alignment.topCenter,
+                maxHeight: totalTextHeight,
+                minHeight: totalTextHeight,
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      style: GoogleFonts.spaceMono(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                        letterSpacing: letterSpacing,
+                        color: Colors.white.withValues(alpha: currentAlpha),
+                      ),
+                      child: const Text(
+                        'PIGGY TRUNK',
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
