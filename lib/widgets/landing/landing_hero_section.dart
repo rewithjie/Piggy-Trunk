@@ -20,11 +20,6 @@ class LandingHeroSection extends StatefulWidget {
 }
 
 class _LandingHeroSectionState extends State<LandingHeroSection> {
-  // 0: Hog Raiser (1st), 1: Cashier (2nd), 2: Partner Investor (3rd), 3: Admin Web
-  int _activeRoleIndex = 0;
-  // Hover tracking for desktop: 0: Left (Hog Raiser), 1: Center (Cashier), 2: Right (Partner Investor), -1: none
-  int _hoveredPhoneIndex = -1;
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -218,7 +213,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   }
 
   // -------------------------------------------------------------
-  // RIGHT: MULTI-PLATFORM ECOSYSTEM VISUAL (Admin Web Mockup + 3 Theme-Synced Phones)
+  // RIGHT: MULTI-PLATFORM ECOSYSTEM VISUAL (Admin Web Mockup + 3 Blooming Flower Phones)
   // -------------------------------------------------------------
   Widget _buildRightSideVisual(
     BuildContext context, {
@@ -231,119 +226,94 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         final isMobile = Responsive.isMobile(context) || stageWidth < 600;
         // Fluid responsive stage height: proportional on desktop, generous on mobile
         final stageHeight = isMobile
-            ? (stageWidth * 0.94).clamp(320.0, 440.0)
+            ? (stageWidth * 0.88).clamp(280.0, 420.0)
             : (stageWidth / 1.34).clamp(340.0, 540.0);
 
-        final isSpotlightAdmin = _activeRoleIndex == 3;
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // TOUCH & DESKTOP FRIENDLY ROLE SELECTOR PILLS
-            _buildRoleSelectorPills(isDark, stageWidth),
-            const SizedBox(height: 14),
-
-            // MAIN VISUAL CONTAINER
-            Container(
-              width: stageWidth,
-              height: stageHeight,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark
-                        ? Colors.black.withValues(alpha: 0.65)
-                        : const Color(0xFF18314F).withValues(alpha: 0.16),
-                    blurRadius: 36,
-                    offset: const Offset(0, 16),
-                    spreadRadius: 2,
+        return Container(
+          width: stageWidth,
+          height: stageHeight,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.65)
+                    : const Color(0xFF18314F).withValues(alpha: 0.16),
+                blurRadius: 36,
+                offset: const Offset(0, 16),
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // LAYER 0: AMBIENT VIBRANT GLOW MESH
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? [
+                                const Color(0xFF0369A1).withValues(alpha: 0.20),
+                                const Color(0xFF0F172A),
+                                const Color(0xFF0D9488).withValues(alpha: 0.14),
+                              ]
+                            : [
+                                const Color(0xFFBAE6FD).withValues(alpha: 0.40),
+                                const Color(0xFFF0F9FF),
+                                const Color(0xFFBBF7D0).withValues(alpha: 0.25),
+                              ],
+                      ),
+                    ),
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // LAYER 0: AMBIENT VIBRANT GLOW MESH
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: isDark
-                                ? [
-                                    const Color(0xFF0369A1).withValues(alpha: 0.20),
-                                    const Color(0xFF0F172A),
-                                    const Color(0xFF0D9488).withValues(alpha: 0.14),
-                                  ]
-                                : [
-                                    const Color(0xFFBAE6FD).withValues(alpha: 0.40),
-                                    const Color(0xFFF0F9FF),
-                                    const Color(0xFFBBF7D0).withValues(alpha: 0.25),
-                                  ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Ambient highlight circles for glassmorphic depth
-                    Positioned(
-                      top: 40,
-                      right: 30,
-                      child: Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.18 : 0.25),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 20,
-                      left: 60,
-                      child: Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.14 : 0.18),
-                        ),
-                      ),
-                    ),
-
-                    // LAYER 1: ADMIN WEB DASHBOARD (Matching Image 2 ScreenTopBar & Chrome)
-                    Positioned.fill(
-                      child: _buildAdminWebWidget(isDark, stageWidth, stageHeight),
-                    ),
-
-                    // LAYER 2: 3 FLOATING PHONES (1st: Hog Raiser, 2nd: Cashier, 3rd: Partner)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: -stageHeight * 0.08,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 240),
-                        curve: Curves.easeInOut,
-                        opacity: isSpotlightAdmin ? 0.18 : 1.0,
-                        child: AnimatedSlide(
-                          duration: const Duration(milliseconds: 240),
-                          curve: Curves.easeOutCubic,
-                          offset: isSpotlightAdmin
-                              ? const Offset(0, 0.08)
-                              : Offset.zero,
-                          child: _buildThreePhonesRow(stageWidth, stageHeight, isDark),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ),
+
+                // Ambient highlight circles for glassmorphic depth
+                Positioned(
+                  top: 40,
+                  right: 30,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.18 : 0.25),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 20,
+                  left: 60,
+                  child: Container(
+                    width: 160,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.14 : 0.18),
+                    ),
+                  ),
+                ),
+
+                // LAYER 1: ADMIN WEB DASHBOARD (Matching Image 2 ScreenTopBar & Image 4 Chrome)
+                Positioned.fill(
+                  child: _buildAdminWebWidget(isDark, stageWidth, stageHeight),
+                ),
+
+                // LAYER 2: 3 FLOATING PHONES (Blooming Flower: 1st Hog Raiser, 2nd Cashier, 3rd Partner)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: -stageHeight * 0.08,
+                  child: _buildThreePhonesRow(stageWidth, stageHeight, isDark),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -747,18 +717,24 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   }
 
   // -------------------------------------------------------------
-  // WINDOWS / BRAVE DARK BROWSER BAR (Matching Image 2)
+  // WINDOWS / BRAVE BROWSER BAR (Matching Image 4 - White & Dark Mode)
   // -------------------------------------------------------------
   Widget _buildWindowsBrowserBar(bool isDark) {
-    const barDarkBg = Color(0xFF151821);
-    const navDarkBg = Color(0xFF11131A);
-    const tabActiveBg = Color(0xFF222735);
-    const urlPillBg = Color(0xFF1C202C);
+    final barBg = isDark ? const Color(0xFF151821) : const Color(0xFFEDF2F7);
+    final navBg = isDark ? const Color(0xFF11131A) : Colors.white;
+    final tabActiveBg = isDark ? const Color(0xFF222735) : Colors.white;
+    final tabActiveText = isDark ? Colors.white : const Color(0xFF0F172A);
+    final urlPillBg = isDark ? const Color(0xFF1C202C) : const Color(0xFFF1F5F9);
+    final urlBorder = isDark ? const Color(0xFF283144) : const Color(0xFFCBD5E1);
+    final urlText = isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155);
+    final iconColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+    final windowBtnColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+    final borderBar = isDark ? const Color(0xFF242B3B) : const Color(0xFFCBD5E1);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: barDarkBg,
-        border: Border(bottom: BorderSide(color: Color(0xFF242B3B), width: 0.8)),
+      decoration: BoxDecoration(
+        color: barBg,
+        border: Border(bottom: BorderSide(color: borderBar, width: 0.8)),
       ),
       child: Column(
         children: [
@@ -796,16 +772,16 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 8.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                          color: tabActiveText,
                         ),
                       ),
                       const SizedBox(width: 7),
-                      const Icon(Icons.close_rounded, size: 9, color: Color(0xFF94A3B8)),
+                      Icon(Icons.close_rounded, size: 9, color: iconColor),
                     ],
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.add_rounded, size: 12, color: Color(0xFF64748B)),
+                Icon(Icons.add_rounded, size: 12, color: iconColor.withValues(alpha: 0.7)),
 
                 const Spacer(),
 
@@ -820,7 +796,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                       child: Container(
                         width: 7,
                         height: 1.2,
-                        color: const Color(0xFF94A3B8),
+                        color: windowBtnColor,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -832,16 +808,16 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                         width: 7.5,
                         height: 7.5,
                         decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFF94A3B8), width: 1.1),
+                          border: Border.all(color: windowBtnColor, width: 1.1),
                         ),
                       ),
                     ),
                     const SizedBox(width: 4),
-                    const SizedBox(
+                    SizedBox(
                       width: 18,
                       height: 14,
                       child: Center(
-                        child: Icon(Icons.close_rounded, size: 10.5, color: Color(0xFF94A3B8)),
+                        child: Icon(Icons.close_rounded, size: 10.5, color: windowBtnColor),
                       ),
                     ),
                   ],
@@ -853,14 +829,14 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           // Row 2: Nav arrows, URL Bar, Extensions
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-            color: navDarkBg,
+            color: navBg,
             child: Row(
               children: [
-                const Icon(Icons.arrow_back_rounded, size: 10.5, color: Color(0xFF94A3B8)),
+                Icon(Icons.arrow_back_rounded, size: 10.5, color: iconColor),
                 const SizedBox(width: 6),
-                const Icon(Icons.arrow_forward_rounded, size: 10.5, color: Color(0xFF475569)),
+                Icon(Icons.arrow_forward_rounded, size: 10.5, color: iconColor.withValues(alpha: 0.45)),
                 const SizedBox(width: 6),
-                const Icon(Icons.refresh_rounded, size: 10.5, color: Color(0xFF94A3B8)),
+                Icon(Icons.refresh_rounded, size: 10.5, color: iconColor),
                 const SizedBox(width: 8),
 
                 // Address Bar
@@ -870,7 +846,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                     decoration: BoxDecoration(
                       color: urlPillBg,
                       borderRadius: BorderRadius.circular(5),
-                      border: Border.all(color: const Color(0xFF283144), width: 0.6),
+                      border: Border.all(color: urlBorder, width: 0.6),
                     ),
                     child: Row(
                       children: [
@@ -883,25 +859,25 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 8.5,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFFCBD5E1),
+                              color: urlText,
                             ),
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Icon(Icons.shield_outlined, size: 9, color: Color(0xFF64748B)),
+                        Icon(Icons.shield_outlined, size: 9, color: iconColor.withValues(alpha: 0.7)),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
 
-                // Browser Extensions & Menu
+                // Browser Extensions & Menu (Matching Image 4)
                 Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.extension_outlined, size: 10, color: Color(0xFF94A3B8)),
-                    SizedBox(width: 6),
-                    Icon(Icons.more_vert_rounded, size: 10, color: Color(0xFF94A3B8)),
+                  children: [
+                    Icon(Icons.extension_outlined, size: 10, color: iconColor),
+                    const SizedBox(width: 6),
+                    Icon(Icons.more_vert_rounded, size: 10, color: iconColor),
                   ],
                 ),
               ],
@@ -913,195 +889,17 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   }
 
   // -------------------------------------------------------------
-  // ROLE SELECTOR PILLS (Touch & Desktop Friendly)
-  // -------------------------------------------------------------
-  Widget _buildRoleSelectorPills(bool isDark, double availableWidth) {
-    final isMobile = availableWidth < 560;
-    final bg = isDark ? const Color(0xFF131D2E) : Colors.white;
-    final border = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
-
-    final tabs = [
-      (0, '🐷', 'Hog Raiser'),
-      (1, '💼', 'Cashier'),
-      (2, '📈', 'Partner Investor'),
-      (3, '🖥️', 'Admin Web'),
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Container(
-        padding: const EdgeInsets.all(3.5),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: border, width: 0.9),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: tabs.map((tab) {
-            final isSelected = _activeRoleIndex == tab.$1;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _activeRoleIndex = tab.$1;
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isMobile ? 9 : 13,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF0284C7)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: const Color(0xFF0284C7).withValues(alpha: 0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      tab.$2,
-                      style: const TextStyle(fontSize: 11.5),
-                    ),
-                    const SizedBox(width: 4.5),
-                    Text(
-                      tab.$3,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: isMobile ? 10.5 : 11.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  // Helper to get phone widget by role index
-  Widget _getPhoneWidgetForIndex(int index, bool isDark) {
-    switch (index) {
-      case 0:
-        return _buildPhoneHogRaiser(isDark);
-      case 1:
-        return _buildPhoneCashier(isDark);
-      case 2:
-      default:
-        return _buildPhonePartnerInvestor(isDark);
-    }
-  }
-
-  // -------------------------------------------------------------
-  // LAYER 2: 3 FLOATING PHONES
-  // Order: 1st Screen = Hog Raiser, 2nd Screen = Cashier, 3rd Screen = Partner Investor
+  // LAYER 2: 3 FLOATING PHONES (Blooming Flower Composition)
+  // 1st Screen = Hog Raiser, 2nd Screen = Cashier, 3rd Screen = Partner Investor
   // -------------------------------------------------------------
   Widget _buildThreePhonesRow(double stageWidth, double stageHeight, bool isDark) {
-    final isNarrow = stageWidth < 520;
-    final phoneHeight = (stageHeight * (isNarrow ? 0.82 : 0.77)).clamp(230.0, 390.0);
+    final isMobile = stageWidth < 600;
+    final phoneHeight = (stageHeight * (isMobile ? 0.78 : 0.77)).clamp(210.0, 390.0);
     // Standard mobile aspect ratio
     final phoneWidth = phoneHeight * (225.0 / 460.0);
 
-    if (isNarrow) {
-      // MOBILE / TOUCH-FRIENDLY VIEW: Spotlight active role, peek adjacent
-      final activeIndex = (_activeRoleIndex >= 3) ? 0 : _activeRoleIndex;
-      final leftIndex = (activeIndex == 0) ? 2 : (activeIndex - 1);
-      final rightIndex = (activeIndex + 1) % 3;
-
-      return SizedBox(
-        height: phoneHeight + 20,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          clipBehavior: Clip.none,
-          children: [
-            // Left Peeking Phone
-            Positioned(
-              left: (stageWidth * 0.5) - (phoneWidth * 1.10),
-              bottom: 4,
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = leftIndex),
-                child: Opacity(
-                  opacity: 0.65,
-                  child: _buildPhoneFrame(
-                    width: phoneWidth * 0.88,
-                    height: phoneHeight * 0.88,
-                    isDark: isDark,
-                    rotation: -0.08,
-                    child: _getPhoneWidgetForIndex(leftIndex, isDark),
-                  ),
-                ),
-              ),
-            ),
-
-            // Right Peeking Phone
-            Positioned(
-              right: (stageWidth * 0.5) - (phoneWidth * 1.10),
-              bottom: 4,
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = rightIndex),
-                child: Opacity(
-                  opacity: 0.65,
-                  child: _buildPhoneFrame(
-                    width: phoneWidth * 0.88,
-                    height: phoneHeight * 0.88,
-                    isDark: isDark,
-                    rotation: 0.08,
-                    child: _getPhoneWidgetForIndex(rightIndex, isDark),
-                  ),
-                ),
-              ),
-            ),
-
-            // Center Active Focused Phone
-            Positioned(
-              bottom: 12,
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = (activeIndex + 1) % 3),
-                child: _buildPhoneFrame(
-                  width: phoneWidth * 1.04,
-                  height: phoneHeight * 1.04,
-                  isDark: isDark,
-                  rotation: 0.0,
-                  isCenter: true,
-                  child: _getPhoneWidgetForIndex(activeIndex, isDark),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // DESKTOP & TABLET VIEW: 3 PHONES FANNED OUT
-    // 1st (Left): Hog Raiser, 2nd (Center): Cashier, 3rd (Right): Partner Investor
-    final isLeftFocused = _hoveredPhoneIndex == 0 || (_hoveredPhoneIndex == -1 && _activeRoleIndex == 0);
-    final isCenterFocused = _hoveredPhoneIndex == 1 || (_hoveredPhoneIndex == -1 && (_activeRoleIndex == 1 || _activeRoleIndex >= 3));
-    final isRightFocused = _hoveredPhoneIndex == 2 || (_hoveredPhoneIndex == -1 && _activeRoleIndex == 2);
+    // Dynamic petal spread for blooming flower effect
+    final spread = phoneWidth * (isMobile ? 0.98 : 1.30);
 
     return SizedBox(
       height: phoneHeight + 24,
@@ -1109,83 +907,42 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
         children: [
-          // 1. LEFT PHONE: 1st Screen -> Hog Raiser
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            left: (stageWidth * 0.5) - (phoneWidth * 1.34),
-            bottom: isLeftFocused ? 14 : 4,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredPhoneIndex = 0),
-              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = 0),
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  scale: isLeftFocused ? 1.05 : 1.0,
-                  child: _buildPhoneFrame(
-                    width: phoneWidth,
-                    height: phoneHeight,
-                    isDark: isDark,
-                    rotation: isLeftFocused ? 0.0 : -0.08,
-                    isCenter: isLeftFocused,
-                    child: _buildPhoneHogRaiser(isDark),
-                  ),
-                ),
-              ),
+          // 1. LEFT PHONE: 1st Screen -> Hog Raiser (Tilted counter-clockwise like a flower petal)
+          Positioned(
+            left: (stageWidth * 0.5) - spread - (phoneWidth * 0.5),
+            bottom: 6,
+            child: _buildPhoneFrame(
+              width: phoneWidth,
+              height: phoneHeight,
+              isDark: isDark,
+              rotation: -0.08,
+              child: _buildPhoneHogRaiser(isDark),
             ),
           ),
 
-          // 3. RIGHT PHONE: 3rd Screen -> Partner Investor
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            right: (stageWidth * 0.5) - (phoneWidth * 1.34),
-            bottom: isRightFocused ? 14 : 4,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredPhoneIndex = 2),
-              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = 2),
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  scale: isRightFocused ? 1.05 : 1.0,
-                  child: _buildPhoneFrame(
-                    width: phoneWidth,
-                    height: phoneHeight,
-                    isDark: isDark,
-                    rotation: isRightFocused ? 0.0 : 0.08,
-                    isCenter: isRightFocused,
-                    child: _buildPhonePartnerInvestor(isDark),
-                  ),
-                ),
-              ),
+          // 3. RIGHT PHONE: 3rd Screen -> Partner Investor (Tilted clockwise like a flower petal)
+          Positioned(
+            right: (stageWidth * 0.5) - spread - (phoneWidth * 0.5),
+            bottom: 6,
+            child: _buildPhoneFrame(
+              width: phoneWidth,
+              height: phoneHeight,
+              isDark: isDark,
+              rotation: 0.08,
+              child: _buildPhonePartnerInvestor(isDark),
             ),
           ),
 
-          // 2. CENTER PHONE: 2nd Screen -> Cashier (Upright & In Front)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            bottom: isCenterFocused ? 16 : 8,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _hoveredPhoneIndex = 1),
-              onExit: (_) => setState(() => _hoveredPhoneIndex = -1),
-              child: GestureDetector(
-                onTap: () => setState(() => _activeRoleIndex = 1),
-                child: AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  scale: isCenterFocused ? 1.05 : 1.0,
-                  child: _buildPhoneFrame(
-                    width: phoneWidth * 1.05,
-                    height: phoneHeight * 1.05,
-                    isDark: isDark,
-                    rotation: 0.0,
-                    isCenter: true,
-                    child: _buildPhoneCashier(isDark),
-                  ),
-                ),
-              ),
+          // 2. CENTER PHONE: 2nd Screen -> Cashier (Upright & Proudly in front)
+          Positioned(
+            bottom: 14,
+            child: _buildPhoneFrame(
+              width: phoneWidth * 1.04,
+              height: phoneHeight * 1.04,
+              isDark: isDark,
+              rotation: 0.0,
+              isCenter: true,
+              child: _buildPhoneCashier(isDark),
             ),
           ),
         ],
@@ -1284,11 +1041,45 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     );
   }
 
+  // Confidentiality Blurred Name Widget (ImageFiltered with frosted glass capsule)
+  Widget _buildBlurredName(
+    String name, {
+    required bool isDark,
+    double fontSize = 11.5,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)).withValues(alpha: 0.40),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)).withValues(alpha: 0.35),
+          width: 0.6,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+          child: Text(
+            name,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // Universal Smartphone App Header
   Widget _buildPhoneHeader({
     required String greeting,
     required String name,
     required bool isDark,
+    bool isBlurred = false,
   }) {
     final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
@@ -1312,14 +1103,17 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                   color: subtitleColor,
                 ),
               ),
-              Text(
-                name,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: titleColor,
-                ),
-              ),
+              const SizedBox(height: 1.5),
+              isBlurred
+                  ? _buildBlurredName(name, isDark: isDark, fontSize: 11.5)
+                  : Text(
+                      name,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: titleColor,
+                      ),
+                    ),
             ],
           ),
           Container(
@@ -1354,9 +1148,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello,',
-            name: 'Partner Investor',
+            greeting: 'Hello Partner Investor,',
+            name: 'rej',
             isDark: isDark,
+            isBlurred: true,
           ),
           Expanded(
             child: Padding(
@@ -1372,20 +1167,24 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                   const SizedBox(height: 6),
                   _buildPartnerOpportunityCard(
                     batch: 'BATCH-2026-3',
-                    raiser: 'Raiser: ... • Fattening',
+                    raiserName: 'Raiser •••••••',
+                    raiserSuffix: ' • Fattening',
                     stage: 'N/A Stage',
                     stageColor: const Color(0xFF10B981),
                     hogs: '0 Hogs Assigned',
                     isDark: isDark,
+                    isRaiserBlurred: true,
                   ),
                   const SizedBox(height: 5),
                   _buildPartnerOpportunityCard(
                     batch: 'BATCH-2026-4',
-                    raiser: 'Raiser: Elisa De Vera • Fattening',
+                    raiserName: 'Elisa De Vera',
+                    raiserSuffix: ' • Fattening',
                     stage: 'Booster Stage',
                     stageColor: const Color(0xFF0284C7),
                     hogs: '3 Hogs Assigned',
                     isDark: isDark,
+                    isRaiserBlurred: true,
                   ),
                   const SizedBox(height: 8),
                   _buildSectionHeader('Recent Activities', 'See All >', isDark),
@@ -1636,11 +1435,13 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
 
   Widget _buildPartnerOpportunityCard({
     required String batch,
-    required String raiser,
+    required String raiserName,
+    String raiserSuffix = ' • Fattening',
     required String stage,
     required Color stageColor,
     required String hogs,
     required bool isDark,
+    bool isRaiserBlurred = true,
   }) {
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final border = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
@@ -1692,12 +1493,32 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             ],
           ),
           const SizedBox(height: 2),
-          Text(
-            raiser,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 6.5,
-              color: textMuted,
-            ),
+          Row(
+            children: [
+              Text(
+                'Raiser: ',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 6.5,
+                  color: textMuted,
+                ),
+              ),
+              isRaiserBlurred
+                  ? _buildBlurredName(raiserName, isDark: isDark, fontSize: 6.5)
+                  : Text(
+                      raiserName,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 6.5,
+                        color: textMuted,
+                      ),
+                    ),
+              Text(
+                raiserSuffix,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 6.5,
+                  color: textMuted,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 2),
           Row(
@@ -1714,7 +1535,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 'View Details >',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 6.5,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   color: const Color(0xFF0284C7),
                 ),
               ),
@@ -1728,8 +1549,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   Widget _buildPartnerBottomNav(bool isDark) {
     final navBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final border = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-    final activeColor = const Color(0xFF0284C7);
-    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final activeColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF0F172A);
+    final inactiveColor = const Color(0xFF94A3B8);
 
     return Container(
       height: 38,
@@ -1743,10 +1564,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildPhoneNavItem(Icons.home_filled, 'Home', true, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.trending_up_rounded, 'Investment', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.receipt_long_rounded, 'Activities', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.person_outline_rounded, 'Profile', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.grid_view_rounded, 'HOME', true, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.account_balance_wallet_outlined, 'INVESTMENT', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.article_outlined, 'ACTIVITIES', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.person_outline_rounded, 'PROFILE', false, activeColor, inactiveColor),
             ],
           ),
           const SizedBox(height: 2),
@@ -1754,7 +1575,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             width: 36,
             height: 2.2,
             decoration: BoxDecoration(
-              color: inactiveColor.withValues(alpha: 0.5),
+              color: inactiveColor.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -1776,9 +1597,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello,',
-            name: 'Cashier',
+            greeting: 'Hello Cashier,',
+            name: 'maryazxc',
             isDark: isDark,
+            isBlurred: true,
           ),
           Expanded(
             child: Padding(
@@ -2172,8 +1994,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   Widget _buildCashierBottomNav(bool isDark) {
     final navBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final border = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-    final activeColor = const Color(0xFF0284C7);
-    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final activeColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF0F172A);
+    final inactiveColor = const Color(0xFF94A3B8);
 
     return Container(
       height: 38,
@@ -2187,11 +2009,11 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildPhoneNavItem(Icons.home_filled, 'Home', true, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.assignment_outlined, 'Request', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.inventory_2_outlined, 'Inventory', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.point_of_sale_outlined, 'POS', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.person_outline_rounded, 'Profile', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.home_rounded, 'HOME', true, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.assignment_outlined, 'REQUEST', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.inventory_2_outlined, 'INVENTORY', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.point_of_sale_rounded, 'POS', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.person_outline_rounded, 'PROFILE', false, activeColor, inactiveColor),
             ],
           ),
           const SizedBox(height: 2),
@@ -2199,7 +2021,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             width: 36,
             height: 2.2,
             decoration: BoxDecoration(
-              color: inactiveColor.withValues(alpha: 0.5),
+              color: inactiveColor.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -2221,9 +2043,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:35'),
           _buildPhoneHeader(
-            greeting: 'Hello,',
-            name: 'Hog Raiser',
+            greeting: 'Hello Hog Raiser,',
+            name: 'Just Rejie',
             isDark: isDark,
+            isBlurred: true,
           ),
           Expanded(
             child: Padding(
@@ -2508,8 +2331,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   Widget _buildHogRaiserBottomNav(bool isDark) {
     final navBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final border = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-    final activeColor = const Color(0xFF0284C7);
-    final inactiveColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+    final activeColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF0F172A);
+    final inactiveColor = const Color(0xFF94A3B8);
 
     return Container(
       height: 38,
@@ -2523,9 +2346,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildPhoneNavItem(Icons.assignment_outlined, 'Request', false, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.home_filled, 'Home', true, activeColor, inactiveColor),
-              _buildPhoneNavItem(Icons.person_outline_rounded, 'Profile', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.grid_view_rounded, 'DASHBOARD', true, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.description_outlined, 'REQUEST', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.pets_rounded, 'HOGS', false, activeColor, inactiveColor),
+              _buildPhoneNavItem(Icons.person_outline_rounded, 'PROFILE', false, activeColor, inactiveColor),
             ],
           ),
           const SizedBox(height: 2),
@@ -2533,7 +2357,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
             width: 36,
             height: 2.2,
             decoration: BoxDecoration(
-              color: inactiveColor.withValues(alpha: 0.5),
+              color: inactiveColor.withValues(alpha: 0.4),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
