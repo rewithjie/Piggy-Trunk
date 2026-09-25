@@ -308,7 +308,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: -stageHeight * 0.08,
+                  bottom: 8,
                   child: _buildThreePhonesRow(stageWidth, stageHeight, isDark),
                 ),
               ],
@@ -378,26 +378,27 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                       ),
                       const SizedBox(width: 8),
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(5),
                         child: Image.asset(
                           'assets/piggytrunk_logo.png',
-                          width: 15,
-                          height: 15,
+                          width: 22,
+                          height: 22,
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => const Icon(
                             Icons.pets_rounded,
-                            size: 13,
+                            size: 18,
                             color: Color(0xFF0284C7),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 7),
                       Text(
-                        'PiggyTrunk',
+                        'Piggy Trunk',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: textDark,
+                          letterSpacing: -0.2,
                         ),
                       ),
                     ],
@@ -894,15 +895,16 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
   // -------------------------------------------------------------
   Widget _buildThreePhonesRow(double stageWidth, double stageHeight, bool isDark) {
     final isMobile = stageWidth < 600;
-    final phoneHeight = (stageHeight * (isMobile ? 0.78 : 0.77)).clamp(210.0, 390.0);
+    // Compressed footprint so the Admin Web behind is prominently showcased
+    final phoneHeight = (stageHeight * (isMobile ? 0.70 : 0.58)).clamp(195.0, 285.0);
     // Standard mobile aspect ratio
     final phoneWidth = phoneHeight * (225.0 / 460.0);
 
-    // Dynamic petal spread for blooming flower effect
-    final spread = phoneWidth * (isMobile ? 0.98 : 1.30);
+    // Compressed petal spread for tighter flower bouquet bloom
+    final spread = phoneWidth * (isMobile ? 0.78 : 0.68);
 
     return SizedBox(
-      height: phoneHeight + 24,
+      height: (phoneHeight * 1.05) + 16,
       child: Stack(
         alignment: Alignment.bottomCenter,
         clipBehavior: Clip.none,
@@ -910,12 +912,12 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           // 1. LEFT PHONE: 1st Screen -> Hog Raiser (Tilted counter-clockwise like a flower petal)
           Positioned(
             left: (stageWidth * 0.5) - spread - (phoneWidth * 0.5),
-            bottom: 6,
+            bottom: 4,
             child: _buildPhoneFrame(
               width: phoneWidth,
               height: phoneHeight,
               isDark: isDark,
-              rotation: -0.08,
+              rotation: -0.07,
               child: _buildPhoneHogRaiser(isDark),
             ),
           ),
@@ -923,22 +925,22 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           // 3. RIGHT PHONE: 3rd Screen -> Partner Investor (Tilted clockwise like a flower petal)
           Positioned(
             right: (stageWidth * 0.5) - spread - (phoneWidth * 0.5),
-            bottom: 6,
+            bottom: 4,
             child: _buildPhoneFrame(
               width: phoneWidth,
               height: phoneHeight,
               isDark: isDark,
-              rotation: 0.08,
+              rotation: 0.07,
               child: _buildPhonePartnerInvestor(isDark),
             ),
           ),
 
           // 2. CENTER PHONE: 2nd Screen -> Cashier (Upright & Proudly in front)
           Positioned(
-            bottom: 14,
+            bottom: 10,
             child: _buildPhoneFrame(
-              width: phoneWidth * 1.04,
-              height: phoneHeight * 1.04,
+              width: phoneWidth * 1.05,
+              height: phoneHeight * 1.05,
               isDark: isDark,
               rotation: 0.0,
               isCenter: true,
@@ -1041,34 +1043,20 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     );
   }
 
-  // Confidentiality Blurred Name Widget (ImageFiltered with frosted glass capsule)
+  // Confidentiality Blurred Name Widget (Slight natural blur on text, no harsh boxes)
   Widget _buildBlurredName(
     String name, {
     required bool isDark,
-    double fontSize = 11.5,
+    double fontSize = 6.5,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)).withValues(alpha: 0.40),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)).withValues(alpha: 0.35),
-          width: 0.6,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
-          child: Text(
-            name,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: fontSize,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-          ),
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 1.8, sigmaY: 1.8),
+      child: Text(
+        name,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
         ),
       ),
     );
@@ -1148,10 +1136,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello Partner Investor,',
-            name: 'rej',
+            greeting: 'Hello,',
+            name: 'Partner Investor',
             isDark: isDark,
-            isBlurred: true,
+            isBlurred: false,
           ),
           Expanded(
             child: Padding(
@@ -1167,7 +1155,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                   const SizedBox(height: 6),
                   _buildPartnerOpportunityCard(
                     batch: 'BATCH-2026-3',
-                    raiserName: 'Raiser •••••••',
+                    raiserName: 'Elisa De Vera',
                     raiserSuffix: ' • Fattening',
                     stage: 'N/A Stage',
                     stageColor: const Color(0xFF10B981),
@@ -1597,10 +1585,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:38'),
           _buildPhoneHeader(
-            greeting: 'Hello Cashier,',
-            name: 'maryazxc',
+            greeting: 'Hello,',
+            name: 'Cashier',
             isDark: isDark,
-            isBlurred: true,
+            isBlurred: false,
           ),
           Expanded(
             child: Padding(
@@ -2043,10 +2031,10 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
         children: [
           _buildPhoneStatusBar(isDark, '01:35'),
           _buildPhoneHeader(
-            greeting: 'Hello Hog Raiser,',
-            name: 'Just Rejie',
+            greeting: 'Hello,',
+            name: 'Hog Raiser',
             isDark: isDark,
-            isBlurred: true,
+            isBlurred: false,
           ),
           Expanded(
             child: Padding(
@@ -2404,13 +2392,14 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 11, color: color),
+        Icon(icon, size: 12.5, color: color),
         const SizedBox(height: 1.5),
         Text(
           label,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 5.5,
-            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            letterSpacing: 0.25,
             color: color,
           ),
         ),
