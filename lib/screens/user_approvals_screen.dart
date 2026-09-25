@@ -665,21 +665,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         minimumSize: const Size(185, 48),
       ),
-      child: (_isLoading && count == 0)
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label, style: textStyle),
-                const SizedBox(width: 6),
-                ShimmerBox(
-                  width: 20,
-                  height: 14,
-                  borderRadius: BorderRadius.circular(4),
-                  isDark: _isDark,
-                ),
-              ],
-            )
-          : Text('$label ($count)', style: textStyle),
+      child: Text('$label ($count)', style: textStyle),
     );
   }
 
