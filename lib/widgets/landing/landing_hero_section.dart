@@ -603,7 +603,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                 Expanded(
                                   child: _buildKpiCard(
                                     'NUMBER OF HOG BATCH',
-                                    '6',
+                                    '0',
                                     cardBg,
                                     cardBorder,
                                     textDark,
@@ -614,7 +614,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                 Expanded(
                                   child: _buildKpiCard(
                                     'TOTAL CURRENT INVESTMENT',
-                                    '₱33,550',
+                                    '₱0',
                                     cardBg,
                                     cardBorder,
                                     textDark,
@@ -652,7 +652,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                             ),
                                           ),
                                           Text(
-                                            '5 active raisers',
+                                            '0 active raisers',
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 7.5,
                                               color: textMuted,
@@ -661,7 +661,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                         ],
                                       ),
                                       Text(
-                                        'Total: ₱33,550',
+                                        'Total: ₱0',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 8.5,
                                           fontWeight: FontWeight.w700,
@@ -676,7 +676,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                       Expanded(
                                         child: _buildSubAllocationCard(
                                           'FATTENING',
-                                          '₱30,550',
+                                          '₱0',
                                           isDark
                                               ? const Color(0xFF111C2E).withValues(alpha: 0.8)
                                               : const Color(0xFFF1F5F9).withValues(alpha: 0.9),
@@ -689,7 +689,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                                       Expanded(
                                         child: _buildSubAllocationCard(
                                           'SOW',
-                                          '₱3,000',
+                                          '₱0',
                                           isDark
                                               ? const Color(0xFF111C2E).withValues(alpha: 0.8)
                                               : const Color(0xFFF1F5F9).withValues(alpha: 0.9),
@@ -1524,7 +1524,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 6.5,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF0284C7),
+                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F172A),
                 ),
               ),
             ],
@@ -1603,7 +1603,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 8.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF18314F),
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -1806,7 +1806,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 8.5,
                 fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : const Color(0xFF18314F),
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
               ),
             ),
             const SizedBox(width: 4),
@@ -1831,7 +1831,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           'Manage Inventory ->',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 6.5,
-            color: const Color(0xFF0284C7),
+            fontWeight: FontWeight.w700,
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F172A),
           ),
         ),
       ],
@@ -2051,7 +2052,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 8.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF18314F),
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
                   const SizedBox(height: 5),
@@ -2147,7 +2148,8 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
                 'View Breakdown',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 6.5,
-                  color: const Color(0xFF38BDF8),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ],
@@ -2366,7 +2368,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 8,
             fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : const Color(0xFF18314F),
+            color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),
         Text(
@@ -2374,7 +2376,7 @@ class _LandingHeroSectionState extends State<LandingHeroSection> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 6.5,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF0284C7),
+            color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F172A),
           ),
         ),
       ],
