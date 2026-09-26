@@ -272,7 +272,7 @@ class _PwaInstallGuideSheet extends StatelessWidget {
                 tabs: const [
                   Tab(
                     icon: Icon(Icons.apple_rounded, size: 18),
-                    text: 'iPhone / iOS',
+                    text: 'iOS',
                   ),
                   Tab(
                     icon: Icon(Icons.android_rounded, size: 18),

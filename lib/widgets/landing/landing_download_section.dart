@@ -122,7 +122,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
                 child: Text(
-                  'Download the Piggy Trunk Mobile APK directly to your Android device, or scan the QR code. For iPhone & iPad, install instantly via Safari using "Add to Home Screen".',
+                  'Download the Piggy Trunk Mobile APK directly to your Android device, or scan the QR code. For iOS, install instantly via Safari using "Add to Home Screen".',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: isMobile ? 14 : 16,
@@ -248,7 +248,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
           _buildTabButton(
             platformIndex: 1,
             icon: Icons.apple,
-            label: 'iOS Web App',
+            label: 'iOS',
             activeColor: const Color(0xFF3B82F6),
             isDark: isDark,
           ),
@@ -542,7 +542,7 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    isAndroid ? 'Android Installation Guide' : 'iOS (iPhone / iPad) Guide',
+                    isAndroid ? 'Android Installation Guide' : 'iOS Installation Guide',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 19,
                       fontWeight: FontWeight.w800,
@@ -661,8 +661,8 @@ class _LandingDownloadSectionState extends State<LandingDownloadSection> {
               Expanded(
                 child: Text(
                   isAndroid
-                      ? 'Using iPhone or iPad? Switch to iOS guide.'
-                      : 'Using an Android phone? Switch to APK guide.',
+                      ? 'Using iOS? Switch to iOS guide.'
+                      : 'Using Android? Switch to Android guide.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
