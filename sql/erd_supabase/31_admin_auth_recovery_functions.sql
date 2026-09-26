@@ -130,6 +130,7 @@ declare
   cleaned_email text;
   reset_record record;
   target_user_id uuid;
+  user_role text;
 begin
   cleaned_email := lower(trim(target_email));
 
@@ -182,15 +183,137 @@ begin
   where supabase_user_id = target_user_id
      or lower(email) = cleaned_email;
 
-  -- Record security notification in admin_notifications table
+  -- Check user role before recording admin notification
+  select role into user_role
+  from public.app_users
+  where supabase_user_id = target_user_id
+     or lower(email) = cleaned_email
+  limit 1;
+
+  if user_role is null then
+    select lower(coalesce(raw_user_meta_data->>'role', '')) into user_role
+    from auth.users
+    where id = target_user_id;
+  end if;
+
+  -- Record security notification in admin_notifications table ONLY if user is truly an Administrator
+  if lower(coalesce(user_role, '')) in ('admin', 'administrator', 'system administrator') or lower(coalesce(user_role, '')) like '%admin%' then
+    insert into public.admin_notifications (title, message, type, is_read, metadata)
+    values (
+      'Admin Password Reset',
+      'Administrator account (' || cleaned_email || ') successfully verified OTP and updated login password.',
+      'admin_profile',
+      false,
+      jsonb_build_object(
+        'email', cleaned_email,
+        'role', user_role,
+        'updated_at', now()
+      )
+    );
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'message', 'Password updated successfully! You can now log in.'
+  );
+exception
+  when others then
+    return jsonb_build_object('success', false, 'message', SQLERRM);
+end;
+$$;
+
+-- 4. RPC for mobile user password reset verification (Hog Raiser, Cashier, Partner Investor)
+create or replace function public.user_verify_otp_and_reset_password(
+  target_email text,
+  otp_code text,
+  new_password text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+#variable_conflict use_column
+declare
+  cleaned_email text;
+  reset_record record;
+  target_user_id uuid;
+  user_role text;
+  user_fullname text;
+  role_display text;
+begin
+  cleaned_email := lower(trim(target_email));
+
+  -- Check valid unexpired OTP
+  select * into reset_record
+  from public.admin_password_resets apr
+  where lower(apr.email) = cleaned_email
+    and apr.otp_code = trim(user_verify_otp_and_reset_password.otp_code)
+    and apr.used = false
+    and apr.expires_at > now()
+  order by apr.created_at desc
+  limit 1;
+
+  if reset_record is null then
+    return jsonb_build_object('success', false, 'message', 'Invalid or expired verification code. Please request a new code.');
+  end if;
+
+  -- Mark code as used
+  update public.admin_password_resets
+  set used = true
+  where id = reset_record.id;
+
+  -- Locate user in auth.users
+  select id into target_user_id
+  from auth.users
+  where lower(email) = cleaned_email
+  limit 1;
+
+  if target_user_id is null then
+    select supabase_user_id into target_user_id
+    from public.app_users
+    where lower(email) = cleaned_email
+    limit 1;
+  end if;
+
+  if target_user_id is null then
+    return jsonb_build_object('success', false, 'message', 'User account not found.');
+  end if;
+
+  -- Update encrypted password using standard Supabase bcrypt
+  update auth.users
+  set encrypted_password = extensions.crypt(new_password, extensions.gen_salt('bf')),
+      updated_at = now()
+  where id = target_user_id;
+
+  -- Activate user in public.app_users so account is ready
+  update public.app_users
+  set status = 'Active',
+      password_hash = 'managed_by_supabase_auth'
+  where supabase_user_id = target_user_id
+     or lower(email) = cleaned_email;
+
+  -- Fetch user info for quiet history logging without creating false admin security alarms
+  select role, name into user_role, user_fullname
+  from public.app_users
+  where supabase_user_id = target_user_id
+     or lower(email) = cleaned_email
+  limit 1;
+
+  role_display := initcap(replace(coalesce(user_role, 'User'), '_', ' '));
+
+  -- Record as user_registration / history log marked as read (is_read = true)
+  -- so it never rings the Admin 'Active' alarm or falsely labels the user as an Administrator
   insert into public.admin_notifications (title, message, type, is_read, metadata)
   values (
-    'Admin Password Reset',
-    'Administrator account (' || cleaned_email || ') successfully verified OTP and updated login password.',
-    'admin_profile',
-    false,
+    'User Password Reset',
+    role_display || ' (' || coalesce(user_fullname, cleaned_email) || ') reset their password via mobile verification.',
+    'user_registration',
+    true,
     jsonb_build_object(
       'email', cleaned_email,
+      'role', user_role,
+      'name', user_fullname,
       'updated_at', now()
     )
   );
@@ -205,7 +328,7 @@ exception
 end;
 $$;
 
--- 4. RPC to check if an admin account exists and whether it requires first-time password activation
+-- 5. RPC to check if an admin account exists and whether it requires first-time password activation
 create or replace function public.admin_check_account_status(
   email_input text
 )
@@ -267,6 +390,7 @@ $$;
 grant execute on function public.admin_request_password_reset_otp to anon, authenticated, service_role;
 grant execute on function public.user_request_password_reset_otp to anon, authenticated, service_role;
 grant execute on function public.admin_verify_otp_and_reset_password to anon, authenticated, service_role;
+grant execute on function public.user_verify_otp_and_reset_password to anon, authenticated, service_role;
 grant execute on function public.admin_check_account_status to anon, authenticated, service_role;
 
 commit;

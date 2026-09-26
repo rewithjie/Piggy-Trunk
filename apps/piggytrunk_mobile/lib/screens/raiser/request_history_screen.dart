@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/widgets/common/shimmer_loading.dart';
 import '../../utils/app_strings.dart';
 import 'widgets/raiser_empty_state.dart';
 
@@ -212,9 +213,59 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
             // ==================== HISTORY LOGS LIST / EMPTY STATE ====================
             Expanded(
               child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : _brandColor),
+                  ? ShimmerProvider(
+                      child: ListView.builder(
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                        itemCount: 5,
+                        itemBuilder: (context, _) => Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1B2A3F) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              ShimmerBox(
+                                width: 44,
+                                height: 44,
+                                borderRadius: BorderRadius.circular(12),
+                                isDark: isDark,
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ShimmerBox(
+                                      width: 150,
+                                      height: 15,
+                                      borderRadius: BorderRadius.circular(4),
+                                      isDark: isDark,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    ShimmerBox(
+                                      width: 100,
+                                      height: 12,
+                                      borderRadius: BorderRadius.circular(4),
+                                      isDark: isDark,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ShimmerBox(
+                                width: 70,
+                                height: 24,
+                                borderRadius: BorderRadius.circular(12),
+                                isDark: isDark,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     )
                   : filtered.isEmpty

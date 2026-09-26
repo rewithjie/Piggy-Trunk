@@ -65,14 +65,19 @@ class _LoginScreenState extends State<LoginScreen> {
     return emailRegex.hasMatch(cleaned);
   }
 
+  bool _roleInitialized = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is String && args.isNotEmpty) {
-      _targetRole = args;
-    } else if (args is Map && args['role'] != null) {
-      _targetRole = args['role'].toString();
+    if (!_roleInitialized) {
+      _roleInitialized = true;
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String && args.isNotEmpty) {
+        _targetRole = args;
+      } else if (args is Map && args['role'] != null) {
+        _targetRole = args['role'].toString();
+      }
     }
   }
 
@@ -756,20 +761,49 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           if (roleLabel.isNotEmpty && roleIcon != null) ...[
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF18314F).withValues(alpha: 0.08),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(0xFF18314F).withValues(alpha: 0.2),
-                                  width: 1.2,
+                            InkWell(
+                              onTap: () async {
+                                final chosen = await RoleSelectionModal.show(context, userName: 'User');
+                                if (chosen != null && mounted) {
+                                  setState(() => _targetRole = chosen);
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF18314F).withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: const Color(0xFF18314F).withValues(alpha: 0.2),
+                                    width: 1.2,
+                                  ),
                                 ),
-                              ),
-                              child: Icon(
-                                roleIcon,
-                                size: 20,
-                                color: const Color(0xFF18314F),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      roleIcon,
+                                      size: 16,
+                                      color: const Color(0xFF18314F),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      roleLabel,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.0,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF18314F),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.swap_horiz_rounded,
+                                      size: 15,
+                                      color: Color(0xFF6F8096),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -868,48 +902,77 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 3),
 
                               // Username Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(12.0),
-                                  border: Border.all(
-                                    color: _identifierError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFE2E8F0),
-                                    width: 1.2,
-                                  ),
+                              TextField(
+                                controller: _usernameController,
+                                cursorColor: const Color(0xFF18314F),
+                                keyboardType: TextInputType.emailAddress,
+                                textCapitalization: TextCapitalization.none,
+                                textInputAction: TextInputAction.next,
+                                onChanged: (_) => _clearErrors(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  color: const Color(0xFF18314F),
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                child: TextField(
-                                  controller: _usernameController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  keyboardType: TextInputType.emailAddress,
-                                  textCapitalization: TextCapitalization.none,
-                                  textInputAction: TextInputAction.next,
-                                  onChanged: (_) => _clearErrors(),
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    color: const Color(0xFF18314F),
-                                    fontWeight: FontWeight.w600,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: inputPaddingV,
+                                    horizontal: 14,
                                   ),
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    hintText: 'Enter username or email',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _identifierError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1.2,
                                     ),
-                                    prefixIcon: const Icon(
-                                      Icons.person_outline_rounded,
-                                      color: Color(0xFF18314F),
-                                      size: 20,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _identifierError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1.2,
                                     ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: inputPaddingV,
-                                      horizontal: 14,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _identifierError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
                                     ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'Enter username or email',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.person_outline_rounded,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
                                   ),
                                 ),
                               ),
@@ -928,63 +991,92 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 3),
 
                               // Password Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(12.0),
-                                  border: Border.all(
-                                    color: _passwordError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFE2E8F0),
-                                    width: 1.2,
-                                  ),
+                              TextField(
+                                controller: _passwordController,
+                                cursorColor: const Color(0xFF18314F),
+                                obscureText: _obscurePassword,
+                                textCapitalization: TextCapitalization.none,
+                                textInputAction: TextInputAction.done,
+                                onChanged: (_) => _clearErrors(),
+                                onSubmitted: (_) => _handlePasswordSignIn(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  color: const Color(0xFF18314F),
+                                  fontWeight: FontWeight.w600,
                                 ),
-                                child: TextField(
-                                  controller: _passwordController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  obscureText: _obscurePassword,
-                                  textCapitalization: TextCapitalization.none,
-                                  textInputAction: TextInputAction.done,
-                                  onChanged: (_) => _clearErrors(),
-                                  onSubmitted: (_) => _handlePasswordSignIn(),
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    color: const Color(0xFF18314F),
-                                    fontWeight: FontWeight.w600,
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: inputPaddingV,
+                                    horizontal: 14,
                                   ),
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    hintText: 'Enter password',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1.2,
                                     ),
-                                    prefixIcon: const Icon(
-                                      Icons.lock_outline_rounded,
-                                      color: Color(0xFF18314F),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'Enter password',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: const Color(0xFF64748B),
                                       size: 20,
                                     ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off_outlined
-                                            : Icons.visibility_outlined,
-                                        color: const Color(0xFF64748B),
-                                        size: 20,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: inputPaddingV,
-                                      horizontal: 14,
-                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
                                   ),
                                 ),
                               ),

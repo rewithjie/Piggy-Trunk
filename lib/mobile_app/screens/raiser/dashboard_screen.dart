@@ -15,6 +15,7 @@ import 'tabs/raiser_home_tab.dart';
 import 'tabs/raiser_request_tab.dart';
 import 'tabs/raiser_hogs_tab.dart';
 import 'tabs/raiser_profile_tab.dart';
+import 'widgets/raiser_dashboard_skeleton.dart';
 
 class MobileDashboardScreen extends StatefulWidget {
   const MobileDashboardScreen({super.key});
@@ -1321,9 +1322,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           return Scaffold(
             backgroundColor: scaffoldBg,
             body: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(navSelectedColor),
+                ? SafeArea(
+                    child: RaiserDashboardSkeleton(
+                      currentIndex: _currentIndex,
                     ),
                   )
                 : SafeArea(

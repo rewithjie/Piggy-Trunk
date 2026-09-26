@@ -136,26 +136,31 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
         debugPrint('RPC error: $rpcErr');
       }
 
-      // Fallback check if RPC function not found or failed
-      if (!registeredInDb) {
-        try {
-          final existingUser = await Supabase.instance.client
-              .from('app_users')
-              .select('user_id, email')
-              .eq('email', email)
-              .maybeSingle();
+      // Fallback check if RPC function not found or failed, and retrieve user's name & role
+      String? matchedUserName;
+      String? matchedUserRole;
+      try {
+        final existingUser = await Supabase.instance.client
+            .from('app_users')
+            .select('user_id, email, name, role')
+            .eq('email', email)
+            .maybeSingle();
 
-          if (existingUser == null) {
-            if (mounted) {
-              setState(() {
-                _errorMessage =
-                    'No registered account found with email "$email". Please check your spelling or sign in with your credentials.';
-                _isLoading = false;
-              });
-            }
-            return;
+        if (existingUser != null) {
+          matchedUserName = existingUser['name']?.toString();
+          matchedUserRole = existingUser['role']?.toString();
+        } else if (!registeredInDb) {
+          if (mounted) {
+            setState(() {
+              _errorMessage =
+                  'No registered account found with email "$email". Please check your spelling or sign in with your credentials.';
+              _isLoading = false;
+            });
           }
+          return;
+        }
 
+        if (!registeredInDb) {
           await Supabase.instance.client.from('admin_password_resets').insert({
             'email': email,
             'otp_code': generatedOtp,
@@ -163,14 +168,14 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
             'used': false,
           });
           registeredInDb = true;
-        } catch (dbErr) {
-          debugPrint('Fallback check error: $dbErr');
-          if (mounted) {
-            setState(() {
-              _errorMessage = 'Account verification failed: $dbErr';
-              _isLoading = false;
-            });
-          }
+        }
+      } catch (dbErr) {
+        debugPrint('User profile check notice: $dbErr');
+        if (!registeredInDb && mounted) {
+          setState(() {
+            _errorMessage = 'Account verification failed: $dbErr';
+            _isLoading = false;
+          });
           return;
         }
       }
@@ -179,6 +184,9 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
       final emailSent = await EmailService().sendPasswordResetOtpEmail(
         recipientEmail: email,
         otpCode: generatedOtp,
+        recipientName: matchedUserName,
+        userRole: matchedUserRole,
+        isAdmin: false,
       );
 
       if (!emailSent) {
@@ -258,16 +266,30 @@ class _ForgotPasswordModalState extends State<ForgotPasswordModal> {
       bool resetSuccess = false;
       String? failMsg;
 
-      // 1. Try RPC reset
+      // 1. Try RPC reset (prefer user-specific RPC to avoid misleading admin notifications)
       try {
-        final dynamic rpcRes = await Supabase.instance.client.rpc(
-          'admin_verify_otp_and_reset_password',
-          params: {
-            'target_email': _targetEmail,
-            'otp_code': enteredOtp,
-            'new_password': newPass,
-          },
-        );
+        dynamic rpcRes;
+        try {
+          rpcRes = await Supabase.instance.client.rpc(
+            'user_verify_otp_and_reset_password',
+            params: {
+              'target_email': _targetEmail,
+              'otp_code': enteredOtp,
+              'new_password': newPass,
+            },
+          );
+        } catch (_) {
+          // Fallback to legacy RPC if user RPC is not yet executed in Supabase DB
+          rpcRes = await Supabase.instance.client.rpc(
+            'admin_verify_otp_and_reset_password',
+            params: {
+              'target_email': _targetEmail,
+              'otp_code': enteredOtp,
+              'new_password': newPass,
+            },
+          );
+        }
+
         if (rpcRes != null && (rpcRes['success'] == true || rpcRes['success'] == 'true')) {
           resetSuccess = true;
         } else if (rpcRes != null && rpcRes['message'] != null) {

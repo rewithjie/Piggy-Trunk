@@ -271,6 +271,19 @@ class AppStrings {
   String get lightMode => isFilipino ? 'Light Mode' : 'Light Mode';
   String get darkMode => isFilipino ? 'Dark Mode' : 'Dark Mode';
 
+  // ================= Password & Security =================
+  String get passwordAndSecurity => isFilipino ? 'Seguridad at Password' : 'Password & Security';
+  String get updatePasswordSubtitle => isFilipino ? 'I-update o palitan ang password ng iyong account' : 'Update your account password';
+  String get changePassword => isFilipino ? 'Palitan ang Password' : 'Change Password';
+  String get currentPasswordLabel => isFilipino ? 'Kasalukuyang Password' : 'Current Password';
+  String get newPasswordLabel => isFilipino ? 'Bagong Password' : 'New Password';
+  String get confirmNewPasswordLabel => isFilipino ? 'Kumpirmahin ang Bagong Password' : 'Confirm New Password';
+  String get updatePasswordBtn => isFilipino ? 'I-update ang Password' : 'Update Password';
+  String get passwordTooShort => isFilipino ? 'Dapat hindi bababa sa 6 na karakter ang bagong password.' : 'New password must be at least 6 characters.';
+  String get passwordsDoNotMatch => isFilipino ? 'Hindi magkatugma ang bagong password.' : 'New passwords do not match.';
+  String get passwordChangedSuccess => isFilipino ? 'Matagumpay na napalitan ang iyong password!' : 'Password changed successfully!';
+  String get googleAccountNotice => isFilipino ? 'Naka-link ang account mo gamit ang Google. Maaari kang mag-set ng password dito.' : 'Your account is linked with Google. You can set a password here to sign in with email and password as well.';
+
   // ================= Formatting Helpers =================
   String formatStatus(String status) {
     final s = status.toLowerCase().trim();

@@ -31,6 +31,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   String _selectedRole = 'hog_raiser'; // 'hog_raiser', 'partner', or 'cashier'
+  bool _roleInitialized = false;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
@@ -47,13 +48,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final arg = ModalRoute.of(context)?.settings.arguments as String?;
-    if (arg != null && (arg == 'partner' || arg == 'investor')) {
-      _selectedRole = 'partner';
-    } else if (arg != null && arg == 'cashier') {
-      _selectedRole = 'cashier';
-    } else {
-      _selectedRole = 'hog_raiser';
+    if (!_roleInitialized) {
+      _roleInitialized = true;
+      final arg = ModalRoute.of(context)?.settings.arguments as String?;
+      if (arg != null && (arg == 'partner' || arg == 'investor')) {
+        _selectedRole = 'partner';
+      } else if (arg != null && arg == 'cashier') {
+        _selectedRole = 'cashier';
+      } else if (arg != null && (arg == 'hog_raiser' || arg == 'raiser')) {
+        _selectedRole = 'hog_raiser';
+      }
     }
   }
 
@@ -815,51 +819,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               const SizedBox(height: 2),
 
                               // Full Name Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: _fullNameError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _fullNameError != null ? 1.4 : 1.2,
-                                  ),
+                              TextField(
+                                controller: _fullNameController,
+                                cursorColor: const Color(0xFF18314F),
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: const [CapitalizeWordsInputFormatter()],
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF18314F),
                                 ),
-                                child: TextField(
-                                  controller: _fullNameController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  textCapitalization: TextCapitalization.words,
-                                  inputFormatters: const [CapitalizeWordsInputFormatter()],
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF18314F),
+                                onChanged: (_) {
+                                  if (_fullNameError != null) {
+                                    setState(() => _fullNameError = null);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: inputPaddingV,
                                   ),
-                                  onChanged: (_) {
-                                    if (_fullNameError != null) {
-                                      setState(() => _fullNameError = null);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: inputPaddingV,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _fullNameError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _fullNameError != null ? 1.4 : 1.2,
                                     ),
-                                    border: InputBorder.none,
-                                    hintText: 'e.g. Juan Dela Cruz',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _fullNameError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _fullNameError != null ? 1.4 : 1.2,
                                     ),
-                                    prefixIcon: const Icon(
-                                      Icons.person_outline_rounded,
-                                      color: Color(0xFF18314F),
-                                      size: 20,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _fullNameError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
                                     ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'e.g. Juan Dela Cruz',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.person_outline_rounded,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
                                   ),
                                 ),
                               ),
@@ -878,51 +911,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               const SizedBox(height: 2),
 
                               // Email Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: _emailError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _emailError != null ? 1.4 : 1.2,
-                                  ),
+                              TextField(
+                                controller: _emailController,
+                                cursorColor: const Color(0xFF18314F),
+                                keyboardType: TextInputType.emailAddress,
+                                textCapitalization: TextCapitalization.none,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF18314F),
                                 ),
-                                child: TextField(
-                                  controller: _emailController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  keyboardType: TextInputType.emailAddress,
-                                  textCapitalization: TextCapitalization.none,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF18314F),
+                                onChanged: (_) {
+                                  if (_emailError != null) {
+                                    setState(() => _emailError = null);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: inputPaddingV,
                                   ),
-                                  onChanged: (_) {
-                                    if (_emailError != null) {
-                                      setState(() => _emailError = null);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: inputPaddingV,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _emailError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _emailError != null ? 1.4 : 1.2,
                                     ),
-                                    border: InputBorder.none,
-                                    hintText: 'e.g. juan@gmail.com',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
-                                      color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _emailError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _emailError != null ? 1.4 : 1.2,
                                     ),
-                                    prefixIcon: const Icon(
-                                      Icons.email_outlined,
-                                      color: Color(0xFF18314F),
-                                      size: 20,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _emailError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
                                     ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'e.g. juan@gmail.com',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.email_outlined,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
                                   ),
                                 ),
                               ),
@@ -941,65 +1003,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               const SizedBox(height: 2),
 
                               // Password Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: _passwordError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _passwordError != null ? 1.4 : 1.2,
-                                  ),
+                              TextField(
+                                controller: _passwordController,
+                                cursorColor: const Color(0xFF18314F),
+                                obscureText: _obscurePassword,
+                                textCapitalization: TextCapitalization.none,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF18314F),
                                 ),
-                                child: TextField(
-                                  controller: _passwordController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  obscureText: _obscurePassword,
-                                  textCapitalization: TextCapitalization.none,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF18314F),
+                                onChanged: (_) {
+                                  if (_passwordError != null) {
+                                    setState(() => _passwordError = null);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: inputPaddingV,
                                   ),
-                                  onChanged: (_) {
-                                    if (_passwordError != null) {
-                                      setState(() => _passwordError = null);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: inputPaddingV,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _passwordError != null ? 1.4 : 1.2,
                                     ),
-                                    border: InputBorder.none,
-                                    hintText: 'At least 6 characters',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _passwordError != null ? 1.4 : 1.2,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _passwordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'At least 6 characters',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
                                       color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    prefixIcon: const Icon(
-                                      Icons.lock_outline_rounded,
-                                      color: Color(0xFF18314F),
                                       size: 20,
                                     ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
-                                        color: const Color(0xFF64748B),
-                                        size: 20,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
                                   ),
                                 ),
                               ),
@@ -1018,65 +1109,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               const SizedBox(height: 2),
 
                               // Confirm Password Input Field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: _confirmPasswordError != null
-                                        ? const Color(0xFFE53935)
-                                        : const Color(0xFFCBD5E1),
-                                    width: _confirmPasswordError != null ? 1.4 : 1.2,
-                                  ),
+                              TextField(
+                                controller: _confirmPasswordController,
+                                cursorColor: const Color(0xFF18314F),
+                                obscureText: _obscureConfirmPassword,
+                                textCapitalization: TextCapitalization.none,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: inputFontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF18314F),
                                 ),
-                                child: TextField(
-                                  controller: _confirmPasswordController,
-                                  cursorColor: const Color(0xFF18314F),
-                                  obscureText: _obscureConfirmPassword,
-                                  textCapitalization: TextCapitalization.none,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF18314F),
+                                onChanged: (_) {
+                                  if (_confirmPasswordError != null) {
+                                    setState(() => _confirmPasswordError = null);
+                                  }
+                                },
+                                decoration: InputDecoration(
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: inputPaddingV,
                                   ),
-                                  onChanged: (_) {
-                                    if (_confirmPasswordError != null) {
-                                      setState(() => _confirmPasswordError = null);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    filled: false,
-                                    fillColor: Colors.transparent,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: inputPaddingV,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _confirmPasswordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _confirmPasswordError != null ? 1.4 : 1.2,
                                     ),
-                                    border: InputBorder.none,
-                                    hintText: 'Re-enter your password',
-                                    hintStyle: GoogleFonts.plusJakartaSans(
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _confirmPasswordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFFCBD5E1),
+                                      width: _confirmPasswordError != null ? 1.4 : 1.2,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: BorderSide(
+                                      color: _confirmPasswordError != null
+                                          ? const Color(0xFFE53935)
+                                          : const Color(0xFF18314F),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.4,
+                                    ),
+                                  ),
+                                  focusedErrorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFE53935),
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  hintText: 'Re-enter your password',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: const Color(0xFF64748B),
+                                    fontSize: inputFontSize,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: Color(0xFF18314F),
+                                    size: 20,
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscureConfirmPassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
                                       color: const Color(0xFF64748B),
-                                      fontSize: inputFontSize,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    prefixIcon: const Icon(
-                                      Icons.lock_outline_rounded,
-                                      color: Color(0xFF18314F),
                                       size: 20,
                                     ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscureConfirmPassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
-                                        color: const Color(0xFF64748B),
-                                        size: 20,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                                        });
-                                      },
-                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                                      });
+                                    },
                                   ),
                                 ),
                               ),

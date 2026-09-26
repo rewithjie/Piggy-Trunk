@@ -15,6 +15,7 @@ import 'tabs/cashier_pos_tab.dart';
 import 'tabs/cashier_profile_tab.dart';
 import 'widgets/stock_requests_modal.dart';
 import 'widgets/cashier_empty_state.dart';
+import 'widgets/cashier_dashboard_skeleton.dart';
 import '../../services/auth_session_service.dart';
 import '../../utils/capitalization_formatters.dart';
 import '../../utils/app_strings.dart';
@@ -1512,10 +1513,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
         body: SafeArea(
           bottom: false,
           child: _isLoading
-              ? Center(
-                  child: CircularProgressIndicator(
-                    color: isDark ? Colors.white : _brandColor,
-                  ),
+              ? CashierDashboardSkeleton(
+                  currentIndex: _currentIndex,
                 )
               : IndexedStack(
                   index: _currentIndex,

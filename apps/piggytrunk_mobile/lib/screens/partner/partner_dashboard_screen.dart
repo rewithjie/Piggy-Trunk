@@ -10,6 +10,7 @@ import 'tabs/partner_home_tab.dart';
 import 'tabs/partner_projects_tab.dart';
 import 'tabs/partner_activities_tab.dart';
 import 'tabs/partner_profile_tab.dart';
+import 'widgets/partner_dashboard_skeleton.dart';
 import '../../services/auth_session_service.dart';
 import '../../utils/capitalization_formatters.dart';
 import '../../utils/app_strings.dart';
@@ -1204,12 +1205,10 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         activitiesList: _activitiesList,
         onRefresh: _fetchPartnerData,
         onNavigateToBatches: () => setState(() => _currentIndex = 1),
+        hasActiveProject: _projectsList.isNotEmpty,
         currentStage: (_projectsList.isNotEmpty
                 ? (_projectsList.first['stage'] ?? _projectsList.first['lifecycle_stage'])
-                : (_availableBatches.isNotEmpty
-                    ? (_availableBatches.first['stage'] ?? _availableBatches.first['lifecycle_stage'])
-                    : null) ??
-            'Booster').toString(),
+                : 'Booster').toString(),
         raiserName: _projectsList.isNotEmpty
             ? (_projectsList.first['assigned_raiser'] ?? _projectsList.first['raiser_name'])?.toString()
             : null,
@@ -1265,10 +1264,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         backgroundColor: scaffoldBg,
         body: SafeArea(
           child: _isLoading
-            ? Center(
-                child: CircularProgressIndicator(
-                  color: isDark ? Colors.white : const Color(0xFF18314F),
-                ),
+            ? PartnerDashboardSkeleton(
+                currentIndex: _currentIndex,
               )
             : IndexedStack(
                 index: _currentIndex,

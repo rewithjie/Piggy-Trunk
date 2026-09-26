@@ -11,6 +11,7 @@ class PartnerActivitiesTab extends StatefulWidget {
   final String currentStage; // Booster, Pre-Starter, Starter, Grower, Finisher
   final String? raiserName;
   final int totalHogs;
+  final bool hasActiveProject;
 
   const PartnerActivitiesTab({
     super.key,
@@ -20,6 +21,7 @@ class PartnerActivitiesTab extends StatefulWidget {
     this.currentStage = 'Grower',
     this.raiserName,
     this.totalHogs = 0,
+    this.hasActiveProject = false,
   });
 
   @override
@@ -199,7 +201,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   SizedBox(width: fit.dp(8)),
                   _buildFilterChip(
                     fit: fit,
-                    label: strings.isFilipino ? 'Pagkain at Timbang' : 'Feeds & Weight',
+                    label: strings.isFilipino ? 'Pagkain' : 'Feeding',
                     value: 'Feeding',
                     isDark: isDark,
                     icon: Icons.monitor_weight_outlined,
@@ -592,6 +594,67 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     required Color primaryText,
     required Color mutedText,
   }) {
+    if (!widget.hasActiveProject) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(fit.dp(16)),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(fit.dp(20)),
+          border: Border.all(color: cardBorder, width: 1.1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: fit.dp(42),
+              height: fit.dp(42),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.timeline_rounded,
+                size: fit.dp(20),
+                color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+              ),
+            ),
+            SizedBox(width: fit.dp(12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hog Lifecycle Tracking',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: fit.sp(13.5),
+                      fontWeight: FontWeight.w800,
+                      color: primaryText,
+                    ),
+                  ),
+                  SizedBox(height: fit.dp(2)),
+                  Text(
+                    'Fund an active batch to track your hogs across all 5 growth stages (Booster to Finisher).',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: fit.sp(11.5),
+                      color: mutedText,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final int currentStageIdx = _getStageIndex(widget.currentStage);
     final String currentStageName = _stages[currentStageIdx];
     final String raiser = widget.raiserName?.trim() ?? '';

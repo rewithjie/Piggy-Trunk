@@ -144,10 +144,41 @@ class EmailService {
     required String recipientEmail,
     required String otpCode,
     String? recipientName,
+    String? userRole,
+    bool isAdmin = false,
   }) async {
-    final nameDisplay = (recipientName != null && recipientName.trim().isNotEmpty)
-        ? recipientName.trim()
-        : 'Administrator';
+    final String nameDisplay;
+    if (recipientName != null && recipientName.trim().isNotEmpty && recipientName.trim() != 'N/A') {
+      nameDisplay = recipientName.trim();
+    } else if (isAdmin) {
+      nameDisplay = 'Administrator';
+    } else if (userRole != null && userRole.trim().isNotEmpty && userRole.trim() != 'N/A') {
+      nameDisplay = userRole.trim();
+    } else {
+      nameDisplay = 'Piggy Trunk User';
+    }
+
+    final String accountTypeDisplay;
+    if (isAdmin) {
+      accountTypeDisplay = 'Piggy Trunk admin account';
+    } else if (userRole != null && userRole.trim().isNotEmpty && userRole.trim() != 'N/A') {
+      final roleLower = userRole.trim().toLowerCase();
+      if (roleLower.contains('raiser')) {
+        accountTypeDisplay = 'Piggy Trunk Hog Raiser account';
+      } else if (roleLower.contains('partner') || roleLower.contains('investor')) {
+        accountTypeDisplay = 'Piggy Trunk Partner Investor account';
+      } else if (roleLower.contains('cashier')) {
+        accountTypeDisplay = 'Piggy Trunk Cashier account';
+      } else {
+        accountTypeDisplay = 'Piggy Trunk $userRole account';
+      }
+    } else {
+      accountTypeDisplay = 'Piggy Trunk account';
+    }
+
+    final String destinationDisplay = isAdmin
+        ? 'Piggy Trunk Admin Web reset password dialog'
+        : 'Piggy Trunk mobile app reset password screen';
 
     final htmlContent = '''
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background-color: #ffffff; box-shadow: 0 6px 24px rgba(24, 49, 79, 0.08);">
@@ -157,7 +188,7 @@ class EmailService {
       <div style="padding: 30px 28px; color: #334155; line-height: 1.65;">
         <h2 style="color: #18314F; margin-top: 0; font-size: 20px; font-weight: 700;">Password Reset Request</h2>
         <p style="font-size: 15px; margin: 8px 0 16px 0;">Hello <strong>$nameDisplay</strong>,</p>
-        <p style="font-size: 15px; margin-bottom: 20px;">We received a request to reset your Piggy Trunk admin account password. Use the 6-digit verification code below to complete your password reset:</p>
+        <p style="font-size: 15px; margin-bottom: 20px;">We received a request to reset your $accountTypeDisplay password. Use the 6-digit verification code below to complete your password reset:</p>
         
         <div style="text-align: center; margin: 26px 0;">
           <div style="display: inline-block; background-color: #F1F5F9; border: 2px dashed #18314F; padding: 16px 36px; border-radius: 12px; letter-spacing: 8px; font-size: 32px; font-weight: 800; color: #18314F; font-family: monospace;">
@@ -166,7 +197,7 @@ class EmailService {
           <p style="font-size: 12.5px; color: #64748B; margin-top: 10px;">This code is valid for <strong>10 minutes</strong>.</p>
         </div>
 
-        <p style="font-size: 13.5px; color: #64748B;">Enter this verification code in the Piggy Trunk Admin Web reset password dialog to choose a new password.</p>
+        <p style="font-size: 13.5px; color: #64748B;">Enter this verification code in the $destinationDisplay to choose a new password.</p>
         <p style="font-size: 13px; color: #94A3B8; margin-top: 20px;">If you did not request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 26px 0;" />
         <p style="font-size: 12px; color: #94A3B8; text-align: center; margin: 0;">Piggy Trunk Security Team &bull; Do not share this code with anyone</p>

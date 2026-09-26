@@ -760,6 +760,11 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
             ? 'Cashier'
             : (roleRaw.toLowerCase().contains('raiser') ? 'Hog Raiser' : roleRaw));
     final status = row['status']?.toString().toUpperCase() ?? 'ACTIVE';
+    final Color statusColor = (status == 'ACTIVE' || status == 'APPROVED')
+        ? PiggyTrunkTheme.ptSuccess
+        : (status == 'PENDING'
+            ? const Color(0xFFFFAA00)
+            : const Color(0xFFFF758C));
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -810,11 +815,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: status == 'ACTIVE' 
-                        ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15) 
-                        : (status == 'SUSPENDED' 
-                            ? const Color(0xFFFF758C).withValues(alpha: 0.15)
-                            : PiggyTrunkTheme.ptAccent.withValues(alpha: 0.15)),
+                    color: statusColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -822,9 +823,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: status == 'ACTIVE' 
-                          ? PiggyTrunkTheme.ptSuccess 
-                          : (status == 'SUSPENDED' ? const Color(0xFFFF758C) : PiggyTrunkTheme.ptAccent),
+                      color: statusColor,
                     ),
                   ),
                 ),

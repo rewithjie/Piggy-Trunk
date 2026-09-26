@@ -4,6 +4,7 @@ import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../services/locale_provider.dart';
 import '../../../utils/app_strings.dart';
 import '../../../utils/screen_fit_util.dart';
+import '../../../widgets/change_password_modal.dart';
 
 class PartnerProfileTab extends StatelessWidget {
   final String partnerName;
@@ -461,6 +462,107 @@ class PartnerProfileTab extends StatelessWidget {
               ],
             ),
           ),
+          SizedBox(height: fit.dp(12.0)),
+
+          // ---- Security / Change Password Card ----
+          Container(
+            padding: EdgeInsets.all(fit.dp(18.0)),
+            decoration: BoxDecoration(
+              color: cardBgColor,
+              borderRadius: BorderRadius.circular(fit.dp(20.0)),
+              border: Border.all(color: cardBorderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                  blurRadius: fit.dp(10.0),
+                  offset: Offset(0, fit.dp(4.0)),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(fit.dp(8.0)),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(fit.dp(10.0)),
+                      ),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: isDark ? Colors.white : _brandColor,
+                        size: fit.dp(20.0),
+                      ),
+                    ),
+                    SizedBox(width: fit.dp(12.0)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.passwordAndSecurity,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: fit.sp(14.0),
+                              fontWeight: FontWeight.w700,
+                              color: labelColor,
+                            ),
+                          ),
+                          SizedBox(height: fit.dp(2.0)),
+                          Text(
+                            strings.updatePasswordSubtitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: fit.sp(11.5),
+                              fontWeight: FontWeight.w500,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: fit.dp(16.0)),
+                SizedBox(
+                  width: double.infinity,
+                  height: fit.dp(48.0),
+                  child: OutlinedButton(
+                    onPressed: () => ChangePasswordModal.show(context),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(fit.dp(12.0)),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lock_reset_rounded,
+                          color: isDark ? Colors.white : _brandColor,
+                          size: fit.dp(19.0),
+                        ),
+                        SizedBox(width: fit.dp(8.0)),
+                        Text(
+                          strings.changePassword,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : _brandColor,
+                            fontSize: fit.sp(13.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           SizedBox(height: fit.dp(32.0)),
 
           // ==================== 5. SIGN OUT BUTTON ====================
@@ -470,7 +572,11 @@ class PartnerProfileTab extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onLogout,
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: isDark ? Colors.white70 : _brandColor, width: 1.5),
+                backgroundColor: isDark ? const Color(0xFF151F2E) : Colors.transparent,
+                side: BorderSide(
+                  color: isDark ? const Color(0xFF28354A) : _brandColor,
+                  width: 1.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(fit.dp(14)),
                 ),

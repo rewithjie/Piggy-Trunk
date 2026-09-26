@@ -1384,11 +1384,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                               dialogError = null;
                             });
 
+                            String? adminName;
                             // 0. Verify that the account exists and has Administrator role
                             try {
                               final userRecord = await Supabase.instance.client
                                   .from('app_users')
-                                  .select('user_id, email, role')
+                                  .select('user_id, email, name, role')
                                   .eq('email', email)
                                   .maybeSingle();
 
@@ -1400,6 +1401,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                                 return;
                               }
 
+                              adminName = userRecord['name']?.toString();
                               final role = (userRecord['role'] ?? '').toString().toLowerCase();
                               final isAdmin = role == 'admin' ||
                                               role == 'system administrator' ||
@@ -1473,6 +1475,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
                               final emailSent = await EmailService().sendPasswordResetOtpEmail(
                                 recipientEmail: email,
                                 otpCode: generatedOtp,
+                                recipientName: adminName,
+                                userRole: 'Administrator',
+                                isAdmin: true,
                               );
 
                               if (!emailSent) {

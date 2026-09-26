@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../services/locale_provider.dart';
 import '../../../utils/app_strings.dart';
+import '../../../widgets/change_password_modal.dart';
 
 class CashierProfileTab extends StatelessWidget {
   final String cashierName;
@@ -458,6 +459,107 @@ class CashierProfileTab extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+
+          // ---- Security / Change Password Card ----
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: isDark ? Colors.white : _brandColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.passwordAndSecurity,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: labelColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            strings.updatePasswordSubtitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () => ChangePasswordModal.show(context),
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.lock_reset_rounded,
+                          color: isDark ? Colors.white : _brandColor,
+                          size: 19,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          strings.changePassword,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : _brandColor,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 32),
 
           // ==================== LOGOUT BUTTON ====================
@@ -467,7 +569,11 @@ class CashierProfileTab extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onHandleLogout,
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: isDark ? const Color(0xFFEF4444).withValues(alpha: 0.6) : _brandColor, width: 1.5),
+                backgroundColor: isDark ? const Color(0xFF151F2E) : Colors.transparent,
+                side: BorderSide(
+                  color: isDark ? const Color(0xFF28354A) : _brandColor,
+                  width: 1.5,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -479,12 +585,16 @@ class CashierProfileTab extends StatelessWidget {
                     strings.signOut,
                     style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFFFCA5A5) : _brandColor,
+                      color: isDark ? Colors.white : _brandColor,
                       fontSize: 15,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Icon(Icons.logout_rounded, color: isDark ? const Color(0xFFFCA5A5) : _brandColor, size: 20),
+                  Icon(
+                    Icons.logout_rounded,
+                    color: isDark ? Colors.white : _brandColor,
+                    size: 20,
+                  ),
                 ],
               ),
             ),
