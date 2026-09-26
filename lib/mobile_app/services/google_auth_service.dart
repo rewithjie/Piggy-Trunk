@@ -38,9 +38,13 @@ class GoogleAuthService {
       if (googleUser == null) {
         // Try Supabase OAuth fallback if native GoogleSignIn fails or is unconfigured
         try {
+          final String redirectUrl = kIsWeb
+              ? '${Uri.base.origin}/'
+              : 'io.supabase.piggytrunk://login-callback';
+
           final bool oAuthStarted = await _supabase.auth.signInWithOAuth(
             OAuthProvider.google,
-            redirectTo: kIsWeb ? null : 'io.supabase.piggytrunk://login-callback',
+            redirectTo: redirectUrl,
           );
           if (oAuthStarted) {
             final user = _supabase.auth.currentUser;
@@ -100,6 +104,28 @@ class GoogleAuthService {
         'message': 'Google Sign-In error: ${e.toString()}',
       };
     }
+  }
+
+  /// Process an existing active Supabase session (e.g. after OAuth redirect on Web/PWA)
+  Future<Map<String, dynamic>?> handleIncomingOAuthSession({String? targetRole}) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user != null && user.email != null && user.email!.isNotEmpty) {
+        final String email = user.email!;
+        final String fullName = user.userMetadata?['full_name'] ??
+            user.userMetadata?['name'] ??
+            email.split('@').first;
+        return await _processGoogleUser(
+          email: email,
+          targetRole: targetRole,
+          fullName: fullName,
+          isSignUpMode: false,
+        );
+      }
+    } catch (e) {
+      debugPrint('handleIncomingOAuthSession error: $e');
+    }
+    return null;
   }
 
   String _toUuid(String str) {

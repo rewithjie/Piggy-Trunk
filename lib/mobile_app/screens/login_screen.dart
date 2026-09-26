@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +10,7 @@ import '../utils/screen_fit_util.dart';
 import '../widgets/piggy_toast.dart';
 import '../widgets/role_selection_modal.dart';
 import '../widgets/forgot_password_modal.dart';
+import '../widgets/install_pwa_banner.dart';
 
 const String googleLogoSvg = '''
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -38,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   String? _identifierError;
   String? _passwordError;
+  StreamSubscription<AuthState>? _authSubscription;
 
   final GoogleAuthService _googleAuthService = GoogleAuthService();
 
@@ -47,6 +50,28 @@ class _LoginScreenState extends State<LoginScreen> {
     _usernameController.addListener(() {
       if (mounted) setState(() {});
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkRedirectOAuthSession();
+    });
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedIn && mounted) {
+        _checkRedirectOAuthSession();
+      }
+    });
+  }
+
+  Future<void> _checkRedirectOAuthSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null && session.user.email != null) {
+      if (_isGoogleLoading) return;
+      setState(() => _isGoogleLoading = true);
+      final result = await _googleAuthService.handleIncomingOAuthSession(targetRole: _targetRole);
+      if (result != null && mounted) {
+        await _processGoogleAuthResult(result);
+      } else {
+        if (mounted) setState(() => _isGoogleLoading = false);
+      }
+    }
   }
 
   bool _isDefaultSystemEmail(String text) {
@@ -78,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -258,84 +284,80 @@ class _LoginScreenState extends State<LoginScreen> {
         isSignUpMode: false,
       );
 
-      if (result['success'] == true) {
-        final bool isNewUser = result['is_new_user'] == true;
-        final String? googleEmail = result['email'];
-        final String googleName = result['name'] ?? 'User';
+      await _processGoogleAuthResult(result);
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Google Sign-In error: ${e.toString()}';
+      });
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
 
-        if (isNewUser) {
-          // Brand new user: trigger RoleSelectionModal on the spot
-          if (mounted) {
-            setState(() => _isGoogleLoading = false);
-            final String? chosenRole = await RoleSelectionModal.show(
-              context,
-              userName: googleName,
+  Future<void> _processGoogleAuthResult(Map<String, dynamic> result) async {
+    if (result['success'] == true) {
+      final bool isNewUser = result['is_new_user'] == true;
+      final String? googleEmail = result['email'];
+      final String googleName = result['name'] ?? 'User';
+
+      if (isNewUser) {
+        // Brand new user: trigger RoleSelectionModal on the spot
+        if (mounted) {
+          setState(() => _isGoogleLoading = false);
+          final String? chosenRole = await RoleSelectionModal.show(
+            context,
+            userName: googleName,
+          );
+
+          if (chosenRole != null && googleEmail != null) {
+            setState(() => _isGoogleLoading = true);
+            final regResult = await _googleAuthService.completeGoogleRegistration(
+              email: googleEmail,
+              selectedRole: chosenRole,
+              fullName: googleName,
             );
 
-            if (chosenRole != null && googleEmail != null) {
-              setState(() => _isGoogleLoading = true);
-              final regResult = await _googleAuthService.completeGoogleRegistration(
-                email: googleEmail,
-                selectedRole: chosenRole,
-                fullName: googleName,
-              );
-
-              if (regResult['success'] == true) {
-                await Supabase.instance.client.auth.signOut();
-                await AuthSessionService().clearSession();
-                if (mounted) _showPendingDialog();
-              } else {
-                setState(() {
-                  _errorMessage = regResult['message'] ?? 'Failed to complete registration.';
-                });
-              }
+            if (regResult['success'] == true) {
+              await Supabase.instance.client.auth.signOut();
+              await AuthSessionService().clearSession();
+              if (mounted) _showPendingDialog();
+            } else {
+              setState(() {
+                _errorMessage = regResult['message'] ?? 'Failed to complete registration.';
+              });
             }
           }
-          return;
+        }
+        return;
+      }
+
+      // Returning user: read detected role and status
+      final String rawStatus = (result['status'] ?? 'pending').toString();
+      final String statusLower = rawStatus.toLowerCase();
+      final String role = (result['role'] ?? 'hog_raiser').toString();
+      final bool isActuallyActive = statusLower == 'active' || statusLower == 'approved';
+
+      if (!isActuallyActive) {
+        // Double-check database directly in case of stale status
+        bool dbActive = false;
+        if (googleEmail != null && googleEmail.isNotEmpty) {
+          try {
+            final freshUser = await Supabase.instance.client
+                .from('app_users')
+                .select('status, role')
+                .eq('email', googleEmail)
+                .maybeSingle();
+            if (freshUser != null) {
+              final st = (freshUser['status'] ?? '').toString().toLowerCase();
+              if (st == 'active' || st == 'approved') {
+                dbActive = true;
+              }
+            }
+          } catch (_) {}
         }
 
-        // Returning user: read detected role and status
-        final String rawStatus = (result['status'] ?? 'pending').toString();
-        final String statusLower = rawStatus.toLowerCase();
-        final String role = (result['role'] ?? 'hog_raiser').toString();
-        final bool isActuallyActive = statusLower == 'active' || statusLower == 'approved';
-
-        if (!isActuallyActive) {
-          // Double-check database directly in case of stale status
-          bool dbActive = false;
-          if (googleEmail != null && googleEmail.isNotEmpty) {
-            try {
-              final freshUser = await Supabase.instance.client
-                  .from('app_users')
-                  .select('status, role')
-                  .eq('email', googleEmail)
-                  .maybeSingle();
-              if (freshUser != null) {
-                final st = (freshUser['status'] ?? '').toString().toLowerCase();
-                if (st == 'active' || st == 'approved') {
-                  dbActive = true;
-                }
-              }
-            } catch (_) {}
-          }
-
-          if (dbActive) {
-            if (googleEmail != null) {
-              await AuthSessionService().saveSession(
-                email: googleEmail,
-                role: role,
-                loginMethod: 'google',
-              );
-            }
-            if (mounted) _navigateToDashboard(role);
-            return;
-          }
-
-          await Supabase.instance.client.auth.signOut();
-          await AuthSessionService().clearSession();
-          if (mounted) _showPendingDialog();
-        } else {
-          if (googleEmail != null && googleEmail.isNotEmpty) {
+        if (dbActive) {
+          if (googleEmail != null) {
             await AuthSessionService().saveSession(
               email: googleEmail,
               role: role,
@@ -343,25 +365,33 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
           if (mounted) _navigateToDashboard(role);
+          return;
         }
-      } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.' && result['message'] != 'Google Sign-In was canceled.') {
-        final rawMsg = result['message'].toString();
-        if (rawMsg.contains('Walang nakalaang account') || rawMsg.contains('mag-Sign Up muna') || rawMsg.contains('No registered account')) {
-          setState(() {
-            _identifierError = 'No registered account found for this Google account. Please sign up first.';
-          });
-        } else {
-          setState(() {
-            _errorMessage = result['message'];
-          });
+
+        await Supabase.instance.client.auth.signOut();
+        await AuthSessionService().clearSession();
+        if (mounted) _showPendingDialog();
+      } else {
+        if (googleEmail != null && googleEmail.isNotEmpty) {
+          await AuthSessionService().saveSession(
+            email: googleEmail,
+            role: role,
+            loginMethod: 'google',
+          );
         }
+        if (mounted) _navigateToDashboard(role);
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Google Sign-In error: ${e.toString()}';
-      });
-    } finally {
-      if (mounted) setState(() => _isGoogleLoading = false);
+    } else if (result['message'] != null && result['message'] != 'Canceled Google sign-in.' && result['message'] != 'Google Sign-In was canceled.') {
+      final rawMsg = result['message'].toString();
+      if (rawMsg.contains('Walang nakalaang account') || rawMsg.contains('mag-Sign Up muna') || rawMsg.contains('No registered account')) {
+        setState(() {
+          _identifierError = 'No registered account found for this Google account. Please sign up first.';
+        });
+      } else {
+        setState(() {
+          _errorMessage = result['message'];
+        });
+      }
     }
   }
 
@@ -1281,6 +1311,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                         SizedBox(height: fieldSpacing),
+                        const InstallPwaBanner(),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
