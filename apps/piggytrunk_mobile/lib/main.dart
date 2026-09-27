@@ -67,7 +67,7 @@ class HogRaiserMobileApp extends StatelessWidget {
     final themeMode = settings?.themeMode ?? ThemeMode.light;
 
     return MaterialApp(
-      title: 'PiggyTrunk',
+      title: 'Piggy Trunk',
       debugShowCheckedModeBanner: false,
       theme: PiggyTrunkTheme.lightTheme.copyWith(
         snackBarTheme: SnackBarThemeData(
