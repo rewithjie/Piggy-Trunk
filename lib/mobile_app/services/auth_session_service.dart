@@ -51,8 +51,19 @@ class AuthSessionService {
   /// Returns a map with { 'canAutoLogin': bool, 'targetRoute': String?, 'email': String?, 'role': String? }
   Future<Map<String, dynamic>> checkAndAttemptAutoLogin() async {
     try {
-      // 1. Check if Supabase already has an active session in local storage
+      final savedEmail = await _storage.read(key: _keyUserEmail);
       final currentSession = _supabase.auth.currentSession;
+
+      // Clean state check: If no active Supabase session and no saved user in local storage
+      // (fresh install or after Clear Data), do NOT silently auto-login. Start cleanly in /onboarding.
+      if (currentSession == null && (savedEmail == null || savedEmail.trim().isEmpty)) {
+        return {
+          'canAutoLogin': false,
+          'targetRoute': '/onboarding',
+        };
+      }
+
+      // 1. Check if Supabase already has an active session in local storage
       if (currentSession != null) {
         final user = currentSession.user;
         final email = user.email;
@@ -135,7 +146,6 @@ class AuthSessionService {
       }
 
       // 3. Check persistent secure storage as fallback
-      final savedEmail = await _storage.read(key: _keyUserEmail);
       final savedRole = await _storage.read(key: _keyUserRole);
 
       if (savedEmail != null && savedEmail.isNotEmpty) {

@@ -131190,107 +131190,112 @@ break
 case 6:case 1:return A.B(q,r)
 case 2:return A.A(o.at(-1),r)}})
 return A.C($async$vY,r)},
-kL(){var s=0,r=A.D(t.a),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0
-var $async$kL=A.z(function(b1,b2){if(b1===1){o.push(b2)
+kL(){var s=0,r=A.D(t.a),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,b0,b1
+var $async$kL=A.z(function(b2,b3){if(b2===1){o.push(b3)
 s=p}for(;;)switch(s){case 0:p=4
-a6=n.b
-m=a6.gb6().c
-s=m!=null?7:8
-break
-case 7:l=m.r
-k=l.z
-s=k!=null&&k.length!==0?9:10
-break
-case 9:s=11
-return A.m(n.um(k,l.a),$async$kL)
-case 11:j=b2
-s=J.h(J.i(j,"isActive"),!0)?12:14
-break
-case 12:a=J.i(j,"role")
-i=a==null?"hog_raiser":a
-s=15
-return A.m(n.o8(k,"supabase_session",i,l.a),$async$kL)
-case 15:a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(i),"email",k,"role",i],t.N,t.z)
-q=a6
-s=1
-break
-s=13
-break
-case 14:if(J.h(J.i(j,"isPending"),!0)){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding","isPending",!0],t.N,t.z)
-q=a6
-s=1
-break}case 13:case 10:case 8:p=17
-h=A.bu_(u.J,A.a(["email","profile"],t.s),u.J)
-s=20
-return A.m(h.j3(),$async$kL)
-case 20:g=b2
-s=g!=null?21:22
-break
-case 21:f=g.b
-s=23
-return A.m(g.gD2(),$async$kL)
-case 23:e=b2
-d=e.a.a
-s=d!=null?24:25
-break
-case 24:p=27
-s=30
-return A.m(a6.gb6().A9(e.a.b,d,B.ne),$async$kL)
-case 30:p=17
-s=29
-break
-case 27:p=26
-a8=o.pop()
-c=A.N(a8)
-A.aI().$1("Silent Google signInWithIdToken notice: "+A.k(c))
-s=29
-break
-case 26:s=17
-break
-case 29:case 25:s=31
-return A.m(n.abz(f),$async$kL)
-case 31:b=b2
-s=J.h(J.i(b,"isActive"),!0)?32:34
-break
-case 32:i=J.i(b,"role")
-a=i==null?"hog_raiser":i
-s=35
-return A.m(n.Os(f,"google",a),$async$kL)
-case 35:a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(a),"email",f,"role",a],t.N,t.z)
-q=a6
-s=1
-break
-s=33
-break
-case 34:if(J.h(J.i(b,"isPending"),!0)){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding","isPending",!0],t.N,t.z)
-q=a6
-s=1
-break}case 33:case 22:p=4
-s=19
-break
-case 17:p=16
-a9=o.pop()
-a0=A.N(a9)
-A.aI().$1("Silent Google Sign-In notice: "+A.k(a0))
-s=19
-break
-case 16:s=4
-break
-case 19:s=36
+s=7
 return A.m(B.cU.z6(0,"pt_saved_user_email"),$async$kL)
-case 36:a1=b2
-s=37
+case 7:m=b3
+a6=n.b
+l=a6.gb6().c
+if(l==null)a7=m==null||B.b.H(m).length===0
+else a7=!1
+if(a7){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding"],t.N,t.z)
+q=a6
+s=1
+break}s=l!=null?8:9
+break
+case 8:k=l.r
+j=k.z
+s=j!=null&&j.length!==0?10:11
+break
+case 10:s=12
+return A.m(n.um(j,k.a),$async$kL)
+case 12:i=b3
+s=J.h(J.i(i,"isActive"),!0)?13:15
+break
+case 13:a0=J.i(i,"role")
+h=a0==null?"hog_raiser":a0
+s=16
+return A.m(n.o8(j,"supabase_session",h,k.a),$async$kL)
+case 16:a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(h),"email",j,"role",h],t.N,t.z)
+q=a6
+s=1
+break
+s=14
+break
+case 15:if(J.h(J.i(i,"isPending"),!0)){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding","isPending",!0],t.N,t.z)
+q=a6
+s=1
+break}case 14:case 11:case 9:p=18
+g=A.bu_(u.J,A.a(["email","profile"],t.s),u.J)
+s=21
+return A.m(g.j3(),$async$kL)
+case 21:f=b3
+s=f!=null?22:23
+break
+case 22:e=f.b
+s=24
+return A.m(f.gD2(),$async$kL)
+case 24:d=b3
+c=d.a.a
+s=c!=null?25:26
+break
+case 25:p=28
+s=31
+return A.m(a6.gb6().A9(d.a.b,c,B.ne),$async$kL)
+case 31:p=18
+s=30
+break
+case 28:p=27
+a9=o.pop()
+b=A.N(a9)
+A.aI().$1("Silent Google signInWithIdToken notice: "+A.k(b))
+s=30
+break
+case 27:s=18
+break
+case 30:case 26:s=32
+return A.m(n.abz(e),$async$kL)
+case 32:a=b3
+s=J.h(J.i(a,"isActive"),!0)?33:35
+break
+case 33:h=J.i(a,"role")
+a0=h==null?"hog_raiser":h
+s=36
+return A.m(n.Os(e,"google",a0),$async$kL)
+case 36:a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(a0),"email",e,"role",a0],t.N,t.z)
+q=a6
+s=1
+break
+s=34
+break
+case 35:if(J.h(J.i(a,"isPending"),!0)){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding","isPending",!0],t.N,t.z)
+q=a6
+s=1
+break}case 34:case 23:p=4
+s=20
+break
+case 18:p=17
+b0=o.pop()
+a1=A.N(b0)
+A.aI().$1("Silent Google Sign-In notice: "+A.k(a1))
+s=20
+break
+case 17:s=4
+break
+case 20:s=37
 return A.m(B.cU.z6(0,"pt_saved_user_role"),$async$kL)
-case 37:a2=b2
-s=a1!=null&&a1.length!==0?38:39
+case 37:a2=b3
+s=m!=null&&m.length!==0?38:39
 break
 case 38:s=40
-return A.m(n.abz(a1),$async$kL)
-case 40:a3=b2
+return A.m(n.abz(m),$async$kL)
+case 40:a3=b3
 if(J.h(J.i(a3,"isActive"),!0)){a6=J.i(a3,"role")
-i=a6==null?a2:a6
-a4=i==null?"hog_raiser":i
-a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(a4),"email",a1,"role",a4],t.N,t.z)
+h=a6==null?a2:a6
+a4=h==null?"hog_raiser":h
+a6=A.M(["canAutoLogin",!0,"targetRoute",n.Rs(a4),"email",m,"role",a4],t.N,t.z)
 q=a6
 s=1
 break}else if(J.h(J.i(a3,"isPending"),!0)){a6=A.M(["canAutoLogin",!1,"targetRoute","/onboarding","isPending",!0],t.N,t.z)
@@ -131300,8 +131305,8 @@ break}case 39:p=2
 s=6
 break
 case 4:p=3
-b0=o.pop()
-a5=A.N(b0)
+b1=o.pop()
+a5=A.N(b1)
 A.aI().$1("Error during checkAndAttemptAutoLogin: "+A.k(a5))
 s=6
 break
