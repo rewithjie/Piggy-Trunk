@@ -597,6 +597,15 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       }
       _partnerEmail = currentEmail;
 
+      // SECURITY CHECK: If there is no authenticated user and no saved session email,
+      // redirect immediately to onboarding so the app starts in a clean state.
+      if (user == null && currentEmail.isEmpty) {
+        if (mounted) {
+          Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+        }
+        return;
+      }
+
       if (user != null) {
         // Initialize native notification listener for Partner Investor
         NotificationService().requestPermission();
@@ -633,18 +642,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               debugPrint('Error linking supabase_user_id: $e');
             }
           }
-        } catch (_) {}
-      }
-
-      if (profile == null && currentEmail.isEmpty) {
-        try {
-          profile = await Supabase.instance.client
-              .from('app_users')
-              .select('user_id, name, email')
-              .or('role.ilike.partner,role.ilike.partner_investor,role.ilike.investor')
-              .order('created_at', ascending: false)
-              .limit(1)
-              .maybeSingle();
         } catch (_) {}
       }
 

@@ -145,48 +145,45 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
         }
       }
 
-      // 2. Fallback: Resolve partner from saved email or active partner in app_users
+      // 2. Fallback: Resolve partner from saved email or current authenticated user
       if (partnerInvestorId == null) {
         try {
           final savedEmail = await AuthSessionService().getSavedEmail();
-          final searchEmail = (savedEmail != null && savedEmail.isNotEmpty) ? savedEmail : 'justrejie@gmail.com';
+          final searchEmail = (savedEmail != null && savedEmail.isNotEmpty) ? savedEmail : (user?.email ?? '');
 
-          final profile = await Supabase.instance.client
-              .from('app_users')
-              .select('user_id')
-              .or('email.eq.$searchEmail,role.ilike.partner,role.ilike.partner_investor')
-              .order('created_at', ascending: false)
-              .limit(1)
-              .maybeSingle();
-
-          final appUserId = profile != null ? profile['user_id'] : null;
-          if (appUserId != null) {
-            final partnerRec = await Supabase.instance.client
-                .from('partner_investors')
-                .select('partner_investor_id')
-                .eq('user_id', appUserId)
+          if (searchEmail.isNotEmpty || user != null) {
+            final profile = await Supabase.instance.client
+                .from('app_users')
+                .select('user_id')
+                .or('email.eq.$searchEmail,supabase_user_id.eq.${user?.id ?? ""}')
                 .maybeSingle();
 
-            if (partnerRec != null) {
-              partnerInvestorId = partnerRec['partner_investor_id'] as int?;
-            } else {
-              final ins = await Supabase.instance.client
+            final appUserId = profile != null ? profile['user_id'] : null;
+            if (appUserId != null) {
+              final partnerRec = await Supabase.instance.client
                   .from('partner_investors')
-                  .insert({'user_id': appUserId})
                   .select('partner_investor_id')
+                  .eq('user_id', appUserId)
                   .maybeSingle();
-              if (ins != null) {
-                partnerInvestorId = ins['partner_investor_id'] as int?;
+
+              if (partnerRec != null) {
+                partnerInvestorId = partnerRec['partner_investor_id'] as int?;
+              } else {
+                final ins = await Supabase.instance.client
+                    .from('partner_investors')
+                    .insert({'user_id': appUserId})
+                    .select('partner_investor_id')
+                    .maybeSingle();
+                if (ins != null) {
+                  partnerInvestorId = ins['partner_investor_id'] as int?;
+                }
               }
             }
           }
         } catch (e) {
-          debugPrint('Notice on fallback partner resolution: $e');
+          debugPrint('Notice on partner resolution: $e');
         }
       }
-
-      // Fallback default partner ID if still unresolved (Just Rejie partner_investor_id: 35)
-      partnerInvestorId ??= 35;
 
       final rawBatchId = _selectedBatch?['batch_id'];
       final int batchId = rawBatchId is int

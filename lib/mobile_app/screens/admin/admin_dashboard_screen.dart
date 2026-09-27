@@ -48,9 +48,14 @@ class _AdminMobileDashboardScreenState
 
     try {
       final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        // Fetch Admin profile name
-        final profile = await Supabase.instance.client
+      if (user == null) {
+        if (mounted) {
+          Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+        }
+        return;
+      }
+      // Fetch Admin profile name
+      final profile = await Supabase.instance.client
             .from('app_users')
             .select('name, email')
             .eq('supabase_user_id', user.id)
@@ -80,7 +85,6 @@ class _AdminMobileDashboardScreenState
             _adminName = resolvedName;
           });
         }
-      }
 
       // Fetch live investments sum
       try {

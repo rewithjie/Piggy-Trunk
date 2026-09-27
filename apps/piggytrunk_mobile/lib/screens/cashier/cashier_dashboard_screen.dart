@@ -285,11 +285,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
 
       if (resolvedName.isEmpty && effectiveEmail.isNotEmpty) {
         final prefix = effectiveEmail.split('@').first;
-        if (prefix.toLowerCase() == 'justrejie') {
-          resolvedName = 'Just Rejie';
-        } else {
-          resolvedName = prefix;
-        }
+        final parts = prefix.replaceAll(RegExp(r'[._-]'), ' ').split(' ');
+        resolvedName = parts.where((p) => p.isNotEmpty).map((p) => p[0].toUpperCase() + p.substring(1)).join(' ');
       }
 
       // Auto-sync resolved details to database if profile exists

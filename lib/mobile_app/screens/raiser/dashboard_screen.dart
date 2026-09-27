@@ -57,6 +57,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
         debugPrint('DEBUG ERROR: No logged in Supabase Auth user.');
+        if (mounted) {
+          Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+        }
         return;
       }
       debugPrint('DEBUG INFO: Logged in user Auth ID: ${user.id}, Email: ${user.email}');

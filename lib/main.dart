@@ -127,7 +127,6 @@ class MyApp extends ConsumerWidget {
     final bool isNativeMobile = !kIsWeb;
     final isLocalhost = host == 'localhost' || host == '127.0.0.1' || host.startsWith('192.168.');
     final hasAdminQuery = uri.queryParameters.containsKey('admin') || uri.queryParameters['role'] == 'admin';
-    final hasPartnerQuery = uri.queryParameters.containsKey('partner') || uri.queryParameters['role'] == 'partner' || uri.path.contains('partner');
     final hasAdminPath = uri.path.startsWith('/admin') ||
         uri.path.startsWith('/dashboard') ||
         uri.path.startsWith('/users') ||
@@ -151,18 +150,14 @@ class MyApp extends ConsumerWidget {
     final String initialRoute;
     if (isAdminDomain) {
       initialRoute = '/login';
-    } else if (isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath && (uri.path == '/' || uri.path.isEmpty))) {
-      initialRoute = '/partner_dashboard';
-    } else if (isMobileDomain) {
+    } else if (isNativeMobile || isMobileDomain) {
       initialRoute = '/splash';
     } else {
       initialRoute = '/';
     }
 
     return MaterialApp(
-      title: isAdminDomain
-          ? 'Piggy Trunk Admin'
-          : ((isMobileDomain || isLocalhost) ? 'Piggy Trunk Mobile - Partner Investor' : 'Piggy Trunk'),
+      title: isAdminDomain ? 'Piggy Trunk Admin' : 'Piggy Trunk',
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
@@ -173,11 +168,9 @@ class MyApp extends ConsumerWidget {
         // Web Admin & Landing Routes
         '/': (context) => isAdminDomain
             ? const AdminLoginScreen()
-            : ((isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath))
-                ? const ResponsiveMobileWrapper(child: PartnerDashboardScreen())
-                : (isMobileDomain
-                    ? const ResponsiveMobileWrapper(child: SplashScreen())
-                    : const LandingScreen())),
+            : ((isNativeMobile || isMobileDomain)
+                ? const ResponsiveMobileWrapper(child: SplashScreen())
+                : const LandingScreen()),
         '/login': (context) => (isAdminDomain || (isLocalhost && hasAdminPath))
             ? const AdminLoginScreen()
             : const ResponsiveMobileWrapper(child: LoginScreen()),
@@ -197,8 +190,8 @@ class MyApp extends ConsumerWidget {
         '/forecasting': (context) => const DemandForecastingScreen(),
 
         // Mobile App on Web Routes (Responsive Wrapper applied)
-        '/app': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
-        '/mobile': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
+        '/app': (context) => const ResponsiveMobileWrapper(child: SplashScreen()),
+        '/mobile': (context) => const ResponsiveMobileWrapper(child: SplashScreen()),
         '/mobile_login': (context) => const ResponsiveMobileWrapper(child: LoginScreen()),
         '/signup': (context) => const ResponsiveMobileWrapper(child: SignUpScreen()),
         '/onboarding': (context) => const ResponsiveMobileWrapper(child: OnboardingScreen()),
