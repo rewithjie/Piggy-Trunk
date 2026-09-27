@@ -234,8 +234,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   child: DottedWaveLoader(
                     animation: _dotsController,
                     dotCount: 4,
-                    dotSize: 13.0,
-                    spacing: 14.0,
+                    dotSize: 9.0,
+                    spacing: 11.0,
                     activeColor: brandNavy,
                     inactiveColor: const Color(0xFF94A3B8),
                   ),
@@ -264,8 +264,8 @@ class DottedWaveLoader extends StatelessWidget {
     super.key,
     required this.animation,
     this.dotCount = 4,
-    this.dotSize = 13.0,
-    this.spacing = 14.0,
+    this.dotSize = 9.0,
+    this.spacing = 11.0,
     this.activeColor = const Color(0xFF18314F),
     this.inactiveColor = const Color(0xFF94A3B8),
   });
@@ -288,18 +288,17 @@ class DottedWaveLoader extends StatelessWidget {
             if (diff < -0.5) diff += 1.0;
             if (diff > 0.5) diff -= 1.0;
 
-            // Bell curve calculation around the active dot center
-            // Falls off smoothly when distance > 0.28
-            final double rawIntensity = (1.0 - (diff.abs() / 0.28)).clamp(0.0, 1.0);
-            final double intensity = Curves.easeInOutCubic.transform(rawIntensity);
+            // Liquid smooth bell curve around active dot
+            final double rawIntensity = (1.0 - (diff.abs() / 0.30)).clamp(0.0, 1.0);
+            final double intensity = Curves.easeInOutSine.transform(rawIntensity);
 
-            // Interpolate scale from 0.88 (resting) to 1.25 (peak wave)
-            final double scale = 0.88 + (0.37 * intensity);
+            // Subtle, sleek micro-scale from 0.90 to 1.14
+            final double scale = 0.90 + (0.24 * intensity);
 
-            // Interpolate opacity from 0.25 (muted) to 1.0 (bright active)
-            final double opacity = 0.25 + (0.75 * intensity);
+            // Refined opacity from 0.22 to 1.0
+            final double opacity = 0.22 + (0.78 * intensity);
 
-            // Interpolate color from inactive slate to deep active navy
+            // Color blend: soft slate to prominent deep brand navy
             final Color color = Color.lerp(inactiveColor, activeColor, intensity)!;
 
             return Padding(
@@ -314,12 +313,11 @@ class DottedWaveLoader extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: color,
                       shape: BoxShape.circle,
-                      boxShadow: intensity > 0.35
+                      boxShadow: intensity > 0.4
                           ? [
                               BoxShadow(
-                                color: activeColor.withValues(alpha: 0.22 * intensity),
-                                blurRadius: 6 * intensity,
-                                spreadRadius: 1 * intensity,
+                                color: activeColor.withValues(alpha: 0.16 * intensity),
+                                blurRadius: 4 * intensity,
                                 offset: const Offset(0, 1),
                               ),
                             ]

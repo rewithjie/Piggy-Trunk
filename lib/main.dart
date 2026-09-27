@@ -154,7 +154,7 @@ class MyApp extends ConsumerWidget {
     } else if (isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath && (uri.path == '/' || uri.path.isEmpty))) {
       initialRoute = '/partner_dashboard';
     } else if (isMobileDomain) {
-      initialRoute = '/app';
+      initialRoute = '/splash';
     } else {
       initialRoute = '/';
     }
@@ -176,7 +176,7 @@ class MyApp extends ConsumerWidget {
             : ((isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath))
                 ? const ResponsiveMobileWrapper(child: PartnerDashboardScreen())
                 : (isMobileDomain
-                    ? const ResponsiveMobileWrapper(child: OnboardingScreen())
+                    ? const ResponsiveMobileWrapper(child: SplashScreen())
                     : const LandingScreen())),
         '/login': (context) => (isAdminDomain || (isLocalhost && hasAdminPath))
             ? const AdminLoginScreen()

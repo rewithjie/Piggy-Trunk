@@ -12,13 +12,12 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
   late AnimationController _entranceController;
   late AnimationController _floatingController;
-  late AnimationController _progressController;
+  late AnimationController _dotsController;
 
   late Animation<double> _scaleSpringAnimation;
   late Animation<double> _fadeEntranceAnimation;
   late Animation<double> _titleSlideAnimation;
   late Animation<double> _floatAnimation;
-  late Animation<double> _progressAnimation;
 
   @override
   void initState() {
@@ -64,26 +63,19 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
       ),
     );
 
-    // 3. Progress Bar Fill Animation (Synchronized with 10-second loading)
-    _progressController = AnimationController(
+    // 3. Continuous 4-Dot Wave Animation (Smooth 1400ms repeating loop)
+    _dotsController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 9600),
+      duration: const Duration(milliseconds: 1400),
     );
 
-    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _progressController,
-        curve: Curves.easeInOutCubic,
-      ),
-    );
-
-    // Start Entrance, then loop floating, then load app
+    // Start Entrance, then loop floating and dots, then load app
     _entranceController.forward().then((_) {
       if (mounted) {
         _floatingController.repeat(reverse: true);
+        _dotsController.repeat();
       }
     });
-    _progressController.forward();
 
     _initializeApp();
   }
@@ -92,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   void dispose() {
     _entranceController.dispose();
     _floatingController.dispose();
-    _progressController.dispose();
+    _dotsController.dispose();
     super.dispose();
   }
 
@@ -113,8 +105,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     }
 
     final elapsedTime = DateTime.now().difference(startTime);
-    // Adjusted to 10 seconds as requested by the user
-    const minDuration = Duration(milliseconds: 10000);
+    // Set display duration to 5 seconds as requested
+    const minDuration = Duration(seconds: 5);
     if (elapsedTime < minDuration) {
       await Future<void>.delayed(minDuration - elapsedTime);
     }
@@ -127,19 +119,18 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     const Color brandNavy = Color(0xFF18314F);
-    const Color brandNavyDark = Color(0xFF0B1726);
 
     return Scaffold(
-      backgroundColor: brandNavy,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF1E3A5F), // Rich Piggy Trunk Navy Top
-              brandNavy,         // #18314F Core Brand Navy
-              brandNavyDark,     // #0B1726 Deep Midnight Navy Base
+              Color(0xFFFFFFFF), // Clean bright soft white top
+              Color(0xFFF8FAFC), // Calming soft slate-white body
+              Color(0xFFF1F5F9), // Gentle ambient base
             ],
           ),
         ),
@@ -174,23 +165,23 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                               ),
                             ),
                             const SizedBox(height: 14),
-                            // Photorealistic Soft Ambient Floor Shadow
+                            // Photorealistic Soft Ambient Floor Shadow (Recalibrated for soft white)
                             Opacity(
-                              opacity: (0.45 + 0.35 * t).clamp(0.25, 0.85),
+                              opacity: (0.16 + 0.14 * t).clamp(0.10, 0.35),
                               child: Transform.scale(
-                                scaleX: 0.88 + 0.24 * (1.0 - t),
-                                scaleY: 0.85 + 0.20 * (1.0 - t),
+                                scaleX: 0.85 + 0.25 * (1.0 - t),
+                                scaleY: 0.82 + 0.22 * (1.0 - t),
                                 child: Container(
-                                  width: 125,
-                                  height: 18,
+                                  width: 120,
+                                  height: 14,
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.7),
-                                    borderRadius: const BorderRadius.all(Radius.elliptical(125, 18)),
+                                    color: const Color(0xFF64748B).withValues(alpha: 0.25),
+                                    borderRadius: const BorderRadius.all(Radius.elliptical(120, 14)),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.75),
-                                        blurRadius: 22,
-                                        spreadRadius: 4,
+                                        color: const Color(0xFF475569).withValues(alpha: 0.20),
+                                        blurRadius: 18,
+                                        spreadRadius: 3,
                                       ),
                                     ],
                                   ),
@@ -206,7 +197,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
                 const SizedBox(height: 24),
 
-                // Animated Brand Title "Piggy Trunk" (Pure White High Contrast)
+                // Animated Brand Title "Piggy Trunk" (High Contrast Rich Navy)
                 AnimatedBuilder(
                   animation: _entranceController,
                   builder: (context, child) {
@@ -217,13 +208,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         child: Text(
                           'Piggy Trunk',
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
+                            color: brandNavy,
                             letterSpacing: -0.8,
                             fontSize: 38,
                             fontWeight: FontWeight.w900,
                             shadows: [
                               BoxShadow(
-                                color: Colors.white.withValues(alpha: 0.2),
+                                color: brandNavy.withValues(alpha: 0.08),
                                 blurRadius: 16,
                                 offset: const Offset(0, 4),
                               ),
@@ -237,81 +228,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
                 const SizedBox(height: 48),
 
-                // Raised & Enlarged Monochrome Silver-White Gradient Progress Bar
-                AnimatedBuilder(
-                  animation: _progressAnimation,
-                  builder: (context, child) {
-                    final progressVal = _progressAnimation.value;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 36),
-                      child: Column(
-                        children: [
-                          Container(
-                            height: 7.5,
-                            width: 230,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0D223B),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                width: 1,
-                              ),
-                            ),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                width: 230 * progressVal,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF94A3B8), // Silver slate
-                                      Color(0xFFE2E8F0), // Platinum
-                                      Colors.white,      // Pure White
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.white.withValues(alpha: 0.5),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: Text(
-                              progressVal < 0.30
-                                  ? 'Connecting to PiggyTrunk network...'
-                                  : progressVal < 0.65
-                                      ? 'Syncing farm records & live stocks...'
-                                      : progressVal < 0.90
-                                          ? 'Securing session & permissions...'
-                                          : 'Ready! Launching dashboard...',
-                              key: ValueKey(
-                                progressVal < 0.30
-                                    ? 'p1'
-                                    : progressVal < 0.65
-                                        ? 'p2'
-                                        : progressVal < 0.90
-                                            ? 'p3'
-                                            : 'p4',
-                              ),
-                              style: GoogleFonts.plusJakartaSans(
-                                color: const Color(0xFFCBD5E1),
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                // 4-Dot Sequential Wave Fade/Scale Loader
+                FadeTransition(
+                  opacity: _fadeEntranceAnimation,
+                  child: DottedWaveLoader(
+                    animation: _dotsController,
+                    dotCount: 4,
+                    dotSize: 9.0,
+                    spacing: 11.0,
+                    activeColor: brandNavy,
+                    inactiveColor: const Color(0xFF94A3B8),
+                  ),
                 ),
 
                 const Spacer(flex: 4),
@@ -320,6 +247,89 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 4-Dot Animated Wave Loader with Sequential Fade and Micro-Scale
+class DottedWaveLoader extends StatelessWidget {
+  final Animation<double> animation;
+  final int dotCount;
+  final double dotSize;
+  final double spacing;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  const DottedWaveLoader({
+    super.key,
+    required this.animation,
+    this.dotCount = 4,
+    this.dotSize = 9.0,
+    this.spacing = 11.0,
+    this.activeColor = const Color(0xFF18314F),
+    this.inactiveColor = const Color(0xFF94A3B8),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        final progress = animation.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(dotCount, (index) {
+            // Target center for each dot in the [0.0, 1.0] cycle
+            final double dotTarget = index / dotCount;
+            double diff = (progress - dotTarget);
+
+            // Handle wrap-around distance for infinite loop
+            if (diff < -0.5) diff += 1.0;
+            if (diff > 0.5) diff -= 1.0;
+
+            // Liquid smooth bell curve around active dot
+            final double rawIntensity = (1.0 - (diff.abs() / 0.30)).clamp(0.0, 1.0);
+            final double intensity = Curves.easeInOutSine.transform(rawIntensity);
+
+            // Subtle, sleek micro-scale from 0.90 to 1.14
+            final double scale = 0.90 + (0.24 * intensity);
+
+            // Refined opacity from 0.22 to 1.0
+            final double opacity = 0.22 + (0.78 * intensity);
+
+            // Color blend: soft slate to prominent deep brand navy
+            final Color color = Color.lerp(inactiveColor, activeColor, intensity)!;
+
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: spacing / 2),
+              child: Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    width: dotSize,
+                    height: dotSize,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      boxShadow: intensity > 0.4
+                          ? [
+                              BoxShadow(
+                                color: activeColor.withValues(alpha: 0.16 * intensity),
+                                blurRadius: 4 * intensity,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
