@@ -699,7 +699,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
   Future<void> _handleSignOut() async {
     await AuthSessionService().clearSession();
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
     }
   }
 

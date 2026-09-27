@@ -1039,7 +1039,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
       if (mounted) {
         Navigator.of(
           context,
-        ).pushNamedAndRemoveUntil('/login', (route) => false);
+        ).pushNamedAndRemoveUntil('/onboarding', (route) => false);
       }
     } catch (e) {
       _showSnackBar('Error signing out: $e', isError: true);

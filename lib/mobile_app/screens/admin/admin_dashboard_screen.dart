@@ -220,7 +220,7 @@ class _AdminMobileDashboardScreenState
     if (confirm == true) {
       await AuthSessionService().clearSession();
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
+        Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
       }
     }
   }
