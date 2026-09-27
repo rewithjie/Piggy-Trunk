@@ -105,8 +105,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     }
 
     final elapsedTime = DateTime.now().difference(startTime);
-    // Smooth display duration to enjoy the animation while loading
-    const minDuration = Duration(milliseconds: 4500);
+    // Set display duration to 5 seconds as requested
+    const minDuration = Duration(seconds: 5);
     if (elapsedTime < minDuration) {
       await Future<void>.delayed(minDuration - elapsedTime);
     }
