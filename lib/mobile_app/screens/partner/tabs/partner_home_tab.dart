@@ -11,6 +11,7 @@ class PartnerHomeTab extends StatelessWidget {
   final double investedAmount;
   final int activeProjectsCount;
   final List<Map<String, dynamic>> projectsList;
+  final List<Map<String, dynamic>> fundedProjectsList;
   final List<Map<String, dynamic>> activitiesList;
   final List<Map<String, dynamic>> notificationsList;
   final Future<void> Function() onRefresh;
@@ -30,6 +31,7 @@ class PartnerHomeTab extends StatelessWidget {
     required this.investedAmount,
     required this.activeProjectsCount,
     this.projectsList = const [],
+    this.fundedProjectsList = const [],
     required this.activitiesList,
     required this.notificationsList,
     required this.onRefresh,
@@ -143,19 +145,25 @@ class PartnerHomeTab extends StatelessWidget {
     final displayActivities = activitiesList;
     final hasInvestments = investedAmount > 0;
 
-    // Calculate unique active raisers and total hogs from projectsList
-    final uniqueRaisers = projectsList
+    // Calculate unique active raisers and total hogs strictly from the partner's actual funded investments
+    final effectiveFunded = hasInvestments
+        ? (fundedProjectsList.isNotEmpty
+            ? fundedProjectsList
+            : projectsList.where((p) => ((p['invested_amount'] as num?)?.toDouble() ?? 0) > 0).toList())
+        : <Map<String, dynamic>>[];
+
+    final uniqueRaisers = effectiveFunded
         .map((p) => p['assigned_raiser'] ?? p['raiser_name'] ?? '')
         .where((r) => r.toString().trim().isNotEmpty)
         .toSet()
         .length;
 
     int totalHogsFunded = 0;
-    for (var p in projectsList) {
+    for (var p in effectiveFunded) {
       totalHogsFunded += (p['total_hogs'] as num?)?.toInt() ?? 0;
     }
     if (totalHogsFunded == 0 && hasInvestments) {
-      totalHogsFunded = activeProjectsCount * 12;
+      totalHogsFunded = activeProjectsCount * 15;
     }
 
     return RefreshIndicator(
@@ -234,26 +242,10 @@ class PartnerHomeTab extends StatelessWidget {
                   width: 1.2,
                 ),
               ),
-              child: Stack(
-                children: [
-                  // Subtle glowing background ornament
-                  Positioned(
-                    right: -20,
-                    top: -20,
-                    child: Container(
-                      width: fit.dp(120),
-                      height: fit.dp(120),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _brandAccent.withValues(alpha: 0.08),
-                      ),
-                    ),
-                  ),
-
-                  Padding(
-                    padding: EdgeInsets.all(fit.dp(20)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: Padding(
+                padding: EdgeInsets.all(fit.dp(20)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Header row inside card: Label + Status Tag
                         Row(
@@ -431,10 +423,8 @@ class PartnerHomeTab extends StatelessWidget {
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            SizedBox(height: fit.dp(18.0)),
+                ),
+                SizedBox(height: fit.dp(18.0)),
 
             // ==================== 3. QUICK ACTIONS GRID ====================
             Row(
@@ -620,8 +610,10 @@ class PartnerHomeTab extends StatelessWidget {
                 children: projectsList.take(2).map((proj) {
                   final String bName = proj['batch_name'] ?? 'Batch Project';
                   final String raiser = proj['assigned_raiser'] ?? proj['raiser_name'] ?? 'Assigned Raiser';
-                  final String stage = proj['stage'] ?? 'Grower';
-                  final String hogType = proj['hog_type'] ?? 'Fattening';
+                  final String rawStage = (proj['stage'] ?? proj['lifecycle_stage'] ?? 'Grower').toString().trim();
+                  final String stage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
+                  final String rawType = (proj['hog_type'] ?? proj['pig_type'] ?? 'Fattening').toString().trim();
+                  final String hogType = (rawType.isEmpty || rawType.toUpperCase() == 'N/A') ? 'Fattening' : rawType;
                   final int hogs = (proj['total_hogs'] as num?)?.toInt() ?? 0;
                   final double invAmt = (proj['invested_amount'] as num?)?.toDouble() ?? 0.0;
 
@@ -870,9 +862,16 @@ class PartnerHomeTab extends StatelessWidget {
               )
             else
               ...displayActivities.take(4).map((act) {
-                final String title = act['title'] ?? 'Activity Update';
-                final String description = act['description'] ?? act['message'] ?? '';
-                final String date = act['date'] ?? act['created_at'] ?? '';
+                final isFil = strings.isFilipino;
+                final String title = isFil
+                    ? (act['title_fil'] ?? act['title'] ?? 'Aktibidad')
+                    : (act['title_en'] ?? act['title'] ?? 'Activity Update');
+                final String description = isFil
+                    ? (act['desc_fil'] ?? act['description'] ?? act['message'] ?? '')
+                    : (act['desc_en'] ?? act['description'] ?? act['message'] ?? '');
+                final String date = isFil
+                    ? (act['date_fil'] ?? act['date'] ?? act['created_at'] ?? '')
+                    : (act['date'] ?? act['created_at'] ?? '');
                 final IconData icon = (act['icon'] is IconData)
                     ? act['icon'] as IconData
                     : Icons.assignment_outlined;
@@ -896,16 +895,16 @@ class PartnerHomeTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
-                        width: fit.dp(44.0),
-                        height: fit.dp(44.0),
+                        width: fit.dp(40.0),
+                        height: fit.dp(40.0),
                         decoration: BoxDecoration(
-                          color: iconBgColor,
-                          shape: BoxShape.circle,
+                          color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.2 : 0.1),
+                          borderRadius: BorderRadius.circular(fit.dp(12)),
                         ),
                         child: Icon(
                           icon,
-                          color: isDark ? const Color(0xFF60A5FA) : _brandColor,
-                          size: fit.dp(22.0),
+                          color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                          size: fit.dp(20.0),
                         ),
                       ),
                       SizedBox(width: fit.dp(14.0)),

@@ -3,8 +3,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsProvider extends StatefulWidget {
   final Widget child;
+  final ThemeMode? initialThemeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final ValueChanged<String>? onLocaleChanged;
 
-  const SettingsProvider({super.key, required this.child});
+  const SettingsProvider({
+    super.key,
+    required this.child,
+    this.initialThemeMode,
+    this.onThemeModeChanged,
+    this.onLocaleChanged,
+  });
 
   static SettingsScope? of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<SettingsScope>();
@@ -19,12 +28,21 @@ class _SettingsProviderState extends State<SettingsProvider> {
   static const String _themePrefKey = 'app_theme_mode';
 
   String _currentLocale = 'en'; // 'en' or 'fil'
-  ThemeMode _themeMode = ThemeMode.light; // light or dark
+  late ThemeMode _themeMode; // light or dark
 
   @override
   void initState() {
     super.initState();
+    _themeMode = widget.initialThemeMode ?? ThemeMode.light;
     _loadSettings();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsProvider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialThemeMode != null && widget.initialThemeMode != _themeMode) {
+      _themeMode = widget.initialThemeMode!;
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -35,15 +53,20 @@ class _SettingsProviderState extends State<SettingsProvider> {
       final savedLocale = prefs.getString(_localePrefKey);
       if (savedLocale != null && (savedLocale == 'en' || savedLocale == 'fil')) {
         _currentLocale = savedLocale;
+        widget.onLocaleChanged?.call(_currentLocale);
       }
 
       // Load theme mode
       final savedTheme = prefs.getString(_themePrefKey);
       if (savedTheme == 'dark') {
         _themeMode = ThemeMode.dark;
-      } else {
+      } else if (savedTheme == 'light') {
         _themeMode = ThemeMode.light;
+      } else if (widget.initialThemeMode != null) {
+        _themeMode = widget.initialThemeMode!;
       }
+
+      widget.onThemeModeChanged?.call(_themeMode);
 
       if (mounted) setState(() {});
     } catch (e) {
@@ -59,6 +82,8 @@ class _SettingsProviderState extends State<SettingsProvider> {
       _currentLocale = newLocale;
     });
 
+    widget.onLocaleChanged?.call(newLocale);
+
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_localePrefKey, newLocale);
@@ -73,6 +98,8 @@ class _SettingsProviderState extends State<SettingsProvider> {
     setState(() {
       _themeMode = mode;
     });
+
+    widget.onThemeModeChanged?.call(mode);
 
     try {
       final prefs = await SharedPreferences.getInstance();

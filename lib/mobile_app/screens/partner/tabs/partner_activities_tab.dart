@@ -119,7 +119,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
   Color _getColorForActivity(String type) {
     final t = type.toLowerCase();
-    if (t.contains('vaccin') || t.contains('med')) {
+    if (t.contains('invest')) {
+      return const Color(0xFF2563EB);
+    } else if (t.contains('vaccin') || t.contains('med')) {
       return _accentPurple;
     } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
         || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
@@ -134,7 +136,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
   IconData _getIconForActivity(String type) {
     final t = type.toLowerCase();
-    if (t.contains('vaccin') || t.contains('med')) {
+    if (t.contains('invest')) {
+      return Icons.assignment_rounded;
+    } else if (t.contains('vaccin') || t.contains('med')) {
       return Icons.medication_rounded;
     } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
         || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
@@ -239,7 +243,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'HOG RAISER REPORTS (${filteredActivities.length})',
+                      strings.isFilipino
+                          ? 'MGA ULAT NG RAISER (${filteredActivities.length})'
+                          : 'HOG RAISER REPORTS (${filteredActivities.length})',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(11.5),
                         fontWeight: FontWeight.w800,
@@ -248,7 +254,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                       ),
                     ),
                     Text(
-                      'Auto-synchronized',
+                      strings.isFilipino ? 'Awtomatikong naka-sync' : 'Auto-synchronized',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(11.0),
                         fontWeight: FontWeight.w600,
@@ -267,14 +273,25 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                 separatorBuilder: (context, index) => SizedBox(height: fit.dp(12)),
                 itemBuilder: (ctx, index) {
                   final act = filteredActivities[index];
-                  final String title = act['title'] ?? 'Activity Update';
-                  final String description = act['description'] ?? act['message'] ?? '';
-                  final String date = act['date'] ?? act['created_at'] ?? '';
+                  final isFil = strings.isFilipino;
+                  final String title = isFil
+                      ? (act['title_fil'] ?? act['title'] ?? 'Aktibidad')
+                      : (act['title_en'] ?? act['title'] ?? 'Activity Update');
+                  final String description = isFil
+                      ? (act['desc_fil'] ?? act['description'] ?? act['message'] ?? '')
+                      : (act['desc_en'] ?? act['description'] ?? act['message'] ?? '');
+                  final String date = isFil
+                      ? (act['date_fil'] ?? act['date'] ?? act['created_at'] ?? '')
+                      : (act['date'] ?? act['created_at'] ?? '');
                   final String raiserName = act['raiser_name'] ?? 'Assigned Raiser';
                   final String type = act['type'] ?? 'general';
+                  final bool isInvestment = type.toLowerCase().contains('invest') ||
+                      (act['report_id'] ?? '').toString().startsWith('inv_');
 
-                  final Color typeColor = _getColorForActivity(type);
-                  final IconData typeIcon = _getIconForActivity(type);
+                  final Color typeColor = isInvestment ? const Color(0xFF2563EB) : _getColorForActivity(type);
+                  final IconData typeIcon = isInvestment
+                      ? Icons.assignment_rounded
+                      : ((act['icon'] is IconData) ? act['icon'] as IconData : _getIconForActivity(type));
 
                   return Container(
                     padding: EdgeInsets.all(fit.dp(16)),
@@ -351,26 +368,28 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                                   ),
                                 ),
                               ],
-                              SizedBox(height: fit.dp(10)),
-                              // Raiser Attribution Badge
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.person_pin_circle_outlined,
-                                    size: fit.dp(14),
-                                    color: mutedTextColor,
-                                  ),
-                                  SizedBox(width: fit.dp(4)),
-                                  Text(
-                                    'Logged by $raiserName',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: fit.sp(11.5),
-                                      fontWeight: FontWeight.w600,
+                              if (!isInvestment && raiserName.isNotEmpty) ...[
+                                SizedBox(height: fit.dp(10)),
+                                // Raiser Attribution Badge
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.person_pin_circle_outlined,
+                                      size: fit.dp(14),
                                       color: mutedTextColor,
                                     ),
-                                  ),
-                                ],
-                              ),
+                                    SizedBox(width: fit.dp(4)),
+                                    Text(
+                                      isFil ? 'Itinala ni $raiserName' : 'Logged by $raiserName',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: fit.sp(11.5),
+                                        fontWeight: FontWeight.w600,
+                                        color: mutedTextColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -594,6 +613,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     required Color primaryText,
     required Color mutedText,
   }) {
+    final strings = AppStrings.of(context);
     if (!widget.hasActiveProject) {
       return Container(
         width: double.infinity,
@@ -631,7 +651,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Hog Lifecycle Tracking',
+                    strings.isFilipino ? 'Pagsubaybay sa Siklo ng Buhay ng Baboy' : 'Hog Lifecycle Tracking',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: fit.sp(13.5),
                       fontWeight: FontWeight.w800,
@@ -640,7 +660,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   ),
                   SizedBox(height: fit.dp(2)),
                   Text(
-                    'Fund an active batch to track your hogs across all 5 growth stages (Booster to Finisher).',
+                    strings.isFilipino
+                        ? 'Mag-pondo muna ng aktibong batch upang masubaybayan ang iyong mga baboy sa lahat ng 5 yugto ng paglaki (Booster hanggang Finisher).'
+                        : 'Fund an active batch to track your hogs across all 5 growth stages (Booster to Finisher).',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: fit.sp(11.5),
                       color: mutedText,
@@ -690,7 +712,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   ),
                   SizedBox(width: fit.dp(8)),
                   Text(
-                    'Lifecycle Stage',
+                    strings.isFilipino ? 'Yugto ng Buhay' : 'Lifecycle Stage',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: fit.sp(14.0),
                       fontWeight: FontWeight.w800,
@@ -710,7 +732,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   ),
                 ),
                 child: Text(
-                  '$currentStageName Stage',
+                  strings.isFilipino ? 'Yugtong $currentStageName' : '$currentStageName Stage',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: fit.sp(11.0),
                     fontWeight: FontWeight.w800,

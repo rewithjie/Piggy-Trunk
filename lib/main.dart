@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'services/notification_service.dart';
 import 'screens/admin_login_screen.dart';
@@ -75,10 +76,34 @@ void main() async {
     debugPrint('NotificationService init warning: $e');
   }
 
+  // Pre-load saved theme mode to prevent light/dark flicker on launch
+  ThemeMode initialThemeMode = ThemeMode.light;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final savedTheme = prefs.getString('app_theme_mode');
+    if (savedTheme == 'dark') {
+      initialThemeMode = ThemeMode.dark;
+    }
+  } catch (_) {}
+
   runApp(
-    const ProviderScope(
-      child: SettingsProvider(
-        child: MyApp(),
+    ProviderScope(
+      overrides: [
+        themeModeProvider.overrideWith((ref) => initialThemeMode),
+      ],
+      child: Consumer(
+        builder: (context, ref, child) {
+          final themeMode = ref.watch(themeModeProvider);
+          return SettingsProvider(
+            initialThemeMode: themeMode,
+            onThemeModeChanged: (newMode) {
+              if (ref.read(themeModeProvider) != newMode) {
+                ref.read(themeModeProvider.notifier).state = newMode;
+              }
+            },
+            child: const MyApp(),
+          );
+        },
       ),
     ),
   );
@@ -89,7 +114,8 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
+    final settings = SettingsProvider.of(context);
+    final themeMode = settings?.themeMode ?? ref.watch(themeModeProvider);
 
     // Host detection for Flutter Web (strip .vercel.app / .app suffix so main domain is not misidentified as mobile app)
     final host = kIsWeb ? Uri.base.host.toLowerCase() : '';
@@ -98,8 +124,10 @@ class MyApp extends ConsumerWidget {
         : (host.endsWith('.app') ? host.substring(0, host.length - 4) : host);
 
     final uri = kIsWeb ? Uri.base : Uri();
+    final bool isNativeMobile = !kIsWeb;
     final isLocalhost = host == 'localhost' || host == '127.0.0.1' || host.startsWith('192.168.');
     final hasAdminQuery = uri.queryParameters.containsKey('admin') || uri.queryParameters['role'] == 'admin';
+    final hasPartnerQuery = uri.queryParameters.containsKey('partner') || uri.queryParameters['role'] == 'partner' || uri.path.contains('partner');
     final hasAdminPath = uri.path.startsWith('/admin') ||
         uri.path.startsWith('/dashboard') ||
         uri.path.startsWith('/users') ||
@@ -111,7 +139,8 @@ class MyApp extends ConsumerWidget {
         uri.path.startsWith('/settings');
 
     final isAdminDomain = subdomain.contains('admin') || (isLocalhost && (hasAdminQuery || hasAdminPath));
-    final isMobileDomain = subdomain.contains('mobile') ||
+    final isMobileDomain = isNativeMobile ||
+        subdomain.contains('mobile') ||
         subdomain.startsWith('app') ||
         subdomain.endsWith('app') ||
         subdomain.contains('-app') ||
@@ -122,6 +151,8 @@ class MyApp extends ConsumerWidget {
     final String initialRoute;
     if (isAdminDomain) {
       initialRoute = '/login';
+    } else if (isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath && (uri.path == '/' || uri.path.isEmpty))) {
+      initialRoute = '/partner_dashboard';
     } else if (isMobileDomain) {
       initialRoute = '/app';
     } else {
@@ -131,7 +162,7 @@ class MyApp extends ConsumerWidget {
     return MaterialApp(
       title: isAdminDomain
           ? 'Piggy Trunk Admin'
-          : (isMobileDomain ? 'Piggy Trunk Mobile Web' : 'Piggy Trunk'),
+          : ((isMobileDomain || isLocalhost) ? 'Piggy Trunk Mobile - Partner Investor' : 'Piggy Trunk'),
       theme: PiggyTrunkTheme.lightTheme,
       darkTheme: PiggyTrunkTheme.darkTheme,
       themeMode: themeMode,
@@ -142,10 +173,12 @@ class MyApp extends ConsumerWidget {
         // Web Admin & Landing Routes
         '/': (context) => isAdminDomain
             ? const AdminLoginScreen()
-            : (isMobileDomain
-                ? const ResponsiveMobileWrapper(child: OnboardingScreen())
-                : const LandingScreen()),
-        '/login': (context) => (isAdminDomain || isLocalhost)
+            : ((isNativeMobile || hasPartnerQuery || (isLocalhost && !hasAdminQuery && !hasAdminPath))
+                ? const ResponsiveMobileWrapper(child: PartnerDashboardScreen())
+                : (isMobileDomain
+                    ? const ResponsiveMobileWrapper(child: OnboardingScreen())
+                    : const LandingScreen())),
+        '/login': (context) => (isAdminDomain || (isLocalhost && hasAdminPath))
             ? const AdminLoginScreen()
             : const ResponsiveMobileWrapper(child: LoginScreen()),
         '/admin': (context) => const AdminLoginScreen(),

@@ -559,19 +559,26 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     );
   }
 
-  String _formatRelativeTime(DateTime dateTime) {
-    final difference = DateTime.now().difference(dateTime);
-    if (difference.inDays > 7) {
+  String _formatRelativeTime(DateTime dateTime, [bool isFilipino = false, bool hasExplicitTime = true]) {
+    final now = DateTime.now();
+
+    // If date-only was parsed and it's today, show "Today" instead of comparing against midnight (which gives 10h ago)
+    if (!hasExplicitTime && dateTime.year == now.year && dateTime.month == now.month && dateTime.day == now.day) {
+      return isFilipino ? 'Ngayong araw' : 'Today';
+    }
+
+    final difference = now.difference(dateTime);
+    if (difference.isNegative || difference.inMinutes < 1) {
+      return isFilipino ? 'Kani-kanina lang' : 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ${isFilipino ? 'ang nakalipas' : 'ago'}';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ${isFilipino ? 'ang nakalipas' : 'ago'}';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ${isFilipino ? 'ang nakalipas' : 'ago'}';
+    } else {
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
-    } else if (difference.inDays >= 1) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours >= 1) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes >= 1) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
     }
   }
 
@@ -773,12 +780,18 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               final raiserAddress = (rMap['address'] ?? appUsers?['address'] ?? '').toString().trim();
               final raiserPhone = (rMap['phone'] ?? appUsers?['phone'] ?? '').toString().trim();
 
+              final rawPigType = (rMap['pig_type'] ?? '').toString().trim();
+              final safePigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A') ? 'Fattening' : rawPigType;
+
+              final rawStage = (rMap['lifecycle_stage'] ?? '').toString().trim();
+              final safeStage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
+
               raiserMap[rId] = {
                 'name': resolvedFullName,
                 'address': raiserAddress.isNotEmpty ? raiserAddress : 'Farm Location Not Set',
                 'phone': raiserPhone.isNotEmpty ? raiserPhone : 'N/A',
-                'pig_type': rMap['pig_type'] ?? 'Fattening',
-                'lifecycle_stage': rMap['lifecycle_stage'] ?? 'Grower',
+                'pig_type': safePigType,
+                'lifecycle_stage': safeStage,
               };
             }
           } catch (rErr) {
@@ -794,12 +807,19 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 if (rId.isNotEmpty) {
                   final raiserAddress = (rMap['address'] ?? '').toString().trim();
                   final raiserPhone = (rMap['phone'] ?? '').toString().trim();
+
+                  final rawPigType = (rMap['pig_type'] ?? '').toString().trim();
+                  final safePigType = (rawPigType.isEmpty || rawPigType.toUpperCase() == 'N/A') ? 'Fattening' : rawPigType;
+
+                  final rawStage = (rMap['lifecycle_stage'] ?? '').toString().trim();
+                  final safeStage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
+
                   raiserMap[rId] = {
                     'name': (rMap['name'] ?? 'Hog Raiser').toString(),
                     'address': raiserAddress.isNotEmpty ? raiserAddress : 'Farm Location Not Set',
                     'phone': raiserPhone.isNotEmpty ? raiserPhone : 'N/A',
-                    'pig_type': rMap['pig_type'] ?? 'Fattening',
-                    'lifecycle_stage': rMap['lifecycle_stage'] ?? 'Grower',
+                    'pig_type': safePigType,
+                    'lifecycle_stage': safeStage,
                   };
                 }
               }
@@ -940,7 +960,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               final rStage = (r['stage'] ?? 'Grower').toString().toUpperCase();
               allBatches.add({
                 'batch_id': bId,
-                'batch_name': 'Batch ${r['raiser_name'] ?? 'Livestock'} (#$bId)',
+                'batch_name': 'Batch ${r['raiser_name'] ?? 'Livestock'}',
                 'assigned_raiser': r['raiser_name'] ?? 'Assigned Raiser',
                 'raiser_name': r['raiser_name'] ?? 'Assigned Raiser',
                 'hog_type': r['hog_type'] ?? 'Fattening',
@@ -961,20 +981,32 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           try {
             final List<dynamic> raisers = await Supabase.instance.client
                 .from('hog_raisers')
-                .select('hog_raiser_id, name, pig_type, lifecycle_stage, status')
-                .limit(10);
+                .select('hog_raiser_id, name, pig_type, lifecycle_stage, status, account_status')
+                .order('hog_raiser_id', ascending: true);
 
             for (var r in raisers) {
+              final statusStr = (r['status'] ?? '').toString().toLowerCase();
+              final accountStatusStr = (r['account_status'] ?? '').toString().toLowerCase();
+              if (statusStr == 'archived' || statusStr == 'inactive' || accountStatusStr == 'archived' || accountStatusStr == 'pending') {
+                continue;
+              }
+
+              final rawType = (r['pig_type'] ?? '').toString().trim();
+              final safeType = (rawType.isEmpty || rawType.toUpperCase() == 'N/A') ? 'Fattening' : rawType;
+
+              final rawStage = (r['lifecycle_stage'] ?? '').toString().trim();
+              final safeStage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
+
               final rId = r['hog_raiser_id'];
               allBatches.add({
                 'batch_id': rId,
-                'batch_name': 'Batch ${r['name'] ?? 'Livestock'} (#$rId)',
+                'batch_name': 'Batch ${r['name'] ?? 'Livestock'}',
                 'assigned_raiser': r['name'] ?? 'Hog Raiser',
                 'raiser_name': r['name'] ?? 'Hog Raiser',
-                'hog_type': r['pig_type'] ?? 'Fattening',
+                'hog_type': safeType,
                 'total_hogs': 15,
                 'mortality': 0,
-                'stage': r['lifecycle_stage'] ?? 'Grower',
+                'stage': safeStage,
                 'status': 'Active',
               });
             }
@@ -1004,17 +1036,17 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 totalInvested += amt;
               }
 
-              final bId = inv['batch_id'];
-              final matchingBatches = allBatches.where((b) => b['batch_id'] == bId).toList();
+              final bId = inv['batch_id']?.toString();
+              final matchingBatches = allBatches.where((b) => b['batch_id']?.toString() == bId).toList();
               final matchingBatch = matchingBatches.isNotEmpty
                   ? matchingBatches.first
                   : {
-                      'batch_id': bId,
-                      'batch_name': 'Batch #$bId',
+                      'batch_id': inv['batch_id'],
+                      'batch_name': 'Batch #${inv['batch_id']}',
                       'assigned_raiser': 'Farm Raiser',
                       'raiser_name': 'Farm Raiser',
                       'hog_type': 'Fattening',
-                      'total_hogs': 0,
+                      'total_hogs': 15,
                       'mortality': 0,
                       'stage': 'Booster',
                       'status': 'Active',
@@ -1032,6 +1064,33 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           }
         } catch (e) {
           debugPrint('Notice: Fetching investments: $e');
+        }
+
+        // Also merge local/session investments for instant reflection and offline persistence
+        try {
+          final localInvs = await AuthSessionService().getLocalInvestments();
+          for (var lInv in localInvs) {
+            final lId = lInv['investment_id']?.toString();
+            final alreadyPresent = partnerProjects.any((p) => p['investment_id']?.toString() == lId);
+            if (!alreadyPresent) {
+              final amt = (lInv['amount'] as num?)?.toDouble() ?? 0.0;
+              final status = (lInv['status'] ?? 'active').toString().toLowerCase();
+              if (status == 'active' || status == 'approved') {
+                totalInvested += amt;
+              }
+              final bId = lInv['batch_id']?.toString();
+              final matchingBatches = allBatches.where((b) => b['batch_id']?.toString() == bId).toList();
+              final matchingBatch = matchingBatches.isNotEmpty ? matchingBatches.first : lInv;
+
+              partnerProjects.add({
+                ...matchingBatch,
+                ...lInv,
+                'invested_amount': amt,
+              });
+            }
+          }
+        } catch (lErr) {
+          debugPrint('Notice on local investments merge: $lErr');
         }
 
         _investedAmount = totalInvested;
@@ -1089,6 +1148,46 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           }
         } catch (e) {
           debugPrint('Notice fetching hog reports: $e');
+        }
+
+        // Include investment milestones in Recent Activities
+        for (var p in partnerProjects) {
+          final amt = p['invested_amount'] ?? p['amount'] ?? 0.0;
+          final rawBName = (p['batch_name'] ?? 'Batch #${p['batch_id']}').toString();
+          final cleanBatch = rawBName.replaceAll(RegExp(r'\s*\(#\d+\)'), '').trim();
+          final rawRName = (p['assigned_raiser'] ?? p['raiser_name'] ?? 'Hog Raiser').toString();
+          final cleanRaiser = rawRName.replaceAll(RegExp(r'\s*\(#\d+\)'), '').trim();
+
+          final rawTime = (p['created_at'] ?? p['date_invested'] ?? '').toString();
+          final bool hasTime = rawTime.contains('T') || rawTime.contains(':');
+          DateTime invDate = DateTime.tryParse(rawTime) ?? DateTime.now();
+          if (invDate.isUtc) {
+            invDate = invDate.toLocal();
+          }
+
+          final amtVal = (amt is num ? amt : (double.tryParse(amt.toString()) ?? 0)).toDouble();
+          final formattedAmt = amtVal.toStringAsFixed(2).replaceAllMapped(
+                RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                (Match m) => '${m[1]},',
+              );
+
+          final descTarget = cleanBatch.toLowerCase().startsWith('batch') ? cleanBatch : 'Batch $cleanBatch';
+
+          liveActivities.insert(0, {
+            'report_id': 'inv_${p['investment_id']}',
+            'title': 'Active Investment',
+            'title_en': 'Active Investment',
+            'title_fil': 'Aktibong Pamumuhunan',
+            'description': 'Funded ₱$formattedAmt for $descTarget.',
+            'desc_en': 'Funded ₱$formattedAmt for $descTarget.',
+            'desc_fil': 'Naglaan ng ₱$formattedAmt para sa $descTarget.',
+            'date': _formatRelativeTime(invDate, false, hasTime),
+            'date_fil': _formatRelativeTime(invDate, true, hasTime),
+            'created_at': rawTime,
+            'icon': Icons.assignment_rounded,
+            'raiser_name': cleanRaiser,
+            'type': 'Investment',
+          });
         }
 
         _activitiesList.clear();
@@ -1188,6 +1287,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         investedAmount: _investedAmount,
         activeProjectsCount: _activeProjectsCount,
         projectsList: _availableBatches,
+        fundedProjectsList: _projectsList,
         activitiesList: _activitiesList,
         notificationsList: _notificationsList,
         onRefresh: _fetchPartnerData,

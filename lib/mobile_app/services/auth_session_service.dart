@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -16,6 +17,7 @@ class AuthSessionService {
   static const String _keyUserRole = 'pt_saved_user_role';
   static const String _keyLoginMethod = 'pt_saved_login_method'; // 'google' or 'password'
   static const String _keyUserId = 'pt_saved_user_id';
+  static const String _keyLocalInvestments = 'pt_saved_local_investments';
 
   /// Save session details locally on successful login
   Future<void> saveSession({
@@ -259,5 +261,39 @@ class AuthSessionService {
     } catch (e) {
       debugPrint('AuthSessionService clearSession notice: $e');
     }
+  }
+
+  /// Store a local investment record for immediate UI reflection and offline testing
+  Future<void> saveLocalInvestment(Map<String, dynamic> investment) async {
+    try {
+      final list = await getLocalInvestments();
+      list.insert(0, investment);
+      await _storage.write(key: _keyLocalInvestments, value: jsonEncode(list));
+    } catch (e) {
+      debugPrint('AuthSessionService saveLocalInvestment error: $e');
+    }
+  }
+
+  /// Retrieve locally stored investment records
+  Future<List<Map<String, dynamic>>> getLocalInvestments() async {
+    try {
+      final raw = await _storage.read(key: _keyLocalInvestments);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('AuthSessionService getLocalInvestments error: $e');
+    }
+    return [];
+  }
+
+  /// Clear local investments cache
+  Future<void> clearLocalInvestments() async {
+    try {
+      await _storage.delete(key: _keyLocalInvestments);
+    } catch (_) {}
   }
 }

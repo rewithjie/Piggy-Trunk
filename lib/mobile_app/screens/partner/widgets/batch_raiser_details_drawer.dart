@@ -79,8 +79,10 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
             !rawAvatar.toLowerCase().contains('google.com'))
         ? rawAvatar.trim()
         : null;
-    final String hogType = batch['hog_type'] ?? 'Fattening';
-    final String stage = batch['stage'] ?? 'Grower';
+    final String rawHogType = (batch['hog_type'] ?? batch['pig_type'] ?? '').toString().trim();
+    final String hogType = (rawHogType.isEmpty || rawHogType.toUpperCase() == 'N/A') ? 'Fattening' : rawHogType;
+    final String rawStage = (batch['stage'] ?? batch['lifecycle_stage'] ?? '').toString().trim();
+    final String stage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
     final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? (batch['total_hog'] as num?)?.toInt() ?? 0;
     final String appliedDate = batch['date_created']?.toString().split('T')[0] ?? batch['appliedDate'] ?? 'Active Season';
 

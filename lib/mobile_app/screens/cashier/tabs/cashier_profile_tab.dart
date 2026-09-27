@@ -42,7 +42,7 @@ class CashierProfileTab extends StatelessWidget {
     final strings = AppStrings.of(context);
     final settingsProvider = SettingsProvider.of(context);
     final currentLocale = settingsProvider?.currentLocale ?? 'en';
-    final currentThemeMode = settingsProvider?.themeMode ?? ThemeMode.light;
+    final currentThemeMode = settingsProvider?.themeMode ?? (isDark ? ThemeMode.dark : ThemeMode.light);
 
     final name = cashierName.trim().isNotEmpty ? cashierName : 'Cashier Staff';
     final email = cashierEmail.trim().isNotEmpty ? cashierEmail : 'N/A';

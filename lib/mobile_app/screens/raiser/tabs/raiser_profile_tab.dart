@@ -34,7 +34,7 @@ class RaiserProfileTab extends StatelessWidget {
     final strings = AppStrings.of(context);
     final settingsProvider = SettingsProvider.of(context);
     final currentLocale = settingsProvider?.currentLocale ?? 'en';
-    final currentThemeMode = settingsProvider?.themeMode ?? ThemeMode.light;
+    final currentThemeMode = settingsProvider?.themeMode ?? (isDark ? ThemeMode.dark : ThemeMode.light);
 
     final name = (raiserData['name'] ?? '').toString().trim().isNotEmpty
         ? (raiserData['name'] as String)

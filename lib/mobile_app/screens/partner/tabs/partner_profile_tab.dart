@@ -39,7 +39,7 @@ class PartnerProfileTab extends StatelessWidget {
     final strings = AppStrings.of(context);
     final settingsProvider = SettingsProvider.of(context);
     final currentLocale = settingsProvider?.currentLocale ?? 'en';
-    final currentThemeMode = settingsProvider?.themeMode ?? ThemeMode.system;
+    final currentThemeMode = settingsProvider?.themeMode ?? (isDark ? ThemeMode.dark : ThemeMode.light);
 
     final primaryTextColor = isDark ? Colors.white : _brandColor;
     final titleColor = isDark ? Colors.white : _brandColor;
