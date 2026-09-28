@@ -697,15 +697,17 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     final phoneController = TextEditingController(text: currentPhone);
     final addressController = TextEditingController(text: currentAddress);
 
-    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
-    final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
-    final inputBg = isDark ? const Color(0xFF1B2A3F) : const Color(0xFFF8FAFC);
+    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final inputBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
     final borderColor = isDark
-        ? const Color(0xFF2A3C55)
+        ? const Color(0xFF334155)
         : const Color(0xFFE2E8F0);
     final hintColor = isDark
-        ? const Color(0xFF8A9FB8)
+        ? const Color(0xFF94A3B8)
         : PiggyTrunkTheme.ptMuted;
+    final fieldIconColor = isDark ? Colors.white70 : hintColor;
+    final actionColor = isDark ? Colors.white : _brandColor;
 
     showModalBottomSheet(
       context: context,
@@ -741,7 +743,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         height: 4,
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: borderColor,
+                          color: isDark ? const Color(0xFF475569) : Colors.grey[300],
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -762,7 +764,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
                           icon: const Icon(Icons.close, size: 20),
-                          color: hintColor,
+                          color: isDark ? Colors.white70 : hintColor,
                         ),
                       ],
                     ),
@@ -797,7 +799,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         prefixIcon: Icon(
                           Icons.person_outline,
                           size: 20,
-                          color: hintColor,
+                          color: fieldIconColor,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -809,8 +811,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: _brandColor,
+                          borderSide: BorderSide(
+                            color: actionColor,
                             width: 1.5,
                           ),
                         ),
@@ -850,7 +852,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         prefixIcon: Icon(
                           Icons.phone_iphone,
                           size: 20,
-                          color: hintColor,
+                          color: fieldIconColor,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -862,8 +864,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: _brandColor,
+                          borderSide: BorderSide(
+                            color: actionColor,
                             width: 1.5,
                           ),
                         ),
@@ -900,7 +902,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         prefixIcon: Icon(
                           Icons.location_on_outlined,
                           size: 20,
-                          color: hintColor,
+                          color: fieldIconColor,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -912,8 +914,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: _brandColor,
+                          borderSide: BorderSide(
+                            color: actionColor,
                             width: 1.5,
                           ),
                         ),
@@ -1007,8 +1009,8 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _brandColor,
-                          foregroundColor: Colors.white,
+                          backgroundColor: isDark ? Colors.white : _brandColor,
+                          foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

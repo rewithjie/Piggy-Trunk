@@ -91,6 +91,22 @@ class AppStrings {
   String get pleaseEnterQuantity => isFilipino ? 'Paki-lagay ang dami ng item na hihilingin (dapat higit sa 0).' : 'Please enter a valid quantity (must be greater than 0).';
   String get requestSuccessToast => isFilipino ? 'Matagumpay na naipadala ang iyong kahilingan!' : 'Stock request submitted successfully!';
   String get requestFailedToast => isFilipino ? 'Nagka-problema sa pagpapadala ng kahilingan.' : 'Failed to submit request.';
+  String get selectCategoriesHint => isFilipino ? 'Pumili ng isa o higit pang kategorya na kailangan' : 'Select one or more categories needed';
+  String get requestSummaryTitle => isFilipino ? 'Buod ng Kahilingan' : 'Request Summary';
+  String get noCategorySelectedPrompt => isFilipino ? 'Pumili ng kahit isang kategorya sa itaas upang ilagay ang dami.' : 'Select at least one category above to configure quantities.';
+  String get brandOrDetailLabel => isFilipino ? 'Brand o Detalye ng Feeds (Opsyonal)' : 'Brand or Feed Details (Optional)';
+  String get specificFeedsLabel => isFilipino ? 'Tiyak na Uri / Brand ng Feeds' : 'Specific Feed Type / Brand';
+  String get specificFeedsHint => isFilipino ? 'hal. Booster, Starter, Grower, B-MEG...' : 'e.g., Booster, Starter, Grower, B-MEG...';
+  String get specificMedicineLabel => isFilipino ? 'Tiyak na Pangalan / Uri ng Gamot' : 'Specific Medicine Name / Details';
+  String get specificMedicineHint => isFilipino ? 'hal. Amoxicillin, Dewormer, Iron, Penicillin...' : 'e.g., Amoxicillin, Dewormer, Iron, Penicillin...';
+  String get specificVitaminsLabel => isFilipino ? 'Tiyak na Pangalan / Uri ng Bitamina' : 'Specific Vitamin Name / Details';
+  String get specificVitaminsHint => isFilipino ? 'hal. B-Complex, Electrolytes, Multivitamins...' : 'e.g., B-Complex, Electrolytes, Multivitamins...';
+  String get generalNotesSubtitle => isFilipino ? 'Pangkalahatang mensahe o tagubilin para sa admin' : 'General message or instructions for the admin';
+  String get batchRequiredTitle => isFilipino ? 'Kailangan ng Aktibong Batch' : 'Active Batch Required';
+  String get batchRequiredMessage => isFilipino ? 'Hindi pa makakahiling ng supplies sa ngayon dahil wala ka pang aktibong batch ng alagang baboy na nakatalaga sa iyong account.' : 'You cannot request supplies yet because your account does not have an active assigned hog batch.';
+  String get batchRequiredHint => isFilipino ? 'Kailangan munang ma-assign sa batch upang makapag-request.' : 'Active batch assignment required before submitting requests.';
+  String get batchRequiredContactAdmin => isFilipino ? 'Makipag-ugnayan sa Farm Admin upang maitalaga ang iyong batch.' : 'Please coordinate with your Farm Admin to assign your active batch.';
+  String get gotItButton => isFilipino ? 'Naintindihan' : 'Got it';
 
   // ================= Notifications Drawer =================
   String get notificationsTitle => isFilipino ? 'Mga Abiso' : 'Notifications';
@@ -223,6 +239,25 @@ class AppStrings {
   String get activeStatus => isFilipino ? 'Aktibo' : 'Active';
   String get unassigned => isFilipino ? 'Hindi pa naitatalaga' : 'Unassigned';
   String get notSet => isFilipino ? 'Hindi nakatakda' : 'Not set';
+
+  // ================= Location & Address Action Strings =================
+  String get actionNeeded => isFilipino ? 'Kailangan I-set' : 'Action Needed';
+  String get farmLocationMissing => isFilipino ? 'Kulang ang Address ng Bukid' : 'Farm Location Missing';
+  String get farmLocationMissingDesc => isFilipino
+      ? 'Kailangan ng admin ang address ng bukid para sa pag-verify ng iyong account.'
+      : 'Please set your farm address for admin verification.';
+  String get locationNotSetTap => isFilipino
+      ? 'Wala pang address • I-tap para i-set'
+      : 'Location not set • Tap to detect or enter';
+  String get autoDetectLocation => isFilipino ? 'I-detect ang Lokasyon' : 'Auto-Detect Location';
+  String get detectingGps => isFilipino ? 'Dine-detect ang GPS...' : 'Detecting GPS...';
+  String get locationDisabledTitle => isFilipino ? 'Naka-off ang Lokasyon' : 'Location Permission Disabled';
+  String get locationDisabledDesc => isFilipino
+      ? 'Naka-off ang location access ng Piggy Trunk sa mga setting ng telepono. Nais mo bang buksan ang App Settings para i-on ito?'
+      : 'Location access for Piggy Trunk is turned off in your phone settings. Would you like to open App Settings to allow it?';
+  String get openSettings => isFilipino ? 'Buksan ang Settings' : 'Open Settings';
+  String get locationSavedToast => isFilipino ? 'Nai-save ang lokasyon:' : 'Location saved:';
+  String get locationDetectedToast => isFilipino ? 'Natukoy ang lokasyon:' : 'Location detected:';
 
   // ================= Settings / Language =================
   String get settings => isFilipino ? 'Mga Setting' : 'Settings';

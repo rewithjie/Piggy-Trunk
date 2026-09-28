@@ -446,7 +446,7 @@ class RaiserHomeTab extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                color: isDark ? Colors.white : _brandColor,
               ),
             ),
             const SizedBox(height: 14),
@@ -539,7 +539,7 @@ class RaiserHomeTab extends StatelessWidget {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                    color: isDark ? Colors.white : _brandColor,
                   ),
                 ),
                 TextButton(
@@ -549,7 +549,7 @@ class RaiserHomeTab extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                      color: isDark ? Colors.white : _brandColor,
                     ),
                   ),
                 ),
@@ -1085,10 +1085,10 @@ class RaiserHomeTab extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: _brandColor.withValues(alpha: 0.08),
+                        color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.08),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.account_balance_wallet_rounded, color: _brandColor, size: 22),
+                      child: Icon(Icons.account_balance_wallet_rounded, color: isDark ? Colors.white : _brandColor, size: 22),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1340,7 +1340,7 @@ class RaiserHomeTab extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _brandColor.withValues(alpha: 0.08),
+                              color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.08),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -1348,7 +1348,7 @@ class RaiserHomeTab extends StatelessWidget {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: _brandColor,
+                                color: isDark ? Colors.white : _brandColor,
                               ),
                             ),
                           ),
@@ -1415,14 +1415,14 @@ class RaiserHomeTab extends StatelessWidget {
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: _brandColor.withValues(alpha: 0.08),
+                                    color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.08),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Icon(
                                     pCat.toLowerCase().contains('med') || pCat.toLowerCase().contains('vaccine') || pCat.toLowerCase().contains('vitamin')
                                         ? Icons.medical_services_outlined
                                         : Icons.grain_rounded,
-                                    color: _brandColor,
+                                    color: isDark ? Colors.white : _brandColor,
                                     size: 20,
                                   ),
                                 ),

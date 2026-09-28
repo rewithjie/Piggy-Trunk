@@ -100,8 +100,8 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final sheetBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
-    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
     final unreadCount = widget.notificationsList.where((n) => n['is_read'] == false).length;
     final displayList = _filteredNotifications;
@@ -270,7 +270,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                       color: isDark ? const Color(0xFF1E293B) : Colors.white,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
-                                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                        color: isDark ? Colors.white54 : _brandColor,
                                         width: 1.5,
                                       ),
                                       boxShadow: [
@@ -287,7 +287,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                                         Icon(
                                           Icons.history_rounded,
                                           size: 18,
-                                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                          color: isDark ? Colors.white : _brandColor,
                                         ),
                                         const SizedBox(width: 8),
                                         Text(

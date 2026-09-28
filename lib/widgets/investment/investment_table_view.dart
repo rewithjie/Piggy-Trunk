@@ -1145,6 +1145,9 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     final status = (p['status'] ?? 'active').toString().toLowerCase();
     final isActive = status == 'active' || status == 'approved';
     final isPending = status == 'pending';
+    final Color statusColor = isActive
+        ? PiggyTrunkTheme.ptSuccess
+        : (isPending ? const Color(0xFFFFAA00) : const Color(0xFFFF758C));
 
     final double amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
     final dateStr = p['date_invested']?.toString() ?? '';
@@ -1213,48 +1216,34 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : isPending
-                            ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                            : const Color(0xFFEF4444).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isActive
-                          ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                          : isPending
-                              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-                              : const Color(0xFFEF4444).withValues(alpha: 0.4),
-                      width: 0.8,
+                      color: statusColor.withValues(alpha: 0.35),
+                      width: 1,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        isActive
-                            ? Icons.check_circle_rounded
-                            : isPending
-                                ? Icons.hourglass_top_rounded
-                                : Icons.cancel_rounded,
-                        size: 13,
-                        color: isActive
-                            ? const Color(0xFF10B981)
-                            : isPending
-                                ? const Color(0xFFF59E0B)
-                                : const Color(0xFFEF4444),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 6),
                       Text(
                         isActive ? 'ACTIVE' : status.toUpperCase(),
+                        maxLines: 1,
+                        softWrap: false,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: isActive
-                              ? const Color(0xFF10B981)
-                              : isPending
-                                  ? const Color(0xFFF59E0B)
-                                  : const Color(0xFFEF4444),
+                          letterSpacing: 0.5,
+                          color: statusColor,
                         ),
                       ),
                     ],

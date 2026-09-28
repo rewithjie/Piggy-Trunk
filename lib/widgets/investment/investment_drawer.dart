@@ -46,14 +46,14 @@ class InvestmentDrawer {
         raisersRaw = await supabase
             .from('hog_raisers')
             .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
-            .order('name', ascending: true);
+            .order('hog_raiser_id', ascending: false);
       } catch (rErr) {
         debugPrint('Notice loading raisers in drawer: $rErr. Falling back to plain hog_raisers...');
         try {
           raisersRaw = await supabase
               .from('hog_raisers')
               .select('hog_raiser_id, name, pig_type, status, account_status')
-              .order('name', ascending: true);
+              .order('hog_raiser_id', ascending: false);
         } catch (rErr2) {
           debugPrint('Error fetching raisers fallback in drawer: $rErr2');
         }
@@ -103,9 +103,12 @@ class InvestmentDrawer {
       // 2. Fetch Batches
       List<dynamic> batchesRaw = [];
       try {
-        batchesRaw = await supabase.from('batches').select('*');
+        batchesRaw = await supabase.from('batches').select('*').order('batch_id', ascending: false);
       } catch (bErr) {
         debugPrint('Error fetching batches in drawer: $bErr');
+        try {
+          batchesRaw = await supabase.from('batches').select('*');
+        } catch (_) {}
       }
 
       // 3. Fetch Assignments
@@ -179,6 +182,18 @@ class InvestmentDrawer {
           'hog_count': hogCount,
         });
       }
+
+      parsedRaisers.sort((a, b) {
+        final idA = int.tryParse(a['id'].toString()) ?? 0;
+        final idB = int.tryParse(b['id'].toString()) ?? 0;
+        return idB.compareTo(idA);
+      });
+
+      parsedBatches.sort((a, b) {
+        final idA = int.tryParse(a['batch_id'].toString()) ?? 0;
+        final idB = int.tryParse(b['batch_id'].toString()) ?? 0;
+        return idB.compareTo(idA);
+      });
 
       activeBatches = [
         {

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
+import '../common/searchable_dropdown_field.dart';
 
 class InvestmentFormView extends StatefulWidget {
   final VoidCallback onCancel;
@@ -102,12 +103,18 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
 
   Future<void> _fetchDropdownData() async {
     try {
-      // 1. Fetch Batches
+      // 1. Fetch Batches (ordered newest first)
       List<dynamic> batchesRaw = [];
       try {
-        batchesRaw = await _supabase.from('batches').select('*');
+        batchesRaw = await _supabase
+            .from('batches')
+            .select('*')
+            .order('batch_id', ascending: false);
       } catch (bErr) {
-        debugPrint('Error fetching batches: $bErr');
+        debugPrint('Error fetching batches with order: $bErr');
+        try {
+          batchesRaw = await _supabase.from('batches').select('*');
+        } catch (_) {}
       }
 
       final Map<String, String> batchNamesMap = {
@@ -156,20 +163,20 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         }
       }
 
-      // 4. Fetch authorized active/approved raisers
+      // 4. Fetch authorized active/approved raisers (ordered newest first by hog_raiser_id)
       List<dynamic> raisersRaw = [];
       try {
         raisersRaw = await _supabase
             .from('hog_raisers')
             .select('hog_raiser_id, name, pig_type, status, account_status, app_users!hog_raisers_user_id_fkey(name, email)')
-            .order('name', ascending: true);
+            .order('hog_raiser_id', ascending: false);
       } catch (rErr) {
         debugPrint('Notice loading raisers with app_users relation: $rErr. Retrying basic...');
         try {
           raisersRaw = await _supabase
               .from('hog_raisers')
               .select('hog_raiser_id, name, pig_type, status, account_status')
-              .order('name', ascending: true);
+              .order('hog_raiser_id', ascending: false);
         } catch (rErr2) {
           debugPrint('Error fetching raisers fallback: $rErr2');
         }
@@ -264,6 +271,20 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
           'hog_count': hogCount,
         });
       }
+
+      // Sort raisers newest first (highest id at top, oldest created at bottom)
+      parsedRaisers.sort((a, b) {
+        final idA = int.tryParse(a['id'].toString()) ?? 0;
+        final idB = int.tryParse(b['id'].toString()) ?? 0;
+        return idB.compareTo(idA);
+      });
+
+      // Sort batches newest first (highest batch_id at top, oldest at bottom)
+      parsedBatches.sort((a, b) {
+        final idA = int.tryParse(a['batch_id'].toString()) ?? 0;
+        final idB = int.tryParse(b['batch_id'].toString()) ?? 0;
+        return idB.compareTo(idA);
+      });
 
       if (_isEdit) {
         if (_selectedBatchId == null || _selectedBatchId == 'unassigned') {
@@ -682,7 +703,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ASSIGN HOG RAISER DROPDOWN
+                    // ASSIGN HOG RAISER DROPDOWN (Searchable & Sorted Newest First)
                     Text(
                       'ASSIGN HOG RAISER *',
                       style: GoogleFonts.plusJakartaSans(
@@ -693,52 +714,32 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
+                    SearchableDropdownField<String>(
                       key: ValueKey('raiser_dropdown_${_selectedRaiserId}_${_activeRaisers.length}'),
-                      initialValue: _activeRaisers.any((r) => r['id'].toString() == _selectedRaiserId)
+                      value: _activeRaisers.any((r) => r['id'].toString() == _selectedRaiserId)
                           ? _selectedRaiserId
                           : 'unassigned',
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: _fieldBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldBorder),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldFocus, width: 1.5),
-                        ),
-                      ),
-                      dropdownColor: _fieldBg,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _fieldText,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      unassignedValue: 'unassigned',
+                      hintText: 'Select or search a hog raiser',
+                      searchHintText: 'Type to search hog raiser by name...',
+                      isDark: _isDark,
+                      fieldBg: _fieldBg,
+                      fieldBorder: _fieldBorder,
+                      fieldFocus: _fieldFocus,
+                      fieldText: _fieldText,
+                      mutedColor: _mutedColor,
+                      cardBg: _cardBg,
+                      cardBorder: _cardBorder,
+                      defaultPrefixIcon: Icons.person_outline_rounded,
                       items: [
-                        DropdownMenuItem<String>(
+                        SearchableDropdownItem<String>(
                           value: 'unassigned',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person_off_outlined, size: 16, color: _mutedColor),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _activeRaisers.isEmpty
-                                      ? 'No Authorized Raisers (Unassigned)'
-                                      : 'Unassigned (General Pool)',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: _mutedColor,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          label: _activeRaisers.isEmpty
+                              ? 'No Authorized Raisers (Unassigned)'
+                              : 'Unassigned (General Pool)',
+                          icon: Icons.person_off_outlined,
+                          iconColor: _mutedColor,
+                          searchKeywords: 'unassigned general pool none',
                         ),
                         ..._activeRaisers.map((r) {
                           final rBatchId = r['assigned_batch_id']?.toString();
@@ -757,46 +758,29 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                               _selectedBatchId != 'unassigned' &&
                               rBatchId == _selectedBatchId;
 
-                          String labelText = '${r['name']}';
+                          String subText = '';
                           if (isAssignedToOther) {
-                            labelText = '${r['name']} (Active in $assignedBatchName)';
+                            subText = 'Active in $assignedBatchName';
                           } else if (isAssignedToCurrent) {
-                            labelText = '${r['name']} (Assigned to $assignedBatchName)';
+                            subText = 'Assigned to $assignedBatchName';
                           } else if (hasBatch) {
-                            labelText = '${r['name']} ($assignedBatchName)';
-                          } else {
-                            labelText = '${r['name']}';
+                            subText = assignedBatchName;
                           }
 
-                          return DropdownMenuItem<String>(
+                          return SearchableDropdownItem<String>(
                             value: r['id'].toString(),
-                            enabled: !isAssignedToOther,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isAssignedToOther ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
-                                  size: 16,
-                                  color: isAssignedToOther
-                                      ? _mutedColor
-                                      : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    labelText,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: isAssignedToOther
-                                          ? _mutedColor.withValues(alpha: 0.6)
-                                          : _fieldText,
-                                      fontWeight: isAssignedToOther ? FontWeight.w500 : FontWeight.w600,
-                                      fontStyle: isAssignedToOther ? FontStyle.italic : FontStyle.normal,
-                                      fontSize: 13.5,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            label: r['name'].toString(),
+                            subtitle: subText.isNotEmpty ? subText : null,
+                            badge: hasBatch ? assignedBatchName : null,
+                            badgeColor: isAssignedToOther
+                                ? Colors.amber.shade700
+                                : (isAssignedToCurrent ? PiggyTrunkTheme.ptPrimary : null),
+                            isEnabled: !isAssignedToOther,
+                            icon: isAssignedToOther ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
+                            iconColor: isAssignedToOther
+                                ? _mutedColor
+                                : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
+                            searchKeywords: '${r['name']} $assignedBatchName ${r['pig_type'] ?? ''}',
                           );
                         }),
                       ],
@@ -826,7 +810,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                     ),
                     const SizedBox(height: 22),
 
-                    // SELECT BATCH TO FUND
+                    // SELECT BATCH TO FUND DROPDOWN (Searchable & Sorted Newest First)
                     Text(
                       'SELECT BATCH TO FUND *',
                       style: GoogleFonts.plusJakartaSans(
@@ -837,58 +821,40 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
+                    SearchableDropdownField<String>(
                       key: ValueKey('batch_dropdown_${_selectedBatchId}_${_activeBatches.length}'),
-                      initialValue: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
+                      value: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
                           ? _selectedBatchId
-                          : (_activeBatches.isNotEmpty ? _activeBatches.first['batch_id'] : 'unassigned'),
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: _fieldBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldBorder),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldFocus, width: 1.5),
-                        ),
-                      ),
-                      dropdownColor: _fieldBg,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: _fieldText,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          : (_activeBatches.isNotEmpty ? _activeBatches.first['batch_id'].toString() : 'unassigned'),
+                      unassignedValue: 'unassigned',
+                      hintText: 'Select or search a batch to fund',
+                      searchHintText: 'Type to search batch name or raiser...',
+                      isDark: _isDark,
+                      fieldBg: _fieldBg,
+                      fieldBorder: _fieldBorder,
+                      fieldFocus: _fieldFocus,
+                      fieldText: _fieldText,
+                      mutedColor: _mutedColor,
+                      cardBg: _cardBg,
+                      cardBorder: _cardBorder,
+                      defaultPrefixIcon: Icons.layers_outlined,
                       items: _activeBatches.map((b) {
                         final isUnassigned = b['batch_id'] == 'unassigned';
-                        return DropdownMenuItem<String>(
+                        final rName = (b['raiser_name'] ?? '').toString();
+                        final hasRaiser = rName.isNotEmpty && rName != 'Unassigned';
+                        final count = b['hog_count'] ?? 0;
+                        return SearchableDropdownItem<String>(
                           value: b['batch_id'].toString(),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isUnassigned ? Icons.layers_clear_outlined : Icons.layers_outlined,
-                                size: 16,
-                                color: isUnassigned
-                                    ? _mutedColor
-                                    : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  b['display_label'].toString(),
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: isUnassigned ? _mutedColor : _fieldText,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          label: b['display_label'].toString(),
+                          subtitle: isUnassigned
+                              ? null
+                              : (hasRaiser ? 'Raiser: $rName • $count hogs' : (count > 0 ? '$count hogs' : null)),
+                          badge: hasRaiser ? rName : null,
+                          icon: isUnassigned ? Icons.layers_clear_outlined : Icons.layers_outlined,
+                          iconColor: isUnassigned
+                              ? _mutedColor
+                              : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
+                          searchKeywords: '${b['batch_name']} $rName',
                         );
                       }).toList(),
                       onChanged: (val) {

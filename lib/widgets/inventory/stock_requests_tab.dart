@@ -469,7 +469,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
               borderRadius: BorderRadius.circular(17),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
+                  final tableWidth = constraints.maxWidth > 820 ? constraints.maxWidth : 820.0;
                   return Scrollbar(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -481,7 +481,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             1: FlexColumnWidth(0.95),
                             2: FlexColumnWidth(1.2),
                             3: FlexColumnWidth(0.85),
-                            4: FlexColumnWidth(0.8),
+                            4: FlexColumnWidth(1.0),
                             5: FixedColumnWidth(180),
                           },
                           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
@@ -605,16 +605,12 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     final quantity = req['quantity']?.toString() ?? '0';
     final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
 
-    Color statusBg;
     Color statusFg;
     if (status == 'APPROVED') {
-      statusBg = const Color(0x3343CB89);
       statusFg = const Color(0xFF43CB89);
     } else if (status == 'REJECTED') {
-      statusBg = const Color(0x33FF758C);
       statusFg = const Color(0xFFFF758C);
     } else {
-      statusBg = const Color(0x33FFAA00);
       statusFg = const Color(0xFFFFAA00);
     }
 
@@ -692,19 +688,39 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
           child: Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: statusBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                status,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.plusJakartaSans(
-                  color: statusFg,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
+                color: statusFg.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: statusFg.withValues(alpha: 0.35),
+                  width: 1,
                 ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: statusFg,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    status,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: statusFg,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

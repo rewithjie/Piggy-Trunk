@@ -139,12 +139,12 @@ class ActiveRaisersTab extends StatelessWidget {
           if (isRefreshing)
             TableSkeletonLoader(
               isDark: isDark,
-              minWidth: 720,
+              minWidth: 820,
               cardBg: cardBg,
               cardBorder: cardBorder,
               headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
               headers: const ['NAME', 'ADDRESS', 'PHONE NUMBER', 'STATUS', 'ACTIONS'],
-              columnFlexes: const [2, 2, 2, 1, 4],
+              columnFlexes: const [3, 2, 2, 2, 2],
               actionButtonCount: currentTab == 0 ? 2 : 3,
               rowCount: 5,
               borderRadius: 8,
@@ -168,7 +168,7 @@ class ActiveRaisersTab extends StatelessWidget {
           else
             LayoutBuilder(
               builder: (context, constraints) {
-                final tableWidth = constraints.maxWidth > 720 ? constraints.maxWidth : 720.0;
+                final tableWidth = constraints.maxWidth > 820 ? constraints.maxWidth : 820.0;
 
                 return Scrollbar(
                   child: SingleChildScrollView(
@@ -206,7 +206,7 @@ class ActiveRaisersTab extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Text('NAME', style: AppTextStyles.tableHeader(hintText)),
@@ -227,14 +227,14 @@ class ActiveRaisersTab extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text('STATUS', style: AppTextStyles.tableHeader(hintText)),
             ),
           ),
           Expanded(
-            flex: 4,
+            flex: 2,
             child: Center(
               child: Text('ACTIONS', style: AppTextStyles.tableHeader(hintText)),
             ),
@@ -276,7 +276,7 @@ class ActiveRaisersTab extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(right: 8),
               child: Text(
@@ -309,31 +309,52 @@ class ActiveRaisersTab extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: AppTextStyles.jakarta(
-                      color: statusColor,
-                      size: 11,
-                      weight: FontWeight.w700,
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.35),
+                      width: 1,
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: statusColor,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        statusText,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
           Expanded(
-            flex: 4,
+            flex: 2,
             child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,

@@ -162,7 +162,7 @@ class BatchTableView extends StatelessWidget {
               if (isRefreshing)
                 TableSkeletonLoader(
                   isDark: isDark,
-                  minWidth: 650,
+                  minWidth: 800,
                   cardBg: cardBg,
                   cardBorder: cardBorder,
                   headerBg: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
@@ -175,7 +175,7 @@ class BatchTableView extends StatelessWidget {
                 // Responsive Table / Card Layout
                 LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
+                  final tableWidth = constraints.maxWidth > 800 ? constraints.maxWidth : 800.0;
 
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -499,17 +499,13 @@ class BatchTableView extends StatelessWidget {
     final dateCreated = batch['date_created']?.toString() ?? 'N/A';
     final status = batch['status']?.toString().toUpperCase() ?? 'ACTIVE';
 
-    Color statusBg;
-    Color statusFg;
+    Color statusColor;
     if (status == 'ACTIVE') {
-      statusBg = const Color(0x3343CB89);
-      statusFg = const Color(0xFF43CB89);
+      statusColor = PiggyTrunkTheme.ptSuccess;
     } else if (status == 'COMPLETED' || status == 'HARVESTED') {
-      statusBg = const Color(0x333B82F6);
-      statusFg = const Color(0xFF3B82F6);
+      statusColor = const Color(0xFF3B82F6);
     } else {
-      statusBg = const Color(0x3394A3B8);
-      statusFg = const Color(0xFF94A3B8);
+      statusColor = const Color(0xFF94A3B8);
     }
 
     return Container(
@@ -532,9 +528,40 @@ class BatchTableView extends StatelessWidget {
             flex: 2,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
-                child: Text(status, style: GoogleFonts.plusJakartaSans(color: statusFg, fontSize: 10.5, fontWeight: FontWeight.w800)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.35),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      status,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: statusColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -64,6 +64,8 @@ dependencies:
   mailer: ^7.2.0
   flutter_web_plugins:
     sdk: flutter
+  geolocator: ^14.0.2
+  geocoding: ^5.0.0
 
 dev_dependencies:
   flutter_test:

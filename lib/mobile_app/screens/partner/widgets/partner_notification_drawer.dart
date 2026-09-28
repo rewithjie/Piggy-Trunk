@@ -530,7 +530,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                       color: isDark ? const Color(0xFF1E293B) : Colors.white,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                        color: isDark ? Colors.white54 : _brandColor,
                         width: 1.5,
                       ),
                       boxShadow: [
@@ -547,7 +547,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                         Icon(
                           Icons.history_rounded,
                           size: fit.dp(18),
-                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                          color: isDark ? Colors.white : _brandColor,
                         ),
                         SizedBox(width: fit.dp(8)),
                         Text(

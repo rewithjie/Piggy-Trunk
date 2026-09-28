@@ -813,29 +813,55 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: PiggyTrunkTheme.ptBorder),
+                  border: Border.all(
+                    color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
                 child: Center(
                   child: Column(
                     children: [
-                      const Icon(Icons.assignment_late_outlined, size: 40, color: Color(0xFFA0AEC0)),
-                      const SizedBox(height: 12),
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.15 : 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.assignment_late_outlined,
+                            size: 28,
+                            color: isDark ? Colors.white : _brandColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       Text(
                         strings.isFilipino ? 'Walang nakatalagang alagang baboy.' : 'No hogs assigned yet.',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: PiggyTrunkTheme.ptMuted,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF18314F),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         strings.isFilipino ? 'I-aassign ng Farm Admin ang iyong batch dito.' : 'Farm Admin will assign your batch here.',
+                        textAlign: TextAlign.center,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.8),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                          height: 1.4,
                         ),
                       ),
                     ],
@@ -939,7 +965,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
-                                      color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                                      color: isDark ? Colors.white : _brandColor,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
@@ -947,7 +973,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                     weight ?? (strings.isFilipino ? 'Walang tala ng timbang' : 'No weight recorded'),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12,
-                                      color: PiggyTrunkTheme.ptMuted,
+                                      color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
                                     ),
                                   ),
                                 ],
@@ -1190,7 +1216,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                         notes,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 12,
-                                          color: isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xFF334155),
+                                          color: isDark ? Colors.white : const Color(0xFF334155),
                                           fontWeight: FontWeight.w500,
                                           height: 1.35,
                                         ),
@@ -1233,14 +1259,14 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w700,
-                                        color: isDark ? const Color(0xFF60A5FA) : _brandColor,
+                                        color: isDark ? Colors.white : _brandColor,
                                       ),
                                     ),
                                     const SizedBox(width: 3),
                                     Icon(
                                       Icons.arrow_forward_ios_rounded,
                                       size: 10,
-                                      color: isDark ? const Color(0xFF60A5FA) : _brandColor,
+                                      color: isDark ? Colors.white : _brandColor,
                                     ),
                                   ],
                                 ),
@@ -1265,7 +1291,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     final isSelected = _selectedTab == key;
     final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final selectedBg = isDark ? Colors.white : _brandColor;
     final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
 

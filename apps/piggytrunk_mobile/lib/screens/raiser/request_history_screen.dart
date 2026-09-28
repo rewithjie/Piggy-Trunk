@@ -48,13 +48,14 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
           .from('stock_requests')
           .select('''
             request_id,
-            product_name,
+            category,
+            feed_type,
             quantity,
             request_date,
             status,
             rejection_reason,
             notes,
-            batches(batch_name)
+            assignments(batches(batch_name))
           ''')
           .eq('hog_raiser_id', raiserId)
           .order('request_date', ascending: false)
@@ -126,7 +127,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
     final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final textColor = isDark ? Colors.white : _brandColor;
     final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
     final filtered = _filteredRequests;
 
@@ -344,8 +345,8 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                   : (quantity == 1 ? (strings.isFilipino ? 'Piraso' : 'Unit') : (strings.isFilipino ? 'mga Piraso' : 'Units'));
                               final ofWord = strings.isFilipino ? 'ng' : 'of';
                               String titleText = '$quantity $unitWord $ofWord $category';
-                              if (category.toLowerCase() == 'feeds' && feedType != null) {
-                                titleText = '$quantity $unitWord $ofWord $feedType';
+                              if (feedType != null && feedType.toString().trim().isNotEmpty && feedType.toString().trim().toLowerCase() != category.toLowerCase()) {
+                                titleText = '$quantity $unitWord $ofWord ${feedType.toString().trim()}';
                               }
 
                               return Container(
@@ -497,7 +498,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     final isSelected = _activeTab == key;
     final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final selectedBg = isDark ? Colors.white : _brandColor;
     final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
 

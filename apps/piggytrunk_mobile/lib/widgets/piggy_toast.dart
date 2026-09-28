@@ -220,43 +220,43 @@ class _PiggyToastState extends State<_PiggyToastWidget>
 
     switch (widget.type) {
       case ToastType.success:
-        accentColor = const Color(0xFF10B981);
+        accentColor = isDark ? const Color(0xFF34D399) : const Color(0xFF10B981);
         iconBgColor = isDark
-            ? const Color(0xFF064E3B)
+            ? const Color(0xFF34D399).withValues(alpha: 0.2)
             : const Color(0xFFECFDF5);
         iconData = Icons.check_circle_rounded;
         break;
       case ToastType.error:
-        accentColor = const Color(0xFFEF4444);
+        accentColor = isDark ? const Color(0xFFF87171) : const Color(0xFFEF4444);
         iconBgColor = isDark
-            ? const Color(0xFF7F1D1D)
+            ? const Color(0xFFF87171).withValues(alpha: 0.2)
             : const Color(0xFFFEF2F2);
         iconData = Icons.error_rounded;
         break;
       case ToastType.warning:
-        accentColor = const Color(0xFFF59E0B);
+        accentColor = isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
         iconBgColor = isDark
-            ? const Color(0xFF78350F)
+            ? const Color(0xFFFBBF24).withValues(alpha: 0.2)
             : const Color(0xFFFFFBEB);
         iconData = Icons.warning_amber_rounded;
         break;
       case ToastType.info:
-        accentColor = const Color(0xFF38BDF8);
+        accentColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
         iconBgColor = isDark
-            ? const Color(0xFF0C4A6E)
+            ? const Color(0xFF38BDF8).withValues(alpha: 0.2)
             : const Color(0xFFF0F9FF);
         iconData = Icons.info_outline_rounded;
         break;
     }
 
-    final cardBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
     final cardBorder = isDark
-        ? const Color(0xFF283A57)
+        ? const Color(0xFF334155)
         : const Color(0xFFE2E8F0);
     final titleTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final messageTextColor = isDark
-        ? const Color(0xFF94A3B8)
-        : const Color(0xFF64748B);
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF475569);
 
     return Positioned(
       top: topPadding + 10,
@@ -381,14 +381,14 @@ class _PiggyToastState extends State<_PiggyToastWidget>
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.04),
+                            ? Colors.white.withValues(alpha: 0.12)
+                            : Colors.black.withValues(alpha: 0.05),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.close_rounded,
                         size: 14,
-                        color: messageTextColor,
+                        color: isDark ? Colors.white70 : const Color(0xFF64748B),
                       ),
                     ),
                   ),

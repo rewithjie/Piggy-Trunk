@@ -617,6 +617,9 @@ class _POSScreenState extends State<POSScreen> {
   Widget _buildPOSProductCard(POSProduct product) {
     final isOutOfStock = product.units <= 0;
     final isTopSeller = _isProductTopSeller(product);
+    final Color stockColor = isOutOfStock
+        ? const Color(0xFFFFAA00)
+        : (product.units <= 10 ? const Color(0xFFFF758C) : const Color(0xFF43CB89));
     final isMobile = Responsive.isMobile(context);
     final double imgSize = isMobile ? 85.0 : 105.0;
     final selectedQty = _getQuantity(product.id);
@@ -712,26 +715,41 @@ class _POSScreenState extends State<POSScreen> {
                     ),
                     const SizedBox(width: 6),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 7, vertical: isMobile ? 3 : 3.5),
+                      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 8, vertical: isMobile ? 2.5 : 3.5),
                       decoration: BoxDecoration(
-                        color: isOutOfStock
-                            ? const Color(0x33FFAA00)
-                            : (product.units <= 10
-                                ? const Color(0x33FF758C)
-                                : const Color(0x3343CB89)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        isOutOfStock
-                            ? 'OUT OF STOCK'
-                            : (product.units <= 10 ? 'LOW STOCK' : 'IN STOCK'),
-                        style: AppTextStyles.jakarta(
-                          size: isMobile ? 8.5 : 9.5,
-                          weight: FontWeight.w800,
-                          color: isOutOfStock
-                              ? const Color(0xFFFFAA00)
-                              : (product.units <= 10 ? const Color(0xFFFF758C) : const Color(0xFF43CB89)),
+                        color: stockColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: stockColor.withValues(alpha: 0.35),
+                          width: 1,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: isMobile ? 5 : 6,
+                            height: isMobile ? 5 : 6,
+                            decoration: BoxDecoration(
+                              color: stockColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          SizedBox(width: isMobile ? 4 : 5),
+                          Text(
+                            isOutOfStock
+                                ? 'OUT OF STOCK'
+                                : (product.units <= 10 ? 'LOW STOCK' : 'IN STOCK'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: AppTextStyles.jakarta(
+                              size: isMobile ? 8.5 : 9.5,
+                              weight: FontWeight.w800,
+                              color: stockColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

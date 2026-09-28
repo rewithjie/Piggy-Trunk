@@ -1,6 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_session_service.dart';
+import '../services/location_service.dart';
+import 'package:piggytrunk/services/notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -88,11 +92,50 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.dispose();
   }
 
+  Future<void> _requestInitialPermissions() async {
+    if (kIsWeb) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasPrompted = prefs.getBool('initial_permissions_prompted') ?? false;
+      if (!hasPrompted) {
+        await prefs.setBool('initial_permissions_prompted', true);
+
+        // 1. Upfront Notification Permission Request (Android 13+ & iOS)
+        try {
+          await NotificationService().requestPermission().timeout(
+            const Duration(seconds: 4),
+            onTimeout: () => false,
+          );
+        } catch (e) {
+          debugPrint('[SplashScreen] Notification permission request error: $e');
+        }
+
+        // 2. Upfront Location Permission Request (GPS for Barangay & Address detection)
+        try {
+          await LocationService.instance.requestPermissionUpfront().timeout(
+            const Duration(seconds: 4),
+            onTimeout: () => false,
+          );
+        } catch (e) {
+          debugPrint('[SplashScreen] Location permission request error: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('[SplashScreen] Initial permissions check error: $e');
+    }
+  }
+
   Future<void> _initializeApp() async {
     final startTime = DateTime.now();
     String targetRoute = '/onboarding';
 
     try {
+      // Prompt native system permissions upfront on mobile device first install
+      if (!kIsWeb) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await _requestInitialPermissions();
+      }
+
       final authResult = await AuthSessionService().checkAndAttemptAutoLogin();
       if (authResult['canAutoLogin'] == true && authResult['targetRoute'] != null) {
         targetRoute = authResult['targetRoute'];

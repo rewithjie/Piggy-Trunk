@@ -45,9 +45,15 @@ class RaiserProfileTab extends StatelessWidget {
     final phone = (raiserData['phone'] != null && raiserData['phone'] != 'N/A' && raiserData['phone'].toString().trim().isNotEmpty)
         ? raiserData['phone'].toString()
         : strings.notSet;
-    final address = (raiserData['address'] != null && raiserData['address'] != 'N/A' && raiserData['address'].toString().trim().isNotEmpty)
-        ? raiserData['address'].toString()
-        : strings.notSet;
+    final rawAddress = raiserData['address']?.toString().trim();
+    final bool isAddressMissing = rawAddress == null ||
+        rawAddress.isEmpty ||
+        rawAddress == 'N/A' ||
+        rawAddress == 'null' ||
+        rawAddress == strings.notSet ||
+        rawAddress == 'Not Set' ||
+        rawAddress == 'Farm Location Not Set';
+    final address = !isAddressMissing ? rawAddress : strings.notSet;
     final type = (raiserData['pig_type'] != null && raiserData['pig_type'] != 'N/A' && raiserData['pig_type'] != 'None')
         ? raiserData['pig_type'].toString()
         : strings.unassigned;
@@ -136,14 +142,14 @@ class RaiserProfileTab extends StatelessWidget {
                         right: 0,
                         child: Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: _brandColor,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white : _brandColor,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.camera_alt_rounded,
                             size: 16,
-                            color: Colors.white,
+                            color: isDark ? const Color(0xFF0F172A) : Colors.white,
                           ),
                         ),
                       ),
@@ -175,7 +181,7 @@ class RaiserProfileTab extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -183,7 +189,108 @@ class RaiserProfileTab extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+
+          // ==================== FARM LOCATION REMINDER BANNER (IF MISSING) ====================
+          if (isAddressMissing) ...[
+            GestureDetector(
+              onTap: onShowEditProfileDialog,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF26190D) : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.12 : 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF92400E) : const Color(0xFFFBBF24),
+                          width: 1,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFD97706),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                strings.farmLocationMissing,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF451A03) : const Color(0xFFDC2626),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  strings.actionNeeded,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            strings.farmLocationMissingDesc,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ] else
+            const SizedBox(height: 8),
 
           // ==================== ACCOUNT DETAILS SECTION HEADER ====================
           Row(
@@ -261,7 +368,14 @@ class RaiserProfileTab extends StatelessWidget {
                 Divider(height: 24, color: cardBorder),
                 _buildProfileRow(Icons.phone_iphone_rounded, strings.phoneNumber, phone, isDark),
                 Divider(height: 24, color: cardBorder),
-                _buildProfileRow(Icons.location_on_outlined, strings.farmAddress, address, isDark),
+                _buildAddressRow(
+                  context: context,
+                  strings: strings,
+                  address: address,
+                  isAddressMissing: isAddressMissing,
+                  isDark: isDark,
+                  onTap: onShowEditProfileDialog,
+                ),
                 Divider(height: 24, color: cardBorder),
                 _buildProfileRow(Icons.pets_outlined, strings.pigTypeAssignment, type, isDark),
                 Divider(height: 24, color: cardBorder),
@@ -627,7 +741,7 @@ class RaiserProfileTab extends StatelessWidget {
     final activeTextColor = isDark ? const Color(0xFF0F172A) : Colors.white;
     final inactiveBg = isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC);
     final inactiveBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final inactiveIconColor = isDark ? PiggyTrunkTheme.ptMutedDark : _brandColor;
 
     return InkWell(
@@ -684,13 +798,14 @@ class RaiserProfileTab extends StatelessWidget {
   }
 
   Widget _buildProfileRow(IconData icon, String label, String value, bool isDark) {
-    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final iconColor = isDark ? Colors.white70 : PiggyTrunkTheme.ptMuted;
     final valueColor = isDark ? Colors.white : _brandColor;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: mutedColor, size: 20),
+        Icon(icon, color: iconColor, size: 20),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -717,6 +832,152 @@ class RaiserProfileTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAddressRow({
+    required BuildContext context,
+    required AppStrings strings,
+    required String address,
+    required bool isAddressMissing,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final iconColor = isDark ? Colors.white70 : PiggyTrunkTheme.ptMuted;
+    final valueColor = isDark ? Colors.white : _brandColor;
+
+    if (!isAddressMissing) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.location_on_outlined, color: iconColor, size: 20),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      strings.farmAddress,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: mutedColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      address,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: valueColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.edit_outlined, size: 16, color: iconColor),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Address is missing - show warning exclamation icon and Action Needed badge!
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF26190D).withValues(alpha: 0.7) : const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? const Color(0xFF78350F) : const Color(0xFFFECACA),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? const Color(0xFFB45309) : const Color(0xFFFCA5A5),
+                  width: 1,
+                ),
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFDC2626),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        strings.farmAddress,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF451A03) : const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          strings.actionNeeded,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    strings.locationNotSetTap,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

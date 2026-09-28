@@ -268,10 +268,10 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     final phoneCtrl = TextEditingController(text: _partnerPhone == 'N/A' ? '' : _partnerPhone);
     final addrCtrl = TextEditingController(text: _partnerAddress == 'N/A' ? '' : _partnerAddress);
 
-    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
-    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
-    final borderColor = isDark ? const Color(0xFF28354A) : const Color(0xFFE6EBF2);
-    final hintColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2);
+    final hintColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
     showModalBottomSheet(
       context: context,
@@ -306,7 +306,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                          color: isDark ? const Color(0xFF475569) : Colors.grey[300],
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -322,12 +322,16 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+                                  width: 1,
+                                ),
                               ),
                               child: Icon(
                                 Icons.person_outline_rounded,
-                                color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F),
+                                color: isDark ? Colors.white : const Color(0xFF18314F),
                                 size: 20,
                               ),
                             ),
@@ -344,7 +348,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
@@ -388,7 +392,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(ctx),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: borderColor, width: 1.2),
+                              side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -396,7 +401,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                               strings.cancel,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
-                                color: hintColor,
+                                color: isDark ? Colors.white : hintColor,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -532,7 +537,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       textCapitalization: textCapitalization,
       inputFormatters: effectiveFormatters,
       style: GoogleFonts.plusJakartaSans(
-        color: isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F),
+        color: isDark ? Colors.white : const Color(0xFF18314F),
         fontWeight: FontWeight.w600,
         fontSize: 14,
       ),
@@ -543,17 +548,17 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           fontWeight: FontWeight.w600,
           fontSize: 13,
         ),
-        prefixIcon: Icon(icon, size: 20, color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF18314F)),
+        prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white70 : const Color(0xFF18314F)),
         filled: true,
-        fillColor: isDark ? const Color(0xFF1B2638) : const Color(0xFFF8FAFC),
+        fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF28354A) : const Color(0xFFE6EBF2)),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF18314F), width: 1.5),
+          borderSide: BorderSide(color: isDark ? Colors.white : const Color(0xFF18314F), width: 1.5),
         ),
       ),
     );

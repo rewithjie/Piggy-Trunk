@@ -6,6 +6,7 @@ import '../../../utils/capitalization_formatters.dart';
 import '../request_form_screen.dart';
 import '../request_history_screen.dart';
 import '../widgets/raiser_empty_state.dart';
+import '../../../widgets/piggy_toast.dart';
 
 class RaiserRequestTab extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
@@ -45,6 +46,16 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
   }
 
   void _openRequestForm([String category = 'Feeds']) {
+    if (widget.activeAssignments.isEmpty) {
+      final strings = AppStrings.of(context);
+      PiggyToast.showWarning(
+        context,
+        strings.batchRequiredMessage,
+        title: strings.batchRequiredTitle,
+        duration: const Duration(milliseconds: 4000),
+      );
+      return;
+    }
     setState(() {
       _selectedCategoryForForm = category;
       _previousRequestView = 'home';
@@ -164,7 +175,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         onRefresh: widget.onRefresh,
-        color: _brandColor,
+        color: isDark ? Colors.white : _brandColor,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 0.0),
           child: Column(
@@ -277,7 +288,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
                     inputFormatters: const [CapitalizeWordsInputFormatter()],
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      color: isDark ? PiggyTrunkTheme.ptTextDark : _brandColor,
+                      color: isDark ? Colors.white : _brandColor,
                     ),
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
@@ -623,7 +634,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     final isSelected = _selectedFilter == key;
     final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final selectedBg = isDark ? Colors.white : _brandColor;
     final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
 

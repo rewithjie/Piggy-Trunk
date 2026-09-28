@@ -1195,28 +1195,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget _buildStockBadge(Product product, {bool isMobile = false}) {
     final isOutOfStock = product.units <= 0;
     final lowStock = product.units > 0 && product.units <= 10;
-    final bg = isOutOfStock
-        ? const Color(0x33FFAA00)
-        : (lowStock ? const Color(0x33FF758C) : const Color(0x3343CB89));
     final fg = isOutOfStock
         ? const Color(0xFFFFAA00)
         : (lowStock ? const Color(0xFFFF758C) : const Color(0xFF43CB89));
+    final label = isOutOfStock
+        ? 'OUT OF STOCK'
+        : (lowStock ? 'LOW STOCK' : 'IN STOCK');
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: isMobile ? 3 : 6),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 10, vertical: isMobile ? 3 : 5),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        isOutOfStock
-            ? 'OUT OF STOCK'
-            : (lowStock ? 'LOW STOCK' : 'IN STOCK'),
-        style: GoogleFonts.plusJakartaSans(
-          color: fg,
-          fontSize: isMobile ? 9 : 11,
-          fontWeight: FontWeight.w800,
+        color: fg.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: fg.withValues(alpha: 0.35),
+          width: 1,
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: isMobile ? 5 : 6,
+            height: isMobile ? 5 : 6,
+            decoration: BoxDecoration(
+              color: fg,
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: isMobile ? 4 : 6),
+          Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: GoogleFonts.plusJakartaSans(
+              color: fg,
+              fontSize: isMobile ? 9 : 10.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -8,7 +8,6 @@ import '../services/google_auth_service.dart';
 import '../services/auth_session_service.dart';
 import '../utils/screen_fit_util.dart';
 import '../widgets/piggy_toast.dart';
-import '../widgets/role_selection_modal.dart';
 import '../widgets/forgot_password_modal.dart';
 import '../widgets/install_pwa_banner.dart';
 
@@ -36,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
-  String? _targetRole;
+  String? _targetRole = 'hog_raiser';
   String? _errorMessage;
   String? _identifierError;
   String? _passwordError;
@@ -103,6 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } else if (args is Map && args['role'] != null) {
         _targetRole = args['role'].toString();
       }
+      _targetRole ??= 'hog_raiser';
     }
   }
 
@@ -303,35 +303,16 @@ class _LoginScreenState extends State<LoginScreen> {
     if (result['success'] == true) {
       final bool isNewUser = result['is_new_user'] == true;
       final String? googleEmail = result['email'];
-      final String googleName = result['name'] ?? 'User';
 
       if (isNewUser) {
-        // Brand new user: trigger RoleSelectionModal on the spot
+        // Unregistered user on Sign In screen: sign out and prompt to sign up
+        await Supabase.instance.client.auth.signOut();
+        await AuthSessionService().clearSession();
         if (mounted) {
-          setState(() => _isGoogleLoading = false);
-          final String? chosenRole = await RoleSelectionModal.show(
-            context,
-            userName: googleName,
-          );
-
-          if (chosenRole != null && googleEmail != null) {
-            setState(() => _isGoogleLoading = true);
-            final regResult = await _googleAuthService.completeGoogleRegistration(
-              email: googleEmail,
-              selectedRole: chosenRole,
-              fullName: googleName,
-            );
-
-            if (regResult['success'] == true) {
-              await Supabase.instance.client.auth.signOut();
-              await AuthSessionService().clearSession();
-              if (mounted) _showPendingDialog();
-            } else {
-              setState(() {
-                _errorMessage = regResult['message'] ?? 'Failed to complete registration.';
-              });
-            }
-          }
+          setState(() {
+            _isGoogleLoading = false;
+            _errorMessage = 'No registered account found for this Google email. Please sign up first.';
+          });
         }
         return;
       }
@@ -622,25 +603,21 @@ class _LoginScreenState extends State<LoginScreen> {
     const String backText = 'Back';
     const String actionTitle = 'Sign In';
 
-    String roleLabel = '';
-    IconData? roleIcon;
-    if (_targetRole != null) {
-      final r = _targetRole!.toLowerCase();
-      if (r.contains('cashier')) {
-        roleLabel = 'Cashier';
-        roleIcon = Icons.point_of_sale_rounded;
-      } else if (r.contains('partner') || r.contains('investor')) {
-        roleLabel = 'Partner Investor';
-        roleIcon = Icons.trending_up_rounded;
-      } else if (r.contains('raiser')) {
-        roleLabel = 'Hog Raiser';
-        roleIcon = Icons.pets_rounded;
-      }
+    String roleLabel = 'Hog Raiser';
+    IconData roleIcon = Icons.pets_rounded;
+    final r = (_targetRole ?? 'hog_raiser').toLowerCase();
+    if (r.contains('cashier')) {
+      roleLabel = 'Cashier';
+      roleIcon = Icons.point_of_sale_rounded;
+    } else if (r.contains('partner') || r.contains('investor')) {
+      roleLabel = 'Partner Investor';
+      roleIcon = Icons.trending_up_rounded;
+    } else {
+      roleLabel = 'Hog Raiser';
+      roleIcon = Icons.pets_rounded;
     }
 
-    final String subtitleText = roleLabel.isNotEmpty
-        ? 'Sign in to continue as $roleLabel'
-        : 'Welcome back! Sign in to continue';
+    final String subtitleText = 'Sign in to continue as $roleLabel';
 
     return Scaffold(
       body: Container(
@@ -779,7 +756,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 2),
 
-                          // Subtitle: Dynamic based on registered role
+                          // Subtitle: Dynamic based on selected role
                           Text(
                             subtitleText,
                             textAlign: TextAlign.center,
@@ -789,54 +766,42 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: const Color(0xFF6F8096),
                             ),
                           ),
-                          if (roleLabel.isNotEmpty && roleIcon != null) ...[
-                            const SizedBox(height: 8),
-                            InkWell(
-                              onTap: () async {
-                                final chosen = await RoleSelectionModal.show(context, userName: 'User');
-                                if (chosen != null && mounted) {
-                                  setState(() => _targetRole = chosen);
-                                }
-                              },
+                          const SizedBox(height: 8),
+
+                          // Plain Static Role Badge Indicator (Palatandaan Only - No Switcher)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF18314F).withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF18314F).withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: const Color(0xFF18314F).withValues(alpha: 0.2),
-                                    width: 1.2,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      roleIcon,
-                                      size: 16,
-                                      color: const Color(0xFF18314F),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      roleLabel,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12.0,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF18314F),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(
-                                      Icons.swap_horiz_rounded,
-                                      size: 15,
-                                      color: Color(0xFF6F8096),
-                                    ),
-                                  ],
-                                ),
+                              border: Border.all(
+                                color: const Color(0xFF18314F).withValues(alpha: 0.2),
+                                width: 1.2,
                               ),
                             ),
-                          ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  roleIcon,
+                                  size: 16,
+                                  color: const Color(0xFF18314F),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  roleLabel,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.0,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF18314F),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     ),

@@ -136,14 +136,14 @@ class RaiserProfileTab extends StatelessWidget {
                         right: 0,
                         child: Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(
-                            color: _brandColor,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white : _brandColor,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.camera_alt_rounded,
                             size: 16,
-                            color: Colors.white,
+                            color: isDark ? const Color(0xFF0F172A) : Colors.white,
                           ),
                         ),
                       ),
@@ -175,7 +175,7 @@ class RaiserProfileTab extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -627,7 +627,7 @@ class RaiserProfileTab extends StatelessWidget {
     final activeTextColor = isDark ? const Color(0xFF0F172A) : Colors.white;
     final inactiveBg = isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC);
     final inactiveBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final inactiveIconColor = isDark ? PiggyTrunkTheme.ptMutedDark : _brandColor;
 
     return InkWell(
@@ -684,13 +684,14 @@ class RaiserProfileTab extends StatelessWidget {
   }
 
   Widget _buildProfileRow(IconData icon, String label, String value, bool isDark) {
-    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final iconColor = isDark ? Colors.white70 : PiggyTrunkTheme.ptMuted;
     final valueColor = isDark ? Colors.white : _brandColor;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: mutedColor, size: 20),
+        Icon(icon, color: iconColor, size: 20),
         const SizedBox(width: 16),
         Expanded(
           child: Column(

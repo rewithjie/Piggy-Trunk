@@ -617,7 +617,7 @@ class PartnerProfileTab extends StatelessWidget {
     final activeTextColor = isDark ? const Color(0xFF0F172A) : Colors.white;
     final inactiveBg = isDark ? const Color(0xFF151F2E) : const Color(0xFFF8FAFC);
     final inactiveBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
+    final inactiveText = isDark ? Colors.white : _brandColor;
     final inactiveIconColor = isDark ? PiggyTrunkTheme.ptMutedDark : _brandColor;
 
     return InkWell(

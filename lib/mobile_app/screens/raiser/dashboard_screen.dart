@@ -6,7 +6,9 @@ import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_session_service.dart';
+import '../../services/location_service.dart';
 import '../../utils/capitalization_formatters.dart';
 import '../../utils/app_strings.dart';
 import '../../widgets/piggy_toast.dart';
@@ -521,6 +523,11 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
             _selectedAssignmentId = BigInt.from(_activeAssignments[0]['assignment_id'] as num);
           }
         });
+
+        // Auto-check if farm location is not set and prompt user to allow GPS access
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _checkAndPromptLocation();
+        });
       }
     } catch (e, stacktrace) {
       debugPrint('DEBUG ERROR in _fetchRaiserData: $e');
@@ -939,11 +946,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     final phoneController = TextEditingController(text: currentPhone == 'N/A' ? '' : currentPhone);
     final addressController = TextEditingController(text: currentAddress == 'N/A' ? '' : currentAddress);
 
-    final sheetBg = isDark ? const Color(0xFF151F2E) : Colors.white;
-    final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
-    final inputBg = isDark ? const Color(0xFF1B2A3F) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF2A3C55) : const Color(0xFFE2E8F0);
-    final hintColor = isDark ? const Color(0xFF8A9FB8) : PiggyTrunkTheme.ptMuted;
+    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final titleColor = isDark ? Colors.white : _brandColor;
+    final inputBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final hintColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final fieldIconColor = isDark ? Colors.white70 : hintColor;
+    final actionColor = isDark ? Colors.white : _brandColor;
 
     showModalBottomSheet(
       context: context,
@@ -951,21 +960,89 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final strings = AppStrings.of(ctx);
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: BoxDecoration(
-              color: sheetBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, -4),
+        bool isDetectingGps = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            Future<void> autoDetectGps() async {
+              setModalState(() => isDetectingGps = true);
+              final result = await LocationService.instance.getCurrentAddress(requestPermission: true);
+              setModalState(() => isDetectingGps = false);
+
+              if (result.success && result.address != null && result.address!.trim().isNotEmpty) {
+                addressController.text = result.address!.trim();
+                if (ctx.mounted) {
+                  PiggyToast.showSuccess(ctx, '${strings.locationDetectedToast} ${result.address}');
+                }
+              } else if (result.isPermanentlyDenied) {
+                if (ctx.mounted) {
+                  showDialog(
+                    context: ctx,
+                    builder: (dCtx) => AlertDialog(
+                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      title: Row(
+                        children: [
+                          const Icon(Icons.location_off_rounded, color: Color(0xFFF59E0B), size: 24),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              strings.locationDisabledTitle,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                      content: Text(
+                        strings.locationDisabledDesc,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          height: 1.45,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: Text(strings.cancel, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(dCtx);
+                            LocationService.instance.openAppSettings();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007AFF),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text(strings.openSettings, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              } else if (ctx.mounted) {
+                PiggyToast.showWarning(
+                  ctx,
+                  result.errorMessage ?? 'Could not detect location. You can type it manually.',
+                );
+              }
+            }
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: sheetBg,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: SafeArea(
+                child: SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 child: Column(
@@ -978,7 +1055,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334B68) : Colors.grey[300],
+                          color: isDark ? const Color(0xFF475569) : Colors.grey[300],
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -994,12 +1071,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E3352) : const Color(0xFFEFF6FF),
+                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
                                 borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+                                  width: 1,
+                                ),
                               ),
                               child: Icon(
                                 Icons.person_outline_rounded,
-                                color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                                color: isDark ? Colors.white : _brandColor,
                                 size: 20,
                               ),
                             ),
@@ -1016,7 +1097,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: Icon(Icons.close_rounded, color: hintColor, size: 22),
+                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
                         ),
@@ -1044,7 +1125,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                       decoration: InputDecoration(
                         hintText: strings.enterFullNameHint,
                         hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Icon(Icons.badge_outlined, color: hintColor, size: 20),
+                        prefixIcon: Icon(Icons.badge_outlined, color: fieldIconColor, size: 20),
                         filled: true,
                         fillColor: inputBg,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -1058,7 +1139,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                          borderSide: BorderSide(color: actionColor, width: 1.5),
                         ),
                       ),
                     ),
@@ -1081,7 +1162,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: hintColor,
+                            color: isDark ? Colors.white60 : hintColor,
                           ),
                         ),
                       ],
@@ -1098,7 +1179,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                       decoration: InputDecoration(
                         hintText: '09XXXXXXXXX',
                         hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Icon(Icons.phone_iphone_rounded, color: hintColor, size: 20),
+                        prefixIcon: Icon(Icons.phone_iphone_rounded, color: fieldIconColor, size: 20),
                         filled: true,
                         fillColor: inputBg,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -1112,36 +1193,91 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                          borderSide: BorderSide(color: actionColor, width: 1.5),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
                     // 3. Address
-                    Text(
-                      strings.address,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: titleColor,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          strings.address,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: titleColor,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: isDetectingGps ? null : autoDetectGps,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isDetectingGps)
+                                  SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 1.8,
+                                      color: actionColor,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    Icons.my_location_rounded,
+                                    size: 14,
+                                    color: actionColor,
+                                  ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isDetectingGps ? strings.detectingGps : strings.autoDetectLocation,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: actionColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: addressController,
-                      maxLines: 2,
-                      keyboardType: TextInputType.text,
-                      textCapitalization: TextCapitalization.words,
-                      inputFormatters: const [CapitalizeWordsInputFormatter()],
+                      readOnly: true,
+                      onTap: isDetectingGps ? null : autoDetectGps,
                       style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
                         hintText: strings.enterAddressHint,
                         hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.only(bottom: 24),
-                          child: Icon(Icons.location_on_outlined, color: hintColor, size: 20),
-                        ),
+                        prefixIcon: Icon(Icons.location_on_outlined, color: fieldIconColor, size: 20),
+                        suffixIcon: isDetectingGps
+                            ? Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: actionColor),
+                                ),
+                              )
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.my_location_rounded,
+                                  color: actionColor,
+                                  size: 18,
+                                ),
+                                tooltip: strings.autoDetectLocation,
+                                onPressed: isDetectingGps ? null : autoDetectGps,
+                              ),
                         filled: true,
                         fillColor: inputBg,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -1155,7 +1291,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: isDark ? const Color(0xFF60A5FA) : _brandColor, width: 1.5),
+                          borderSide: BorderSide(color: actionColor, width: 1.5),
                         ),
                       ),
                     ),
@@ -1168,7 +1304,8 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                           child: OutlinedButton(
                             onPressed: () => Navigator.pop(ctx),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: borderColor, width: 1.2),
+                              side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
+                              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -1176,7 +1313,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                               strings.cancel,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
-                                color: hintColor,
+                                color: isDark ? Colors.white : hintColor,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -1240,7 +1377,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         );
       },
     );
-  }
+  },
+);
+}
 
   Future<void> _updateProfile(String newName, String newPhone, String newAddress) async {
     final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
@@ -1286,6 +1425,76 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
+  bool _hasCheckedLocationPrompt = false;
+
+  Future<void> _checkAndPromptLocation() async {
+    if (_hasCheckedLocationPrompt || !mounted) return;
+    _hasCheckedLocationPrompt = true;
+
+    final currentAddress = (_raiserData['address'] ?? '').toString().trim();
+    final bool hasValidAddress = currentAddress.isNotEmpty &&
+        currentAddress != 'N/A' &&
+        currentAddress != 'Not Set' &&
+        currentAddress != 'Farm Location Not Set';
+
+    // If user already has a valid address saved, do not prompt
+    if (hasValidAddress) return;
+
+    final userId = _raiserData['user_id'] ?? _raiserData['hog_raiser_id'];
+    if (userId == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final promptKey = 'prompted_location_$userId';
+    if (prefs.getBool(promptKey) == true) return;
+
+    // Option 1: Directly trigger native Android OS location permission dialog
+    try {
+      final result = await LocationService.instance.getCurrentAddress(requestPermission: true);
+
+      // Save prompt flag so we don't prompt repeatedly on every screen load
+      await prefs.setBool(promptKey, true);
+
+      if (result.success && result.address != null && result.address!.trim().isNotEmpty) {
+        final detectedAddress = result.address!.trim();
+        final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
+
+        if (raiserId != null) {
+          try {
+            await Supabase.instance.client
+                .from('hog_raisers')
+                .update({'address': detectedAddress})
+                .eq('hog_raiser_id', raiserId);
+          } catch (e) {
+            debugPrint('Error updating hog_raisers address: $e');
+          }
+        }
+
+        final uId = _raiserData['user_id'];
+        if (uId != null) {
+          try {
+            await Supabase.instance.client
+                .from('app_users')
+                .update({'address': detectedAddress})
+                .eq('user_id', uId);
+          } catch (_) {}
+        }
+
+        if (mounted) {
+          setState(() {
+            _raiserData['address'] = detectedAddress;
+          });
+          final strings = AppStrings.of(context);
+          PiggyToast.showSuccess(
+            context,
+            '${strings.locationSavedToast} $detectedAddress',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[LocationPrompt] Error requesting location: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1321,6 +1530,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           final navBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
           final navSelectedColor = isDark ? Colors.white : _brandColor;
           final navUnselectedColor = isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xffa0aec0);
+
+          final rawAddress = (_raiserData['address'] ?? '').toString().trim();
+          final bool isAddressMissing = rawAddress.isEmpty ||
+              rawAddress == 'N/A' ||
+              rawAddress == 'null' ||
+              rawAddress == 'Not Set' ||
+              rawAddress == 'Farm Location Not Set';
 
           return Scaffold(
             backgroundColor: scaffoldBg,
@@ -1433,7 +1649,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                     label: strings.navHogs,
                   ),
                   BottomNavigationBarItem(
-                    icon: const Icon(Icons.person_outline_rounded),
+                    icon: Badge(
+                      isLabelVisible: isAddressMissing,
+                      backgroundColor: const Color(0xFFDC2626),
+                      smallSize: 8,
+                      child: const Icon(Icons.person_outline_rounded),
+                    ),
+                    activeIcon: Badge(
+                      isLabelVisible: isAddressMissing,
+                      backgroundColor: const Color(0xFFDC2626),
+                      smallSize: 8,
+                      child: const Icon(Icons.person_rounded),
+                    ),
                     label: strings.navProfile,
                   ),
                 ],

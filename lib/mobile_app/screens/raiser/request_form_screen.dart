@@ -29,10 +29,19 @@ class RequestFormScreen extends StatefulWidget {
 }
 
 class _RequestFormScreenState extends State<RequestFormScreen> {
-  late String _selectedCategory;
-  int _quantity = 0;
-  String? _selectedFeedType;
-  final TextEditingController _notesController = TextEditingController();
+  bool _feedsSelected = false;
+  int _feedsQuantity = 0;
+  final TextEditingController _feedsDetailController = TextEditingController();
+
+  bool _medicineSelected = false;
+  int _medicineQuantity = 0;
+  final TextEditingController _medicineDetailController = TextEditingController();
+
+  bool _vitaminsSelected = false;
+  int _vitaminsQuantity = 0;
+  final TextEditingController _vitaminsDetailController = TextEditingController();
+
+  final TextEditingController _generalNotesController = TextEditingController();
   BigInt? _selectedAssignmentId;
   bool _isSubmitting = false;
 
@@ -44,12 +53,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.initialCategory;
-    if (_selectedCategory == 'Feeds') {
-      _selectedFeedType = 'Booster';
+    if (widget.initialCategory == 'Medicine') {
+      _medicineSelected = true;
+      _medicineQuantity = 1;
+    } else if (widget.initialCategory == 'Vitamins') {
+      _vitaminsSelected = true;
+      _vitaminsQuantity = 1;
     } else {
-      _selectedFeedType = null;
+      _feedsSelected = true;
+      _feedsQuantity = 1;
     }
+
     if (widget.activeAssignments.isNotEmpty) {
       _selectedAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
     }
@@ -57,7 +71,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
 
   @override
   void dispose() {
-    _notesController.dispose();
+    _feedsDetailController.dispose();
+    _medicineDetailController.dispose();
+    _vitaminsDetailController.dispose();
+    _generalNotesController.dispose();
     super.dispose();
   }
 
@@ -68,20 +85,31 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       _quantityError = null;
     });
 
-    bool hasError = false;
+    if (widget.activeAssignments.isEmpty) {
+      PiggyToast.showWarning(
+        context,
+        strings.batchRequiredMessage,
+        title: strings.batchRequiredTitle,
+        duration: const Duration(milliseconds: 4000),
+      );
+      return;
+    }
 
     if (_selectedAssignmentId == null) {
-      _assignmentError = strings.pleaseSelectBatch;
-      hasError = true;
+      setState(() {
+        _assignmentError = strings.pleaseSelectBatch;
+      });
+      return;
     }
 
-    if (_quantity <= 0) {
-      _quantityError = strings.pleaseEnterQuantity;
-      hasError = true;
-    }
+    final int totalCount = (_feedsSelected ? _feedsQuantity : 0) +
+        (_medicineSelected ? _medicineQuantity : 0) +
+        (_vitaminsSelected ? _vitaminsQuantity : 0);
 
-    if (hasError) {
-      setState(() {});
+    if (totalCount <= 0) {
+      setState(() {
+        _quantityError = strings.pleaseEnterQuantity;
+      });
       return;
     }
 
@@ -91,25 +119,77 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
       if (raiserId == null) throw Exception('Raiser profile is not available.');
 
-      await Supabase.instance.client.from('stock_requests').insert({
-        'assignment_id': _selectedAssignmentId!.toInt(),
-        'hog_raiser_id': raiserId,
-        'status': 'pending',
-        'request_date': DateTime.now().toIso8601String().split('T').first,
-        'category': _selectedCategory,
-        'quantity': _quantity,
-        'feed_type': _selectedCategory == 'Feeds' ? _selectedFeedType : null,
-        'notes': _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-      });
+      final today = DateTime.now().toIso8601String().split('T').first;
+      final generalNotes = _generalNotesController.text.trim();
 
-      final notesText = _notesController.text.trim();
-      final itemDesc = _selectedCategory == 'Feeds'
-          ? '$_quantity ${_quantity > 1 ? "sacks" : "sack"} of ${_selectedFeedType ?? "Feeds"}'
-          : '$_quantity ${_quantity > 1 ? "pcs" : "pc"} of $_selectedCategory';
+      final List<Map<String, dynamic>> requestsToInsert = [];
+      final List<String> descriptions = [];
+
+      if (_feedsSelected && _feedsQuantity > 0) {
+        final feedDetail = _feedsDetailController.text.trim();
+        final effectiveFeedType = feedDetail.isNotEmpty ? feedDetail : 'Feeds';
+        final feedsNotes = generalNotes.isNotEmpty ? generalNotes : null;
+
+        requestsToInsert.add({
+          'assignment_id': _selectedAssignmentId!.toInt(),
+          'hog_raiser_id': raiserId,
+          'status': 'pending',
+          'request_date': today,
+          'category': 'Feeds',
+          'quantity': _feedsQuantity,
+          'feed_type': effectiveFeedType,
+          'notes': feedsNotes,
+        });
+        descriptions.add('$_feedsQuantity ${_feedsQuantity > 1 ? "sacks" : "sack"} of $effectiveFeedType');
+      }
+
+      if (_medicineSelected && _medicineQuantity > 0) {
+        final medDetail = _medicineDetailController.text.trim();
+        final effectiveMedName = medDetail.isNotEmpty ? medDetail : 'Medicine';
+        final medNotes = generalNotes.isNotEmpty ? generalNotes : null;
+
+        requestsToInsert.add({
+          'assignment_id': _selectedAssignmentId!.toInt(),
+          'hog_raiser_id': raiserId,
+          'status': 'pending',
+          'request_date': today,
+          'category': 'Medicine',
+          'quantity': _medicineQuantity,
+          'feed_type': effectiveMedName,
+          'notes': medNotes,
+        });
+        descriptions.add('$_medicineQuantity ${_medicineQuantity > 1 ? "pcs" : "pc"} of $effectiveMedName (Medicine)');
+      }
+
+      if (_vitaminsSelected && _vitaminsQuantity > 0) {
+        final vitDetail = _vitaminsDetailController.text.trim();
+        final effectiveVitName = vitDetail.isNotEmpty ? vitDetail : 'Vitamins';
+        final vitNotes = generalNotes.isNotEmpty ? generalNotes : null;
+
+        requestsToInsert.add({
+          'assignment_id': _selectedAssignmentId!.toInt(),
+          'hog_raiser_id': raiserId,
+          'status': 'pending',
+          'request_date': today,
+          'category': 'Vitamins',
+          'quantity': _vitaminsQuantity,
+          'feed_type': effectiveVitName,
+          'notes': vitNotes,
+        });
+        descriptions.add('$_vitaminsQuantity ${_vitaminsQuantity > 1 ? "pcs" : "pc"} of $effectiveVitName (Vitamins)');
+      }
+
+      if (requestsToInsert.isEmpty) {
+        throw Exception('No valid items to request.');
+      }
+
+      await Supabase.instance.client.from('stock_requests').insert(requestsToInsert);
+
       final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
-      final notifMessage = notesText.isNotEmpty
-          ? '$raiserName requested $itemDesc.\nNotes: "$notesText"'
-          : '$raiserName requested $itemDesc.';
+      final itemsSummary = descriptions.join(' and ');
+      final notifMessage = generalNotes.isNotEmpty
+          ? '$raiserName requested $itemsSummary.\nNotes: "$generalNotes"'
+          : '$raiserName requested $itemsSummary.';
 
       try {
         await Supabase.instance.client.from('admin_notifications').insert({
@@ -148,29 +228,21 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     required String imagePath,
     required Color accentColor,
     required bool isSelected,
+    required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final selectedBorderColor = isDark ? const Color(0xFF38BDF8) : _brandColor;
-    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : (isSelected ? _brandColor : const Color(0xFF1E293B));
-    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final selectedBorderColor = accentColor;
+    final textColor = isDark ? Colors.white : (isSelected ? _brandColor : const Color(0xFF1E293B));
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
     return Expanded(
       child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedCategory = name;
-            if (name != 'Feeds') {
-              _selectedFeedType = null;
-            } else {
-              _selectedFeedType = 'Booster';
-            }
-          });
-        },
+        onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(16),
@@ -181,54 +253,84 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
             boxShadow: [
               BoxShadow(
                 color: isSelected
-                    ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.12))
+                    ? accentColor.withValues(alpha: isDark ? 0.25 : 0.15)
                     : Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-                blurRadius: isSelected ? 12 : 8,
+                blurRadius: isSelected ? 10 : 6,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: isDark ? 0.2 : 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Image.asset(
-                  imagePath,
-                  width: 22,
-                  height: 22,
-                  color: accentColor,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    name == 'Feeds'
-                        ? Icons.grass_rounded
-                        : (name == 'Vitamins'
-                            ? Icons.medication_liquid_rounded
-                            : Icons.medical_services_rounded),
-                    size: 22,
-                    color: accentColor,
+              if (isSelected)
+                Positioned(
+                  top: -6,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: accentColor.withValues(alpha: 0.4),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 11,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                sublabel,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w500,
-                  color: mutedColor,
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: isDark ? 0.2 : 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Image.asset(
+                        imagePath,
+                        width: 22,
+                        height: 22,
+                        color: accentColor,
+                        errorBuilder: (context, error, stackTrace) => Icon(
+                          name == 'Feeds'
+                              ? Icons.grass_rounded
+                              : (name == 'Vitamins'
+                                  ? Icons.medication_liquid_rounded
+                                  : Icons.medical_services_rounded),
+                          size: 22,
+                          color: accentColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      sublabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: mutedColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -238,41 +340,220 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     );
   }
 
-  Widget _buildFeedChip(String label) {
+  Widget _buildItemConfigCard({
+    required String title,
+    required String unitLabel,
+    required String imagePath,
+    required IconData fallbackIcon,
+    required Color accentColor,
+    required int quantity,
+    required VoidCallback onIncrement,
+    required VoidCallback onDecrement,
+    required VoidCallback onRemove,
+    Widget? extraContent,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSelected = _selectedFeedType == label;
-    final selectedBg = isDark ? Colors.white : _brandColor;
-    final selectedText = isDark ? const Color(0xFF0F172A) : Colors.white;
-    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
-    final inactiveBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final inactiveText = isDark ? PiggyTrunkTheme.ptTextDark : const Color(0xff5d6a7b);
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedFeedType = label;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? selectedBg : inactiveBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? selectedBg : inactiveBorder,
-            width: 1,
-          ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: accentColor.withValues(alpha: isDark ? 0.45 : 0.35),
+          width: 1.5,
         ),
-        child: Text(
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: isDark ? 0.1 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Image.asset(
+                  imagePath,
+                  width: 22,
+                  height: 22,
+                  color: accentColor,
+                  errorBuilder: (context, error, stackTrace) => Icon(
+                    fallbackIcon,
+                    size: 22,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                      ),
+                    ),
+                    Text(
+                      unitLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: mutedColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Quantity stepper
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      icon: Icon(Icons.remove, size: 16, color: textColor),
+                      onPressed: onDecrement,
+                    ),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 32),
+                      alignment: Alignment.center,
+                      child: Text(
+                        quantity.toString(),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      icon: Icon(Icons.add, size: 16, color: textColor),
+                      onPressed: onIncrement,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: Icon(Icons.close_rounded, size: 18, color: mutedColor),
+                tooltip: 'Remove',
+                onPressed: onRemove,
+              ),
+            ],
+          ),
+          if (extraContent != null) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: borderColor.withValues(alpha: 0.6)),
+            const SizedBox(height: 12),
+            extraContent,
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemDetailField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required Color accentColor,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
           label,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-            color: isSelected ? selectedText : inactiveText,
+            fontWeight: FontWeight.w700,
+            color: textColor,
           ),
         ),
-      ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: textColor,
+            fontWeight: FontWeight.w600,
+          ),
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              color: mutedColor,
+              fontWeight: FontWeight.w400,
+            ),
+            prefixIcon: Icon(icon, size: 18, color: accentColor),
+            suffixIcon: controller.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 16),
+                    onPressed: () {
+                      controller.clear();
+                      setState(() {});
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: surfaceBg,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: accentColor, width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -283,8 +564,29 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
     final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final textColor = isDark ? PiggyTrunkTheme.ptTextDark : _brandColor;
-    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+
+    final List<String> activeSummaryParts = [];
+    int totalItemCount = 0;
+    if (_feedsSelected && _feedsQuantity > 0) {
+      final feedDetail = _feedsDetailController.text.trim();
+      final feedName = feedDetail.isNotEmpty ? feedDetail : 'Feeds';
+      activeSummaryParts.add('$_feedsQuantity ${strings.isFilipino ? "sako ng" : "sacks"} $feedName');
+      totalItemCount += _feedsQuantity;
+    }
+    if (_medicineSelected && _medicineQuantity > 0) {
+      final medName = _medicineDetailController.text.trim();
+      final displayMed = medName.isNotEmpty ? medName : 'Medicine';
+      activeSummaryParts.add('$_medicineQuantity ${strings.isFilipino ? "pirasong" : "pcs"} $displayMed');
+      totalItemCount += _medicineQuantity;
+    }
+    if (_vitaminsSelected && _vitaminsQuantity > 0) {
+      final vitName = _vitaminsDetailController.text.trim();
+      final displayVit = vitName.isNotEmpty ? vitName : 'Vitamins';
+      activeSummaryParts.add('$_vitaminsQuantity ${strings.isFilipino ? "pirasong" : "pcs"} $displayVit');
+      totalItemCount += _vitaminsQuantity;
+    }
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -323,7 +625,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Active Batch Selection dropdown
+                    // Active Batch Selection dropdown or Batch Required Banner
                     Text(
                       strings.selectBatchHogs,
                       style: GoogleFonts.plusJakartaSans(
@@ -334,20 +636,38 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     ),
                     const SizedBox(height: 10),
                     widget.activeAssignments.isEmpty
-                        ? Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: surfaceBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Text(
-                              strings.noActiveBatchAssigned,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                color: mutedColor,
-                                fontWeight: FontWeight.w500,
+                        ? GestureDetector(
+                            onTap: () {
+                              PiggyToast.showWarning(
+                                context,
+                                strings.batchRequiredMessage,
+                                title: strings.batchRequiredTitle,
+                                duration: const Duration(milliseconds: 4000),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: surfaceBg,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFF59E0B)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      strings.noActiveBatchAssigned,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        color: mutedColor,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           )
@@ -374,7 +694,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : _brandColor, width: 1.5),
+                                borderSide: BorderSide(color: isDark ? Colors.white54 : _brandColor, width: 1.5),
                               ),
                             ),
                             items: widget.activeAssignments.map((a) {
@@ -435,13 +755,43 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     ],
                     const SizedBox(height: 24),
 
-                    // Select Category Group
+                    // Select Category Group (Multi-select)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          strings.selectCategory,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          decoration: BoxDecoration(
+                            color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            strings.isFilipino ? 'Sabay-sabay / Multi' : 'Multi-select',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : _brandColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      strings.selectCategory,
+                      strings.selectCategoriesHint,
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: mutedColor,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -453,7 +803,16 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           sublabel: strings.feedsSublabel,
                           imagePath: 'assets/feeds_icon.png',
                           accentColor: const Color(0xFF10B981),
-                          isSelected: _selectedCategory == 'Feeds',
+                          isSelected: _feedsSelected,
+                          onTap: () {
+                            setState(() {
+                              _feedsSelected = !_feedsSelected;
+                              if (_feedsSelected && _feedsQuantity <= 0) {
+                                _feedsQuantity = 1;
+                              }
+                              _quantityError = null;
+                            });
+                          },
                         ),
                         const SizedBox(width: 10),
                         _buildCategoryCard(
@@ -462,7 +821,16 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           sublabel: strings.medicineSublabel,
                           imagePath: 'assets/medicine_icon.png',
                           accentColor: const Color(0xFFEF4444),
-                          isSelected: _selectedCategory == 'Medicine',
+                          isSelected: _medicineSelected,
+                          onTap: () {
+                            setState(() {
+                              _medicineSelected = !_medicineSelected;
+                              if (_medicineSelected && _medicineQuantity <= 0) {
+                                _medicineQuantity = 1;
+                              }
+                              _quantityError = null;
+                            });
+                          },
                         ),
                         const SizedBox(width: 10),
                         _buildCategoryCard(
@@ -471,13 +839,22 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           sublabel: strings.vitaminsSublabel,
                           imagePath: 'assets/vitamins_icon.png',
                           accentColor: const Color(0xFF8B5CF6),
-                          isSelected: _selectedCategory == 'Vitamins',
+                          isSelected: _vitaminsSelected,
+                          onTap: () {
+                            setState(() {
+                              _vitaminsSelected = !_vitaminsSelected;
+                              if (_vitaminsSelected && _vitaminsQuantity <= 0) {
+                                _vitaminsQuantity = 1;
+                              }
+                              _quantityError = null;
+                            });
+                          },
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
 
-                    // Quantity Counter
+                    // Items Configuration Section
                     Text(
                       strings.quantityBagsPcs,
                       style: GoogleFonts.plusJakartaSans(
@@ -487,108 +864,250 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _quantityError != null
-                            ? (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE))
-                            : surfaceBg,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _quantityError != null ? const Color(0xFFE53935) : borderColor,
-                          width: _quantityError != null ? 1.5 : 1,
+
+                    if (!_feedsSelected && !_medicineSelected && !_vitaminsSelected) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: surfaceBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _quantityError != null ? const Color(0xFFE53935) : borderColor,
+                          ),
                         ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              if (_quantity > 0) {
-                                setState(() {
-                                  _quantity--;
-                                  _quantityError = null;
-                                });
-                              }
-                            },
-                            icon: Icon(Icons.remove, color: textColor),
-                            style: IconButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xfff7f8fb),
-                              padding: const EdgeInsets.all(8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.touch_app_outlined,
+                              size: 32,
+                              color: _quantityError != null ? const Color(0xFFE53935) : mutedColor,
                             ),
-                          ),
-                          Text(
-                            _quantity.toString(),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: textColor,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _quantity++;
-                                _quantityError = null;
-                              });
-                            },
-                            icon: Icon(Icons.add, color: textColor),
-                            style: IconButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xfff7f8fb),
-                              padding: const EdgeInsets.all(8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_quantityError != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _quantityError!,
-                              style: const TextStyle(
-                                color: Color(0xFFE53935),
-                                fontSize: 12,
+                            const SizedBox(height: 8),
+                            Text(
+                              strings.noCategorySelectedPrompt,
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w600,
+                                color: _quantityError != null ? const Color(0xFFE53935) : mutedColor,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-
-                    // Feeds Category Selection (only show if category is Feeds)
-                    if (_selectedCategory == 'Feeds') ...[
-                      Text(
-                        strings.feedTypeTitle,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          _buildFeedChip('Booster'),
-                          _buildFeedChip('Pre-Starter'),
-                          _buildFeedChip('Starter'),
-                          _buildFeedChip('Grower'),
-                          _buildFeedChip('Finisher'),
-                          _buildFeedChip('Lactation'),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
                     ],
 
-                    // Notes/Explanation field
+                    if (_feedsSelected) ...[
+                      _buildItemConfigCard(
+                        title: strings.feedsLabel,
+                        unitLabel: strings.isFilipino ? 'Sako / Bags' : 'Bags / Sacks',
+                        imagePath: 'assets/feeds_icon.png',
+                        fallbackIcon: Icons.grass_rounded,
+                        accentColor: const Color(0xFF10B981),
+                        quantity: _feedsQuantity,
+                        onIncrement: () {
+                          setState(() {
+                            _feedsQuantity++;
+                            _quantityError = null;
+                          });
+                        },
+                        onDecrement: () {
+                          setState(() {
+                            if (_feedsQuantity > 1) {
+                              _feedsQuantity--;
+                            } else {
+                              _feedsQuantity = 0;
+                              _feedsSelected = false;
+                            }
+                            _quantityError = null;
+                          });
+                        },
+                        onRemove: () {
+                          setState(() {
+                            _feedsQuantity = 0;
+                            _feedsSelected = false;
+                            _quantityError = null;
+                          });
+                        },
+                        extraContent: _buildItemDetailField(
+                          controller: _feedsDetailController,
+                          label: strings.specificFeedsLabel,
+                          hint: strings.specificFeedsHint,
+                          icon: Icons.grass_rounded,
+                          accentColor: const Color(0xFF10B981),
+                        ),
+                      ),
+                    ],
+
+                    if (_medicineSelected) ...[
+                      _buildItemConfigCard(
+                        title: strings.medicineLabel,
+                        unitLabel: strings.isFilipino ? 'Piraso / Bote' : 'Pieces / Bottles',
+                        imagePath: 'assets/medicine_icon.png',
+                        fallbackIcon: Icons.medical_services_rounded,
+                        accentColor: const Color(0xFFEF4444),
+                        quantity: _medicineQuantity,
+                        onIncrement: () {
+                          setState(() {
+                            _medicineQuantity++;
+                            _quantityError = null;
+                          });
+                        },
+                        onDecrement: () {
+                          setState(() {
+                            if (_medicineQuantity > 1) {
+                              _medicineQuantity--;
+                            } else {
+                              _medicineQuantity = 0;
+                              _medicineSelected = false;
+                            }
+                            _quantityError = null;
+                          });
+                        },
+                        onRemove: () {
+                          setState(() {
+                            _medicineQuantity = 0;
+                            _medicineSelected = false;
+                            _quantityError = null;
+                          });
+                        },
+                        extraContent: _buildItemDetailField(
+                          controller: _medicineDetailController,
+                          label: strings.specificMedicineLabel,
+                          hint: strings.specificMedicineHint,
+                          icon: Icons.medication_outlined,
+                          accentColor: const Color(0xFFEF4444),
+                        ),
+                      ),
+                    ],
+
+                    if (_vitaminsSelected) ...[
+                      _buildItemConfigCard(
+                        title: strings.vitaminsLabel,
+                        unitLabel: strings.isFilipino ? 'Piraso / Bote' : 'Pieces / Bottles',
+                        imagePath: 'assets/vitamins_icon.png',
+                        fallbackIcon: Icons.medication_liquid_rounded,
+                        accentColor: const Color(0xFF8B5CF6),
+                        quantity: _vitaminsQuantity,
+                        onIncrement: () {
+                          setState(() {
+                            _vitaminsQuantity++;
+                            _quantityError = null;
+                          });
+                        },
+                        onDecrement: () {
+                          setState(() {
+                            if (_vitaminsQuantity > 1) {
+                              _vitaminsQuantity--;
+                            } else {
+                              _vitaminsQuantity = 0;
+                              _vitaminsSelected = false;
+                            }
+                            _quantityError = null;
+                          });
+                        },
+                        onRemove: () {
+                          setState(() {
+                            _vitaminsQuantity = 0;
+                            _vitaminsSelected = false;
+                            _quantityError = null;
+                          });
+                        },
+                        extraContent: _buildItemDetailField(
+                          controller: _vitaminsDetailController,
+                          label: strings.specificVitaminsLabel,
+                          hint: strings.specificVitaminsHint,
+                          icon: Icons.vaccines_outlined,
+                          accentColor: const Color(0xFF8B5CF6),
+                        ),
+                      ),
+                    ],
+
+                    if (_quantityError != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                _quantityError!,
+                                style: const TextStyle(
+                                  color: Color(0xFFE53935),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Summary Banner (if active items > 0)
+                    if (activeSummaryParts.isNotEmpty) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 20),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.inventory_2_rounded, size: 20, color: isDark ? Colors.white : _brandColor),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    strings.requestSummaryTitle,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    activeSummaryParts.join(' • '),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark ? Colors.white : _brandColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '$totalItemCount ${strings.isFilipino ? "kabuuan" : "total"}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : _brandColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Notes/Explanation field (General message from raiser)
                     Text(
                       strings.notesTitle,
                       style: GoogleFonts.plusJakartaSans(
@@ -597,10 +1116,19 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         color: textColor,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+                    Text(
+                      strings.generalNotesSubtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: mutedColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     TextField(
-                      controller: _notesController,
-                      maxLines: 4,
+                      controller: _generalNotesController,
+                      maxLines: 3,
                       keyboardType: TextInputType.text,
                       textCapitalization: TextCapitalization.sentences,
                       inputFormatters: const [
@@ -629,19 +1157,23 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : _brandColor, width: 1.5),
+                          borderSide: BorderSide(color: isDark ? Colors.white54 : _brandColor, width: 1.5),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 32),
 
-                    // Confirm Request Action Button
+                    // Confirm Request Action Button (Always responsive to gestures!)
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton.icon(
-                        onPressed: widget.activeAssignments.isEmpty ? null : _submitRequest,
-                        icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
+                        onPressed: _submitRequest,
+                        icon: Icon(
+                          widget.activeAssignments.isEmpty ? Icons.lock_outline_rounded : Icons.check_circle_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                         label: Text(
                           strings.confirmRequestButton,
                           style: GoogleFonts.plusJakartaSans(
@@ -651,8 +1183,9 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: PiggyTrunkTheme.ptSuccess,
-                          disabledBackgroundColor: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.5),
+                          backgroundColor: widget.activeAssignments.isEmpty
+                              ? (isDark ? const Color(0xFF475569) : const Color(0xFF64748B))
+                              : PiggyTrunkTheme.ptSuccess,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
                           ),

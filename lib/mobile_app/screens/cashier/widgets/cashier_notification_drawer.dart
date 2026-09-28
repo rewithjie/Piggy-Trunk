@@ -570,7 +570,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                         color: isDark ? const Color(0xFF1E293B) : Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                          color: isDark ? Colors.white54 : _brandColor,
                           width: 1.5,
                         ),
                         boxShadow: [
@@ -587,7 +587,7 @@ class _CashierNotificationDrawerContentState extends State<_CashierNotificationD
                           Icon(
                             Icons.history_rounded,
                             size: 18,
-                            color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                            color: isDark ? Colors.white : _brandColor,
                           ),
                           const SizedBox(width: 8),
                           Text(

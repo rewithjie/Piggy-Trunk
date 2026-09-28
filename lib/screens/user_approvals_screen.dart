@@ -592,7 +592,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               if (_isLoading || _isTableRefreshing)
                 TableSkeletonLoader(
                   isDark: _isDark,
-                  minWidth: 650,
+                  minWidth: 850,
                   cardBg: _cardBg,
                   cardBorder: _cardBorder,
                   headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
@@ -604,7 +604,7 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               else
                 LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 650 ? constraints.maxWidth : 650.0;
+                  final tableWidth = constraints.maxWidth > 850 ? constraints.maxWidth : 850.0;
                   return Scrollbar(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -813,18 +813,39 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor,
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.35),
+                      width: 1,
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        status,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1194,18 +1215,39 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                       ),
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          status,
-                          style: AppTextStyles.jakarta(
-                            color: statusColor,
-                            size: 11,
-                            weight: FontWeight.w700,
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: statusColor.withValues(alpha: 0.35),
+                            width: 1,
                           ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: statusColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              status,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: AppTextStyles.jakarta(
+                                color: statusColor,
+                                size: 11,
+                                weight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -1500,18 +1542,39 @@ class _UserApprovalsScreenState extends State<UserApprovalsScreen> {
                                     ),
                                     const SizedBox(height: 10),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
-                                        color: statusColor.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        status,
-                                        style: AppTextStyles.jakarta(
-                                          color: statusColor,
-                                          size: 11,
-                                          weight: FontWeight.w700,
+                                        color: statusColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: statusColor.withValues(alpha: 0.35),
+                                          width: 1,
                                         ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: statusColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            status,
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            style: AppTextStyles.jakarta(
+                                              color: statusColor,
+                                              size: 11,
+                                              weight: FontWeight.w700,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],

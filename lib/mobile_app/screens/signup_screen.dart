@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -86,20 +87,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  String _getFriendlyAuthErrorMessage(String rawMessage) {
-    final lower = rawMessage.toLowerCase();
-    if (lower.contains('already registered') ||
-        lower.contains('already exists') ||
-        lower.contains('user_already_exists')) {
-      return 'An account with this email already exists. Please sign in or use another email address.';
-    } else if (lower.contains('password should be at least')) {
-      return 'Password must be at least 6 characters.';
-    } else if (lower.contains('network') ||
-        lower.contains('socketexception') ||
-        lower.contains('connection')) {
-      return 'Unable to connect to the internet. Please check your network connection.';
-    }
-    return 'Something went wrong during registration. Please try again.';
+  Widget _buildPasswordRequirementItem({
+    required bool satisfied,
+    required String label,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            satisfied ? Icons.check_rounded : Icons.radio_button_unchecked_rounded,
+            size: 14,
+            color: satisfied ? const Color(0xFF18314F) : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: satisfied ? FontWeight.w600 : FontWeight.w500,
+              color: satisfied ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildInlineError(String? error) {
@@ -147,14 +160,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
     String? confirmPassErr;
 
     // 1. Full Name Validation
-    if (fullName.isEmpty) {
+    final nameTrimmed = fullName.trim();
+    final nameValidCharsRegex = RegExp(r"^[a-zA-Z\u00C0-\u024F\s\.\-']+$");
+    if (nameTrimmed.isEmpty) {
       nameErr = 'Please enter your full name.';
-    } else if (fullName.length < 2) {
+    } else if (RegExp(r'\d').hasMatch(nameTrimmed)) {
+      nameErr = 'Full name should only contain letters and spaces (no numbers).';
+    } else if (!nameValidCharsRegex.hasMatch(nameTrimmed)) {
+      nameErr = 'Full name contains invalid characters.';
+    } else if (nameTrimmed.length < 2) {
       nameErr = 'Full name must be at least 2 characters.';
     }
 
     // 2. Email Address Validation
-    final emailRegExp = RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[a-zA-Z]{2,4}$');
+    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
     if (email.isEmpty) {
       emailErr = 'Please enter your email address.';
     } else if (!emailRegExp.hasMatch(email)) {
@@ -166,6 +185,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
       passErr = 'Please enter your password.';
     } else if (password.length < 6) {
       passErr = 'Password must be at least 6 characters.';
+    } else if (password.contains(' ')) {
+      passErr = 'Password should not contain spaces.';
+    } else if (RegExp(r'[^\x21-\x7E]').hasMatch(password)) {
+      passErr = 'Password cannot contain emojis or unsupported characters.';
+    } else if (!RegExp(r'[a-zA-Z]').hasMatch(password)) {
+      passErr = 'Password must contain at least one letter (a-z).';
+    } else if (!RegExp(r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]').hasMatch(password)) {
+      passErr = 'Password must contain at least one number or special character (0-9, !@#...).';
+    } else if (['123456', '12345678', 'password', 'qwerty', '111111', '000000'].contains(password.toLowerCase())) {
+      passErr = 'Password is too common and weak. Please choose a stronger password.';
     }
 
     // 4. Confirm Password Validation
@@ -286,12 +315,42 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _showSuccessDialog();
       }
     } on AuthException catch (e) {
+      final msg = e.message;
+      final lower = msg.toLowerCase();
       setState(() {
-        _errorMessage = _getFriendlyAuthErrorMessage(e.message);
+        if (lower.contains('already registered') ||
+            lower.contains('already exists') ||
+            lower.contains('user_already_exists') ||
+            lower.contains('email address is already registered')) {
+          _emailError = 'An account with this email already exists. Please sign in or use another email.';
+        } else if (lower.contains('password') ||
+            lower.contains('weak') ||
+            lower.contains('pwned') ||
+            lower.contains('characters') ||
+            lower.contains('compromised') ||
+            lower.contains('security')) {
+          _passwordError = 'Password is too weak or common. Please use a stronger combination of letters and numbers.';
+        } else if (lower.contains('email') && (lower.contains('invalid') || lower.contains('format'))) {
+          _emailError = 'Please enter a valid email address.';
+        } else if (lower.contains('rate limit') ||
+            lower.contains('too many requests') ||
+            lower.contains('over_email_send_rate_limit')) {
+          _errorMessage = 'Too many registration attempts. Please wait a moment before trying again.';
+        } else {
+          _errorMessage = msg.isNotEmpty ? msg : 'Registration failed. Please check your details and try again.';
+        }
       });
     } catch (e) {
+      final str = e.toString();
+      final lower = str.toLowerCase();
       setState(() {
-        _errorMessage = 'An error occurred during registration: ${e.toString()}';
+        if (lower.contains('email') && (lower.contains('exist') || lower.contains('duplicate'))) {
+          _emailError = 'An account with this email already exists.';
+        } else if (lower.contains('network') || lower.contains('socketexception') || lower.contains('connection')) {
+          _errorMessage = 'Network connection error. Please check your internet connection.';
+        } else {
+          _errorMessage = 'Registration notice: ${str.replaceAll('Exception:', '').trim()}';
+        }
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -1008,15 +1067,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 cursorColor: const Color(0xFF18314F),
                                 obscureText: _obscurePassword,
                                 textCapitalization: TextCapitalization.none,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]')),
+                                ],
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: inputFontSize,
                                   fontWeight: FontWeight.w600,
                                   color: const Color(0xFF18314F),
                                 ),
                                 onChanged: (_) {
-                                  if (_passwordError != null) {
-                                    setState(() => _passwordError = null);
-                                  }
+                                  setState(() {
+                                    if (_passwordError != null) {
+                                      _passwordError = null;
+                                    }
+                                  });
                                 },
                                 decoration: InputDecoration(
                                   filled: true,
@@ -1067,7 +1132,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       width: 1.6,
                                     ),
                                   ),
-                                  hintText: 'At least 6 characters',
+                                  hintText: 'Min. 6 chars (letters & numbers or symbols)',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFF64748B),
                                     fontSize: inputFontSize,
@@ -1094,6 +1159,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                               ),
+                              if (_passwordController.text.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4.0, bottom: 2.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildPasswordRequirementItem(
+                                        satisfied: _passwordController.text.length >= 6,
+                                        label: 'At least 6 characters',
+                                      ),
+                                      _buildPasswordRequirementItem(
+                                        satisfied: RegExp(r'[a-zA-Z]').hasMatch(_passwordController.text),
+                                        label: 'Contains letters (a-z)',
+                                      ),
+                                      _buildPasswordRequirementItem(
+                                        satisfied: RegExp(r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]').hasMatch(_passwordController.text),
+                                        label: 'Contains numbers or symbols (0-9, !@#...)',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                               _buildInlineError(_passwordError),
                               SizedBox(height: fieldSpacing),
 
@@ -1114,6 +1203,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 cursorColor: const Color(0xFF18314F),
                                 obscureText: _obscureConfirmPassword,
                                 textCapitalization: TextCapitalization.none,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]')),
+                                ],
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: inputFontSize,
                                   fontWeight: FontWeight.w600,
