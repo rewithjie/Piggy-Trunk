@@ -201,9 +201,13 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
 
         final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
         final raiserName = (rMap['name'] ?? '').toString().trim();
-        final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
-            ? googleOrAppName
-            : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
+        final resolvedFullName = (raiserName.isNotEmpty &&
+                raiserName.toLowerCase() != 'hog raiser' &&
+                raiserName.toUpperCase() != 'N/A')
+            ? raiserName
+            : (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+                ? googleOrAppName
+                : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser'));
 
         final idStr = (rMap['hog_raiser_id'] ?? rMap['id'] ?? '').toString();
         if (idStr.isEmpty) continue;

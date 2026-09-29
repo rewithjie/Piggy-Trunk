@@ -120,9 +120,13 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
         final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
         final raiserDbName = (r['name'] ?? '').toString().trim();
-        final resolvedName = (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser')
-            ? googleOrAppName
-            : (raiserDbName.isNotEmpty ? raiserDbName : 'Hog Raiser');
+        final resolvedName = (raiserDbName.isNotEmpty &&
+                raiserDbName.toLowerCase() != 'hog raiser' &&
+                raiserDbName.toUpperCase() != 'N/A')
+            ? raiserDbName
+            : (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+                ? googleOrAppName
+                : (raiserDbName.isNotEmpty ? raiserDbName : 'Hog Raiser'));
 
         raisersMap[rId] = resolvedName;
       }

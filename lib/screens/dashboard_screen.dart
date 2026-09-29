@@ -342,14 +342,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final copy = Map<String, dynamic>.from(r);
           final idStr = (copy['hog_raiser_id'] ?? '').toString();
 
-          // Resolve display name from app_users if available
+          // Resolve display name: Prioritize profile full name in hog_raisers (e.g. "Rosario, Mark Rejie J.")
+          // over Google OAuth / Gmail account name (e.g. "rej")
           final appUsers = copy['app_users'] as Map<String, dynamic>?;
           final gName = (appUsers?['name'] ?? '').toString().trim();
           final rName = (copy['name'] ?? '').toString().trim();
-          if (gName.isNotEmpty && gName.toLowerCase() != 'hog raiser') {
+          final fName = (copy['first_name'] ?? '').toString().trim();
+          final lName = (copy['last_name'] ?? '').toString().trim();
+          final combinedName = [fName, lName].where((s) => s.isNotEmpty).join(' ').trim();
+
+          if (rName.isNotEmpty &&
+              rName.toLowerCase() != 'hog raiser' &&
+              rName.toUpperCase() != 'N/A') {
+            copy['name'] = rName;
+          } else if (combinedName.isNotEmpty) {
+            copy['name'] = combinedName;
+          } else if (gName.isNotEmpty &&
+              gName.toLowerCase() != 'hog raiser' &&
+              gName.toUpperCase() != 'N/A') {
             copy['name'] = gName;
           } else if (rName.isNotEmpty) {
             copy['name'] = rName;
+          } else {
+            copy['name'] = 'Hog Raiser';
           }
 
           String rawType = (copy['pig_type'] ?? '').toString().trim();
@@ -1034,9 +1049,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     )
                     .map((s) {
                       final l = s.toLowerCase();
-                      if (l.contains('sow') || l.contains('breed'))
+                      if (l.contains('sow') || l.contains('breed')) {
                         return 'SOW';
-                      if (l.contains('fatten')) return 'FATTENING';
+                      }
+                      if (l.contains('fatten')) {
+                        return 'FATTENING';
+                      }
                       return s.toUpperCase();
                     })
                     .toSet()
@@ -1058,100 +1076,98 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Flexible(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  name,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textDark,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (batchName.isNotEmpty &&
-                                  batchName != 'Unassigned') ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        (_isDark
-                                                ? const Color(0xFF60A5FA)
-                                                : PiggyTrunkTheme.ptPrimary)
-                                            .withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color:
-                                          (_isDark
-                                                  ? const Color(0xFF60A5FA)
-                                                  : PiggyTrunkTheme.ptPrimary)
-                                              .withValues(alpha: 0.25),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    batchName,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: _isDark
-                                          ? const Color(0xFF93C5FD)
-                                          : PiggyTrunkTheme.ptPrimary,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: _textDark,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isUnassigned
-                                ? (_isDark
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFFF1F5F9))
-                                : (_isDark
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFFE2E8F0)),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: isUnassigned
-                                  ? (_isDark
-                                        ? const Color(0xFF475569)
-                                        : const Color(0xFFCBD5E1))
-                                  : (_isDark
-                                        ? const Color(0xFF334155)
-                                        : const Color(0xFFCBD5E1)),
-                              width: 1,
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (batchName.isNotEmpty &&
+                                batchName != 'Unassigned') ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (_isDark
+                                          ? const Color(0xFF60A5FA)
+                                          : PiggyTrunkTheme.ptPrimary)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: (_isDark
+                                            ? const Color(0xFF60A5FA)
+                                            : PiggyTrunkTheme.ptPrimary)
+                                        .withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Text(
+                                  batchName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: _isDark
+                                        ? const Color(0xFF93C5FD)
+                                        : PiggyTrunkTheme.ptPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                            ],
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isUnassigned
+                                    ? (_isDark
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFFF1F5F9))
+                                    : (_isDark
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFFE2E8F0)),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isUnassigned
+                                      ? (_isDark
+                                            ? const Color(0xFF475569)
+                                            : const Color(0xFFCBD5E1))
+                                      : (_isDark
+                                            ? const Color(0xFF334155)
+                                            : const Color(0xFFCBD5E1)),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                displayBadge,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isUnassigned
+                                      ? (_isDark
+                                            ? const Color(0xFF94A3B8)
+                                            : const Color(0xFF64748B))
+                                      : (_isDark
+                                            ? Colors.white
+                                            : const Color(0xFF18314F)),
+                                ),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            displayBadge,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isUnassigned
-                                  ? (_isDark
-                                        ? const Color(0xFF94A3B8)
-                                        : const Color(0xFF64748B))
-                                  : (_isDark
-                                        ? Colors.white
-                                        : const Color(0xFF18314F)),
-                            ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

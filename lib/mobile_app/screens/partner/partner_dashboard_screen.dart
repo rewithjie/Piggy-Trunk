@@ -775,9 +775,13 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
               final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
               final raiserName = (rMap['name'] ?? '').toString().trim();
-              final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
-                  ? googleOrAppName
-                  : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
+              final resolvedFullName = (raiserName.isNotEmpty &&
+                      raiserName.toLowerCase() != 'hog raiser' &&
+                      raiserName.toUpperCase() != 'N/A')
+                  ? raiserName
+                  : (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+                      ? googleOrAppName
+                      : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser'));
 
               final raiserAddress = (rMap['address'] ?? appUsers?['address'] ?? '').toString().trim();
               final raiserPhone = (rMap['phone'] ?? appUsers?['phone'] ?? '').toString().trim();

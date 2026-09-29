@@ -205,9 +205,13 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           final appUsers = r['app_users'] as Map<String, dynamic>?;
           final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
           final raiserName = (r['name'] ?? '').toString().trim();
-          final resolvedFullName = googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
-              ? googleOrAppName
-              : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser');
+          final resolvedFullName = (raiserName.isNotEmpty &&
+                  raiserName.toLowerCase() != 'hog raiser' &&
+                  raiserName.toUpperCase() != 'N/A')
+              ? raiserName
+              : (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
+                  ? googleOrAppName
+                  : (raiserName.isNotEmpty ? raiserName : 'Hog Raiser'));
 
           final raiserIdStr = (r['hog_raiser_id'] ?? r['id'] ?? '').toString();
           final userIdStr = (r['user_id'] ?? '').toString();
