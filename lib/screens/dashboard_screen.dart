@@ -63,24 +63,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Load active raisers (newest registered first by default)
-      final raisersRes = await _supabase
-          .from('hog_raisers')
-          .select(
-            'hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, created_at',
-          )
-          .or('account_status.ilike.active,account_status.ilike.approved')
-          .order('hog_raiser_id', ascending: false);
+      // 1. Load active raisers safely (do NOT select created_at which does not exist in hog_raisers)
+      List<dynamic> raisersRes = [];
+      try {
+        raisersRes = await _supabase
+            .from('hog_raisers')
+            .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(name, email)')
+            .order('hog_raiser_id', ascending: false);
+      } catch (_) {
+        try {
+          raisersRes = await _supabase
+              .from('hog_raisers')
+              .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, user_id')
+              .order('hog_raiser_id', ascending: false);
+        } catch (rErr) {
+          debugPrint('Notice loading hog_raisers: $rErr');
+          try {
+            raisersRes = await _supabase.from('hog_raisers').select('*');
+          } catch (_) {
+            raisersRes = [];
+          }
+        }
+      }
 
-      // 2. Load investment records to compute Admin Initial Capital & batch count
-      final invRecordsRes = await _supabase
-          .from('investment_records')
-          .select(
-            'hog_raiser_id, id, initial_capital, hog_type, stage, investment_date, batch_name, batch_id',
-          )
-          .order('investment_date', ascending: false);
+      // 2. Fetch Batches directly for accurate batch count & name mapping
+      List<dynamic> batchesRaw = [];
+      try {
+        batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
+      } catch (bErr) {
+        debugPrint('Notice loading batches: $bErr');
+        try {
+          batchesRaw = await _supabase.from('batches').select('*');
+        } catch (_) {
+          batchesRaw = [];
+        }
+      }
 
-      final invList = (invRecordsRes as List? ?? []);
+      final Map<String, String> batchesMap = {
+        for (var b in batchesRaw)
+          (b['batch_id'] ?? b['id'] ?? '').toString(): (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString()
+      };
+
+      // 3. Load investment records to compute Admin Initial Capital
+      List<dynamic> invList = [];
+      try {
+        invList = await _supabase
+            .from('investment_records')
+            .select('*')
+            .order('investment_date', ascending: false);
+      } catch (invErr) {
+        debugPrint('Notice loading investment_records with order: $invErr');
+        try {
+          invList = await _supabase.from('investment_records').select('*');
+        } catch (_) {
+          invList = [];
+        }
+      }
+
       double calculatedInitialCapital = 0;
       double calculatedFatteningInitialCapital = 0;
       double calculatedSowInitialCapital = 0;
@@ -105,59 +144,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = inv['hog_raiser_id']?.toString() ?? '';
         final rawHt = (inv['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty &&
-            rawHt.isNotEmpty &&
-            !raiserInvestmentTypeMap.containsKey(rId)) {
+        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
           raiserInvestmentTypeMap[rId] = rawHt;
         }
 
         final invDateStr = (inv['investment_date'] ?? '').toString();
         final dt = DateTime.tryParse(invDateStr);
         if (rId.isNotEmpty && dt != null) {
-          if (!raiserLatestInvestmentDate.containsKey(rId) ||
-              dt.isAfter(raiserLatestInvestmentDate[rId]!)) {
+          if (!raiserLatestInvestmentDate.containsKey(rId) || dt.isAfter(raiserLatestInvestmentDate[rId]!)) {
             raiserLatestInvestmentDate[rId] = dt;
           }
         }
 
         final bName = (inv['batch_name'] ?? '').toString().trim();
-        if (rId.isNotEmpty &&
-            bName.isNotEmpty &&
-            !raiserBatchNameMap.containsKey(rId)) {
+        if (rId.isNotEmpty && bName.isNotEmpty && !raiserBatchNameMap.containsKey(rId)) {
           raiserBatchNameMap[rId] = bName;
         }
       }
 
-      // 2b. Fetch assignments and active hogs to reflect actual active batch and stage
+      // Also check partner investments in `investments` if admin direct records is zero
+      if (calculatedInitialCapital == 0) {
+        try {
+          final partnerInvRes = await _supabase.from('investments').select('amount, status');
+          double partnerAmt = 0;
+          for (var p in (partnerInvRes as List? ?? [])) {
+            if (p is! Map) continue;
+            final st = (p['status'] ?? '').toString().toLowerCase();
+            if (st == 'archived' || st == 'cancelled') continue;
+            partnerAmt += (p['amount'] as num?)?.toDouble() ?? 0.0;
+          }
+          if (partnerAmt > 0) {
+            calculatedInitialCapital = partnerAmt;
+            calculatedFatteningInitialCapital = partnerAmt * 0.5;
+            calculatedSowInitialCapital = partnerAmt * 0.5;
+          }
+        } catch (piErr) {
+          debugPrint('Notice loading partner investments: $piErr');
+        }
+      }
+
+      // 4. Fetch assignments and active hogs to reflect actual active batch and stage
       final Map<String, dynamic> raiserLatestAssignmentMap = {};
       final Map<String, int> raiserLatestStageIdMap = {};
 
       try {
-        final assignmentsRes = await _supabase
-            .from('assignments')
-            .select(
-              'assignment_id, batch_id, hog_raiser_id, status, assigned_date, batches(batch_name)',
-            )
-            .order('assigned_date', ascending: false);
+        List<dynamic> assignmentsRes = [];
+        try {
+          assignmentsRes = await _supabase
+              .from('assignments')
+              .select('assignment_id, batch_id, hog_raiser_id, status, assigned_date')
+              .order('assigned_date', ascending: false);
+        } catch (_) {
+          assignmentsRes = await _supabase.from('assignments').select('*');
+        }
 
         final hogsRes = await _supabase
             .from('hogs')
-            .select('hog_id, assignment_id, stage_id, health_status, status')
+            .select('*')
             .eq('status', 'active');
 
         final Map<String, List<Map<String, dynamic>>> assignHogsMap = {};
         for (var h in (hogsRes as List? ?? [])) {
           if (h is! Map) continue;
           final aId = (h['assignment_id'] ?? '').toString();
-          assignHogsMap
-              .putIfAbsent(aId, () => [])
-              .add(Map<String, dynamic>.from(h));
+          assignHogsMap.putIfAbsent(aId, () => []).add(Map<String, dynamic>.from(h));
         }
 
-        for (var a in (assignmentsRes as List? ?? [])) {
+        for (var a in assignmentsRes) {
           if (a is! Map) continue;
           final rId = (a['hog_raiser_id'] ?? '').toString();
           if (rId.isEmpty) continue;
+
+          final bId = (a['batch_id'] ?? '').toString();
+          if (!raiserBatchNameMap.containsKey(rId) && batchesMap.containsKey(bId)) {
+            raiserBatchNameMap[rId] = batchesMap[bId]!;
+          }
 
           if (!raiserLatestAssignmentMap.containsKey(rId)) {
             raiserLatestAssignmentMap[rId] = a;
@@ -166,8 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (hogs.isNotEmpty) {
               int maxStage = 1;
               for (var hog in hogs) {
-                final sId =
-                    int.tryParse((hog['stage_id'] ?? '1').toString()) ?? 1;
+                final sId = int.tryParse((hog['stage_id'] ?? '1').toString()) ?? 1;
                 if (sId > maxStage) maxStage = sId;
               }
               raiserLatestStageIdMap[rId] = maxStage;
@@ -175,12 +235,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
       } catch (assignErr) {
-        debugPrint(
-          'Notice loading assignments & hogs for dashboard: $assignErr',
-        );
+        debugPrint('Notice loading assignments & hogs for dashboard: $assignErr');
       }
 
-      // 3. Load product prices to price stock requests accurately
+      // 5. Load product prices to price stock requests accurately
       final Map<String, double> productPriceMap = {};
       try {
         final productsRes = await _supabase
@@ -192,9 +250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
           final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
           if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
-          if (pCat.isNotEmpty &&
-              pPrice > 0 &&
-              !productPriceMap.containsKey(pCat)) {
+          if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
             productPriceMap[pCat] = pPrice;
           }
         }
@@ -207,27 +263,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double calculatedFatteningStocks = 0;
       double calculatedSowStocks = 0;
 
-      // 4. Load approved stock requests (Stocks provided for Hog Raisers)
+      // 6. Load approved stock requests (Stocks provided for Hog Raisers)
       try {
         final stockReqRes = await _supabase
             .from('stock_requests')
-            .select(
-              'request_id, hog_raiser_id, category, quantity, feed_type, status',
-            )
+            .select('request_id, hog_raiser_id, category, quantity, feed_type, status')
             .eq('status', 'approved');
 
         for (var req in (stockReqRes as List? ?? [])) {
           if (req is! Map) continue;
           final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
-          final fType = (req['feed_type'] ?? '')
-              .toString()
-              .trim()
-              .toLowerCase();
+          final fType = (req['feed_type'] ?? '').toString().trim().toLowerCase();
           final cat = (req['category'] ?? '').toString().trim().toLowerCase();
           final rId = (req['hog_raiser_id'] ?? '').toString();
 
-          final unitPrice =
-              productPriceMap[fType] ??
+          final unitPrice = productPriceMap[fType] ??
               productPriceMap[cat] ??
               defaultFeedPrice;
 
@@ -245,7 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         debugPrint('Notice loading stock requests for dashboard: $sErr');
       }
 
-      // 5. Also include sales marked as raiser_distribution if any
+      // 7. Also include sales marked as raiser_distribution if any
       try {
         final distSalesRes = await _supabase
             .from('sales')
@@ -265,39 +315,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
       } catch (salesErr) {
-        debugPrint(
-          'Notice loading distribution sales for dashboard: $salesErr',
-        );
+        debugPrint('Notice loading distribution sales for dashboard: $salesErr');
       }
 
-      final double calculatedTotalCapital =
-          calculatedInitialCapital + calculatedStocksProvided;
-      final double calculatedFatteningCapital =
-          calculatedFatteningInitialCapital + calculatedFatteningStocks;
-      final double calculatedSowCapital =
-          calculatedSowInitialCapital + calculatedSowStocks;
+      final double calculatedTotalCapital = calculatedInitialCapital + calculatedStocksProvided;
+      final double calculatedFatteningCapital = calculatedFatteningInitialCapital + calculatedFatteningStocks;
+      final double calculatedSowCapital = calculatedSowInitialCapital + calculatedSowStocks;
+
+      // Filter active raisers accurately matching Hog Raiser screen
+      final allRaiserMaps = (raisersRes as List? ?? []).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+      final activeList = allRaiserMaps.where((r) {
+        final status = (r['status'] ?? '').toString().toLowerCase();
+        final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+        if (status == 'archived' || accStatus == 'archived') return false;
+        if (status == 'pending' || accStatus == 'pending') return false;
+        return status == 'active' || accStatus == 'active' || accStatus == 'approved';
+      }).toList();
+
+      final displayRaisers = activeList.isNotEmpty ? activeList : allRaiserMaps.where((r) {
+        final status = (r['status'] ?? '').toString().toLowerCase();
+        return status != 'archived';
+      }).toList();
 
       if (mounted) {
-        final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
+        final list = displayRaisers.map((r) {
           final copy = Map<String, dynamic>.from(r);
           final idStr = (copy['hog_raiser_id'] ?? '').toString();
+
+          // Resolve display name from app_users if available
+          final appUsers = copy['app_users'] as Map<String, dynamic>?;
+          final gName = (appUsers?['name'] ?? '').toString().trim();
+          final rName = (copy['name'] ?? '').toString().trim();
+          if (gName.isNotEmpty && gName.toLowerCase() != 'hog raiser') {
+            copy['name'] = gName;
+          } else if (rName.isNotEmpty) {
+            copy['name'] = rName;
+          }
+
           String rawType = (copy['pig_type'] ?? '').toString().trim();
-          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') &&
-              raiserInvestmentTypeMap.containsKey(idStr)) {
+          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') && raiserInvestmentTypeMap.containsKey(idStr)) {
             rawType = raiserInvestmentTypeMap[idStr]!;
           }
 
           final cleanParts = rawType
               .split(RegExp(r'[,;]'))
               .map((p) => p.trim())
-              .where(
-                (p) =>
-                    p.isNotEmpty &&
-                    p.toUpperCase() != 'N/A' &&
-                    p.toLowerCase() != 'null' &&
-                    p.toUpperCase() != 'NONE' &&
-                    p.toUpperCase() != 'UNASSIGNED',
-              )
+              .where((p) =>
+                  p.isNotEmpty &&
+                  p.toUpperCase() != 'N/A' &&
+                  p.toLowerCase() != 'null' &&
+                  p.toUpperCase() != 'NONE' &&
+                  p.toUpperCase() != 'UNASSIGNED')
               .map((s) {
                 final l = s.toLowerCase();
                 if (l.contains('sow') || l.contains('breed')) return 'Sow';
@@ -307,44 +375,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .toSet()
               .toList();
 
-          final cleanedType = cleanParts.isEmpty
-              ? 'N/A'
-              : cleanParts.join(', ');
+          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
           copy['pig_type'] = cleanedType;
           final isBreeding = cleanedType.toLowerCase().contains('sow');
 
           // Attach actual current stage if active hogs exist
           if (raiserLatestStageIdMap.containsKey(idStr)) {
-            copy['lifecycle_stage'] = _resolveStageName(
-              raiserLatestStageIdMap[idStr],
-              isBreeding,
-            );
+            copy['lifecycle_stage'] = _resolveStageName(raiserLatestStageIdMap[idStr], isBreeding);
           }
 
-          // Attach batch name
+          // Attach batch name (align with mobile app fallback if batches table is empty)
           if (raiserBatchNameMap.containsKey(idStr)) {
             copy['batch_name'] = raiserBatchNameMap[idStr];
           } else if (raiserLatestAssignmentMap.containsKey(idStr)) {
             final aMap = raiserLatestAssignmentMap[idStr];
-            final b = aMap?['batches'] as Map?;
-            final bName = b?['batch_name']?.toString();
-            if (bName != null && bName.isNotEmpty) {
-              copy['batch_name'] = bName;
-            }
+            final bId = (aMap?['batch_id'] ?? '').toString();
+            copy['batch_name'] = batchesMap[bId] ?? (bId.isNotEmpty ? 'Batch #$bId' : 'Batch ${copy['name']}');
+          } else {
+            copy['batch_name'] = 'Batch ${copy['name']}';
           }
 
           // Calculate recency date for sorting (latest first)
           DateTime? recencyDate = raiserLatestInvestmentDate[idStr];
-          if (recencyDate == null &&
-              raiserLatestAssignmentMap.containsKey(idStr)) {
-            final aDate =
-                (raiserLatestAssignmentMap[idStr]?['assigned_date'] ?? '')
-                    .toString();
+          if (recencyDate == null && raiserLatestAssignmentMap.containsKey(idStr)) {
+            final aDate = (raiserLatestAssignmentMap[idStr]?['assigned_date'] ?? '').toString();
             recencyDate = DateTime.tryParse(aDate);
-          }
-          if (recencyDate == null) {
-            final cDate = (copy['created_at'] ?? '').toString();
-            recencyDate = DateTime.tryParse(cDate);
           }
           copy['_recency_date'] = recencyDate;
 
@@ -370,10 +425,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return idB.compareTo(idA);
         });
 
+        // Align with mobile app: if batches table is empty, each active raiser represents an active batch
+        final calculatedBatchCount = batchesRaw.isNotEmpty
+            ? batchesRaw.length
+            : (invList.isNotEmpty ? invList.length : list.length);
+
         setState(() {
           _activeRaisers = list.length;
-          _batchCount = invList
-              .length; // strictly admin batch investments (partner investor excluded)
+          _batchCount = calculatedBatchCount;
           _totalCapital = calculatedTotalCapital;
           _fatteningCapital = calculatedFatteningCapital;
           _sowCapital = calculatedSowCapital;
@@ -388,36 +447,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  /// Fallback: query each table individually if needed
+  /// Fallback: query each table individually with maximum safety
   Future<void> _loadDashboardFallback() async {
     try {
-      final results = await Future.wait([
-        _supabase
-            .from('hog_raisers')
-            .select('hog_raiser_id')
-            .or('account_status.ilike.active,account_status.ilike.approved'),
-        _supabase.from('investment_records').select('id'),
-        _supabase
-            .from('investment_records')
-            .select(
-              'hog_raiser_id, investment_date, initial_capital, hog_type',
-            ),
-        _supabase.from('hogs').select('hog_id').eq('status', 'dead'),
-        _supabase
-            .from('hog_raisers')
-            .select(
-              'hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, created_at',
-            )
-            .or('account_status.ilike.active,account_status.ilike.approved')
-            .order('hog_raiser_id', ascending: false),
-      ]);
+      List<dynamic> raisers = [];
+      try {
+        raisers = await _supabase.from('hog_raisers').select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage');
+      } catch (_) {
+        raisers = [];
+      }
+
+      List<dynamic> batches = [];
+      try {
+        batches = await _supabase.from('batches').select('batch_id, batch_name');
+      } catch (_) {
+        batches = [];
+      }
+
+      List<dynamic> investmentRows = [];
+      try {
+        investmentRows = await _supabase.from('investment_records').select('*');
+      } catch (_) {
+        investmentRows = [];
+      }
 
       if (!mounted) return;
 
-      final raisers = results[0] as List;
-      final batches = results[1] as List;
-      final investmentRows = results[2] as List;
-      final activeRaisers = (results[4] as List).cast<Map<String, dynamic>>();
+      final activeRaisers = raisers.whereType<Map>().where((r) {
+        final status = (r['status'] ?? '').toString().toLowerCase();
+        final accStatus = (r['account_status'] ?? '').toString().toLowerCase();
+        if (status == 'archived' || accStatus == 'archived') return false;
+        return status == 'active' || accStatus == 'active' || accStatus == 'approved';
+      }).toList();
 
       double initialCapital = 0;
       double fatteningInitialCapital = 0;
@@ -440,9 +501,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = row['hog_raiser_id']?.toString() ?? '';
         final rawHt = (row['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty &&
-            rawHt.isNotEmpty &&
-            !raiserInvestmentTypeMap.containsKey(rId)) {
+        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
           raiserInvestmentTypeMap[rId] = rawHt;
         }
       }
@@ -476,20 +535,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final double fatteningCapital = fatteningInitialCapital + fatteningStocks;
       final double sowCapital = sowInitialCapital + sowStocks;
 
-      final cleanedActiveRaisers = activeRaisers.map((r) {
+      final cleanedActiveRaisers = (activeRaisers.isNotEmpty ? activeRaisers : raisers.whereType<Map>().toList()).map((r) {
         final copy = Map<String, dynamic>.from(r);
         final rawType = (copy['pig_type'] ?? '').toString().trim();
         final cleanParts = rawType
             .split(RegExp(r'[,;]'))
             .map((p) => p.trim())
-            .where(
-              (p) =>
-                  p.isNotEmpty &&
-                  p.toUpperCase() != 'N/A' &&
-                  p.toLowerCase() != 'null' &&
-                  p.toUpperCase() != 'NONE' &&
-                  p.toUpperCase() != 'UNASSIGNED',
-            )
+            .where((p) =>
+                p.isNotEmpty &&
+                p.toUpperCase() != 'N/A' &&
+                p.toLowerCase() != 'null' &&
+                p.toUpperCase() != 'NONE' &&
+                p.toUpperCase() != 'UNASSIGNED')
             .map((s) {
               final l = s.toLowerCase();
               if (l.contains('sow') || l.contains('breed')) return 'Sow';
@@ -500,6 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .toList();
         final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
         copy['pig_type'] = cleanedType;
+        copy['batch_name'] = 'Batch ${copy['name']}';
         return copy;
       }).toList();
 
@@ -510,9 +568,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return idB.compareTo(idA);
       });
 
+      final calculatedFallbackBatches = batches.isNotEmpty
+          ? batches.length
+          : (investmentRows.isNotEmpty ? investmentRows.length : cleanedActiveRaisers.length);
+
       setState(() {
-        _activeRaisers = raisers.length;
-        _batchCount = batches.length; // strictly admin batches
+        _activeRaisers = cleanedActiveRaisers.length;
+        _batchCount = calculatedFallbackBatches;
         _totalCapital = totalCapital;
         _fatteningCapital = fatteningCapital;
         _sowCapital = sowCapital;
