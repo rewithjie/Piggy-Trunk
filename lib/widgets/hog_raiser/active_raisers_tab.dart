@@ -49,6 +49,14 @@ class ActiveRaisersTab extends StatelessWidget {
     final fieldFocus = isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
     final fieldText = isDark ? Colors.white : const Color(0xFF18314F);
 
+    // Sort raisers newest-first (latest created at the top, oldest at the bottom)
+    final sortedRaisers = List<Map<String, dynamic>>.from(raisers);
+    sortedRaisers.sort((a, b) {
+      final idA = int.tryParse((a['hog_raiser_id'] ?? a['id'] ?? '0').toString()) ?? 0;
+      final idB = int.tryParse((b['hog_raiser_id'] ?? b['id'] ?? '0').toString()) ?? 0;
+      return idB.compareTo(idA);
+    });
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -149,7 +157,7 @@ class ActiveRaisersTab extends StatelessWidget {
               rowCount: 5,
               borderRadius: 8,
             )
-          else if (raisers.isEmpty)
+          else if (sortedRaisers.isEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -179,7 +187,7 @@ class ActiveRaisersTab extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _tableHeader(isDark, cardBorder, hintText),
-                          ...raisers.map((row) => _tableRow(row, isDark, cardBorder, titleColor)),
+                          ...sortedRaisers.map((row) => _tableRow(row, isDark, cardBorder, titleColor)),
                         ],
                       ),
                     ),
@@ -300,7 +308,7 @@ class ActiveRaisersTab extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: Text(
                 (row['phone'] ?? '').toString(),
                 style: AppTextStyles.body(titleColor),

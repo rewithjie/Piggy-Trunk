@@ -192,7 +192,12 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       if (keyword != null && keyword.trim().isNotEmpty) {
         query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
       }
-      final response = await query.order('name', ascending: true);
+      dynamic response;
+      try {
+        response = await query.order('hog_raiser_id', ascending: false);
+      } catch (_) {
+        response = await query.order('name', ascending: true);
+      }
 
       if (!mounted) return;
       setState(() {

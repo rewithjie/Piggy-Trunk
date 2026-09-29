@@ -175,13 +175,20 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
       const double defaultFeedPrice = 1650.0;
 
-      // 5. Fetch Direct Investment Records directly
+      // 5. Fetch Direct Investment Records directly (ordered newest first)
       dynamic response;
       try {
-        response = await _supabase.from('investment_records').select('*');
+        response = await _supabase
+            .from('investment_records')
+            .select('*')
+            .order('investment_date', ascending: false);
       } catch (e) {
-        debugPrint('Error fetching investment_records: $e');
-        response = [];
+        debugPrint('Error fetching investment_records with order: $e');
+        try {
+          response = await _supabase.from('investment_records').select('*');
+        } catch (_) {
+          response = [];
+        }
       }
 
       final List<Investment> loaded = [];
@@ -329,6 +336,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
         loaded.add(Investment.fromJson(rMap));
       }
+
+      // Sort newest investments at the top
+      loaded.sort((a, b) {
+        final dateCmp = b.investmentDate.compareTo(a.investmentDate);
+        if (dateCmp != 0) return dateCmp;
+        return b.id.compareTo(a.id);
+      });
 
       // Fetch partner investor submissions from `investments` table with resilient lookup
       List<Map<String, dynamic>> loadedPartnerInv = [];

@@ -130,6 +130,13 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       return true;
     }).toList();
 
+    // Sort Direct Investments newest-first (latest date / id on top, older at bottom)
+    filteredDirect.sort((a, b) {
+      final dateCmp = b.investmentDate.compareTo(a.investmentDate);
+      if (dateCmp != 0) return dateCmp;
+      return b.id.compareTo(a.id);
+    });
+
     // Filter Partner Investments
     final filteredPartner = widget.partnerInvestments.where((p) {
       final q = _searchCtrl.text.trim().toLowerCase();
@@ -147,6 +154,17 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       }
       return true;
     }).toList();
+
+    // Sort Partner Investments newest-first (latest date / id on top, older at bottom)
+    filteredPartner.sort((a, b) {
+      final dateA = DateTime.tryParse((a['date_invested'] ?? a['created_at'] ?? '').toString()) ?? DateTime(1970);
+      final dateB = DateTime.tryParse((b['date_invested'] ?? b['created_at'] ?? '').toString()) ?? DateTime(1970);
+      final dateCmp = dateB.compareTo(dateA);
+      if (dateCmp != 0) return dateCmp;
+      final idA = int.tryParse((a['investment_id'] ?? a['id'] ?? '0').toString()) ?? 0;
+      final idB = int.tryParse((b['investment_id'] ?? b['id'] ?? '0').toString()) ?? 0;
+      return idB.compareTo(idA);
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -679,7 +697,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isNarrow = isMobile || constraints.maxWidth < 780;
+        final isNarrow = isMobile || constraints.maxWidth < 750;
         if (isNarrow) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -693,7 +711,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                   ],
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               filterButtons,
             ],
           );
@@ -702,8 +720,8 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(flex: 3, child: searchField),
-            const SizedBox(width: 14),
+            Expanded(child: searchField),
+            const SizedBox(width: 12),
             filterButtons,
             if (refreshBtn != null) ...[
               const SizedBox(width: 10),
