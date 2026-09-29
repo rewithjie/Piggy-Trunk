@@ -143,43 +143,83 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
 
     return Scaffold(
       backgroundColor: scaffoldBg,
-      appBar: AppBar(
-        backgroundColor: surfaceBg,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.06),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 16),
-            ),
-          ),
-          onPressed: widget.onBack,
-        ),
-        title: Text(
-          strings.isFilipino ? 'Kasaysayan ng Kahilingan' : 'Request History',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: textColor,
-          ),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: cardBorder, height: 1),
-        ),
-      ),
       body: SafeArea(
         child: Column(
           children: [
+            // Segmented Toggle: [ Request Supplies ] [ My Requests ]
             Padding(
-              padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 16.0),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
+              child: Container(
+                height: 44,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        onTap: widget.onBack,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.inventory_2_outlined, size: 16, color: mutedColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                strings.isFilipino ? 'Humiling ng Supply' : 'Request Supplies',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: mutedColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.receipt_long_rounded, size: 16, color: isDark ? Colors.white : _brandColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                strings.isFilipino ? 'Aking Requests' : 'My Requests',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? Colors.white : _brandColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 16.0),
               child: Row(
                 children: [
                   Expanded(

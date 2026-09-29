@@ -32,12 +32,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Theme-aware color getters
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
-  Color get _bgDark => _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
-  Color get _surfaceDark => _isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
-  Color get _surfaceSoftDark => _isDark ? PiggyTrunkTheme.ptSurfaceSoftDark : PiggyTrunkTheme.ptSurfaceSoft;
-  Color get _borderDark => _isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-  Color get _textDark => _isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
-  Color get _mutedDark => _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+  Color get _bgDark =>
+      _isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
+  Color get _surfaceDark =>
+      _isDark ? PiggyTrunkTheme.ptSurfaceDark : PiggyTrunkTheme.ptSurface;
+  Color get _surfaceSoftDark => _isDark
+      ? PiggyTrunkTheme.ptSurfaceSoftDark
+      : PiggyTrunkTheme.ptSurfaceSoft;
+  Color get _borderDark =>
+      _isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+  Color get _textDark =>
+      _isDark ? PiggyTrunkTheme.ptTextDark : PiggyTrunkTheme.ptText;
+  Color get _mutedDark =>
+      _isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
 
   @override
   void initState() {
@@ -56,17 +63,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Load active raisers
+      // 1. Load active raisers (newest registered first by default)
       final raisersRes = await _supabase
           .from('hog_raisers')
-          .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
+          .select(
+            'hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, created_at',
+          )
           .or('account_status.ilike.active,account_status.ilike.approved')
-          .order('name', ascending: true);
+          .order('hog_raiser_id', ascending: false);
 
       // 2. Load investment records to compute Admin Initial Capital & batch count
       final invRecordsRes = await _supabase
           .from('investment_records')
-          .select('hog_raiser_id, id, initial_capital, hog_type, stage, investment_date')
+          .select(
+            'hog_raiser_id, id, initial_capital, hog_type, stage, investment_date, batch_name, batch_id',
+          )
           .order('investment_date', ascending: false);
 
       final invList = (invRecordsRes as List? ?? []);
@@ -74,6 +85,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double calculatedFatteningInitialCapital = 0;
       double calculatedSowInitialCapital = 0;
       final Map<String, String> raiserInvestmentTypeMap = {};
+      final Map<String, DateTime> raiserLatestInvestmentDate = {};
+      final Map<String, String> raiserBatchNameMap = {};
 
       for (var inv in invList) {
         if (inv is! Map) continue;
@@ -92,9 +105,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = inv['hog_raiser_id']?.toString() ?? '';
         final rawHt = (inv['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
+        if (rId.isNotEmpty &&
+            rawHt.isNotEmpty &&
+            !raiserInvestmentTypeMap.containsKey(rId)) {
           raiserInvestmentTypeMap[rId] = rawHt;
         }
+
+        final invDateStr = (inv['investment_date'] ?? '').toString();
+        final dt = DateTime.tryParse(invDateStr);
+        if (rId.isNotEmpty && dt != null) {
+          if (!raiserLatestInvestmentDate.containsKey(rId) ||
+              dt.isAfter(raiserLatestInvestmentDate[rId]!)) {
+            raiserLatestInvestmentDate[rId] = dt;
+          }
+        }
+
+        final bName = (inv['batch_name'] ?? '').toString().trim();
+        if (rId.isNotEmpty &&
+            bName.isNotEmpty &&
+            !raiserBatchNameMap.containsKey(rId)) {
+          raiserBatchNameMap[rId] = bName;
+        }
+      }
+
+      // 2b. Fetch assignments and active hogs to reflect actual active batch and stage
+      final Map<String, dynamic> raiserLatestAssignmentMap = {};
+      final Map<String, int> raiserLatestStageIdMap = {};
+
+      try {
+        final assignmentsRes = await _supabase
+            .from('assignments')
+            .select(
+              'assignment_id, batch_id, hog_raiser_id, status, assigned_date, batches(batch_name)',
+            )
+            .order('assigned_date', ascending: false);
+
+        final hogsRes = await _supabase
+            .from('hogs')
+            .select('hog_id, assignment_id, stage_id, health_status, status')
+            .eq('status', 'active');
+
+        final Map<String, List<Map<String, dynamic>>> assignHogsMap = {};
+        for (var h in (hogsRes as List? ?? [])) {
+          if (h is! Map) continue;
+          final aId = (h['assignment_id'] ?? '').toString();
+          assignHogsMap
+              .putIfAbsent(aId, () => [])
+              .add(Map<String, dynamic>.from(h));
+        }
+
+        for (var a in (assignmentsRes as List? ?? [])) {
+          if (a is! Map) continue;
+          final rId = (a['hog_raiser_id'] ?? '').toString();
+          if (rId.isEmpty) continue;
+
+          if (!raiserLatestAssignmentMap.containsKey(rId)) {
+            raiserLatestAssignmentMap[rId] = a;
+            final aId = (a['assignment_id'] ?? '').toString();
+            final hogs = assignHogsMap[aId] ?? [];
+            if (hogs.isNotEmpty) {
+              int maxStage = 1;
+              for (var hog in hogs) {
+                final sId =
+                    int.tryParse((hog['stage_id'] ?? '1').toString()) ?? 1;
+                if (sId > maxStage) maxStage = sId;
+              }
+              raiserLatestStageIdMap[rId] = maxStage;
+            }
+          }
+        }
+      } catch (assignErr) {
+        debugPrint(
+          'Notice loading assignments & hogs for dashboard: $assignErr',
+        );
       }
 
       // 3. Load product prices to price stock requests accurately
@@ -109,7 +192,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
           final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
           if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
-          if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
+          if (pCat.isNotEmpty &&
+              pPrice > 0 &&
+              !productPriceMap.containsKey(pCat)) {
             productPriceMap[pCat] = pPrice;
           }
         }
@@ -126,17 +211,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       try {
         final stockReqRes = await _supabase
             .from('stock_requests')
-            .select('request_id, hog_raiser_id, category, quantity, feed_type, status')
+            .select(
+              'request_id, hog_raiser_id, category, quantity, feed_type, status',
+            )
             .eq('status', 'approved');
 
         for (var req in (stockReqRes as List? ?? [])) {
           if (req is! Map) continue;
           final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
-          final fType = (req['feed_type'] ?? '').toString().trim().toLowerCase();
+          final fType = (req['feed_type'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
           final cat = (req['category'] ?? '').toString().trim().toLowerCase();
           final rId = (req['hog_raiser_id'] ?? '').toString();
 
-          final unitPrice = productPriceMap[fType] ??
+          final unitPrice =
+              productPriceMap[fType] ??
               productPriceMap[cat] ??
               defaultFeedPrice;
 
@@ -174,31 +265,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         }
       } catch (salesErr) {
-        debugPrint('Notice loading distribution sales for dashboard: $salesErr');
+        debugPrint(
+          'Notice loading distribution sales for dashboard: $salesErr',
+        );
       }
 
-      final double calculatedTotalCapital = calculatedInitialCapital + calculatedStocksProvided;
-      final double calculatedFatteningCapital = calculatedFatteningInitialCapital + calculatedFatteningStocks;
-      final double calculatedSowCapital = calculatedSowInitialCapital + calculatedSowStocks;
+      final double calculatedTotalCapital =
+          calculatedInitialCapital + calculatedStocksProvided;
+      final double calculatedFatteningCapital =
+          calculatedFatteningInitialCapital + calculatedFatteningStocks;
+      final double calculatedSowCapital =
+          calculatedSowInitialCapital + calculatedSowStocks;
 
       if (mounted) {
         final list = (raisersRes as List? ?? []).whereType<Map>().map((r) {
           final copy = Map<String, dynamic>.from(r);
           final idStr = (copy['hog_raiser_id'] ?? '').toString();
           String rawType = (copy['pig_type'] ?? '').toString().trim();
-          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') && raiserInvestmentTypeMap.containsKey(idStr)) {
+          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') &&
+              raiserInvestmentTypeMap.containsKey(idStr)) {
             rawType = raiserInvestmentTypeMap[idStr]!;
           }
 
           final cleanParts = rawType
               .split(RegExp(r'[,;]'))
               .map((p) => p.trim())
-              .where((p) =>
-                  p.isNotEmpty &&
-                  p.toUpperCase() != 'N/A' &&
-                  p.toLowerCase() != 'null' &&
-                  p.toUpperCase() != 'NONE' &&
-                  p.toUpperCase() != 'UNASSIGNED')
+              .where(
+                (p) =>
+                    p.isNotEmpty &&
+                    p.toUpperCase() != 'N/A' &&
+                    p.toLowerCase() != 'null' &&
+                    p.toUpperCase() != 'NONE' &&
+                    p.toUpperCase() != 'UNASSIGNED',
+              )
               .map((s) {
                 final l = s.toLowerCase();
                 if (l.contains('sow') || l.contains('breed')) return 'Sow';
@@ -208,15 +307,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .toSet()
               .toList();
 
-          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+          final cleanedType = cleanParts.isEmpty
+              ? 'N/A'
+              : cleanParts.join(', ');
           copy['pig_type'] = cleanedType;
+          final isBreeding = cleanedType.toLowerCase().contains('sow');
+
+          // Attach actual current stage if active hogs exist
+          if (raiserLatestStageIdMap.containsKey(idStr)) {
+            copy['lifecycle_stage'] = _resolveStageName(
+              raiserLatestStageIdMap[idStr],
+              isBreeding,
+            );
+          }
+
+          // Attach batch name
+          if (raiserBatchNameMap.containsKey(idStr)) {
+            copy['batch_name'] = raiserBatchNameMap[idStr];
+          } else if (raiserLatestAssignmentMap.containsKey(idStr)) {
+            final aMap = raiserLatestAssignmentMap[idStr];
+            final b = aMap?['batches'] as Map?;
+            final bName = b?['batch_name']?.toString();
+            if (bName != null && bName.isNotEmpty) {
+              copy['batch_name'] = bName;
+            }
+          }
+
+          // Calculate recency date for sorting (latest first)
+          DateTime? recencyDate = raiserLatestInvestmentDate[idStr];
+          if (recencyDate == null &&
+              raiserLatestAssignmentMap.containsKey(idStr)) {
+            final aDate =
+                (raiserLatestAssignmentMap[idStr]?['assigned_date'] ?? '')
+                    .toString();
+            recencyDate = DateTime.tryParse(aDate);
+          }
+          if (recencyDate == null) {
+            final cDate = (copy['created_at'] ?? '').toString();
+            recencyDate = DateTime.tryParse(cDate);
+          }
+          copy['_recency_date'] = recencyDate;
 
           return copy;
         }).toList();
 
+        // Sort: Current / newest at the top (nasa una), earlier at the bottom (nasa last)
+        list.sort((a, b) {
+          final DateTime? dateA = a['_recency_date'];
+          final DateTime? dateB = b['_recency_date'];
+
+          if (dateA != null && dateB != null) {
+            final cmp = dateB.compareTo(dateA); // newest first
+            if (cmp != 0) return cmp;
+          } else if (dateA != null) {
+            return -1;
+          } else if (dateB != null) {
+            return 1;
+          }
+
+          final idA = int.tryParse((a['hog_raiser_id'] ?? '0').toString()) ?? 0;
+          final idB = int.tryParse((b['hog_raiser_id'] ?? '0').toString()) ?? 0;
+          return idB.compareTo(idA);
+        });
+
         setState(() {
           _activeRaisers = list.length;
-          _batchCount = invList.length; // strictly admin batch investments (partner investor excluded)
+          _batchCount = invList
+              .length; // strictly admin batch investments (partner investor excluded)
           _totalCapital = calculatedTotalCapital;
           _fatteningCapital = calculatedFatteningCapital;
           _sowCapital = calculatedSowCapital;
@@ -240,13 +397,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .select('hog_raiser_id')
             .or('account_status.ilike.active,account_status.ilike.approved'),
         _supabase.from('investment_records').select('id'),
-        _supabase.from('investment_records').select('hog_raiser_id, investment_date, initial_capital, hog_type'),
+        _supabase
+            .from('investment_records')
+            .select(
+              'hog_raiser_id, investment_date, initial_capital, hog_type',
+            ),
         _supabase.from('hogs').select('hog_id').eq('status', 'dead'),
         _supabase
             .from('hog_raisers')
-            .select('hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage')
+            .select(
+              'hog_raiser_id, name, pig_type, status, account_status, lifecycle_stage, created_at',
+            )
             .or('account_status.ilike.active,account_status.ilike.approved')
-            .order('name', ascending: true),
+            .order('hog_raiser_id', ascending: false),
       ]);
 
       if (!mounted) return;
@@ -277,7 +440,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = row['hog_raiser_id']?.toString() ?? '';
         final rawHt = (row['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
+        if (rId.isNotEmpty &&
+            rawHt.isNotEmpty &&
+            !raiserInvestmentTypeMap.containsKey(rId)) {
           raiserInvestmentTypeMap[rId] = rawHt;
         }
       }
@@ -317,12 +482,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final cleanParts = rawType
             .split(RegExp(r'[,;]'))
             .map((p) => p.trim())
-            .where((p) =>
-                p.isNotEmpty &&
-                p.toUpperCase() != 'N/A' &&
-                p.toLowerCase() != 'null' &&
-                p.toUpperCase() != 'NONE' &&
-                p.toUpperCase() != 'UNASSIGNED')
+            .where(
+              (p) =>
+                  p.isNotEmpty &&
+                  p.toUpperCase() != 'N/A' &&
+                  p.toLowerCase() != 'null' &&
+                  p.toUpperCase() != 'NONE' &&
+                  p.toUpperCase() != 'UNASSIGNED',
+            )
             .map((s) {
               final l = s.toLowerCase();
               if (l.contains('sow') || l.contains('breed')) return 'Sow';
@@ -335,6 +502,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         copy['pig_type'] = cleanedType;
         return copy;
       }).toList();
+
+      // Sort newest / current first in fallback too
+      cleanedActiveRaisers.sort((a, b) {
+        final idA = int.tryParse((a['hog_raiser_id'] ?? '0').toString()) ?? 0;
+        final idB = int.tryParse((b['hog_raiser_id'] ?? '0').toString()) ?? 0;
+        return idB.compareTo(idA);
+      });
 
       setState(() {
         _activeRaisers = raisers.length;
@@ -351,10 +525,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _formatCurrency(double value) {
     if (value == 0) return '₱0';
-    final formatted = value.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
-    );
+    final formatted = value
+        .toStringAsFixed(0)
+        .replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
     return '₱$formatted';
   }
 
@@ -370,7 +546,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: _surfaceDark,
               child: AdminSidebar(
                 currentRoute: '/dashboard',
-                onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                onLogout: () =>
+                    Navigator.of(context).pushReplacementNamed('/login'),
                 isDrawer: true,
               ),
             )
@@ -386,8 +563,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (!isSmall)
                   AdminSidebar(
                     currentRoute: '/dashboard',
-                    onLogout: () => Navigator.of(context).pushReplacementNamed('/login'),
+                    onLogout: () =>
+                        Navigator.of(context).pushReplacementNamed('/login'),
                   ),
+
                 /// MAIN DASHBOARD CONTENT
                 Expanded(
                   child: SingleChildScrollView(
@@ -417,7 +596,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 /// Dashboard Title + Refresh (Steady Header)
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
                                       'Dashboard',
@@ -429,17 +609,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     ),
                                     IconButton(
-                                      onPressed: _isLoading ? null : _loadDashboardData,
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _loadDashboardData,
                                       icon: _isLoading
                                           ? SizedBox(
                                               width: 18,
                                               height: 18,
                                               child: CircularProgressIndicator(
                                                 strokeWidth: 2,
-                                                color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                                color: _isDark
+                                                    ? Colors.white
+                                                    : PiggyTrunkTheme.ptPrimary,
                                               ),
                                             )
-                                          : Icon(Icons.refresh_rounded, color: _mutedDark),
+                                          : Icon(
+                                              Icons.refresh_rounded,
+                                              color: _mutedDark,
+                                            ),
                                       tooltip: 'Refresh',
                                     ),
                                   ],
@@ -462,11 +649,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ],
                               ],
                             ),
-                                ),
-                              );
-                            },
                           ),
-                        ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -480,10 +667,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildKpiCardsRow() {
     final isMobile = Responsive.isMobile(context);
     final kpiData = [
-      {
-        'label': 'NUMBER OF HOG BATCH',
-        'value': _batchCount.toString(),
-      },
+      {'label': 'NUMBER OF HOG BATCH', 'value': _batchCount.toString()},
       {
         'label': 'TOTAL CURRENT INVESTMENT',
         'value': _formatCurrency(_totalCapital),
@@ -542,10 +726,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: EdgeInsets.all(isMobile ? 14 : 20),
       decoration: BoxDecoration(
         color: _surfaceDark,
-        border: Border.all(
-          color: _borderDark,
-          width: 1,
-        ),
+        border: Border.all(color: _borderDark, width: 1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -590,10 +771,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: EdgeInsets.all(isMobile ? 14 : 32),
       decoration: BoxDecoration(
         color: _surfaceDark.withValues(alpha: 0.2),
-        border: Border.all(
-          color: _borderDark,
-          width: 1,
-        ),
+        border: Border.all(color: _borderDark, width: 1),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -688,10 +866,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: _surfaceDark,
-        border: Border.all(
-          color: _borderDark,
-          width: 1,
-        ),
+        border: Border.all(color: _borderDark, width: 1),
       ),
       padding: EdgeInsets.all(isMobile ? 14 : 24),
       child: Column(
@@ -732,10 +907,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: EdgeInsets.all(isMobile ? 16 : 32),
       decoration: BoxDecoration(
         color: _surfaceDark.withValues(alpha: 0.2),
-        border: Border.all(
-          color: _borderDark,
-          width: 1,
-        ),
+        border: Border.all(color: _borderDark, width: 1),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -790,23 +962,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final cleanList = rawPigType
                     .split(RegExp(r'[,;]'))
                     .map((s) => s.trim())
-                    .where((s) =>
-                        s.isNotEmpty &&
-                        s.toUpperCase() != 'N/A' &&
-                        s.toLowerCase() != 'null' &&
-                        s.toUpperCase() != 'NONE' &&
-                        s.toUpperCase() != 'UNASSIGNED')
+                    .where(
+                      (s) =>
+                          s.isNotEmpty &&
+                          s.toUpperCase() != 'N/A' &&
+                          s.toLowerCase() != 'null' &&
+                          s.toUpperCase() != 'NONE' &&
+                          s.toUpperCase() != 'UNASSIGNED',
+                    )
                     .map((s) {
                       final l = s.toLowerCase();
-                      if (l.contains('sow') || l.contains('breed')) return 'SOW';
+                      if (l.contains('sow') || l.contains('breed'))
+                        return 'SOW';
                       if (l.contains('fatten')) return 'FATTENING';
                       return s.toUpperCase();
                     })
                     .toSet()
                     .toList();
                 final bool isUnassigned = cleanList.isEmpty;
-                final String displayBadge = isUnassigned ? 'UNASSIGNED' : cleanList.join(', ');
-                final currentStage = isUnassigned ? 'Unassigned' : (raiser['lifecycle_stage'] ?? 'Booster').toString();
+                final String displayBadge = isUnassigned
+                    ? 'UNASSIGNED'
+                    : cleanList.join(', ');
+                final currentStage = isUnassigned
+                    ? 'Unassigned'
+                    : (raiser['lifecycle_stage'] ?? 'Booster').toString();
+
+                final batchName = (raiser['batch_name'] ?? '')
+                    .toString()
+                    .trim();
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,28 +998,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Flexible(
-                          child: Text(
-                            name,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: _textDark,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _textDark,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (batchName.isNotEmpty &&
+                                  batchName != 'Unassigned') ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        (_isDark
+                                                ? const Color(0xFF60A5FA)
+                                                : PiggyTrunkTheme.ptPrimary)
+                                            .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color:
+                                          (_isDark
+                                                  ? const Color(0xFF60A5FA)
+                                                  : PiggyTrunkTheme.ptPrimary)
+                                              .withValues(alpha: 0.25),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    batchName,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: _isDark
+                                          ? const Color(0xFF93C5FD)
+                                          : PiggyTrunkTheme.ptPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: isUnassigned
-                                ? (_isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
-                                : (_isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                                ? (_isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFF1F5F9))
+                                : (_isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFE2E8F0)),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
                               color: isUnassigned
-                                  ? (_isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
-                                  : (_isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                  ? (_isDark
+                                        ? const Color(0xFF475569)
+                                        : const Color(0xFFCBD5E1))
+                                  : (_isDark
+                                        ? const Color(0xFF334155)
+                                        : const Color(0xFFCBD5E1)),
                               width: 1,
                             ),
                           ),
@@ -846,15 +1082,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               color: isUnassigned
-                                  ? (_isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))
-                                  : (_isDark ? Colors.white : const Color(0xFF18314F)),
+                                  ? (_isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B))
+                                  : (_isDark
+                                        ? Colors.white
+                                        : const Color(0xFF18314F)),
                             ),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildLifecycleMap(currentStage, isUnassigned ? 'Fattening' : pigTypeString(rawPigType), isUnassigned: isUnassigned),
+                    _buildLifecycleMap(
+                      currentStage,
+                      isUnassigned ? 'Fattening' : pigTypeString(rawPigType),
+                      isUnassigned: isUnassigned,
+                    ),
                   ],
                 );
               },
@@ -869,14 +1113,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return 'fattening';
   }
 
-  Widget _buildLifecycleMap(String currentStage, String pigType, {bool isUnassigned = false}) {
+  static String _resolveStageName(dynamic stageVal, bool isBreeding) {
+    final fatteningStages = const [
+      'Booster',
+      'Pre-Starter',
+      'Starter',
+      'Grower',
+      'Finisher',
+      'Selling',
+    ];
+    final sowStages = const [
+      'Booster',
+      'Pre-Starter',
+      'Starter',
+      'Grower',
+      'Breeder',
+      'Lactation',
+    ];
+    final list = isBreeding ? sowStages : fatteningStages;
+
+    final id = int.tryParse(stageVal?.toString() ?? '');
+    if (id != null && id >= 1 && id <= list.length) {
+      return list[id - 1];
+    }
+    final s = stageVal?.toString().trim() ?? '';
+    if (s.isNotEmpty && s != 'null' && s != 'N/A' && int.tryParse(s) == null) {
+      return s;
+    }
+    return 'Booster';
+  }
+
+  Widget _buildLifecycleMap(
+    String currentStage,
+    String pigType, {
+    bool isUnassigned = false,
+  }) {
     final List<String> lifecycleStages = pigType.toLowerCase() == 'sow'
-        ? ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
-        : ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+        ? [
+            'Booster',
+            'Pre-Starter',
+            'Starter',
+            'Grower',
+            'Breeder',
+            'Lactation',
+          ]
+        : [
+            'Booster',
+            'Pre-Starter',
+            'Starter',
+            'Grower',
+            'Finisher',
+            'Selling',
+          ];
     final activeIndex = isUnassigned
         ? -1
-        : lifecycleStages.indexWhere((stage) => stage.toLowerCase() == currentStage.toLowerCase());
-    final normalizedIndex = isUnassigned ? -1 : (activeIndex < 0 ? 0 : activeIndex);
+        : lifecycleStages.indexWhere(
+            (stage) => stage.toLowerCase() == currentStage.toLowerCase(),
+          );
+    final normalizedIndex = isUnassigned
+        ? -1
+        : (activeIndex < 0 ? 0 : activeIndex);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -899,9 +1195,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fgColor = _isDark ? const Color(0xFF0F172A) : Colors.white;
             icon = Icons.priority_high_rounded;
           } else {
-            bgColor = _isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
-            fgColor = _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
-            icon = isUnassigned ? Icons.lock_outline_rounded : Icons.radio_button_unchecked;
+            bgColor = _isDark
+                ? const Color(0xFF1E293B)
+                : const Color(0xFFE2E8F0);
+            fgColor = _isDark
+                ? const Color(0xFF94A3B8)
+                : const Color(0xFF64748B);
+            icon = isUnassigned
+                ? Icons.lock_outline_rounded
+                : Icons.radio_button_unchecked;
           }
 
           return Column(
@@ -916,23 +1218,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: BoxShape.circle,
                   border: isCurrent
                       ? Border.all(
-                          color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                          color: _isDark
+                              ? Colors.white
+                              : PiggyTrunkTheme.ptPrimary,
                           width: 2,
                         )
                       : null,
                   boxShadow: isCurrent
                       ? [
                           BoxShadow(
-                            color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                            color:
+                                (_isDark
+                                        ? Colors.white
+                                        : PiggyTrunkTheme.ptPrimary)
+                                    .withValues(alpha: 0.25),
                             blurRadius: 10,
                             spreadRadius: 1,
                           ),
                         ]
                       : null,
                 ),
-                child: Center(
-                  child: Icon(icon, size: 20, color: fgColor),
-                ),
+                child: Center(child: Icon(icon, size: 20, color: fgColor)),
               ),
               const SizedBox(height: 8),
               Text(
@@ -940,7 +1246,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
-                  fontWeight: isCurrent ? FontWeight.w800 : (isDone ? FontWeight.w700 : FontWeight.w600),
+                  fontWeight: isCurrent
+                      ? FontWeight.w800
+                      : (isDone ? FontWeight.w700 : FontWeight.w600),
                   color: isCurrent
                       ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
                       : (isDone ? _textDark : _mutedDark),
@@ -956,11 +1264,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               children: List.generate(lifecycleStages.length, (index) {
                 return Padding(
-                  padding: EdgeInsets.only(right: index == lifecycleStages.length - 1 ? 0 : 20),
-                  child: SizedBox(
-                    width: 76,
-                    child: buildStepContent(index),
+                  padding: EdgeInsets.only(
+                    right: index == lifecycleStages.length - 1 ? 0 : 20,
                   ),
+                  child: SizedBox(width: 76, child: buildStepContent(index)),
                 );
               }),
             ),
@@ -970,11 +1277,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // On Desktop: Evenly spaced across the card
         return Row(
           children: List.generate(lifecycleStages.length, (index) {
-            return Expanded(
-              child: Center(
-                child: buildStepContent(index),
-              ),
-            );
+            return Expanded(child: Center(child: buildStepContent(index)));
           }),
         );
       },
@@ -994,15 +1297,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _buildSkeletonKpiCard(isMobile, 'NUMBER OF HOG BATCH', 60),
                 const SizedBox(height: 12),
-                _buildSkeletonKpiCard(isMobile, 'TOTAL CURRENT INVESTMENT', 120),
+                _buildSkeletonKpiCard(
+                  isMobile,
+                  'TOTAL CURRENT INVESTMENT',
+                  120,
+                ),
               ],
             )
           else
             Row(
               children: [
-                Expanded(child: _buildSkeletonKpiCard(isMobile, 'NUMBER OF HOG BATCH', 60)),
+                Expanded(
+                  child: _buildSkeletonKpiCard(
+                    isMobile,
+                    'NUMBER OF HOG BATCH',
+                    60,
+                  ),
+                ),
                 SizedBox(width: isMobile ? 12 : 20),
-                Expanded(child: _buildSkeletonKpiCard(isMobile, 'TOTAL CURRENT INVESTMENT', 120)),
+                Expanded(
+                  child: _buildSkeletonKpiCard(
+                    isMobile,
+                    'TOTAL CURRENT INVESTMENT',
+                    120,
+                  ),
+                ),
               ],
             ),
           SizedBox(height: isMobile ? 20 : 32),
@@ -1035,7 +1354,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        ShimmerBox(width: 85, height: 11, borderRadius: BorderRadius.circular(3), isDark: _isDark),
+                        ShimmerBox(
+                          width: 85,
+                          height: 11,
+                          borderRadius: BorderRadius.circular(3),
+                          isDark: _isDark,
+                        ),
                       ],
                     ),
                     Row(
@@ -1048,7 +1372,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        ShimmerBox(width: 70, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                        ShimmerBox(
+                          width: 70,
+                          height: 14,
+                          borderRadius: BorderRadius.circular(4),
+                          isDark: _isDark,
+                        ),
                       ],
                     ),
                   ],
@@ -1065,9 +1394,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 else
                   Row(
                     children: [
-                      Expanded(child: _buildSkeletonSubCard('FATTENING', 120, isMobile)),
+                      Expanded(
+                        child: _buildSkeletonSubCard(
+                          'FATTENING',
+                          120,
+                          isMobile,
+                        ),
+                      ),
                       SizedBox(width: isMobile ? 12 : 20),
-                      Expanded(child: _buildSkeletonSubCard('SOW', 60, isMobile)),
+                      Expanded(
+                        child: _buildSkeletonSubCard('SOW', 60, isMobile),
+                      ),
                     ],
                   ),
               ],
@@ -1099,7 +1436,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    ShimmerBox(width: 100, height: 14, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                    ShimmerBox(
+                      width: 100,
+                      height: 14,
+                      borderRadius: BorderRadius.circular(4),
+                      isDark: _isDark,
+                    ),
                   ],
                 ),
                 SizedBox(height: isMobile ? 18 : 28),
@@ -1108,9 +1450,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     return Expanded(
                       child: Column(
                         children: [
-                          ShimmerBox(width: 44, height: 44, shape: BoxShape.circle, isDark: _isDark),
+                          ShimmerBox(
+                            width: 44,
+                            height: 44,
+                            shape: BoxShape.circle,
+                            isDark: _isDark,
+                          ),
                           const SizedBox(height: 8),
-                          ShimmerBox(width: 50, height: 12, borderRadius: BorderRadius.circular(4), isDark: _isDark),
+                          ShimmerBox(
+                            width: 50,
+                            height: 12,
+                            borderRadius: BorderRadius.circular(4),
+                            isDark: _isDark,
+                          ),
                         ],
                       ),
                     );

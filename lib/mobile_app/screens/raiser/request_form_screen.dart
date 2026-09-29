@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:piggytrunk/models/pos_model.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/utils/inventory_data_adapter.dart';
+import '../../../widgets/common/shimmer_loading.dart';
 import '../../utils/app_strings.dart';
-import '../../utils/capitalization_formatters.dart';
 import '../../widgets/piggy_toast.dart';
 
 class RequestFormScreen extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
   final Map<String, dynamic> raiserData;
   final String initialCategory;
+  final bool showBackButton;
   final VoidCallback onBack;
   final VoidCallback onSuccess;
   final VoidCallback onViewHistory;
@@ -18,7 +21,8 @@ class RequestFormScreen extends StatefulWidget {
     super.key,
     required this.activeAssignments,
     required this.raiserData,
-    this.initialCategory = 'Feeds',
+    this.initialCategory = 'All',
+    this.showBackButton = true,
     required this.onBack,
     required this.onSuccess,
     required this.onViewHistory,
@@ -29,61 +33,240 @@ class RequestFormScreen extends StatefulWidget {
 }
 
 class _RequestFormScreenState extends State<RequestFormScreen> {
-  bool _feedsSelected = false;
-  int _feedsQuantity = 0;
-  final TextEditingController _feedsDetailController = TextEditingController();
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  bool _medicineSelected = false;
-  int _medicineQuantity = 0;
-  final TextEditingController _medicineDetailController = TextEditingController();
+  List<POSProduct> _products = [];
+  bool _isLoadingProducts = true;
+  String _errorMessage = '';
 
-  bool _vitaminsSelected = false;
-  int _vitaminsQuantity = 0;
-  final TextEditingController _vitaminsDetailController = TextEditingController();
-
+  late String _selectedCategory;
+  final TextEditingController _searchCtrl = TextEditingController();
   final TextEditingController _generalNotesController = TextEditingController();
+
+  /// Map of product_id -> quantity selected
+  final Map<String, int> _cart = {};
+
   BigInt? _selectedAssignmentId;
   bool _isSubmitting = false;
 
-  String? _assignmentError;
-  String? _quantityError;
-
   static const Color _brandColor = Color(0xFF18314F);
+  static const Color _successGreen = Color(0xFF10B981);
+  static const Color _warningAmber = Color(0xFFF59E0B);
+  static const Color _dangerRed = Color(0xFFFF758C);
 
   @override
   void initState() {
     super.initState();
-    if (widget.initialCategory == 'Medicine') {
-      _medicineSelected = true;
-      _medicineQuantity = 1;
-    } else if (widget.initialCategory == 'Vitamins') {
-      _vitaminsSelected = true;
-      _vitaminsQuantity = 1;
-    } else {
-      _feedsSelected = true;
-      _feedsQuantity = 1;
-    }
+    _selectedCategory = widget.initialCategory.isNotEmpty ? widget.initialCategory : 'All';
 
     if (widget.activeAssignments.isNotEmpty) {
       _selectedAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
     }
+
+    _loadInventoryProducts();
   }
 
   @override
   void dispose() {
-    _feedsDetailController.dispose();
-    _medicineDetailController.dispose();
-    _vitaminsDetailController.dispose();
+    _searchCtrl.dispose();
     _generalNotesController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadInventoryProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _errorMessage = '';
+    });
+
+    try {
+      List<dynamic> rows = [];
+      String sourceTable = 'inventory_products';
+
+      try {
+        rows = await _supabase
+            .from('inventory_products')
+            .select()
+            .eq('is_archived', false)
+            .order('created_at', ascending: false);
+      } catch (err) {
+        debugPrint('Fallback to products table: $err');
+        rows = await _supabase
+            .from('products')
+            .select()
+            .eq('is_archived', false)
+            .order('created_at', ascending: false);
+        sourceTable = 'products';
+      }
+
+      final normalized = normalizeInventoryRows(rows, sourceTable: sourceTable);
+      final parsed = normalized.map((r) => POSProduct.fromJson(r)).toList();
+
+      if (mounted) {
+        setState(() {
+          _products = parsed;
+          _isLoadingProducts = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading inventory products: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingProducts = false;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
+  int get _totalCartItems => _cart.values.fold(0, (sum, q) => sum + q);
+
+  double get _totalCartEstimatedCost {
+    double total = 0.0;
+    for (final entry in _cart.entries) {
+      final p = _products.firstWhere((prod) => prod.id == entry.key, orElse: () => _fallbackProduct(entry.key));
+      total += p.price * entry.value;
+    }
+    return total;
+  }
+
+  POSProduct _fallbackProduct(String id) {
+    return POSProduct(
+      id: id,
+      name: 'Product',
+      categoryId: 'others',
+      category: 'Others',
+      description: '',
+      price: 0.0,
+      units: 0,
+      sold: 0,
+    );
+  }
+
+  String _formatAssignmentLabel(Map<String, dynamic> a) {
+    final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
+    String displayBatchName = rawBatchName;
+    if (rawBatchName.contains(' (')) {
+      final parts = rawBatchName.split(' (');
+      if (parts.last.endsWith(')')) {
+        displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
+      }
+    }
+    final rawHogType = a['hog_types']?['type_name']?.toString() ??
+        a['pig_type']?.toString() ??
+        widget.raiserData['pig_type']?.toString() ??
+        '';
+    final heads = a['assigned_heads'] ?? a['initial_count'];
+    final headsStr = heads != null ? ' • $heads heads' : '';
+    return '$displayBatchName${rawHogType.isNotEmpty ? " ($rawHogType$headsStr)" : headsStr}';
+  }
+
+  void _addToCart(POSProduct product) {
+    final strings = AppStrings.of(context);
+    if (widget.activeAssignments.isEmpty) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Hindi makakapagdagdag. Kailangan muna ng aktibong batch bago makahiling ng supply.'
+            : 'Cannot add items. An active batch assignment is required to request supplies.',
+      );
+      return;
+    }
+    if (product.units <= 0) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Ang produktong ito ay kasalukuyang ubos na.'
+            : 'This product is currently out of stock.',
+      );
+      return;
+    }
+    final currentQty = _cart[product.id] ?? 0;
+    if (currentQty >= product.units) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Hindi na makakapagdagdag. Ang natitirang stock ay ${product.units} piraso.'
+            : 'Cannot add more. Available stock is ${product.units} units.',
+      );
+      return;
+    }
+    setState(() {
+      _cart[product.id] = currentQty + 1;
+    });
+  }
+
+  void _decrementCart(POSProduct product) {
+    final currentQty = _cart[product.id] ?? 0;
+    if (currentQty <= 1) {
+      setState(() {
+        _cart.remove(product.id);
+      });
+    } else {
+      setState(() {
+        _cart[product.id] = currentQty - 1;
+      });
+    }
+  }
+
+  int _categoryRank(String category) {
+    final cat = category.toLowerCase().trim();
+    if (cat.contains('feed')) return 0;
+    if (cat.contains('med')) return 1;
+    if (cat.contains('vit')) return 2;
+    return 3;
+  }
+
+  List<POSProduct> get _filteredProducts {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    final list = _products.where((p) {
+      // Category filter
+      if (_selectedCategory != 'All') {
+        final cat = p.category.trim().toLowerCase();
+        final selected = _selectedCategory.toLowerCase();
+        if (selected == 'feeds' && !cat.contains('feed')) return false;
+        if (selected == 'medicine' && !cat.contains('med')) return false;
+        if (selected == 'vitamins' && !cat.contains('vit')) return false;
+        if (selected == 'others' && (cat.contains('feed') || cat.contains('med') || cat.contains('vit'))) return false;
+      }
+
+      // Search query
+      if (query.isNotEmpty) {
+        final name = p.name.toLowerCase();
+        final desc = p.description.toLowerCase();
+        final cat = p.category.toLowerCase();
+        if (!name.contains(query) && !desc.contains(query) && !cat.contains(query)) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+
+    // Map each product to its original POS index so the sequence matches POS exactly
+    final posIndexMap = <String, int>{};
+    for (int i = 0; i < _products.length; i++) {
+      posIndexMap[_products[i].id] = i;
+    }
+
+    // Sort: Category priority (Feeds -> Medicine -> Vitamins -> Others),
+    // and within each category, preserve the exact POS order!
+    list.sort((a, b) {
+      final rankA = _categoryRank(a.category);
+      final rankB = _categoryRank(b.category);
+      if (rankA != rankB) {
+        return rankA.compareTo(rankB);
+      }
+      final idxA = posIndexMap[a.id] ?? 999999;
+      final idxB = posIndexMap[b.id] ?? 999999;
+      return idxA.compareTo(idxB);
+    });
+
+    return list;
+  }
+
   Future<void> _submitRequest() async {
     final strings = AppStrings.of(context);
-    setState(() {
-      _assignmentError = null;
-      _quantityError = null;
-    });
 
     if (widget.activeAssignments.isEmpty) {
       PiggyToast.showWarning(
@@ -96,20 +279,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     }
 
     if (_selectedAssignmentId == null) {
-      setState(() {
-        _assignmentError = strings.pleaseSelectBatch;
-      });
+      PiggyToast.showWarning(context, strings.pleaseSelectBatch);
       return;
     }
 
-    final int totalCount = (_feedsSelected ? _feedsQuantity : 0) +
-        (_medicineSelected ? _medicineQuantity : 0) +
-        (_vitaminsSelected ? _vitaminsQuantity : 0);
-
-    if (totalCount <= 0) {
-      setState(() {
-        _quantityError = strings.pleaseEnterQuantity;
-      });
+    if (_cart.isEmpty) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Pumili ng kahit 1 produkto na hihilingin.'
+            : 'Please select at least 1 item to request.',
+      );
       return;
     }
 
@@ -125,74 +305,41 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       final List<Map<String, dynamic>> requestsToInsert = [];
       final List<String> descriptions = [];
 
-      if (_feedsSelected && _feedsQuantity > 0) {
-        final feedDetail = _feedsDetailController.text.trim();
-        final effectiveFeedType = feedDetail.isNotEmpty ? feedDetail : 'Feeds';
-        final feedsNotes = generalNotes.isNotEmpty ? generalNotes : null;
+      for (final entry in _cart.entries) {
+        final prod = _products.firstWhere(
+          (p) => p.id == entry.key,
+          orElse: () => _fallbackProduct(entry.key),
+        );
+        final qty = entry.value;
 
         requestsToInsert.add({
           'assignment_id': _selectedAssignmentId!.toInt(),
           'hog_raiser_id': raiserId,
           'status': 'pending',
           'request_date': today,
-          'category': 'Feeds',
-          'quantity': _feedsQuantity,
-          'feed_type': effectiveFeedType,
-          'notes': feedsNotes,
+          'category': prod.category.isNotEmpty ? prod.category : 'Feeds',
+          'quantity': qty,
+          'feed_type': prod.name,
+          'notes': generalNotes.isNotEmpty ? generalNotes : null,
         });
-        descriptions.add('$_feedsQuantity ${_feedsQuantity > 1 ? "sacks" : "sack"} of $effectiveFeedType');
-      }
 
-      if (_medicineSelected && _medicineQuantity > 0) {
-        final medDetail = _medicineDetailController.text.trim();
-        final effectiveMedName = medDetail.isNotEmpty ? medDetail : 'Medicine';
-        final medNotes = generalNotes.isNotEmpty ? generalNotes : null;
-
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
-          'hog_raiser_id': raiserId,
-          'status': 'pending',
-          'request_date': today,
-          'category': 'Medicine',
-          'quantity': _medicineQuantity,
-          'feed_type': effectiveMedName,
-          'notes': medNotes,
-        });
-        descriptions.add('$_medicineQuantity ${_medicineQuantity > 1 ? "pcs" : "pc"} of $effectiveMedName (Medicine)');
-      }
-
-      if (_vitaminsSelected && _vitaminsQuantity > 0) {
-        final vitDetail = _vitaminsDetailController.text.trim();
-        final effectiveVitName = vitDetail.isNotEmpty ? vitDetail : 'Vitamins';
-        final vitNotes = generalNotes.isNotEmpty ? generalNotes : null;
-
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
-          'hog_raiser_id': raiserId,
-          'status': 'pending',
-          'request_date': today,
-          'category': 'Vitamins',
-          'quantity': _vitaminsQuantity,
-          'feed_type': effectiveVitName,
-          'notes': vitNotes,
-        });
-        descriptions.add('$_vitaminsQuantity ${_vitaminsQuantity > 1 ? "pcs" : "pc"} of $effectiveVitName (Vitamins)');
+        descriptions.add('$qty x ${prod.name}');
       }
 
       if (requestsToInsert.isEmpty) {
         throw Exception('No valid items to request.');
       }
 
-      await Supabase.instance.client.from('stock_requests').insert(requestsToInsert);
+      await _supabase.from('stock_requests').insert(requestsToInsert);
 
       final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
-      final itemsSummary = descriptions.join(' and ');
+      final itemsSummary = descriptions.join(', ');
       final notifMessage = generalNotes.isNotEmpty
           ? '$raiserName requested $itemsSummary.\nNotes: "$generalNotes"'
           : '$raiserName requested $itemsSummary.';
 
       try {
-        await Supabase.instance.client.from('admin_notifications').insert({
+        await _supabase.from('admin_notifications').insert({
           'title': 'New Stock Request',
           'message': notifMessage,
           'type': 'stock_request',
@@ -221,118 +368,1044 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     }
   }
 
-  Widget _buildCategoryCard({
-    required String name,
-    required String label,
-    required String sublabel,
-    required String imagePath,
-    required Color accentColor,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
+  void _openKioskCartModal() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
-    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final selectedBorderColor = accentColor;
-    final textColor = isDark ? Colors.white : (isSelected ? _brandColor : const Color(0xFF1E293B));
-    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final strings = AppStrings.of(context);
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? selectedBorderColor : cardBorder,
-              width: isSelected ? 2 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? accentColor.withValues(alpha: isDark ? 0.25 : 0.15)
-                    : Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-                blurRadius: isSelected ? 10 : 6,
-                offset: const Offset(0, 3),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (modalCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final textColor = isDark ? Colors.white : _brandColor;
+            final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+            final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+            final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: BoxDecoration(
+                color: surfaceBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              if (isSelected)
-                Positioned(
-                  top: -6,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
+              child: Column(
+                children: [
+                  // Handle indicator
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 44,
+                    height: 5,
                     decoration: BoxDecoration(
-                      color: accentColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withValues(alpha: 0.4),
-                          blurRadius: 4,
+                      color: mutedColor.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.inventory_2_rounded, color: isDark ? Colors.white : _brandColor, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.isFilipino ? 'Buod ng Kahilingan' : 'Request Summary',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                ),
+                              ),
+                              Text(
+                                '${_cart.length} ${strings.isFilipino ? "produkto" : "item(s)"} • $_totalCartItems ${strings.isFilipino ? "piraso ang napili" : "unit(s) selected"}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: mutedColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_cart.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              setState(() => _cart.clear());
+                              setModalState(() {});
+                              Navigator.pop(modalCtx);
+                            },
+                            child: Text(
+                              strings.isFilipino ? 'Alisin Lahat' : 'Clear All',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: _dangerRed,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: textColor, size: 22),
+                          onPressed: () => Navigator.pop(modalCtx),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.check,
-                      size: 11,
-                      color: Colors.white,
+                  ),
+                  const Divider(height: 20),
+
+                  // Content
+                  Expanded(
+                    child: _cart.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.shopping_basket_outlined, size: 54, color: mutedColor.withValues(alpha: 0.5)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  strings.isFilipino ? 'Walang napiling supply.' : 'No supplies selected.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: mutedColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  strings.isFilipino ? 'Pumili muna ng mga produkto sa listahan.' : 'Select products from the supply list.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    color: mutedColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            children: [
+                              // Active Batch Selection
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    strings.selectBatchHogs,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  if (widget.activeAssignments.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? const Color(0xFF064E3B).withValues(alpha: 0.4)
+                                            : const Color(0xFFECFDF5),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            strings.isFilipino ? 'Aktibo' : 'Active',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              widget.activeAssignments.isEmpty
+                                  ? Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: _warningAmber.withValues(alpha: isDark ? 0.15 : 0.08),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: _warningAmber.withValues(alpha: 0.35)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.warning_amber_rounded, color: _warningAmber, size: 22),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              strings.noActiveBatchAssigned,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? Colors.amber[200] : const Color(0xFFB45309),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : _buildModalBatchSelector(
+                                      isDark: isDark,
+                                      textColor: textColor,
+                                      mutedColor: mutedColor,
+                                      strings: strings,
+                                      setModalState: setModalState,
+                                    ),
+                              const SizedBox(height: 18),
+
+                              // Items in cart
+                              Text(
+                                strings.isFilipino ? 'MGA NAPILING PRODUKTO' : 'SELECTED SUPPLIES',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: mutedColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              ..._cart.entries.map((entry) {
+                                final prod = _products.firstWhere(
+                                  (p) => p.id == entry.key,
+                                  orElse: () => _fallbackProduct(entry.key),
+                                );
+                                final qty = entry.value;
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: borderColor),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // Image
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Container(
+                                          width: 48,
+                                          height: 48,
+                                          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                                          child: prod.image != null && prod.image!.isNotEmpty
+                                              ? Image.network(
+                                                  prod.image!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, _, _) => Icon(
+                                                    _getCategoryIcon(prod.category),
+                                                    color: mutedColor,
+                                                    size: 24,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  _getCategoryIcon(prod.category),
+                                                  color: mutedColor,
+                                                  size: 24,
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+
+                                      // Details
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prod.name,
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: textColor,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '₱${prod.price.toStringAsFixed(2)} • ${prod.category}',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w500,
+                                                color: mutedColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+
+                                      // Stepper
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              _decrementCart(prod);
+                                              setModalState(() {});
+                                              setState(() {});
+                                            },
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Icon(
+                                                qty <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+                                                size: 16,
+                                                color: qty <= 1 ? _dangerRed : textColor,
+                                              ),
+                                            ),
+                                          ),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                                            child: Text(
+                                              '$qty',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w800,
+                                                color: textColor,
+                                              ),
+                                            ),
+                                          ),
+                                          InkWell(
+                                            onTap: () {
+                                              _addToCart(prod);
+                                              setModalState(() {});
+                                              setState(() {});
+                                            },
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: _brandColor,
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: const Icon(
+                                                Icons.add_rounded,
+                                                size: 16,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+
+                              const SizedBox(height: 12),
+
+                              // Notes
+                              Text(
+                                strings.isFilipino ? 'MGA TALA (OPSYONAL)' : 'NOTES (OPTIONAL)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: mutedColor,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _generalNotesController,
+                                maxLines: 2,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13, color: textColor),
+                                decoration: InputDecoration(
+                                  hintText: strings.isFilipino
+                                      ? 'hal. Para sa feeding schedule o pickup sa opisina...'
+                                      : 'e.g., For scheduled feeding or pickup from the farm office...',
+                                  hintStyle: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: mutedColor),
+                                  fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                  filled: true,
+                                  contentPadding: const EdgeInsets.all(12),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: borderColor),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: borderColor),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                  ),
+
+                  // Bottom Action Bar
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    decoration: BoxDecoration(
+                      color: surfaceBg,
+                      border: Border(top: BorderSide(color: borderColor)),
+                    ),
+                    child: Row(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              strings.isFilipino ? 'Tinatayang Halaga' : 'Estimated Value',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                color: mutedColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '₱${_totalCartEstimatedCost.toStringAsFixed(2)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (_cart.isEmpty || _isSubmitting)
+                                ? null
+                                : () async {
+                                    Navigator.pop(modalCtx);
+                                    await _submitRequest();
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white : _brandColor,
+                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 0,
+                            ),
+                            child: _isSubmitting
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        strings.isFilipino ? 'Isumite ang Kahilingan' : 'Submit Request',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('feed')) return Icons.grass_rounded;
+    if (cat.contains('med')) return Icons.medical_services_rounded;
+    if (cat.contains('vit')) return Icons.medication_liquid_rounded;
+    return Icons.inventory_2_rounded;
+  }
+
+  Widget _buildModalBatchSelector({
+    required bool isDark,
+    required Color textColor,
+    required Color mutedColor,
+    required AppStrings strings,
+    required StateSetter setModalState,
+  }) {
+    final selectedAssignment = widget.activeAssignments.firstWhere(
+      (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+      orElse: () => widget.activeAssignments.first,
+    );
+    final rawBatchName = selectedAssignment['batches']?['batch_name'] ??
+        'Assignment #${selectedAssignment['assignment_id']}';
+    String displayBatchName = rawBatchName;
+    if (rawBatchName.contains(' (')) {
+      final parts = rawBatchName.split(' (');
+      if (parts.last.endsWith(')')) {
+        displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
+      }
+    }
+    final rawHogType = selectedAssignment['hog_types']?['type_name']?.toString() ??
+        selectedAssignment['pig_type']?.toString() ??
+        widget.raiserData['pig_type']?.toString() ??
+        'Fattening';
+    final heads = selectedAssignment['assigned_heads'] ?? selectedAssignment['initial_count'];
+    final headsStr = heads != null ? '$heads heads' : '';
+    final hasMultiple = widget.activeAssignments.length > 1;
+
+    return InkWell(
+      onTap: hasMultiple ? () => _showBatchPickerModal(context, setModalState) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF38BDF8).withValues(alpha: 0.3)
+                      : const Color(0xFFBFDBFE),
                 ),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: isDark ? 0.2 : 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Image.asset(
-                        imagePath,
-                        width: 22,
-                        height: 22,
-                        color: accentColor,
-                        errorBuilder: (context, error, stackTrace) => Icon(
-                          name == 'Feeds'
-                              ? Icons.grass_rounded
-                              : (name == 'Vitamins'
-                                  ? Icons.medication_liquid_rounded
-                                  : Icons.medical_services_rounded),
-                          size: 22,
-                          color: accentColor,
+              ),
+              child: Icon(
+                Icons.pets_rounded,
+                color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    strings.isFilipino ? 'NAKA-ASSIGN NA BATCH' : 'ASSIGNED BATCH',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: mutedColor,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    displayBatchName.isNotEmpty
+                        ? displayBatchName
+                        : (strings.isFilipino ? 'Pumili ng Batch' : 'Select Batch'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          rawHogType,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white70 : _brandColor,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                      if (headsStr.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          headsStr,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: mutedColor,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (hasMultiple)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Text(
-                      label,
+                      strings.isFilipino ? 'Palitan' : 'Change',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      sublabel,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: mutedColor,
-                      ),
+                    const SizedBox(width: 3),
+                    Icon(
+                      Icons.unfold_more_rounded,
+                      size: 15,
+                      color: isDark ? const Color(0xFF38BDF8) : _brandColor,
                     ),
                   ],
                 ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF10B981),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBatchPickerModal(BuildContext parentContext, [StateSetter? modalStateSetter]) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final strings = AppStrings.of(context);
+
+    showModalBottomSheet(
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+          ),
+          decoration: BoxDecoration(
+            color: surfaceBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: mutedColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.pets_rounded, color: isDark ? const Color(0xFF38BDF8) : _brandColor, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              strings.isFilipino ? 'Piliin ang Batch ng Alaga' : 'Select Batch of Hogs',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                            Text(
+                              strings.isFilipino
+                                  ? 'Piliin kung aling batch ilalaan ang mga supply na ito'
+                                  : 'Choose which batch will receive these supplies',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: mutedColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: textColor, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: borderColor),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    itemCount: widget.activeAssignments.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (ctx, index) {
+                      final a = widget.activeAssignments[index];
+                      final aId = BigInt.from(a['assignment_id'] as num);
+                      final isSelected = aId == _selectedAssignmentId;
+
+                      final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
+                      String displayBatchName = rawBatchName;
+                      if (rawBatchName.contains(' (')) {
+                        final parts = rawBatchName.split(' (');
+                        if (parts.last.endsWith(')')) {
+                          displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
+                        }
+                      }
+                      final rawHogType = a['hog_types']?['type_name']?.toString() ??
+                          a['pig_type']?.toString() ??
+                          widget.raiserData['pig_type']?.toString() ??
+                          'Fattening';
+                      final heads = a['assigned_heads'] ?? a['initial_count'];
+                      final headsStr = heads != null ? '$heads heads' : '';
+
+                      return InkWell(
+                        onTap: () {
+                          setState(() => _selectedAssignmentId = aId);
+                          if (modalStateSetter != null) {
+                            modalStateSetter(() {});
+                          }
+                          Navigator.pop(ctx);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFEFF6FF))
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                  : borderColor,
+                              width: isSelected ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.1))
+                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.pets_rounded,
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                      : mutedColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      displayBatchName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                        color: isSelected
+                                            ? (isDark ? Colors.white : _brandColor)
+                                            : textColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            rawHogType,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white70 : _brandColor,
+                                            ),
+                                          ),
+                                        ),
+                                        if (headsStr.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            headsStr,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              color: mutedColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF10B981),
+                                  size: 22,
+                                )
+                              else
+                                Icon(
+                                  Icons.radio_button_unchecked_rounded,
+                                  color: mutedColor.withValues(alpha: 0.6),
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveBatchBanner(
+    bool isDark,
+    Color textColor,
+    Color surfaceBg,
+    Color borderColor,
+    Color mutedColor,
+    AppStrings strings,
+  ) {
+    if (widget.activeAssignments.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(18, 2, 18, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _warningAmber.withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _warningAmber.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: _warningAmber, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    strings.isFilipino ? 'Walang Aktibong Batch' : 'No Active Batch Assigned',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.amber[200] : const Color(0xFFB45309),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    strings.isFilipino
+                        ? 'Kailangan muna ng aktibong batch bago makahiling ng supply. Makipag-ugnayan sa Farm Admin.'
+                        : 'An active batch is required to request supplies. Please contact Farm Admin to assign one.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: isDark ? Colors.amber[100]!.withValues(alpha: 0.85) : const Color(0xFF92400E),
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final hasMultiple = widget.activeAssignments.length > 1;
+    final selectedAssignment = widget.activeAssignments.firstWhere(
+      (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+      orElse: () => widget.activeAssignments.first,
+    );
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(18, 2, 18, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: surfaceBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: hasMultiple ? () => _showBatchPickerModal(context) : null,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.08),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(Icons.pets_rounded, size: 14, color: isDark ? Colors.white : _brandColor),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                strings.isFilipino ? 'Batch:' : 'Batch:',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: mutedColor,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _formatAssignmentLabel(selectedAssignment),
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (hasMultiple) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        strings.isFilipino ? 'Palitan' : 'Change',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.unfold_more_rounded, size: 13, color: isDark ? const Color(0xFF38BDF8) : _brandColor),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -340,37 +1413,493 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     );
   }
 
-  Widget _buildItemConfigCard({
-    required String title,
-    required String unitLabel,
-    required String imagePath,
-    required IconData fallbackIcon,
-    required Color accentColor,
-    required int quantity,
-    required VoidCallback onIncrement,
-    required VoidCallback onDecrement,
-    required VoidCallback onRemove,
-    Widget? extraContent,
-  }) {
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : _brandColor;
     final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final textColor = isDark ? Colors.white : _brandColor;
-    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final strings = AppStrings.of(context);
+
+    final filteredProducts = _filteredProducts;
+
+    return Scaffold(
+      backgroundColor: isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Action Bar with Segmented Toggle & Cart Quick-Access Button (No Header)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
+                  child: Row(
+                    children: [
+                      if (widget.showBackButton) ...[
+                        IconButton(
+                          icon: Icon(Icons.arrow_back_rounded, color: textColor),
+                          onPressed: widget.onBack,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Container(
+                          height: 44,
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.08),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.inventory_2_rounded, size: 16, color: isDark ? Colors.white : _brandColor),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          strings.isFilipino ? 'Humiling ng Supply' : 'Request Supplies',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: isDark ? Colors.white : _brandColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: widget.onViewHistory,
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.receipt_long_rounded, size: 16, color: mutedColor),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          strings.isFilipino ? 'Aking Requests' : 'My Requests',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: mutedColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Quick Cart Button
+                      GestureDetector(
+                        onTap: _openKioskCartModal,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _cart.isNotEmpty
+                                  ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                  : (isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
+                              width: _cart.isNotEmpty ? 1.5 : 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Icon(
+                                Icons.shopping_basket_outlined,
+                                color: _cart.isNotEmpty
+                                    ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                    : mutedColor,
+                                size: 21,
+                              ),
+                              if (_cart.isNotEmpty)
+                                Positioned(
+                                  top: 5,
+                                  right: 5,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3.5),
+                                    decoration: const BoxDecoration(
+                                      color: _dangerRed,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                    child: Text(
+                                      '${_cart.length}',
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              // Active Batch Banner / Selector
+              _buildActiveBatchBanner(isDark, textColor, surfaceBg, borderColor, mutedColor, strings),
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: surfaceBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      color: textColor,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: strings.isFilipino
+                          ? 'Maghanap ng produkto (hal. Pigrolac, Amoxicillin)...'
+                          : 'Search products (e.g. Pigrolac, Amoxicillin)...',
+                      hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: mutedColor),
+                      prefixIcon: Icon(Icons.search_rounded, size: 20, color: mutedColor),
+                      suffixIcon: _searchCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear_rounded, size: 18, color: mutedColor),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Category Pills
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  children: [
+                    _buildCategoryPill('All', strings.isFilipino ? 'Lahat' : 'All', Icons.grid_view_rounded, isDark),
+                    const SizedBox(width: 8),
+                    _buildCategoryPill('Feeds', strings.isFilipino ? 'Pakain' : 'Feeds', Icons.grass_rounded, isDark),
+                    const SizedBox(width: 8),
+                    _buildCategoryPill('Medicine', strings.isFilipino ? 'Gamot' : 'Medicine', Icons.medical_services_rounded, isDark),
+                    const SizedBox(width: 8),
+                    _buildCategoryPill('Vitamins', strings.isFilipino ? 'Bitamina' : 'Vitamins', Icons.medication_liquid_rounded, isDark),
+                    const SizedBox(width: 8),
+                    _buildCategoryPill('Others', strings.isFilipino ? 'Iba pa' : 'Others', Icons.inventory_2_rounded, isDark),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
+              // Products Catalog Grid
+              Expanded(
+                child: _isLoadingProducts
+                    ? _buildShimmerGrid(isDark)
+                    : _errorMessage.isNotEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.error_outline_rounded, size: 48, color: _dangerRed),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    strings.isFilipino ? 'Bigo sa pag-load ng mga produkto' : 'Failed to load products',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _errorMessage,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: mutedColor),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: _loadInventoryProducts,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _brandColor,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: Text(strings.isFilipino ? 'Subukan Muli' : 'Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : filteredProducts.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.inventory_2_outlined, size: 52, color: mutedColor.withValues(alpha: 0.5)),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      strings.isFilipino ? 'Walang nahanap na produkto.' : 'No products found.',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: mutedColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      strings.isFilipino
+                                          ? 'Subukang pumili ng ibang kategorya o burahin ang search.'
+                                          : 'Try selecting another category or clear search.',
+                                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: mutedColor),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadInventoryProducts,
+                                child: GridView.builder(
+                                  padding: EdgeInsets.fromLTRB(
+                                    18,
+                                    8,
+                                    18,
+                                    _cart.isNotEmpty ? 100 : 24,
+                                  ),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 14,
+                                    childAspectRatio: 0.58,
+                                  ),
+                                  itemCount: filteredProducts.length,
+                                  itemBuilder: (context, index) {
+                                    final p = filteredProducts[index];
+                                    return _buildKioskProductCard(p, isDark, textColor, surfaceBg, borderColor, mutedColor);
+                                  },
+                                ),
+                              ),
+              ),
+            ],
+          ),
+
+          // Floating Bottom Request Bar
+          if (_cart.isNotEmpty)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 18,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: _openKioskCartModal,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : _brandColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.inventory_2_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${_cart.length} ${strings.isFilipino ? "produkto ang napili" : "item(s) selected"}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.white,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                '$_totalCartItems units • ₱${_totalCartEstimatedCost.toStringAsFixed(2)}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: Colors.white70,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                strings.isFilipino ? 'Suriin ang Request' : 'Review Request',
+                                style: GoogleFonts.plusJakartaSans(
+                                  color: _brandColor,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_forward_rounded, size: 14, color: _brandColor),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+  Widget _buildCategoryPill(String key, String label, IconData icon, bool isDark) {
+    final isSelected = _selectedCategory == key;
+    final activeBg = isDark ? Colors.white : _brandColor;
+    final activeText = isDark ? _brandColor : Colors.white;
+    final inactiveBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final inactiveText = isDark ? Colors.white70 : const Color(0xFF475569);
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedCategory = key),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBg : inactiveBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? activeBg : borderColor),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: activeBg.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? activeText : inactiveText,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? activeText : inactiveText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKioskProductCard(
+    POSProduct p,
+    bool isDark,
+    Color textColor,
+    Color surfaceBg,
+    Color borderColor,
+    Color mutedColor,
+  ) {
+    final strings = AppStrings.of(context);
+    final inCartQty = _cart[p.id] ?? 0;
+    final isOutOfStock = p.units <= 0;
+    final isLowStock = p.units > 0 && p.units <= 10;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: surfaceBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: accentColor.withValues(alpha: isDark ? 0.45 : 0.35),
-          width: 1.5,
+          color: inCartQty > 0 ? _brandColor : borderColor,
+          width: inCartQty > 0 ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withValues(alpha: isDark ? 0.1 : 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -379,823 +1908,317 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Image.asset(
-                  imagePath,
-                  width: 22,
-                  height: 22,
-                  color: accentColor,
-                  errorBuilder: (context, error, stackTrace) => Icon(
-                    fallbackIcon,
-                    size: 22,
-                    color: accentColor,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                      ),
-                    ),
-                    Text(
-                      unitLabel,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: mutedColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Quantity stepper
-              Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.all(6),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      icon: Icon(Icons.remove, size: 16, color: textColor),
-                      onPressed: onDecrement,
-                    ),
-                    Container(
-                      constraints: const BoxConstraints(minWidth: 32),
-                      alignment: Alignment.center,
-                      child: Text(
-                        quantity.toString(),
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.all(6),
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      icon: Icon(Icons.add, size: 16, color: textColor),
-                      onPressed: onIncrement,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                icon: Icon(Icons.close_rounded, size: 18, color: mutedColor),
-                tooltip: 'Remove',
-                onPressed: onRemove,
-              ),
-            ],
-          ),
-          if (extraContent != null) ...[
-            const SizedBox(height: 14),
-            Divider(height: 1, color: borderColor.withValues(alpha: 0.6)),
-            const SizedBox(height: 12),
-            extraContent,
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItemDetailField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required Color accentColor,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surfaceBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
-    final textColor = isDark ? Colors.white : const Color(0xFF1E293B);
-    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            color: textColor,
-            fontWeight: FontWeight.w600,
-          ),
-          textCapitalization: TextCapitalization.sentences,
-          onChanged: (_) => setState(() {}),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.plusJakartaSans(
-              fontSize: 12.5,
-              color: mutedColor,
-              fontWeight: FontWeight.w400,
-            ),
-            prefixIcon: Icon(icon, size: 18, color: accentColor),
-            suffixIcon: controller.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 16),
-                    onPressed: () {
-                      controller.clear();
-                      setState(() {});
-                    },
-                  )
-                : null,
-            filled: true,
-            fillColor: surfaceBg,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: borderColor),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: borderColor),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: accentColor, width: 1.5),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = AppStrings.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? PiggyTrunkTheme.ptBgDark : PiggyTrunkTheme.ptBg;
-    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
-    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
-    final textColor = isDark ? Colors.white : _brandColor;
-    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
-
-    final List<String> activeSummaryParts = [];
-    int totalItemCount = 0;
-    if (_feedsSelected && _feedsQuantity > 0) {
-      final feedDetail = _feedsDetailController.text.trim();
-      final feedName = feedDetail.isNotEmpty ? feedDetail : 'Feeds';
-      activeSummaryParts.add('$_feedsQuantity ${strings.isFilipino ? "sako ng" : "sacks"} $feedName');
-      totalItemCount += _feedsQuantity;
-    }
-    if (_medicineSelected && _medicineQuantity > 0) {
-      final medName = _medicineDetailController.text.trim();
-      final displayMed = medName.isNotEmpty ? medName : 'Medicine';
-      activeSummaryParts.add('$_medicineQuantity ${strings.isFilipino ? "pirasong" : "pcs"} $displayMed');
-      totalItemCount += _medicineQuantity;
-    }
-    if (_vitaminsSelected && _vitaminsQuantity > 0) {
-      final vitName = _vitaminsDetailController.text.trim();
-      final displayVit = vitName.isNotEmpty ? vitName : 'Vitamins';
-      activeSummaryParts.add('$_vitaminsQuantity ${strings.isFilipino ? "pirasong" : "pcs"} $displayVit');
-      totalItemCount += _vitaminsQuantity;
-    }
-
-    return Scaffold(
-      backgroundColor: scaffoldBg,
-      appBar: AppBar(
-        backgroundColor: surfaceBg,
-        elevation: 0.5,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 20),
-          onPressed: widget.onBack,
-        ),
-        title: Text(
-          strings.requestSuppliesTitle,
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            fontSize: 18,
-            color: textColor,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.history_rounded, color: textColor),
-            onPressed: widget.onViewHistory,
-          ),
-        ],
-      ),
-      body: _isSubmitting
-          ? Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(isDark ? Colors.white : _brandColor),
-              ),
-            )
-          : SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Active Batch Selection dropdown or Batch Required Banner
-                    Text(
-                      strings.selectBatchHogs,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    widget.activeAssignments.isEmpty
-                        ? GestureDetector(
-                            onTap: () {
-                              PiggyToast.showWarning(
-                                context,
-                                strings.batchRequiredMessage,
-                                title: strings.batchRequiredTitle,
-                                duration: const Duration(milliseconds: 4000),
-                              );
-                            },
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                              decoration: BoxDecoration(
-                                color: surfaceBg,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFF59E0B)),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      strings.noActiveBatchAssigned,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        color: mutedColor,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+          // Image Container
+          Expanded(
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                  child: Container(
+                    width: double.infinity,
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    child: p.image != null && p.image!.isNotEmpty
+                        ? Image.network(
+                            p.image!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Center(
+                              child: Icon(
+                                _getCategoryIcon(p.category),
+                                color: mutedColor.withValues(alpha: 0.6),
+                                size: 36,
                               ),
                             ),
                           )
-                        : DropdownButtonFormField<BigInt>(
-                            initialValue: _selectedAssignmentId,
-                            dropdownColor: surfaceBg,
-                            isExpanded: true,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              color: textColor,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            decoration: InputDecoration(
-                              fillColor: surfaceBg,
-                              filled: true,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                borderSide: BorderSide(color: isDark ? Colors.white54 : _brandColor, width: 1.5),
-                              ),
-                            ),
-                            items: widget.activeAssignments.map((a) {
-                              final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
-                              String displayBatchName = rawBatchName;
-                              if (rawBatchName.contains(' (')) {
-                                final parts = rawBatchName.split(' (');
-                                if (parts.last.endsWith(')')) {
-                                  displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
-                                }
-                              }
-                              final rawHogType = a['hog_types']?['type_name']?.toString() ??
-                                  a['pig_type']?.toString() ??
-                                  widget.raiserData['pig_type']?.toString() ??
-                                  'Unassigned';
-                              final hogType = (rawHogType.isEmpty || rawHogType == 'N/A' || rawHogType.toLowerCase() == 'unassigned')
-                                  ? strings.unassigned
-                                  : rawHogType;
-                              return DropdownMenuItem<BigInt>(
-                                value: BigInt.from(a['assignment_id'] as num),
-                                child: Text(
-                                  '$displayBatchName ($hogType)',
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 14,
-                                    color: textColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedAssignmentId = val;
-                                _assignmentError = null;
-                              });
-                            },
-                          ),
-                    if (_assignmentError != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _assignmentError!,
-                              style: const TextStyle(
-                                color: Color(0xFFE53935),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+                        : Center(
+                            child: Icon(
+                              _getCategoryIcon(p.category),
+                              color: mutedColor.withValues(alpha: 0.6),
+                              size: 36,
                             ),
                           ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-
-                    // Select Category Group (Multi-select)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          strings.selectCategory,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                          decoration: BoxDecoration(
-                            color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            strings.isFilipino ? 'Sabay-sabay / Multi' : 'Multi-select',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : _brandColor,
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                ),
+                // Category Pill on Image
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      strings.selectCategoriesHint,
+                    child: Text(
+                      p.category.toUpperCase(),
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: mutedColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.4,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildCategoryCard(
-                          name: 'Feeds',
-                          label: strings.feedsLabel,
-                          sublabel: strings.feedsSublabel,
-                          imagePath: 'assets/feeds_icon.png',
-                          accentColor: const Color(0xFF10B981),
-                          isSelected: _feedsSelected,
-                          onTap: () {
-                            setState(() {
-                              _feedsSelected = !_feedsSelected;
-                              if (_feedsSelected && _feedsQuantity <= 0) {
-                                _feedsQuantity = 1;
-                              }
-                              _quantityError = null;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 10),
-                        _buildCategoryCard(
-                          name: 'Medicine',
-                          label: strings.medicineLabel,
-                          sublabel: strings.medicineSublabel,
-                          imagePath: 'assets/medicine_icon.png',
-                          accentColor: const Color(0xFFEF4444),
-                          isSelected: _medicineSelected,
-                          onTap: () {
-                            setState(() {
-                              _medicineSelected = !_medicineSelected;
-                              if (_medicineSelected && _medicineQuantity <= 0) {
-                                _medicineQuantity = 1;
-                              }
-                              _quantityError = null;
-                            });
-                          },
-                        ),
-                        const SizedBox(width: 10),
-                        _buildCategoryCard(
-                          name: 'Vitamins',
-                          label: strings.vitaminsLabel,
-                          sublabel: strings.vitaminsSublabel,
-                          imagePath: 'assets/vitamins_icon.png',
-                          accentColor: const Color(0xFF8B5CF6),
-                          isSelected: _vitaminsSelected,
-                          onTap: () {
-                            setState(() {
-                              _vitaminsSelected = !_vitaminsSelected;
-                              if (_vitaminsSelected && _vitaminsQuantity <= 0) {
-                                _vitaminsQuantity = 1;
-                              }
-                              _quantityError = null;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-                    // Items Configuration Section
-                    Text(
-                      strings.quantityBagsPcs,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _quantityError != null ? const Color(0xFFE53935) : textColor,
+          // Details & Controls
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Product Name
+                Text(
+                  p.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                    height: 1.25,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+
+                // Stock Badge
+                Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isOutOfStock
+                            ? _dangerRed
+                            : isLowStock
+                                ? _warningAmber
+                                : _successGreen,
                       ),
                     ),
-                    const SizedBox(height: 12),
-
-                    if (!_feedsSelected && !_medicineSelected && !_vitaminsSelected) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: surfaceBg,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: _quantityError != null ? const Color(0xFFE53935) : borderColor,
-                          ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        isOutOfStock
+                            ? (strings.isFilipino ? 'Ubos na' : 'Out of Stock')
+                            : isLowStock
+                                ? (strings.isFilipino ? 'Kakaunti: ${p.units}' : 'Low Stock: ${p.units}')
+                                : (strings.isFilipino ? 'Tira: ${p.units}' : 'Stock: ${p.units}'),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isOutOfStock
+                              ? _dangerRed
+                              : isLowStock
+                                  ? _warningAmber
+                                  : _successGreen,
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.touch_app_outlined,
-                              size: 32,
-                              color: _quantityError != null ? const Color(0xFFE53935) : mutedColor,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              strings.noCategorySelectedPrompt,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _quantityError != null ? const Color(0xFFE53935) : mutedColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    if (_feedsSelected) ...[
-                      _buildItemConfigCard(
-                        title: strings.feedsLabel,
-                        unitLabel: strings.isFilipino ? 'Sako / Bags' : 'Bags / Sacks',
-                        imagePath: 'assets/feeds_icon.png',
-                        fallbackIcon: Icons.grass_rounded,
-                        accentColor: const Color(0xFF10B981),
-                        quantity: _feedsQuantity,
-                        onIncrement: () {
-                          setState(() {
-                            _feedsQuantity++;
-                            _quantityError = null;
-                          });
-                        },
-                        onDecrement: () {
-                          setState(() {
-                            if (_feedsQuantity > 1) {
-                              _feedsQuantity--;
-                            } else {
-                              _feedsQuantity = 0;
-                              _feedsSelected = false;
-                            }
-                            _quantityError = null;
-                          });
-                        },
-                        onRemove: () {
-                          setState(() {
-                            _feedsQuantity = 0;
-                            _feedsSelected = false;
-                            _quantityError = null;
-                          });
-                        },
-                        extraContent: _buildItemDetailField(
-                          controller: _feedsDetailController,
-                          label: strings.specificFeedsLabel,
-                          hint: strings.specificFeedsHint,
-                          icon: Icons.grass_rounded,
-                          accentColor: const Color(0xFF10B981),
-                        ),
-                      ),
-                    ],
-
-                    if (_medicineSelected) ...[
-                      _buildItemConfigCard(
-                        title: strings.medicineLabel,
-                        unitLabel: strings.isFilipino ? 'Piraso / Bote' : 'Pieces / Bottles',
-                        imagePath: 'assets/medicine_icon.png',
-                        fallbackIcon: Icons.medical_services_rounded,
-                        accentColor: const Color(0xFFEF4444),
-                        quantity: _medicineQuantity,
-                        onIncrement: () {
-                          setState(() {
-                            _medicineQuantity++;
-                            _quantityError = null;
-                          });
-                        },
-                        onDecrement: () {
-                          setState(() {
-                            if (_medicineQuantity > 1) {
-                              _medicineQuantity--;
-                            } else {
-                              _medicineQuantity = 0;
-                              _medicineSelected = false;
-                            }
-                            _quantityError = null;
-                          });
-                        },
-                        onRemove: () {
-                          setState(() {
-                            _medicineQuantity = 0;
-                            _medicineSelected = false;
-                            _quantityError = null;
-                          });
-                        },
-                        extraContent: _buildItemDetailField(
-                          controller: _medicineDetailController,
-                          label: strings.specificMedicineLabel,
-                          hint: strings.specificMedicineHint,
-                          icon: Icons.medication_outlined,
-                          accentColor: const Color(0xFFEF4444),
-                        ),
-                      ),
-                    ],
-
-                    if (_vitaminsSelected) ...[
-                      _buildItemConfigCard(
-                        title: strings.vitaminsLabel,
-                        unitLabel: strings.isFilipino ? 'Piraso / Bote' : 'Pieces / Bottles',
-                        imagePath: 'assets/vitamins_icon.png',
-                        fallbackIcon: Icons.medication_liquid_rounded,
-                        accentColor: const Color(0xFF8B5CF6),
-                        quantity: _vitaminsQuantity,
-                        onIncrement: () {
-                          setState(() {
-                            _vitaminsQuantity++;
-                            _quantityError = null;
-                          });
-                        },
-                        onDecrement: () {
-                          setState(() {
-                            if (_vitaminsQuantity > 1) {
-                              _vitaminsQuantity--;
-                            } else {
-                              _vitaminsQuantity = 0;
-                              _vitaminsSelected = false;
-                            }
-                            _quantityError = null;
-                          });
-                        },
-                        onRemove: () {
-                          setState(() {
-                            _vitaminsQuantity = 0;
-                            _vitaminsSelected = false;
-                            _quantityError = null;
-                          });
-                        },
-                        extraContent: _buildItemDetailField(
-                          controller: _vitaminsDetailController,
-                          label: strings.specificVitaminsLabel,
-                          hint: strings.specificVitaminsHint,
-                          icon: Icons.vaccines_outlined,
-                          accentColor: const Color(0xFF8B5CF6),
-                        ),
-                      ),
-                    ],
-
-                    if (_quantityError != null) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFE53935)),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                _quantityError!,
-                                style: const TextStyle(
-                                  color: Color(0xFFE53935),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Summary Banner (if active items > 0)
-                    if (activeSummaryParts.isNotEmpty) ...[
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 20),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.inventory_2_rounded, size: 20, color: isDark ? Colors.white : _brandColor),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    strings.requestSummaryTitle,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    activeSummaryParts.join(' • '),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : _brandColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '$totalItemCount ${strings.isFilipino ? "kabuuan" : "total"}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? Colors.white : _brandColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Notes/Explanation field (General message from raiser)
-                    Text(
-                      strings.notesTitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      strings.generalNotesSubtitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: mutedColor,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _generalNotesController,
-                      maxLines: 3,
-                      keyboardType: TextInputType.text,
-                      textCapitalization: TextCapitalization.sentences,
-                      inputFormatters: const [
-                        CapitalizeSentencesInputFormatter(),
-                      ],
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: textColor,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: strings.notesHint,
-                        hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: mutedColor,
-                        ),
-                        fillColor: surfaceBg,
-                        filled: true,
-                        contentPadding: const EdgeInsets.all(16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: isDark ? Colors.white54 : _brandColor, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Confirm Request Action Button (Always responsive to gestures!)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 54,
-                      child: ElevatedButton.icon(
-                        onPressed: _submitRequest,
-                        icon: Icon(
-                          widget.activeAssignments.isEmpty ? Icons.lock_outline_rounded : Icons.check_circle_outline,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        label: Text(
-                          strings.confirmRequestButton,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: widget.activeAssignments.isEmpty
-                              ? (isDark ? const Color(0xFF475569) : const Color(0xFF64748B))
-                              : PiggyTrunkTheme.ptSuccess,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 8),
+
+                // Price & Stepper
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      '₱${p.price.toStringAsFixed(0)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : _brandColor,
+                      ),
+                    ),
+
+                    // Action Button
+                    if (isOutOfStock)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: mutedColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          strings.isFilipino ? 'Wala' : 'Out',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: mutedColor,
+                          ),
+                        ),
+                      )
+                    else if (widget.activeAssignments.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: mutedColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.lock_outline_rounded, size: 13, color: mutedColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              strings.isFilipino ? 'Bawal' : 'Locked',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: mutedColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (inCartQty <= 0)
+                      InkWell(
+                        onTap: () => _addToCart(p),
+                        borderRadius: BorderRadius.circular(9),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white : _brandColor,
+                            borderRadius: BorderRadius.circular(9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.2),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                size: 16,
+                                color: isDark ? _brandColor : Colors.white,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                strings.isFilipino ? 'Magdagdag' : 'Add',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? _brandColor : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () => _decrementCart(p),
+                              borderRadius: BorderRadius.circular(7),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                                child: Icon(
+                                  inCartQty <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+                                  size: 15,
+                                  color: inCartQty <= 1 ? _dangerRed : textColor,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 7),
+                              child: Text(
+                                '$inCartQty',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => _addToCart(p),
+                              borderRadius: BorderRadius.circular(7),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                                child: Icon(Icons.add_rounded, size: 15, color: textColor),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerGrid(bool isDark) {
+    return ShimmerProvider(
+      child: GridView.builder(
+        padding: const EdgeInsets.all(18),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 14,
+          childAspectRatio: 0.58,
+        ),
+        itemCount: 6,
+        itemBuilder: (_, _) => Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ShimmerBox(
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: BorderRadius.circular(16),
+                  isDark: isDark,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ShimmerBox(width: 90, height: 12, borderRadius: BorderRadius.circular(4), isDark: isDark),
+                    const SizedBox(height: 6),
+                    ShimmerBox(width: 50, height: 10, borderRadius: BorderRadius.circular(4), isDark: isDark),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ShimmerBox(width: 40, height: 14, borderRadius: BorderRadius.circular(4), isDark: isDark),
+                        ShimmerBox(width: 45, height: 22, borderRadius: BorderRadius.circular(6), isDark: isDark),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

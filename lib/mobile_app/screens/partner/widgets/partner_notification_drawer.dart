@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../../services/notification_service.dart';
 import '../../../utils/screen_fit_util.dart';
 import '../../../utils/app_strings.dart';
 
@@ -289,8 +290,8 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                     itemBuilder: (ctx, index) {
                       final notif = filteredList[index];
                       final notifId = (notif['notification_id'] as num?)?.toInt() ?? index;
-                      final title = notif['title']?.toString() ?? 'Batch Update';
-                      final message = notif['message']?.toString() ?? 'No description provided.';
+                      final title = NotificationService.cleanText(notif['title']?.toString() ?? 'Batch Update');
+                      final message = NotificationService.cleanText(notif['message']?.toString() ?? 'No description provided.');
                       final type = notif['type']?.toString() ?? 'general';
                       final isRead = notif['is_read'] == true;
                       final createdAt = notif['created_at'];

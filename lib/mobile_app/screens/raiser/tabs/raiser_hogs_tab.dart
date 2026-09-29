@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/app_strings.dart';
 import '../../../utils/capitalization_formatters.dart';
+import '../../../widgets/piggy_toast.dart';
 import '../widgets/raiser_empty_state.dart';
 
 class RaiserHogsTab extends StatefulWidget {
@@ -45,6 +47,35 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   static const Color _dangerRed = Color(0xFFEF4444);
 
   String _selectedTab = 'Hogs'; // 'Hogs' or 'Reports'
+  int _selectedHogIndex = 0;
+  final Map<String, String> _hogSpecificStages = {};
+  BigInt? _selectedBatchAssignmentId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSelectedBatch();
+  }
+
+  @override
+  void didUpdateWidget(covariant RaiserHogsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_selectedBatchAssignmentId == null ||
+        !widget.activeAssignments.any((a) =>
+            BigInt.from(a['assignment_id'] as num) == _selectedBatchAssignmentId)) {
+      _initSelectedBatch();
+    }
+  }
+
+  void _initSelectedBatch() {
+    if (widget.selectedAssignmentId != null &&
+        widget.activeAssignments.any((a) =>
+            BigInt.from(a['assignment_id'] as num) == widget.selectedAssignmentId)) {
+      _selectedBatchAssignmentId = widget.selectedAssignmentId;
+    } else if (widget.activeAssignments.isNotEmpty) {
+      _selectedBatchAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
+    }
+  }
 
   String _formatReportTime(String? createdAtStr, AppStrings strings) {
     if (createdAtStr == null || createdAtStr.isEmpty) return strings.isFilipino ? 'Kani-kanina lang' : 'Recent';
@@ -87,11 +118,18 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     final hog = _findHog(hogId);
     final hogPrefix = strings.isFilipino ? 'Baboy' : 'Hog';
     if (hog != null) {
-      final idx = widget.hogsList.indexOf(hog);
-      final tag = hog['tag_number'] ?? '#${idx + 1}';
-      return '$hogPrefix $tag';
+      if (hog['tag_number'] != null && hog['tag_number'].toString().isNotEmpty) {
+        return '$hogPrefix ${hog['tag_number']}';
+      }
+      final assignId = hog['assignment_id'];
+      final batchHogs = assignId != null
+          ? widget.hogsList.where((h) => h['assignment_id'] == assignId).toList()
+          : widget.hogsList;
+      final idx = batchHogs.indexOf(hog);
+      final num = idx >= 0 ? (idx + 1) : (widget.hogsList.indexOf(hog) + 1);
+      return '$hogPrefix #$num';
     }
-    return '$hogPrefix #$hogId';
+    return strings.isFilipino ? 'Alagang Baboy' : 'Hog';
   }
 
   IconData _getReportIcon(String type) {
@@ -112,6 +150,451 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     if (t.contains('diarrhea')) return const Color(0xFFF59E0B);
     if (t.contains('dead') || t.contains('deceased')) return const Color(0xFF64748B);
     return const Color(0xFFEF4444);
+  }
+
+  int _stageNameToId(String stage, bool isBreeding) {
+    final s = stage.trim().toLowerCase();
+    if (s == 'booster') return 1;
+    if (s == 'pre-starter' || s == 'pre starter') return 2;
+    if (s == 'starter') return 3;
+    if (s == 'grower') return 4;
+    if (s == 'finisher' || s == 'breeder') return 5;
+    if (s == 'selling' || s == 'lactation') return 6;
+    return 1;
+  }
+
+  String _stageIdToName(dynamic stageId, bool isBreeding, String fallback) {
+    if (stageId == null) return fallback;
+    final id = int.tryParse(stageId.toString());
+    final fatteningStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+    final sowStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation'];
+    final list = isBreeding ? sowStages : fatteningStages;
+    if (id != null && id >= 1 && id <= list.length) {
+      return list[id - 1];
+    }
+    final s = stageId.toString().trim();
+    if (s.isNotEmpty && s != 'null' && s != 'N/A' && int.tryParse(s) == null) {
+      return s;
+    }
+    return fallback;
+  }
+
+  String _getHogPigType(Map<String, dynamic> hog, String fallbackType) {
+    final rawType = (hog['pig_type'] ?? hog['type_name'] ?? hog['type'] ?? '').toString().trim();
+    if (rawType.isNotEmpty && rawType != 'null' && rawType != 'N/A' && rawType != 'None') {
+      final l = rawType.toLowerCase();
+      return (l == 'sow' || l.contains('breed')) ? 'Sow' : 'Fattening';
+    }
+    final fallbackLower = fallbackType.toLowerCase();
+    return (fallbackLower == 'sow' || fallbackLower.contains('breed')) ? 'Sow' : 'Fattening';
+  }
+
+  String _getHogStage(Map<String, dynamic> hog, String fallbackStage, bool isBreeding) {
+    final hogId = hog['hog_id']?.toString() ?? '';
+    if (hogId.isNotEmpty && _hogSpecificStages.containsKey(hogId)) {
+      return _hogSpecificStages[hogId]!;
+    }
+    final dbStage = hog['stage_id'] ?? hog['lifecycle_stage'] ?? hog['stage'];
+    if (dbStage != null) {
+      return _stageIdToName(dbStage, isBreeding, 'Booster');
+    }
+    return 'Booster';
+  }
+
+  Future<void> _updateSpecificHogStage(Map<String, dynamic> hog, String targetStage, bool isBreeding) async {
+    final hogId = hog['hog_id'];
+    final hogIdStr = hogId?.toString() ?? '';
+    final int stageNum = _stageNameToId(targetStage, isBreeding);
+    final hogName = _getHogDisplayName(hogId, AppStrings.of(context));
+
+    setState(() {
+      if (hogIdStr.isNotEmpty) {
+        _hogSpecificStages[hogIdStr] = targetStage;
+      }
+      hog['stage_id'] = stageNum;
+    });
+
+    if (hogId != null) {
+      try {
+        await Supabase.instance.client
+            .from('hogs')
+            .update({
+              'stage_id': stageNum,
+              'last_updated': DateTime.now().toIso8601String(),
+            })
+            .eq('hog_id', hogId);
+      } catch (e) {
+        debugPrint('Notice updating hog stage_id: $e');
+        try {
+          await Supabase.instance.client
+              .from('hogs')
+              .update({'lifecycle_stage': targetStage})
+              .eq('hog_id', hogId);
+        } catch (_) {}
+      }
+    }
+
+    if (mounted) {
+      PiggyToast.showSuccess(
+        context,
+        AppStrings.of(context).hogStageUpdatedSuccess(hogName, targetStage),
+      );
+    }
+
+    try {
+      await widget.onRefresh();
+    } catch (_) {}
+  }
+
+  void _showHogDetailModal(
+    BuildContext context,
+    Map<String, dynamic> hog,
+    int index,
+    String fallbackType,
+    String fallbackStage,
+  ) {
+    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final cardBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    final hogId = BigInt.from(hog['hog_id'] as num);
+    final tagNumber = hog['tag_number'] ?? '#${index + 1}';
+    final rawStatus = (hog['health_status'] ?? 'Healthy').toString();
+    final isHealthy = rawStatus.toLowerCase() == 'healthy' || rawStatus.isEmpty;
+    final weight = hog['current_weight'] != null
+        ? '${hog['current_weight']} kg'
+        : (hog['weight'] != null ? '${hog['weight']} kg' : null);
+    final hogType = _getHogPigType(hog, fallbackType);
+    final isSow = hogType == 'Sow';
+    final stages = isSow
+        ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+        : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final currentStageNow = _getHogStage(hog, fallbackStage, isSow);
+
+            return Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, -5),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header with Hog name and close button
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.pets_rounded,
+                            color: isDark ? Colors.white : _brandColor,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${strings.isFilipino ? "Baboy" : "Hog"} $tagNumber',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              weight ?? (strings.isFilipino ? 'Walang tala ng timbang' : 'No weight recorded'),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Health badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isHealthy
+                              ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
+                              : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          strings.formatStatus(rawStatus).toUpperCase(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Tags Card (Pig Type & Current Feed Stage)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.isFilipino ? 'Uri ng Pag-aalaga' : 'Production Type',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isSow
+                                      ? (isDark ? const Color(0xFF2E1065).withValues(alpha: 0.35) : const Color(0xFFFAF5FF))
+                                      : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isSow
+                                        ? (isDark ? const Color(0xFF7E22CE) : const Color(0xFFDDD6FE))
+                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: Text(
+                                  isSow ? strings.sowBreedTag : strings.fatteningTag,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSow
+                                        ? (isDark ? const Color(0xFFD8B4FE) : const Color(0xFF6B21A8))
+                                        : (isDark ? const Color(0xFFF1F5F9) : _brandColor),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(width: 1, height: 36, color: borderColor),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.feedStageLabel,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.grass_rounded,
+                                    size: 14,
+                                    color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    currentStageNow,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Interactive Feed Stage Quick Selector
+                  Text(
+                    strings.isFilipino ? 'Palitan ang Yugto ng Pakain para sa Baboy na Ito:' : 'Update Feed Stage for this Hog:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: stages.map((st) {
+                      final isCurrent = st.toLowerCase() == currentStageNow.toLowerCase();
+                      return GestureDetector(
+                        onTap: () {
+                          if (!isCurrent) {
+                            Navigator.pop(ctx);
+                            _showStageProgressionDialog(context, hog, st, isSow);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? (isDark ? Colors.white : _brandColor)
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isCurrent
+                                  ? (isDark ? Colors.white : _brandColor)
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isCurrent) ...[
+                                Icon(
+                                  Icons.check_rounded,
+                                  size: 13,
+                                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                st,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
+                                  color: isCurrent
+                                      ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                      : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 22),
+
+                  // Action Buttons: Focus on Top Timeline & Report Issue
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _selectedHogIndex = index);
+                            Navigator.pop(ctx);
+                          },
+                          icon: const Icon(Icons.timeline_rounded, size: 16),
+                          label: Text(
+                            strings.isFilipino ? 'Tingnan sa Timeline' : 'View in Timeline',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: isDark ? Colors.white : _brandColor,
+                            side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showAddReportDialog(context, hogId);
+                          },
+                          icon: const Icon(Icons.medical_services_outlined, size: 16),
+                          label: Text(
+                            strings.isFilipino ? 'Mag-ulat' : 'Report Issue',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showReportDetailModal(BuildContext context, Map<String, dynamic> report) {
@@ -778,11 +1261,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     final String displayStage = isFundedAndActive ? activeStage : strings.unassigned;
 
     final int totalHogs = widget.hogsList.length;
-    final int sickHogsCount = widget.hogsList.where((h) {
-      final s = (h['health_status'] ?? '').toString().toLowerCase();
-      return s == 'sick' || s == 'under observation' || s == 'quarantine';
-    }).length;
-    final int healthyHogsCount = (totalHogs - sickHogsCount).clamp(0, 9999);
 
     return RefreshIndicator(
       onRefresh: widget.onRefresh,
@@ -869,149 +1347,402 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 ),
               ),
             ] else ...[
-              // ==================== FEEDS STAGES TIMELINE CARD ====================
-              _buildFeedsCard(
-                title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
-                badgeText: displayPigType,
-                stages: (isFundedAndActive && displayPigType == 'Sow')
-                    ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
-                    : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'],
-                activeStage: displayStage,
-              ),
-              const SizedBox(height: 24),
+              // ==================== BATCH SELECTION & FILTERING (1:MANY) ====================
+              Builder(
+                builder: (context) {
+                  final selectedAssignment = widget.activeAssignments.firstWhere(
+                    (a) =>
+                        _selectedBatchAssignmentId != null &&
+                        BigInt.from(a['assignment_id'] as num) == _selectedBatchAssignmentId,
+                    orElse: () => widget.activeAssignments.isNotEmpty
+                        ? widget.activeAssignments[0]
+                        : <String, dynamic>{},
+                  );
 
-              // ==================== TAB CONTENT: HOGS OR REPORTS ====================
-              if (_selectedTab == 'Hogs') ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      strings.isFilipino ? 'Listahan ng Alaga' : 'Hogs Inventory',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: textColor,
-                      ),
-                    ),
-                    Text(
-                      '$totalHogs ${strings.hogs} ($healthyHogsCount ${strings.healthy})',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: PiggyTrunkTheme.ptMuted,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                  final String batchType = (selectedAssignment['hog_types']?['type_name'] ??
+                          selectedAssignment['pig_type'] ??
+                          displayPigType)
+                      .toString();
+                  final bool isBatchSow = batchType.toLowerCase() == 'sow' ||
+                      batchType.toLowerCase().contains('breed');
 
-                if (widget.hogsList.isEmpty) ...[
-                  RaiserEmptyState(
-                    icon: Icons.pets_outlined,
-                    message: strings.noHogsFound,
-                    subtitle: strings.noHogsSubtitle,
-                  ),
-                ] else ...[
-                  ...widget.hogsList.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final hog = entry.value;
-                    final rawStatus = (hog['health_status'] ?? 'Healthy').toString();
-                    final isHealthy = rawStatus.toLowerCase() == 'healthy' || rawStatus.isEmpty;
-                    final hogId = BigInt.from(hog['hog_id'] as num);
-                    final tagNumber = hog['tag_number'] ?? '#${index + 1}';
-                    final weight = hog['current_weight'] != null ? '${hog['current_weight']} kg' : null;
+                  final visibleHogs = widget.hogsList.where((h) {
+                    if (_selectedBatchAssignmentId == null || widget.activeAssignments.length <= 1) {
+                      return true;
+                    }
+                    final aId = h['assignment_id'];
+                    if (aId == null) return true;
+                    return BigInt.from(aId as num) == _selectedBatchAssignmentId;
+                  }).toList();
 
-                    return GestureDetector(
-                      onTap: () => _showAddReportDialog(context, hogId),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                  final selectedHog = visibleHogs.isNotEmpty
+                      ? visibleHogs[_selectedHogIndex.clamp(0, visibleHogs.length - 1)]
+                      : null;
+                  final String currentHogType = selectedHog != null
+                      ? _getHogPigType(selectedHog, batchType)
+                      : batchType;
+                  final bool isCurrentBreeding = isBatchSow || currentHogType.toLowerCase() == 'sow';
+                  final String currentHogStage = selectedHog != null
+                      ? _getHogStage(selectedHog, displayStage, isCurrentBreeding)
+                      : displayStage;
+                  final List<String> currentStages = (isFundedAndActive && isCurrentBreeding)
+                      ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+                      : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+
+                  final int batchHogsCount = visibleHogs.length;
+                  final int batchHealthyCount = visibleHogs.where((h) {
+                    final raw = (h['health_status'] ?? 'Healthy').toString().toLowerCase();
+                    return raw == 'healthy' || raw.isEmpty;
+                  }).length;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Batch Selector Chips (rendered if multiple batches exist for 1:Many raiser)
+                      if (widget.activeAssignments.length > 1) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.layers_outlined,
+                              size: 15,
+                              color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              strings.isFilipino ? 'Piliin ang Batch ng Alaga:' : 'Select Active Batch:',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                              ),
                             ),
                           ],
                         ),
-                        child: Row(
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            children: widget.activeAssignments.map((assign) {
+                              final aId = BigInt.from(assign['assignment_id'] as num);
+                              final isSelected = _selectedBatchAssignmentId == aId;
+                              final batchName = assign['batches']?['batch_name'] ??
+                                  assign['batch_name'] ??
+                                  'Batch #${assign['batch_id'] ?? aId}';
+                              final type = (assign['hog_types']?['type_name'] ?? assign['pig_type'] ?? 'Fattening').toString();
+                              final isSowType = type.toLowerCase() == 'sow' || type.toLowerCase().contains('breed');
+                              final hogsInBatch = widget.hogsList.where((h) {
+                                final hAid = h['assignment_id'];
+                                return hAid != null && BigInt.from(hAid as num) == aId;
+                              }).length;
+
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedBatchAssignmentId = aId;
+                                    _selectedHogIndex = 0;
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  margin: const EdgeInsets.only(right: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? (isDark ? Colors.white : _brandColor)
+                                        : (isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? (isDark ? Colors.white : _brandColor)
+                                          : (isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
+                                      width: isSelected ? 1.5 : 1,
+                                    ),
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.25 : 0.15),
+                                              blurRadius: 6,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isSowType ? Icons.favorite_rounded : Icons.agriculture_rounded,
+                                        size: 15,
+                                        color: isSelected
+                                            ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                            : (isDark ? const Color(0xFF94A3B8) : _brandColor),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            batchName,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                              color: isSelected
+                                                  ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+                                                  : textColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '$type • $hogsInBatch ${strings.hogs}',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected
+                                                  ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1))
+                                                  : PiggyTrunkTheme.ptMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // ==================== FEEDS STAGES TIMELINE CARD ====================
+                      _buildFeedsCard(
+                        title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
+                        badgeText: isFundedAndActive
+                            ? (isCurrentBreeding ? strings.sowBreedTag : strings.fatteningTag)
+                            : strings.unassigned,
+                        stages: currentStages,
+                        activeStage: currentHogStage,
+                        targetHog: selectedHog,
+                        isBreeding: isCurrentBreeding,
+                        fallbackType: batchType,
+                        fallbackStage: displayStage,
+                        hogs: visibleHogs,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ==================== TAB CONTENT: HOGS OR REPORTS ====================
+                      if (_selectedTab == 'Hogs') ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: isHealthy
-                                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
-                                    : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                Icons.pets_rounded,
-                                color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
-                                size: 22,
+                            Text(
+                              strings.isFilipino ? 'Listahan ng Alaga' : 'Hogs Inventory',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${strings.isFilipino ? "Baboy" : "Hog"} $tagNumber ($displayPigType)',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark ? Colors.white : _brandColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    weight ?? (strings.isFilipino ? 'Walang tala ng timbang' : 'No weight recorded'),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              '$batchHogsCount ${strings.hogs} ($batchHealthyCount ${strings.healthy})',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: PiggyTrunkTheme.ptMuted,
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isHealthy
-                                    ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
-                                    : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isHealthy ? Icons.check_circle_outline : Icons.error_outline,
-                                    size: 14,
-                                    color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    strings.formatStatus(rawStatus).toUpperCase(),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        if (visibleHogs.isEmpty) ...[
+                          RaiserEmptyState(
+                            icon: Icons.pets_outlined,
+                            message: strings.noHogsFound,
+                            subtitle: strings.noHogsSubtitle,
+                          ),
+                        ] else ...[
+                          ...visibleHogs.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final hog = entry.value;
+                            final rawStatus = (hog['health_status'] ?? 'Healthy').toString();
+                            final isHealthy = rawStatus.toLowerCase() == 'healthy' || rawStatus.isEmpty;
+                            final tagNumber = hog['tag_number'] ?? '#${index + 1}';
+                            final weight = hog['current_weight'] != null
+                                ? '${hog['current_weight']} kg'
+                                : (hog['weight'] != null ? '${hog['weight']} kg' : null);
+                            final hogType = _getHogPigType(hog, batchType);
+                            final isSow = hogType == 'Sow';
+                            final hogStage = _getHogStage(hog, displayStage, isSow);
+
+                            return GestureDetector(
+                              onTap: () => _showHogDetailModal(context, hog, index, batchType, displayStage),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(color: isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 46,
+                                      height: 46,
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.pets_rounded,
+                                          color: isDark ? Colors.white : _brandColor,
+                                          size: 22,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${strings.isFilipino ? "Baboy" : "Hog"} $tagNumber',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: isDark ? Colors.white : _brandColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Wrap(
+                                            spacing: 6,
+                                            runSpacing: 4,
+                                            children: [
+                                              // Distinct Fattening vs Sow/Breed Tag
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                decoration: BoxDecoration(
+                                                  color: isSow
+                                                      ? (isDark ? const Color(0xFF2E1065).withValues(alpha: 0.35) : const Color(0xFFFAF5FF))
+                                                      : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: isSow
+                                                        ? (isDark ? const Color(0xFF7E22CE) : const Color(0xFFDDD6FE))
+                                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                                    width: 0.8,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  isSow ? strings.sowBreedTag : strings.fatteningTag,
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isSow
+                                                        ? (isDark ? const Color(0xFFD8B4FE) : const Color(0xFF6B21A8))
+                                                        : (isDark ? const Color(0xFFF1F5F9) : _brandColor),
+                                                  ),
+                                                ),
+                                              ),
+                                              // Specific Feed Stage Tag
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                decoration: BoxDecoration(
+                                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(
+                                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                                    width: 0.8,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.grass_rounded,
+                                                      size: 11,
+                                                      color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                                                    ),
+                                                    const SizedBox(width: 3.5),
+                                                    Text(
+                                                      hogStage,
+                                                      style: GoogleFonts.plusJakartaSans(
+                                                        fontSize: 10.5,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: isDark ? const Color(0xFFE2E8F0) : _brandColor,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Text(
+                                            weight ?? (strings.isFilipino ? 'Walang tala ng timbang' : 'No weight recorded'),
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w500,
+                                              color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                             const SizedBox(width: 8),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFFCBD5E1),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isHealthy
+                                        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE8F5E9))
+                                        : (isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFEBEE)),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isHealthy ? Icons.check_circle_outline : Icons.error_outline,
+                                        size: 13,
+                                        color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        strings.formatStatus(rawStatus).toUpperCase(),
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: isHealthy ? const Color(0xFF10B981) : const Color(0xFFE53935),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  size: 13,
+                                  color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFFCBD5E1),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -1277,14 +2008,18 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                       ),
                     );
                   }),
-                ],
-              ],
-            ],
+                      ],
+                    ],
+                  ],
+                );
+              },
+            ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildFilterChip(String key, String label, int count, {Color? color}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1363,8 +2098,14 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     required String badgeText,
     required List<String> stages,
     required String activeStage,
+    Map<String, dynamic>? targetHog,
+    required bool isBreeding,
+    required String fallbackType,
+    required String fallbackStage,
+    List<Map<String, dynamic>>? hogs,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
     final bool isUnassigned = badgeText.toLowerCase() == 'unassigned';
     final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
     final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
@@ -1388,6 +2129,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header Row: Title & Pig Type Badge
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1404,12 +2146,16 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 decoration: BoxDecoration(
                   color: isUnassigned
                       ? (isDark ? const Color(0xFF1E2D42) : const Color(0xFFF1F5F9))
-                      : (isDark ? const Color(0xFF1E2D42) : const Color(0xFFEFF6FF)),
+                      : isBreeding
+                          ? (isDark ? const Color(0xFF2E1065).withValues(alpha: 0.35) : const Color(0xFFFAF5FF))
+                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isUnassigned
                         ? (isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0))
-                        : (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFDBEAFE)),
+                        : isBreeding
+                            ? (isDark ? const Color(0xFF7E22CE) : const Color(0xFFDDD6FE))
+                            : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                   ),
                 ),
                 child: Text(
@@ -1417,20 +2163,120 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isUnassigned ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)) : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)),
+                    color: isUnassigned
+                        ? (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B))
+                        : isBreeding
+                            ? (isDark ? const Color(0xFFD8B4FE) : const Color(0xFF6B21A8))
+                            : (isDark ? const Color(0xFFF1F5F9) : _brandColor),
                   ),
                 ),
               ),
             ],
           ),
+
+          // Hog Switcher Tab Bar (when there are multiple hogs in batch!)
+          Builder(
+            builder: (context) {
+              final effectiveHogs = hogs ?? widget.hogsList;
+              if (effectiveHogs.length <= 1) return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.only(top: 14),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: effectiveHogs.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final h = entry.value;
+                      final isSelected = _selectedHogIndex == idx;
+                      final tag = h['tag_number'] ?? '#${idx + 1}';
+                      final hType = _getHogPigType(h, fallbackType);
+                      final hIsBreed = hType.toLowerCase() == 'sow';
+                      final hStage = _getHogStage(h, fallbackStage, hIsBreed);
+
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedHogIndex = idx),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? (isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                              boxShadow: isSelected
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.pets_rounded,
+                                      size: 13,
+                                      color: isSelected ? (isDark ? Colors.white : _brandColor) : PiggyTrunkTheme.ptMuted,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${strings.isFilipino ? "Baboy" : "Hog"} $tag',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                        color: isSelected ? (isDark ? Colors.white : _brandColor) : PiggyTrunkTheme.ptMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  hStage,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSelected
+                                        ? (isDark ? const Color(0xFFF1F5F9) : _brandColor)
+                                        : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+          ),
+
           const SizedBox(height: 24),
-          _buildTimeline(stages, activeStage),
+          _buildTimeline(stages, activeStage, targetHog, isBreeding),
         ],
       ),
     );
   }
 
-  Widget _buildTimeline(List<String> stages, String activeStage) {
+  Widget _buildTimeline(
+    List<String> stages,
+    String activeStage,
+    Map<String, dynamic>? targetHog,
+    bool isBreeding,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
     final bool hasInvestment = widget.investedAmount > 0;
@@ -1505,7 +2351,10 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                 return GestureDetector(
                   onTap: () {
                     if (isFundedAndActive && isFuture) {
-                      _showStageProgressionDialog(context, stages[index]);
+                      final effectiveHog = targetHog ?? (widget.hogsList.isNotEmpty ? widget.hogsList[0] : null);
+                      if (effectiveHog != null) {
+                        _showStageProgressionDialog(context, effectiveHog, stages[index], isBreeding);
+                      }
                     }
                   },
                   child: SizedBox(
@@ -1558,9 +2407,17 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     );
   }
 
-  void _showStageProgressionDialog(BuildContext context, String targetStage) {
+  void _showStageProgressionDialog(
+    BuildContext context,
+    Map<String, dynamic> targetHog,
+    String targetStage,
+    bool isBreeding,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final strings = AppStrings.of(context);
+    final hogId = targetHog['hog_id'];
+    final hogName = _getHogDisplayName(hogId, strings);
+
     showDialog(
       context: context,
       builder: (context) {
@@ -1577,7 +2434,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
             ),
           ),
           content: Text(
-            strings.advanceStagePrompt(targetStage),
+            strings.advanceHogStagePrompt(hogName, targetStage),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1611,9 +2468,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.pop(context);
-                      if (widget.onUpdateLifecycleStage != null) {
-                        widget.onUpdateLifecycleStage!(targetStage);
-                      }
+                      _updateSpecificHogStage(targetHog, targetStage, isBreeding);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark ? Colors.white : _brandColor,

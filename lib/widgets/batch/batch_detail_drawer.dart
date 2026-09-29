@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_theme.dart';
 
 class BatchDetailDrawer {
@@ -109,6 +110,14 @@ class BatchDetailDrawer {
                             _detailRow('Date Created', dateCreated, hintText, titleColor),
                           ],
                         ),
+                      ),
+                      const SizedBox(height: 20),
+                      _BatchHogsList(
+                        batch: batch,
+                        isDark: isDark,
+                        cardBorder: cardBorder,
+                        titleColor: titleColor,
+                        hintText: hintText,
                       ),
                     ],
                   ),
@@ -248,6 +257,14 @@ class BatchDetailDrawer {
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 20),
+                              _BatchHogsList(
+                                batch: batch,
+                                isDark: isDark,
+                                cardBorder: cardBorder,
+                                titleColor: titleColor,
+                                hintText: hintText,
+                              ),
                             ],
                           ),
                         ),
@@ -317,6 +334,300 @@ class BatchDetailDrawer {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BatchHogsList extends StatefulWidget {
+  final Map<String, dynamic> batch;
+  final bool isDark;
+  final Color cardBorder;
+  final Color titleColor;
+  final Color hintText;
+
+  const _BatchHogsList({
+    required this.batch,
+    required this.isDark,
+    required this.cardBorder,
+    required this.titleColor,
+    required this.hintText,
+  });
+
+  @override
+  State<_BatchHogsList> createState() => _BatchHogsListState();
+}
+
+class _BatchHogsListState extends State<_BatchHogsList> {
+  List<Map<String, dynamic>> _hogs = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBatchHogs();
+  }
+
+  Future<void> _fetchBatchHogs() async {
+    try {
+      final assignId = widget.batch['assignment_id'];
+      final batchId = widget.batch['batch_id'] ?? widget.batch['id'];
+
+      List<dynamic> res = [];
+      if (assignId != null) {
+        res = await Supabase.instance.client
+            .from('hogs')
+            .select('*')
+            .eq('assignment_id', assignId)
+            .order('hog_id', ascending: true);
+      } else if (batchId != null) {
+        final assignRow = await Supabase.instance.client
+            .from('assignments')
+            .select('assignment_id')
+            .eq('batch_id', batchId)
+            .maybeSingle();
+        if (assignRow != null) {
+          final aId = assignRow['assignment_id'];
+          res = await Supabase.instance.client
+              .from('hogs')
+              .select('*')
+              .eq('assignment_id', aId)
+              .order('hog_id', ascending: true);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _hogs = List<Map<String, dynamic>>.from(res)
+              .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
+              .toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Notice loading batch hogs: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  static String _resolveStageName(dynamic stageVal) {
+    final stages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+    final id = int.tryParse(stageVal?.toString() ?? '');
+    if (id != null && id >= 1 && id <= stages.length) {
+      return stages[id - 1];
+    }
+    final s = stageVal?.toString().trim() ?? '';
+    if (s.isNotEmpty && s != 'null' && s != 'N/A' && int.tryParse(s) == null) {
+      return s;
+    }
+    return 'Booster';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBorder = widget.cardBorder;
+    final titleColor = widget.titleColor;
+    final hintText = widget.hintText;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.pets_rounded,
+                  size: 16,
+                  color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'HOGS IN THIS BATCH',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_hogs.length} head${_hogs.length == 1 ? '' : 's'}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_isLoading)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+              ),
+            ),
+          )
+        else if (_hogs.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B2E48).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cardBorder.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.pets_outlined, size: 24, color: hintText.withValues(alpha: 0.5)),
+                const SizedBox(height: 6),
+                Text(
+                  'No hogs recorded in this batch yet.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: hintText,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _hogs.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, idx) {
+              final hog = _hogs[idx];
+              final stageName = _resolveStageName(hog['stage_id'] ?? hog['lifecycle_stage']);
+              final weight = (hog['weight'] as num?)?.toDouble() ?? 15.0;
+              final health = (hog['health_status'] ?? 'healthy').toString().toLowerCase();
+              final isSick = health == 'sick' || health == 'fever' || health == 'injured';
+              final isObserving = health.contains('observ');
+
+              final healthColor = isSick
+                  ? const Color(0xFFEF4444)
+                  : (isObserving ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
+              final healthLabel = isSick
+                  ? 'SICK'
+                  : (isObserving ? 'OBSERVATION' : 'HEALTHY');
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16253B) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cardBorder.withValues(alpha: 0.7)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.pets_rounded,
+                        size: 16,
+                        color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Hog #${idx + 1}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: titleColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Weight: ${weight.toStringAsFixed(1)} kg',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: hintText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            stageName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(color: healthColor, shape: BoxShape.circle),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              healthLabel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: healthColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

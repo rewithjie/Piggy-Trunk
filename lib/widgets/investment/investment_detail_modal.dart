@@ -426,7 +426,18 @@ class InvestmentDetailModal {
 
         const SizedBox(height: 24),
 
-        // 3. PROVIDED STOCKS & SUPPLIES HISTORY SECTION
+        // 3. ASSIGNED HOGS & FEED STAGES SECTION
+        _AssignedHogsSection(
+          investment: inv,
+          isDark: isDark,
+          cardBorder: cardBorder,
+          titleColor: titleColor,
+          hintText: hintText,
+        ),
+
+        const SizedBox(height: 24),
+
+        // 4. PROVIDED STOCKS & SUPPLIES HISTORY SECTION
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -683,6 +694,356 @@ class InvestmentDetailModal {
   }
 }
 
+class _AssignedHogsSection extends StatefulWidget {
+  final Investment investment;
+  final bool isDark;
+  final Color cardBorder;
+  final Color titleColor;
+  final Color hintText;
+
+  const _AssignedHogsSection({
+    required this.investment,
+    required this.isDark,
+    required this.cardBorder,
+    required this.titleColor,
+    required this.hintText,
+  });
+
+  @override
+  State<_AssignedHogsSection> createState() => _AssignedHogsSectionState();
+}
+
+class _AssignedHogsSectionState extends State<_AssignedHogsSection> {
+  List<Map<String, dynamic>> _hogs = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHogs();
+  }
+
+  Future<void> _fetchHogs() async {
+    try {
+      final assignId = widget.investment.assignmentId;
+      final batchId = widget.investment.batchId;
+      final raiserId = widget.investment.hogRaiserId;
+
+      List<dynamic> res = [];
+      if (assignId != null && assignId.isNotEmpty) {
+        res = await Supabase.instance.client
+            .from('hogs')
+            .select('*')
+            .eq('assignment_id', assignId)
+            .order('hog_id', ascending: true);
+      } else if (batchId != null && batchId.isNotEmpty) {
+        final assignRow = await Supabase.instance.client
+            .from('assignments')
+            .select('assignment_id')
+            .eq('batch_id', batchId)
+            .maybeSingle();
+        if (assignRow != null) {
+          final aId = assignRow['assignment_id'];
+          res = await Supabase.instance.client
+              .from('hogs')
+              .select('*')
+              .eq('assignment_id', aId)
+              .order('hog_id', ascending: true);
+        }
+      } else if (raiserId.isNotEmpty) {
+        final assignRow = await Supabase.instance.client
+            .from('assignments')
+            .select('assignment_id')
+            .eq('hog_raiser_id', raiserId)
+            .order('assignment_id', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        if (assignRow != null) {
+          final aId = assignRow['assignment_id'];
+          res = await Supabase.instance.client
+              .from('hogs')
+              .select('*')
+              .eq('assignment_id', aId)
+              .order('hog_id', ascending: true);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _hogs = List<Map<String, dynamic>>.from(res)
+              .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
+              .toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Notice loading hogs in modal: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  static String _resolveStageName(dynamic stageVal, bool isBreeding) {
+    final fatteningStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+    final sowStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation'];
+    final list = isBreeding ? sowStages : fatteningStages;
+
+    final id = int.tryParse(stageVal?.toString() ?? '');
+    if (id != null && id >= 1 && id <= list.length) {
+      return list[id - 1];
+    }
+    final s = stageVal?.toString().trim() ?? '';
+    if (s.isNotEmpty && s != 'null' && s != 'N/A' && int.tryParse(s) == null) {
+      return s;
+    }
+    return 'Booster';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBorder = widget.cardBorder;
+    final titleColor = widget.titleColor;
+    final hintText = widget.hintText;
+    final isBreeding = widget.investment.hogType.toLowerCase().contains('sow') ||
+        widget.investment.hogType.toLowerCase().contains('breed');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.pets_rounded,
+                  size: 17,
+                  color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'ASSIGNED HOGS & FEED STAGES',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_hogs.length} head${_hogs.length == 1 ? '' : 's'}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_isLoading)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+              ),
+            ),
+          )
+        else if (_hogs.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1B2E48).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cardBorder.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.pets_outlined, size: 28, color: hintText.withValues(alpha: 0.5)),
+                const SizedBox(height: 6),
+                Text(
+                  'No individual hogs recorded for this batch yet.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: hintText,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _hogs.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, idx) {
+              final hog = _hogs[idx];
+              final stageName = _resolveStageName(hog['stage_id'] ?? hog['lifecycle_stage'], isBreeding);
+              final weight = (hog['weight'] as num?)?.toDouble() ?? 15.0;
+              final health = (hog['health_status'] ?? 'healthy').toString().toLowerCase();
+              final isSick = health == 'sick' || health == 'fever' || health == 'injured';
+              final isObserving = health.contains('observ');
+
+              final healthColor = isSick
+                  ? const Color(0xFFEF4444)
+                  : (isObserving ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
+              final healthLabel = isSick
+                  ? 'SICK'
+                  : (isObserving ? 'OBSERVATION' : 'HEALTHY');
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16253B) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: cardBorder.withValues(alpha: 0.7)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.pets_rounded,
+                        size: 18,
+                        color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Hog #${idx + 1}',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isBreeding
+                                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.12)
+                                      : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isBreeding ? 'Sow / Breeding' : 'Fattening',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isBreeding
+                                        ? const Color(0xFFA78BFA)
+                                        : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Weight: ${weight.toStringAsFixed(1)} kg',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: hintText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            stageName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: healthColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              healthLabel,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: healthColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
 class _HogHealthReportsSection extends StatefulWidget {
   final Investment investment;
   final bool isDark;
@@ -704,6 +1065,7 @@ class _HogHealthReportsSection extends StatefulWidget {
 
 class _HogHealthReportsSectionState extends State<_HogHealthReportsSection> {
   List<Map<String, dynamic>> _reports = [];
+  Map<String, int> _hogIndexMap = {};
 
   @override
   void initState() {
@@ -723,9 +1085,38 @@ class _HogHealthReportsSectionState extends State<_HogHealthReportsSection> {
           .eq('hog_raiser_id', raiserId)
           .order('created_at', ascending: false);
 
+      final assignId = widget.investment.assignmentId;
+      List<dynamic> hogsList = [];
+      if (assignId != null && assignId.isNotEmpty) {
+        hogsList = await Supabase.instance.client
+            .from('hogs')
+            .select('hog_id')
+            .eq('assignment_id', assignId)
+            .order('hog_id', ascending: true);
+      } else if (widget.investment.batchId != null) {
+        final aRow = await Supabase.instance.client
+            .from('assignments')
+            .select('assignment_id')
+            .eq('batch_id', widget.investment.batchId!)
+            .maybeSingle();
+        if (aRow != null) {
+          hogsList = await Supabase.instance.client
+              .from('hogs')
+              .select('hog_id')
+              .eq('assignment_id', aRow['assignment_id'])
+              .order('hog_id', ascending: true);
+        }
+      }
+
+      final Map<String, int> indexMap = {};
+      for (int i = 0; i < hogsList.length; i++) {
+        indexMap[hogsList[i]['hog_id'].toString()] = i + 1;
+      }
+
       if (mounted) {
         setState(() {
           _reports = List<Map<String, dynamic>>.from(res);
+          _hogIndexMap = indexMap;
         });
       }
     } catch (e) {
@@ -906,7 +1297,7 @@ class _HogHealthReportsSectionState extends State<_HogHealthReportsSection> {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  'HOG #$hogId',
+                                  'HOG #${_hogIndexMap[hogId.toString()] ?? hogId}',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.w700,

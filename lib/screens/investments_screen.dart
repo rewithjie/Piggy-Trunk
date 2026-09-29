@@ -267,6 +267,7 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
 
         rMap['batch_name'] = matchedBatchName ?? 'Unassigned';
         rMap['batch_id'] = matchedBatchId;
+        rMap['assignment_id'] = matchedAssignmentId;
 
         // D. Calculate stocks spend and itemized history for this batch
         final List<Map<String, dynamic>> providedStocksList = [];

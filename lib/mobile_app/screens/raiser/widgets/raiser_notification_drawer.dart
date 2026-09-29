@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../../../../services/notification_service.dart';
 import '../../../utils/app_strings.dart';
 import '../../../widgets/piggy_toast.dart';
 import 'raiser_empty_state.dart';
@@ -317,8 +318,8 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         final notif = displayList[index];
                         final isRead = notif['is_read'] == true;
                         final notifId = (notif['notification_id'] ?? notif['id']) as int?;
-                        final title = (notif['title'] ?? 'Notification').toString();
-                        final message = (notif['message'] ?? notif['content'] ?? '').toString();
+                        final title = NotificationService.cleanText((notif['title'] ?? 'Notification').toString());
+                        final message = NotificationService.cleanText((notif['message'] ?? notif['content'] ?? '').toString());
                         final timeStr = _formatTime(notif['created_at'], strings);
                         final type = (notif['type'] ?? notif['category'] ?? '').toString().toLowerCase();
 

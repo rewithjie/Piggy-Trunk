@@ -14,6 +14,7 @@ class Investment {
   final String stage;
   final String? batchName;
   final String? batchId;
+  final String? assignmentId;
 
   Investment({
     required this.id,
@@ -29,6 +30,7 @@ class Investment {
     required this.stage,
     this.batchName,
     this.batchId,
+    this.assignmentId,
   });
 
   double get totalInvestment => initialCapital + stocksValue;
@@ -100,6 +102,7 @@ class Investment {
       stage: (json['stage'] ?? 'pending').toString(),
       batchName: json['batch_name']?.toString(),
       batchId: json['batch_id']?.toString(),
+      assignmentId: json['assignment_id']?.toString(),
     );
   }
 
@@ -118,6 +121,7 @@ class Investment {
       'stage': stage,
       if (batchName != null) 'batch_name': batchName,
       if (batchId != null) 'batch_id': batchId,
+      if (assignmentId != null) 'assignment_id': assignmentId,
     };
   }
 }

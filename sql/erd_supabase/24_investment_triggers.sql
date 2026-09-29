@@ -52,7 +52,7 @@ begin
   insert into public.partner_notifications (partner_investor_id, title, message, type, metadata)
   values (
     new.partner_investor_id,
-    'Investment Confirmed! 🎉',
+    'Investment Confirmed!',
     'Your investment of ' || formatted_amount || ' for ' || b_name || ' is active. Thank you for partnering with us!',
     'investment_confirmed',
     jsonb_build_object(
@@ -68,7 +68,7 @@ begin
     insert into public.raiser_notifications (hog_raiser_id, title, message, type, metadata)
     values (
       r_id,
-      'May Bagong Pondo ang Iyong Batch! 💰',
+      'May Bagong Pondo ang Iyong Batch!',
       coalesce(p_name, 'Isang Partner Investor') || ' ang naglaan ng ' || formatted_amount || ' na pondo para sa ' || b_name || '.',
       'investment_received',
       jsonb_build_object(
@@ -115,7 +115,7 @@ begin
         metadata
       ) values (
         r_id,
-        'May Bagong Investment na Na-assign sa Iyo! 🐖',
+        'May Bagong Investment na Na-assign sa Iyo!',
         'Nag-assign ang Admin ng bagong investment na may ' || coalesce(new.total_hog, 0) || ' ' || coalesce(new.hog_type, 'baboy') || cap_text || ' para sa iyong pangangalaga.',
         'investment_assigned',
         jsonb_build_object(
@@ -156,7 +156,7 @@ begin
       metadata
     ) values (
       new.hog_raiser_id,
-      'Bagong Batch na Na-assign sa Iyo! 🐷',
+      'Bagong Batch na Na-assign sa Iyo!',
       'Na-assign sa iyo ng Admin ang ' || coalesce(b_name, 'bagong batch') || '. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.',
       'batch_assigned',
       jsonb_build_object(

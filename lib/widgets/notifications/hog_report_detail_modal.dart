@@ -125,21 +125,32 @@ class _HogReportDetailModalState extends State<HogReportDetailModal> {
         }
       }
 
-      // 4. Resolve relative Hog Index (e.g. Hog #1 instead of just database PK #11)
+      // 4. Resolve relative Hog Index (e.g. Hog #1 instead of database PK #17)
       final targetHogId = reportRow?['hog_id'] ?? hogIdRaw;
       int? calculatedIndex;
-      if (targetHogId != null && effectiveRaiserId != null) {
+      if (targetHogId != null) {
         try {
-          final hogsRes = await Supabase.instance.client
+          final tHogNum = int.tryParse(targetHogId.toString());
+          final hogRecord = await Supabase.instance.client
               .from('hogs')
               .select('hog_id, assignment_id')
-              .order('hog_id', ascending: true);
-          if (hogsRes.isNotEmpty) {
-            final idx = hogsRes.indexWhere(
-              (h) => h['hog_id'].toString() == targetHogId.toString(),
-            );
-            if (idx != -1) {
-              calculatedIndex = idx + 1;
+              .eq('hog_id', tHogNum ?? targetHogId)
+              .maybeSingle();
+
+          final aId = hogRecord?['assignment_id'];
+          if (aId != null) {
+            final hogsRes = await Supabase.instance.client
+                .from('hogs')
+                .select('hog_id')
+                .eq('assignment_id', aId)
+                .order('hog_id', ascending: true);
+            if (hogsRes.isNotEmpty) {
+              final idx = hogsRes.indexWhere(
+                (h) => h['hog_id'].toString() == targetHogId.toString(),
+              );
+              if (idx != -1) {
+                calculatedIndex = idx + 1;
+              }
             }
           }
         } catch (_) {}
@@ -207,7 +218,7 @@ class _HogReportDetailModalState extends State<HogReportDetailModal> {
     final hogIdRaw = _reportData?['hog_id'] ?? meta['hog_id'];
     final String hogLabel;
     if (_resolvedHogIndex != null) {
-      hogLabel = 'Hog #$_resolvedHogIndex (Tag #$hogIdRaw)';
+      hogLabel = 'Hog #$_resolvedHogIndex';
     } else if (hogIdRaw != null) {
       hogLabel = 'Hog #$hogIdRaw';
     } else {

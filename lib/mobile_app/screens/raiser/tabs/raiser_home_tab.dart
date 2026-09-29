@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import '../../../utils/app_strings.dart';
+import '../../../widgets/piggy_toast.dart';
 import '../widgets/raiser_header_bar.dart';
 
 class RaiserHomeTab extends StatelessWidget {
@@ -20,7 +22,7 @@ class RaiserHomeTab extends StatelessWidget {
   final ValueChanged<int> onNavigateToTab;
   final Function(int notificationId) onMarkNotificationAsRead;
   final VoidCallback onMarkAllRead;
-  final Function(String targetStage) onUpdateLifecycleStage;
+  final Function(String targetStage, [dynamic targetHogId]) onUpdateLifecycleStage;
 
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _gradientEndColor = Color(0xFF3B5270);
@@ -80,9 +82,14 @@ class RaiserHomeTab extends StatelessWidget {
         : (hasActiveBatch ? (activeAssignments[0]['hog_types']?['type_name'] ?? 'Fattening').toString() : 'Fattening');
 
     final String rawStage = (raiserData['lifecycle_stage'] ?? '').toString().trim();
-    final String activeStage = (rawStage.isNotEmpty && rawStage != 'N/A' && rawStage != 'None')
+    String activeStage = (rawStage.isNotEmpty && rawStage != 'N/A' && rawStage != 'None')
         ? rawStage
         : (hasActiveBatch ? (activeAssignments[0]['lifecycle_stage'] ?? 'Booster').toString() : 'Booster');
+
+    if (hogsList.isNotEmpty) {
+      final isBr = pigType.toLowerCase() == 'sow' || pigType.toLowerCase().contains('breed');
+      activeStage = _getHogCurrentStage(hogsList[0], isBr, activeStage);
+    }
 
     final String displayStage = hasInvestment ? activeStage : strings.unassigned;
     final String displayPigType = hasInvestment ? pigType : strings.unassigned;
@@ -93,11 +100,19 @@ class RaiserHomeTab extends StatelessWidget {
         : (hasActiveBatch ? (activeAssignments[0]['assigned_heads'] as num? ?? 0).toInt() : 0);
 
     final int sickHogsCount = hogsList.where((h) {
-      final s = (h['health_status'] ?? '').toString().toLowerCase();
-      return s == 'sick' || s == 'under observation' || s == 'quarantine';
+      final s = (h['health_status'] ?? '').toString().trim().toLowerCase();
+      return s == 'sick' ||
+          s == 'under observation' ||
+          s == 'quarantine' ||
+          s == 'fever' ||
+          s == 'diarrhea' ||
+          s == 'food poisoning' ||
+          s == 'injury' ||
+          s == 'injured';
     }).length;
 
-    final int healthyHogsCount = (totalHogs - sickHogsCount).clamp(0, 9999);
+    final int healthyHogsCount = (totalHogs - sickHogsCount).clamp(0, totalHogs);
+    final double healthPercent = totalHogs > 0 ? (healthyHogsCount / totalHogs * 100) : 0.0;
 
     final int pendingRequestsCount = requestsList.where((r) {
       final s = (r['status'] ?? '').toString().toLowerCase();
@@ -398,12 +413,28 @@ class RaiserHomeTab extends StatelessWidget {
                     context: context,
                     title: strings.isFilipino ? 'Kalusugan ng Baboy' : 'Hog Health',
                     value: totalHogs > 0
-                        ? (sickHogsCount == 0 ? (strings.isFilipino ? '100% Maayos' : '100% Good') : '$healthyHogsCount/$totalHogs')
-                        : (strings.isFilipino ? '100% Maayos' : '100% Good'),
-                    subtitle: sickHogsCount == 0 ? (strings.isFilipino ? 'Lahat malusog' : 'All healthy') : '$sickHogsCount ${strings.isFilipino ? 'nangangailangan ng lunas' : 'need care'}',
-                    icon: Icons.health_and_safety_rounded,
-                    accentColor: sickHogsCount == 0 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
-                    bgColor: sickHogsCount == 0 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                        ? (sickHogsCount == 0
+                            ? '${healthPercent.toStringAsFixed(0)}% ${strings.isFilipino ? 'Maayos' : 'Good'}'
+                            : '${healthPercent.toStringAsFixed(healthPercent.truncateToDouble() == healthPercent ? 0 : 1)}% ${strings.isFilipino ? 'Maayos' : 'Good'}')
+                        : (strings.isFilipino ? 'Walang Alaga' : 'No Hogs'),
+                    subtitle: totalHogs > 0
+                        ? (sickHogsCount == 0
+                            ? (strings.isFilipino ? 'Lahat ng $totalHogs ay malusog' : 'All $totalHogs healthy')
+                            : '$sickHogsCount ${strings.isFilipino ? 'nangangailangan ng lunas' : 'need care'}')
+                        : (strings.isFilipino ? 'Walang aktibong alaga' : 'No active hogs'),
+                    icon: totalHogs > 0
+                        ? (sickHogsCount == 0 ? Icons.health_and_safety_rounded : Icons.healing_rounded)
+                        : Icons.health_and_safety_outlined,
+                    accentColor: totalHogs > 0
+                        ? (sickHogsCount == 0
+                            ? const Color(0xFF10B981)
+                            : (healthPercent >= 75 ? const Color(0xFFF59E0B) : const Color(0xFFEF4444)))
+                        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    bgColor: totalHogs > 0
+                        ? (sickHogsCount == 0
+                            ? const Color(0xFFECFDF5)
+                            : (healthPercent >= 75 ? const Color(0xFFFFFBEB) : const Color(0xFFFEF2F2)))
+                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
                     onTap: () => onNavigateToTab(2),
                   ),
                 ),
@@ -490,16 +521,66 @@ class RaiserHomeTab extends StatelessWidget {
 
             // ==================== FEEDS STAGES (CONDITIONAL ON ACTIVE BATCH) ====================
             if (hasActiveBatch) ...[
-              _buildFeedsCard(
-                context: context,
-                title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
-                badgeText: hasInvestment ? (pigType == 'Sow' ? 'Sow' : 'Fattening') : strings.unassigned,
-                stages: (hasInvestment && pigType == 'Sow')
-                    ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
-                    : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'],
-                activeStage: displayStage,
-                hasInvestment: hasInvestment,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : _brandColor,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => onNavigateToTab(2),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E2D42) : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFDBEAFE),
+                        ),
+                      ),
+                      child: Text(
+                        hasInvestment ? (pigType == 'Sow' ? 'Sow' : 'Fattening') : strings.unassigned,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 14),
+              if (hogsList.isNotEmpty) ...[
+                for (int i = 0; i < hogsList.length; i++) ...[
+                  _buildHogFeedCard(
+                    context: context,
+                    hog: hogsList[i],
+                    index: i,
+                    totalHogs: hogsList.length,
+                    fallbackPigType: pigType,
+                    fallbackStage: displayStage,
+                    hasInvestment: hasInvestment,
+                  ),
+                  if (i < hogsList.length - 1) const SizedBox(height: 12),
+                ],
+              ] else ...[
+                _buildFeedsCard(
+                  context: context,
+                  title: strings.isFilipino ? 'Pangkalahatang Yugto' : 'General Feeds Stage',
+                  badgeText: hasInvestment ? (pigType == 'Sow' ? 'Sow' : 'Fattening') : strings.unassigned,
+                  stages: (hasInvestment && pigType == 'Sow')
+                      ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+                      : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'],
+                  activeStage: displayStage,
+                  hasInvestment: hasInvestment,
+                ),
+              ],
               const SizedBox(height: 28),
             ] else ...[
               Container(
@@ -771,6 +852,238 @@ class RaiserHomeTab extends StatelessWidget {
     );
   }
 
+  int _stageNameToId(String stage, bool isBreeding) {
+    final s = stage.trim().toLowerCase();
+    if (s == 'booster') return 1;
+    if (s == 'pre-starter' || s == 'pre starter') return 2;
+    if (s == 'starter') return 3;
+    if (s == 'grower') return 4;
+    if (s == 'finisher' || s == 'breeder') return 5;
+    if (s == 'selling' || s == 'lactation') return 6;
+    return 1;
+  }
+
+  String _stageIdToName(dynamic stageId, bool isBreeding, String fallback) {
+    if (stageId == null) return fallback;
+    final id = int.tryParse(stageId.toString());
+    final fatteningStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+    final sowStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation'];
+    final list = isBreeding ? sowStages : fatteningStages;
+    if (id != null && id >= 1 && id <= list.length) {
+      return list[id - 1];
+    }
+    final s = stageId.toString().trim();
+    if (s.isNotEmpty && s != 'null' && s != 'N/A' && int.tryParse(s) == null) {
+      return s;
+    }
+    return fallback;
+  }
+
+  String _getHogDisplayName(Map<String, dynamic> hog, int index, AppStrings strings) {
+    final hogPrefix = strings.isFilipino ? 'Baboy' : 'Hog';
+    final rawTag = (hog['tag_number'] ?? '').toString().trim();
+    if (rawTag.isNotEmpty && rawTag != 'null' && rawTag != 'N/A') {
+      if (rawTag.toLowerCase().startsWith('hog') || rawTag.toLowerCase().startsWith('baboy')) {
+        return rawTag;
+      }
+      if (rawTag.startsWith('#')) {
+        return '$hogPrefix $rawTag';
+      }
+      return '$hogPrefix #$rawTag';
+    }
+    return '$hogPrefix #${index + 1}';
+  }
+
+  String _getHogPigType(Map<String, dynamic> hog, String fallbackType) {
+    final rawType = (hog['pig_type'] ?? hog['type_name'] ?? hog['type'] ?? '').toString().trim();
+    if (rawType.isNotEmpty && rawType != 'null' && rawType != 'N/A' && rawType != 'None') {
+      final l = rawType.toLowerCase();
+      return (l == 'sow' || l.contains('breed')) ? 'Sow' : 'Fattening';
+    }
+    final fallbackLower = fallbackType.toLowerCase();
+    return (fallbackLower == 'sow' || fallbackLower.contains('breed')) ? 'Sow' : 'Fattening';
+  }
+
+  String _getHogCurrentStage(Map<String, dynamic> hog, bool isBreeding, String fallbackStage) {
+    final dbStage = hog['stage_id'] ?? hog['lifecycle_stage'] ?? hog['stage'];
+    if (dbStage != null) {
+      return _stageIdToName(dbStage, isBreeding, fallbackStage);
+    }
+    return fallbackStage;
+  }
+
+  Widget _buildHogFeedCard({
+    required BuildContext context,
+    required Map<String, dynamic> hog,
+    required int index,
+    required int totalHogs,
+    required String fallbackPigType,
+    required String fallbackStage,
+    required bool hasInvestment,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+    final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
+    final hogType = _getHogPigType(hog, fallbackPigType);
+    final isBreeding = hogType.toLowerCase() == 'sow' || hogType.toLowerCase().contains('breed');
+    final stages = isBreeding
+        ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+        : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+    final hogStage = _getHogCurrentStage(hog, isBreeding, fallbackStage);
+    final hogName = _getHogDisplayName(hog, index, strings);
+
+    final weightNum = (hog['weight'] as num?)?.toDouble();
+    final weightStr = weightNum != null && weightNum > 0 ? '${weightNum.toStringAsFixed(1)} kg' : '';
+    final healthStatus = (hog['health_status'] ?? 'Healthy').toString();
+    final isSick = healthStatus.toLowerCase() == 'sick' ||
+        healthStatus.toLowerCase().contains('fever') ||
+        healthStatus.toLowerCase().contains('poison') ||
+        healthStatus.toLowerCase().contains('diarrhea') ||
+        healthStatus.toLowerCase().contains('injur');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Hog Info & Stage Chip
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Hog identity
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.white : _brandColor).withValues(alpha: isDark ? 0.12 : 0.07),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(
+                      Icons.pets_rounded,
+                      size: 19,
+                      color: isDark ? Colors.white : _brandColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            hogName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: textColor,
+                            ),
+                          ),
+                          if (isSick) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF2F2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                strings.isFilipino ? 'May Sakit' : 'Sick',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (weightStr.isNotEmpty)
+                        Text(
+                          weightStr,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: mutedColor,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // Current Stage Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF14291F) : const Color(0xFFECFDF5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF10B981).withValues(alpha: 0.4) : const Color(0xFFA7F3D0),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6.5,
+                      height: 6.5,
+                      decoration: const BoxDecoration(
+                        color: _successGreen,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      hogStage,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Hog-specific timeline
+          _buildTimeline(
+            context,
+            stages,
+            hogStage,
+            hasInvestment,
+            hog: hog,
+            hogName: hogName,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFeedsCard({
     required BuildContext context,
     required String title,
@@ -838,7 +1151,14 @@ class RaiserHomeTab extends StatelessWidget {
     );
   }
 
-  Widget _buildTimeline(BuildContext context, List<String> stages, String activeStage, bool hasInvestment) {
+  Widget _buildTimeline(
+    BuildContext context,
+    List<String> stages,
+    String activeStage,
+    bool hasInvestment, {
+    Map<String, dynamic>? hog,
+    String? hogName,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int activeIndex = hasInvestment
         ? stages.indexWhere((s) => s.toLowerCase() == activeStage.toLowerCase())
@@ -911,7 +1231,12 @@ class RaiserHomeTab extends StatelessWidget {
                 return GestureDetector(
                   onTap: () {
                     if (hasInvestment && isFuture) {
-                      _showStageProgressionDialog(context, stages[index]);
+                      _showStageProgressionDialog(
+                        context,
+                        stages[index],
+                        hog: hog,
+                        hogName: hogName,
+                      );
                     }
                   },
                   child: SizedBox(
@@ -1496,12 +1821,19 @@ class RaiserHomeTab extends StatelessWidget {
     );
   }
 
-  void _showStageProgressionDialog(BuildContext context, String targetStage) {
+  void _showStageProgressionDialog(
+    BuildContext context,
+    String targetStage, {
+    Map<String, dynamic>? hog,
+    String? hogName,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final strings = AppStrings.of(context);
+    final displayName = hogName ?? (strings.isFilipino ? 'Alagang Baboy' : 'Hog');
+
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
           surfaceTintColor: Colors.transparent,
@@ -1515,7 +1847,11 @@ class RaiserHomeTab extends StatelessWidget {
             ),
           ),
           content: Text(
-            strings.advanceStagePrompt(targetStage),
+            hog != null
+                ? (strings.isFilipino
+                    ? 'Gusto mo bang ilipat ang $displayName sa yugtong "$targetStage"?'
+                    : 'Advance $displayName to "$targetStage"?')
+                : strings.advanceStagePrompt(targetStage),
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1528,7 +1864,7 @@ class RaiserHomeTab extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(dialogCtx),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
@@ -1547,9 +1883,41 @@ class RaiserHomeTab extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      onUpdateLifecycleStage(targetStage);
+                    onPressed: () async {
+                      Navigator.pop(dialogCtx);
+                      if (hog != null && hog['hog_id'] != null) {
+                        final hogId = hog['hog_id'];
+                        final hogType = _getHogPigType(hog, 'Fattening');
+                        final isBreeding = hogType.toLowerCase() == 'sow' ||
+                            hogType.toLowerCase().contains('breed');
+                        final stageNum = _stageNameToId(targetStage, isBreeding);
+
+                        try {
+                          await Supabase.instance.client
+                              .from('hogs')
+                              .update({
+                                'stage_id': stageNum,
+                                'last_updated': DateTime.now().toIso8601String(),
+                              })
+                              .eq('hog_id', hogId);
+
+                          await onRefresh();
+
+                          if (context.mounted) {
+                            PiggyToast.showSuccess(
+                              context,
+                              strings.isFilipino
+                                  ? 'Nai-update ang $displayName sa $targetStage.'
+                                  : 'Updated $displayName to $targetStage.',
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('Error updating hog stage: $e');
+                          onUpdateLifecycleStage(targetStage, hogId);
+                        }
+                      } else {
+                        onUpdateLifecycleStage(targetStage);
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark ? Colors.white : _brandColor,

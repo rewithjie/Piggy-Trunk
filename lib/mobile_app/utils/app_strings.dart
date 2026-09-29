@@ -183,6 +183,16 @@ class AppStrings {
   String advanceStagePrompt(String targetStage) => isFilipino
       ? 'Nais mo bang i-advance ang growth stage ng batch patungong $targetStage?'
       : 'Do you want to advance the batch growth stage to $targetStage?';
+  String advanceHogStagePrompt(String hogName, String targetStage) => isFilipino
+      ? 'Nais mo bang ilipat ang yugto ng pakain para sa $hogName patungong $targetStage?'
+      : 'Do you want to advance the feed stage for $hogName to $targetStage?';
+  String hogStageUpdatedSuccess(String hogName, String targetStage) => isFilipino
+      ? 'Matagumpay na nailipat ang yugto ng $hogName sa $targetStage!'
+      : 'Successfully updated feed stage of $hogName to $targetStage!';
+  String get fatteningTag => isFilipino ? 'Pagpapataba' : 'Fattening';
+  String get sowBreedTag => isFilipino ? 'Palahi / Sow' : 'Sow / Breed';
+  String get feedStageLabel => isFilipino ? 'Yugto ng Pakain' : 'Feed Stage';
+  String get hogDetailsTitle => isFilipino ? 'Detalye ng Baboy' : 'Hog Details';
   String get update => isFilipino ? 'I-update' : 'Update';
 
   // ================= Edit Profile Modal =================

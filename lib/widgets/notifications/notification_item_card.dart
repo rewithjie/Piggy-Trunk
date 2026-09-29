@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/admin_notification_model.dart';
 import '../../providers/admin_notifications_provider.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import 'hog_report_detail_modal.dart';
@@ -258,7 +259,7 @@ class NotificationItemCard extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  notif.title,
+                                  NotificationService.cleanText(notif.title),
                                   style: AppTextStyles.jakarta(
                                     size: 13,
                                     weight: notif.isRead ? FontWeight.w600 : FontWeight.w800,
@@ -283,7 +284,7 @@ class NotificationItemCard extends StatelessWidget {
 
                           // Message Text
                           Text(
-                            notif.message,
+                            NotificationService.cleanText(notif.message),
                             style: AppTextStyles.jakarta(
                               size: 12,
                               weight: FontWeight.w400,

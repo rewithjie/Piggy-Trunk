@@ -86,6 +86,24 @@ class NotificationService {
     return status.isGranted;
   }
 
+  /// Utility to remove emoticons / emojis to keep notification text clean, serious, and professional
+  static String cleanText(String text) {
+    if (text.isEmpty) return text;
+    final emojiRegex = RegExp(
+      r'[\u{1F300}-\u{1F9FF}'
+      r'\u{1FA00}-\u{1FAFF}'
+      r'\u{1F600}-\u{1F64F}'
+      r'\u{1F680}-\u{1F6FF}'
+      r'\u{2600}-\u{26FF}'
+      r'\u{2700}-\u{27BF}'
+      r'\u{FE00}-\u{FE0F}'
+      r'\u{200D}'
+      r']+',
+      unicode: true,
+    );
+    return text.replaceAll(emojiRegex, '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
   /// Shows a native OS status bar / lockscreen notification
   Future<void> showNotification({
     int? id,
@@ -93,8 +111,11 @@ class NotificationService {
     required String body,
     String? payload,
   }) async {
+    final String sanitizedTitle = cleanText(title);
+    final String sanitizedBody = cleanText(body);
+
     if (kIsWeb) {
-      debugPrint('[Web Notification] $title: $body');
+      debugPrint('[Web Notification] $sanitizedTitle: $sanitizedBody');
       return;
     }
     await initialize();
@@ -125,8 +146,8 @@ class NotificationService {
 
     await _localNotifications.show(
       notificationId,
-      title,
-      body,
+      sanitizedTitle,
+      sanitizedBody,
       details,
       payload: payload,
     );

@@ -20,7 +20,7 @@ begin
         metadata
       ) values (
         r_rec.hog_raiser_id,
-        'Feeds Restocked! 🌾',
+        'Feeds Restocked!',
         coalesce(new.name, 'Feeds') || ' is now restocked and available (' || new.units || ' units added).',
         'feed_restock',
         jsonb_build_object(

@@ -261,6 +261,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 'assignment_id': assignId,
                 'status': 'active',
                 'health_status': 'healthy',
+                'stage_id': 1,
                 'weight': 15.0,
               }).select().maybeSingle();
             } catch (_) {
@@ -268,6 +269,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 'assignment_id': assignId,
                 'status': 'active',
                 'health_status': 'healthy',
+                'stage_id': 1,
               }).select().maybeSingle();
             }
             if (res != null) {
@@ -570,16 +572,42 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
-  Future<void> _updateLifecycleStage(String targetStage) async {
+  Future<void> _updateLifecycleStage(String targetStage, [dynamic targetHogId]) async {
     final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
     if (raiserId == null) return;
 
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client
-          .from('hog_raisers')
-          .update({'lifecycle_stage': targetStage})
-          .eq('hog_raiser_id', raiserId);
+      if (targetHogId != null) {
+        final sLower = targetStage.trim().toLowerCase();
+        int stageNum = 1;
+        if (sLower == 'booster') {
+          stageNum = 1;
+        } else if (sLower == 'pre-starter' || sLower == 'pre starter') {
+          stageNum = 2;
+        } else if (sLower == 'starter') {
+          stageNum = 3;
+        } else if (sLower == 'grower') {
+          stageNum = 4;
+        } else if (sLower == 'finisher' || sLower == 'breeder') {
+          stageNum = 5;
+        } else if (sLower == 'selling' || sLower == 'lactation') {
+          stageNum = 6;
+        }
+
+        await Supabase.instance.client
+            .from('hogs')
+            .update({
+              'stage_id': stageNum,
+              'last_updated': DateTime.now().toIso8601String(),
+            })
+            .eq('hog_id', targetHogId);
+      } else {
+        await Supabase.instance.client
+            .from('hog_raisers')
+            .update({'lifecycle_stage': targetStage})
+            .eq('hog_raiser_id', raiserId);
+      }
 
       await _fetchRaiserData();
 
