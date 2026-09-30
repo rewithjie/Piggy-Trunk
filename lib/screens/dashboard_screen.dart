@@ -123,7 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double calculatedInitialCapital = 0;
       double calculatedFatteningInitialCapital = 0;
       double calculatedSowInitialCapital = 0;
-      final Map<String, String> raiserInvestmentTypeMap = {};
+      final Map<String, Set<String>> raiserInvestmentTypesMap = {};
       final Map<String, DateTime> raiserLatestInvestmentDate = {};
       final Map<String, String> raiserBatchNameMap = {};
 
@@ -144,8 +144,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = inv['hog_raiser_id']?.toString() ?? '';
         final rawHt = (inv['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
-          raiserInvestmentTypeMap[rId] = rawHt;
+        // Collect ALL distinct pig types per raiser (not just first)
+        if (rId.isNotEmpty && rawHt.isNotEmpty) {
+          raiserInvestmentTypesMap.putIfAbsent(rId, () => {}).add(rawHt);
         }
 
         final invDateStr = (inv['investment_date'] ?? '').toString();
@@ -284,8 +285,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final totalReqValue = qty * unitPrice;
           calculatedStocksProvided += totalReqValue;
 
-          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
-          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+          final raiserTypes = raiserInvestmentTypesMap[rId] ?? {};
+          final raiserTypeStr = raiserTypes.join(' ').toLowerCase();
+          if (raiserTypeStr.contains('sow') || raiserTypeStr.contains('inahin')) {
             calculatedSowStocks += totalReqValue;
           } else {
             calculatedFatteningStocks += totalReqValue;
@@ -307,8 +309,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final amt = (s['total_amount'] as num?)?.toDouble() ?? 0.0;
           final rId = (s['hog_raiser_id'] ?? '').toString();
           calculatedStocksProvided += amt;
-          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
-          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+          final raiserTypes = raiserInvestmentTypesMap[rId] ?? {};
+          final raiserTypeStr = raiserTypes.join(' ').toLowerCase();
+          if (raiserTypeStr.contains('sow') || raiserTypeStr.contains('inahin')) {
             calculatedSowStocks += amt;
           } else {
             calculatedFatteningStocks += amt;
@@ -367,10 +370,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             copy['name'] = 'Hog Raiser';
           }
 
-          String rawType = (copy['pig_type'] ?? '').toString().trim();
-          if ((rawType.isEmpty || rawType.toUpperCase() == 'N/A') && raiserInvestmentTypeMap.containsKey(idStr)) {
-            rawType = raiserInvestmentTypeMap[idStr]!;
+          // Merge hog_raisers.pig_type with ALL investment hog_types for this raiser
+          final dbPigType = (copy['pig_type'] ?? '').toString().trim();
+          final combinedTypeSet = <String>{};
+          // 1. Add types from hog_raisers.pig_type
+          if (dbPigType.isNotEmpty && dbPigType.toUpperCase() != 'N/A') {
+            combinedTypeSet.addAll(
+              dbPigType.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty),
+            );
           }
+          // 2. Add ALL types from investment_records
+          if (raiserInvestmentTypesMap.containsKey(idStr)) {
+            combinedTypeSet.addAll(raiserInvestmentTypesMap[idStr]!);
+          }
+          final rawType = combinedTypeSet.join(', ');
 
           final cleanParts = rawType
               .split(RegExp(r'[,;]'))
@@ -498,7 +511,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       double initialCapital = 0;
       double fatteningInitialCapital = 0;
       double sowInitialCapital = 0;
-      final Map<String, String> raiserInvestmentTypeMap = {};
+      final Map<String, Set<String>> raiserInvestmentTypeMap = {};
 
       for (final row in investmentRows) {
         if (row is! Map) continue;
@@ -516,8 +529,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         final rId = row['hog_raiser_id']?.toString() ?? '';
         final rawHt = (row['hog_type'] ?? '').toString().trim();
-        if (rId.isNotEmpty && rawHt.isNotEmpty && !raiserInvestmentTypeMap.containsKey(rId)) {
-          raiserInvestmentTypeMap[rId] = rawHt;
+        if (rId.isNotEmpty && rawHt.isNotEmpty) {
+          raiserInvestmentTypeMap.putIfAbsent(rId, () => {}).add(rawHt);
         }
       }
 
@@ -537,8 +550,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final val = qty * 1650.0;
           stocksProvided += val;
           final rId = (req['hog_raiser_id'] ?? '').toString();
-          final raiserType = (raiserInvestmentTypeMap[rId] ?? '').toLowerCase();
-          if (raiserType.contains('sow') || raiserType.contains('inahin')) {
+          final raiserTypes = raiserInvestmentTypeMap[rId] ?? {};
+          final raiserTypeStr = raiserTypes.join(' ').toLowerCase();
+          if (raiserTypeStr.contains('sow') || raiserTypeStr.contains('inahin')) {
             sowStocks += val;
           } else {
             fatteningStocks += val;
@@ -1090,93 +1104,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (batchName.isNotEmpty &&
-                                batchName != 'Unassigned') ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: (_isDark
-                                          ? const Color(0xFF60A5FA)
-                                          : PiggyTrunkTheme.ptPrimary)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: (_isDark
-                                            ? const Color(0xFF60A5FA)
-                                            : PiggyTrunkTheme.ptPrimary)
-                                        .withValues(alpha: 0.25),
-                                  ),
-                                ),
-                                child: Text(
-                                  batchName,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: _isDark
-                                        ? const Color(0xFF93C5FD)
-                                        : PiggyTrunkTheme.ptPrimary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                            ],
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isUnassigned
-                                    ? (_isDark
-                                          ? const Color(0xFF1E293B)
-                                          : const Color(0xFFF1F5F9))
-                                    : (_isDark
-                                          ? const Color(0xFF1E293B)
-                                          : const Color(0xFFE2E8F0)),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: isUnassigned
-                                      ? (_isDark
-                                            ? const Color(0xFF475569)
-                                            : const Color(0xFFCBD5E1))
-                                      : (_isDark
-                                            ? const Color(0xFF334155)
-                                            : const Color(0xFFCBD5E1)),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                displayBadge,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: isUnassigned
-                                      ? (_isDark
-                                            ? const Color(0xFF94A3B8)
-                                            : const Color(0xFF64748B))
-                                      : (_isDark
-                                            ? Colors.white
-                                            : const Color(0xFF18314F)),
-                                ),
+                        if (batchName.isNotEmpty &&
+                            batchName != 'Unassigned')
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: _isDark
+                                    ? const Color(0xFF475569)
+                                    : const Color(0xFFCBD5E1),
+                                width: 1,
                               ),
                             ),
-                          ],
-                        ),
+                            child: Text(
+                              batchName,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: _isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _buildLifecycleMap(
-                      currentStage,
-                      isUnassigned ? 'Fattening' : pigTypeString(rawPigType),
-                      isUnassigned: isUnassigned,
-                    ),
+                    if (isUnassigned)
+                      _buildLifecycleMap(
+                        'Unassigned',
+                        'fattening',
+                        isUnassigned: true,
+                      )
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: () {
+                          // Determine which pig types to show lifecycles for
+                          final types = cleanList.isNotEmpty
+                              ? cleanList
+                              : ['FATTENING'];
+                          final widgets = <Widget>[];
+                          for (int i = 0; i < types.length; i++) {
+                            final pt = types[i];
+                            final ptKey = pt.toLowerCase().contains('sow') ||
+                                    pt.toLowerCase().contains('breed')
+                                ? 'sow'
+                                : 'fattening';
+                            if (i > 0) {
+                              widgets.add(const SizedBox(height: 16));
+                            }
+                            // Always show pig type label above lifecycle
+                            {
+                              widgets.add(
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 9,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _isDark
+                                              ? const Color(0xFF1E293B)
+                                              : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: _isDark
+                                                ? const Color(0xFF334155)
+                                                : const Color(0xFFCBD5E1),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          ptKey == 'sow'
+                                              ? 'SOW / BREEDING'
+                                              : 'FATTENING',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: _isDark
+                                                ? const Color(0xFF94A3B8)
+                                                : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                            widgets.add(
+                              _buildLifecycleMap(
+                                currentStage,
+                                ptKey,
+                                isUnassigned: false,
+                              ),
+                            );
+                          }
+                          return widgets;
+                        }(),
+                      ),
                   ],
                 );
               },

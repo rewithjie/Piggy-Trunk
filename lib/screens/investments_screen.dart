@@ -8,6 +8,7 @@ import '../widgets/admin_sidebar.dart';
 import '../widgets/screen_top_bar.dart';
 import '../widgets/slide_over_confirmation_drawer.dart';
 import '../utils/responsive.dart';
+import '../widgets/common/shimmer_loading.dart';
 import '../widgets/investment/investment_form_view.dart';
 import '../widgets/investment/investment_table_view.dart';
 import '../widgets/investment/investment_detail_modal.dart';
@@ -515,32 +516,326 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
                                         horizontal: isMobile ? 14 : 26,
                                         vertical: isMobile ? 16 : 28,
                                       ),
-                                      child: InvestmentTableView(
-                                        investments: investments,
-                                        partnerInvestments: partnerInvestments,
-                                        onRefresh: () => _loadInvestments(isRefresh: true),
-                                        isRefreshing: _isLoading || _isTableRefreshing,
-                                        onAddInvestment: () => setState(() {
-                                          _showInvestmentForm = true;
-                                          _editingInvestment = null;
-                                        }),
-                                        onEditInvestment: (item) => setState(() {
-                                          _showInvestmentForm = true;
-                                          _editingInvestment = item;
-                                        }),
-                                        onCompleteInvestment: _completeInvestment,
-                                        onAddAllocation: _addAllocation,
-                                        onArchiveInvestment: _archiveInvestment,
-                                        onRestoreInvestment: _restoreInvestment,
-                                        onDeleteInvestment: _deleteInvestment,
-                                        onApprovePartnerInvestment: _approvePartnerInvestment,
-                                        onRejectPartnerInvestment: _rejectPartnerInvestment,
-                                      ),
+                                      child: _isLoading
+                                          ? _buildFullSkeletonLoader(isMobile)
+                                          : InvestmentTableView(
+                                              investments: investments,
+                                              partnerInvestments: partnerInvestments,
+                                              onRefresh: () => _loadInvestments(isRefresh: true),
+                                              isRefreshing: _isTableRefreshing,
+                                              onAddInvestment: () => setState(() {
+                                                _showInvestmentForm = true;
+                                                _editingInvestment = null;
+                                              }),
+                                              onEditInvestment: (item) => setState(() {
+                                                _showInvestmentForm = true;
+                                                _editingInvestment = item;
+                                              }),
+                                              onCompleteInvestment: _completeInvestment,
+                                              onAddAllocation: _addAllocation,
+                                              onArchiveInvestment: _archiveInvestment,
+                                              onRestoreInvestment: _restoreInvestment,
+                                              onDeleteInvestment: _deleteInvestment,
+                                              onApprovePartnerInvestment: _approvePartnerInvestment,
+                                              onRejectPartnerInvestment: _rejectPartnerInvestment,
+                                            ),
                                     ),
                                   );
                                 },
                               ),
                             ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Full-page shimmer skeleton that mirrors the Investment Management layout.
+  Widget _buildFullSkeletonLoader(bool isMobile) {
+    final cardBg = _isDark ? const Color(0xFF132238) : Colors.white;
+    final cardBorder = _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+    final headerBg = _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC);
+
+    return ShimmerProvider(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Metric Cards Skeleton ──
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final use2x2 = isMobile || constraints.maxWidth < 780;
+              if (use2x2) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  const SizedBox(width: 14),
+                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // ── Main Table Card Skeleton ──
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: cardBg,
+              border: Border.all(color: cardBorder, width: 1),
+              borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
+            ),
+            padding: EdgeInsets.all(isMobile ? 14 : 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title + Button shimmer
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ShimmerBox(
+                          width: isMobile ? 180 : 260,
+                          height: isMobile ? 20 : 26,
+                          borderRadius: BorderRadius.circular(6),
+                          isDark: _isDark,
+                        ),
+                        const SizedBox(height: 8),
+                        ShimmerBox(
+                          width: isMobile ? 220 : 380,
+                          height: 12,
+                          borderRadius: BorderRadius.circular(4),
+                          isDark: _isDark,
+                        ),
+                      ],
+                    ),
+                    if (!isMobile)
+                      ShimmerBox(
+                        width: 160,
+                        height: 44,
+                        borderRadius: BorderRadius.circular(10),
+                        isDark: _isDark,
+                      ),
+                  ],
+                ),
+                if (isMobile) ...[
+                  const SizedBox(height: 14),
+                  ShimmerBox(
+                    width: double.infinity,
+                    height: 44,
+                    borderRadius: BorderRadius.circular(10),
+                    isDark: _isDark,
+                  ),
+                ],
+                const SizedBox(height: 20),
+
+                // View Mode Toggle skeleton
+                Container(
+                  decoration: BoxDecoration(
+                    color: _isDark ? const Color(0xFF16253B) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0)),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
+                    children: [
+                      if (isMobile)
+                        Expanded(
+                          child: ShimmerBox(
+                            height: 38,
+                            borderRadius: BorderRadius.circular(9),
+                            isDark: _isDark,
+                          ),
+                        )
+                      else
+                        ShimmerBox(
+                          width: 180,
+                          height: 38,
+                          borderRadius: BorderRadius.circular(9),
+                          isDark: _isDark,
+                        ),
+                      const SizedBox(width: 4),
+                      if (isMobile)
+                        Expanded(
+                          child: ShimmerBox(
+                            height: 38,
+                            borderRadius: BorderRadius.circular(9),
+                            isDark: _isDark,
+                          ),
+                        )
+                      else
+                        ShimmerBox(
+                          width: 180,
+                          height: 38,
+                          borderRadius: BorderRadius.circular(9),
+                          isDark: _isDark,
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Search + Filter Chips skeleton
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = isMobile || constraints.maxWidth < 750;
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ShimmerBox(
+                                  height: 42,
+                                  borderRadius: BorderRadius.circular(10),
+                                  isDark: _isDark,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ShimmerBox(
+                                width: 42,
+                                height: 42,
+                                borderRadius: BorderRadius.circular(10),
+                                isDark: _isDark,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: List.generate(4, (i) => Padding(
+                              padding: EdgeInsets.only(right: i < 3 ? 8.0 : 0),
+                              child: ShimmerBox(
+                                width: 70,
+                                height: 34,
+                                borderRadius: BorderRadius.circular(10),
+                                isDark: _isDark,
+                              ),
+                            )),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: ShimmerBox(
+                            height: 42,
+                            borderRadius: BorderRadius.circular(10),
+                            isDark: _isDark,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ...List.generate(5, (i) => Padding(
+                          padding: EdgeInsets.only(right: i < 4 ? 8.0 : 0),
+                          child: ShimmerBox(
+                            width: 80,
+                            height: 42,
+                            borderRadius: BorderRadius.circular(10),
+                            isDark: _isDark,
+                          ),
+                        )),
+                        const SizedBox(width: 10),
+                        ShimmerBox(
+                          width: 42,
+                          height: 42,
+                          borderRadius: BorderRadius.circular(10),
+                          isDark: _isDark,
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Table skeleton
+                TableSkeletonLoader(
+                  isDark: _isDark,
+                  minWidth: 800,
+                  cardBg: cardBg,
+                  cardBorder: cardBorder,
+                  headerBg: headerBg,
+                  headers: const ['HOG RAISER', 'BATCH ASSIGN', 'CAPITAL', 'STOCKS SPEND', 'HOG TYPE', 'HEADS', 'DATE', 'ACTIONS'],
+                  columnFlexes: const [4, 3, 2, 3, 3, 2, 3, 4],
+                  actionButtonCount: 4,
+                  rowCount: 6,
+                  borderRadius: 12,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Individual metric card skeleton matching the real metric card layout.
+  Widget _buildMetricCardSkeleton(bool isMobile, Color cardBg, Color cardBorder) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        border: Border.all(color: cardBorder, width: 1),
+        borderRadius: BorderRadius.circular(isMobile ? 14 : 16),
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 12 : 16,
+        vertical: isMobile ? 12 : 14,
+      ),
+      child: Row(
+        children: [
+          ShimmerBox(
+            width: isMobile ? 36 : 42,
+            height: isMobile ? 36 : 42,
+            borderRadius: BorderRadius.circular(10),
+            isDark: _isDark,
+          ),
+          SizedBox(width: isMobile ? 10 : 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ShimmerBox(
+                  width: isMobile ? 60 : 80,
+                  height: 10,
+                  borderRadius: BorderRadius.circular(3),
+                  isDark: _isDark,
+                ),
+                const SizedBox(height: 8),
+                ShimmerBox(
+                  width: isMobile ? 50 : 70,
+                  height: isMobile ? 15 : 18,
+                  borderRadius: BorderRadius.circular(4),
+                  isDark: _isDark,
                 ),
               ],
             ),
