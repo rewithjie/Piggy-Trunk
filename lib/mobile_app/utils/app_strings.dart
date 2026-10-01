@@ -37,8 +37,23 @@ class AppStrings {
   String get navInventory => isFilipino ? 'IMBENTARYO' : 'INVENTORY';
   String get navPOS => isFilipino ? 'POS' : 'POS';
 
+  // ─── Time-based greeting ────────────────────────────────────────────────
+  // Automatically detects device local time — no hardcoding.
+  // 12:00 AM – 11:59 AM  → Morning  (kasama ang 1AM, 2AM, 3AM = umaga na)
+  // 12:00 PM – 5:59 PM   → Afternoon
+  // 6:00 PM  – 11:59 PM  → Evening
+  String get helloGreeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return isFilipino ? 'Magandang Umaga,' : 'Good Morning,';
+    } else if (hour < 18) {
+      return isFilipino ? 'Magandang Hapon,' : 'Good Afternoon,';
+    } else {
+      return isFilipino ? 'Magandang Gabi,' : 'Good Evening,';
+    }
+  }
+
   // ================= Dashboard / Home Tab =================
-  String get helloGreeting => isFilipino ? 'Kumusta Tagapag-alaga,' : 'Hello Hog Raiser,';
   String get totalCurrentInvestment => isFilipino ? 'KABUUANG KASALUKUYANG PUHUNAN' : 'TOTAL CURRENT INVESTMENT';
   String get initialCapital => isFilipino ? 'Paunang Puhunan' : 'Initial Capital';
   String get stockRequestsSpend => isFilipino ? 'Mga Kahilingan sa Stock' : 'Stock Requests';

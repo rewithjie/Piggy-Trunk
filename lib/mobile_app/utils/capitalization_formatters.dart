@@ -1,9 +1,70 @@
 import 'package:flutter/services.dart';
 
+/// Input formatter for proper name fields (Last Name, First Name).
+/// - Allows: letters (a–z, A–Z, accented/unicode), spaces, hyphens, apostrophes, dots
+/// - Blocks: numbers (0–9), and all other symbols
+/// - Auto-capitalizes the first letter of each word
+/// Supports real-world names like: De La Cruz, O'Brien, Anne-Marie, Jr., Ñoño
+class NameInputFormatter extends TextInputFormatter {
+  const NameInputFormatter();
+
+  // Characters allowed in a proper name
+  static final _allowed = RegExp(
+    r"[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF \-'\.]",
+  );
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    final raw = newValue.text;
+    final buffer = StringBuffer();
+    bool capitalizeNext = true;
+
+    for (int i = 0; i < raw.length; i++) {
+      final char = raw[i];
+
+      // Block any character not in the allowed set
+      if (!_allowed.hasMatch(char)) continue;
+
+      // Prevent leading spaces
+      if (char == ' ' && buffer.isEmpty) continue;
+
+      // Prevent double spaces
+      if (char == ' ' && buffer.isNotEmpty && buffer.toString().endsWith(' ')) continue;
+
+      // Auto-capitalize first letter of each word
+      if (capitalizeNext && RegExp(r'[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF]').hasMatch(char)) {
+        buffer.write(char.toUpperCase());
+        capitalizeNext = false;
+      } else {
+        buffer.write(char);
+        // Capitalize next word after these delimiters
+        if (char == ' ' || char == '-' || char == "'") {
+          capitalizeNext = true;
+        }
+      }
+    }
+
+    final result = buffer.toString();
+
+    // Clamp the selection to the new text length
+    final selectionOffset = newValue.selection.extentOffset.clamp(0, result.length);
+    return TextEditingValue(
+      text: result,
+      selection: TextSelection.collapsed(offset: selectionOffset),
+    );
+  }
+}
+
 /// Formats text in real-time so that each word starts with a capital letter.
 /// Works across Web, Desktop, and Mobile (hardware and software keyboards).
 class CapitalizeWordsInputFormatter extends TextInputFormatter {
   const CapitalizeWordsInputFormatter();
+
 
   @override
   TextEditingValue formatEditUpdate(

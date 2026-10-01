@@ -79,11 +79,20 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
 
     // Auto-redirect if session already exists
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
-        Navigator.of(context).pushReplacementNamed('/dashboard');
-      }
+      _redirectIfAdminSession();
     });
+  }
+
+  Future<void> _redirectIfAdminSession() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) return;
+    final isAdmin = await _authService.isAdminSession();
+    if (!mounted) return;
+    if (isAdmin) {
+      Navigator.of(context).pushReplacementNamed('/dashboard');
+    } else {
+      await Supabase.instance.client.auth.signOut();
+    }
   }
 
   void _onEmailChanged() {

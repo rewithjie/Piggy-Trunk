@@ -98,6 +98,7 @@ class RaiserHeaderBar extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _brandColor;
     final strings = AppStrings.of(context);
+    final displayName = raiserName.trim();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -116,9 +117,9 @@ class RaiserHeaderBar extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                raiserName.trim().isNotEmpty ? raiserName : strings.hogRaiserRole,
+                displayName.isNotEmpty ? displayName : strings.hogRaiserRole,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 28,
+                  fontSize: 26,
                   fontWeight: FontWeight.w800,
                   color: textColor,
                   letterSpacing: -0.5,
@@ -134,3 +135,4 @@ class RaiserHeaderBar extends StatelessWidget {
     );
   }
 }
+

@@ -227,10 +227,10 @@ class _SearchableDropdownFieldState<T> extends State<SearchableDropdownField<T>>
               Icon(
                 selected?.icon ?? widget.defaultPrefixIcon ?? Icons.arrow_drop_down_circle_outlined,
                 size: 18,
-                color: selected?.iconColor ??
-                    (isUnassigned
-                        ? _muted
-                        : (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)),
+                color: isUnassigned
+                    ? _muted
+                    : (selected?.iconColor ??
+                        (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)),
               ),
               const SizedBox(width: 10),
 
@@ -253,24 +253,27 @@ class _SearchableDropdownFieldState<T> extends State<SearchableDropdownField<T>>
                           if (selected.badge != null && selected.badge!.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                               decoration: BoxDecoration(
-                                color: selected.badgeColor?.withValues(alpha: 0.15) ??
-                                    PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.12),
+                                color: widget.isDark
+                                    ? const Color(0xFF1E293B)
+                                    : (selected.badgeColor ?? PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: selected.badgeColor?.withValues(alpha: 0.4) ??
-                                      PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.3),
+                                  color: widget.isDark
+                                      ? const Color(0xFF334155)
+                                      : (selected.badgeColor ?? PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.3),
                                   width: 0.8,
                                 ),
                               ),
                               child: Text(
                                 selected.badge!,
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10.5,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.w700,
-                                  color: selected.badgeColor ??
-                                      (widget.isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary),
+                                  color: widget.isDark
+                                      ? const Color(0xFFE2E8F0)
+                                      : (selected.badgeColor ?? PiggyTrunkTheme.ptPrimary),
                                 ),
                               ),
                             ),
@@ -434,270 +437,328 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
       constraints: BoxConstraints(maxHeight: widget.maxHeight),
       decoration: BoxDecoration(
         color: widget.menuBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: widget.menuBorder, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: widget.isDark ? 0.45 : 0.14),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: widget.isDark ? 0.5 : 0.12),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
             spreadRadius: 2,
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Search Input Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: widget.menuBorder.withValues(alpha: 0.6)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Search Input Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              decoration: BoxDecoration(
+                color: widget.isDark
+                    ? Colors.white.withValues(alpha: 0.02)
+                    : const Color(0xFFF8FAFC),
+                border: Border(
+                  bottom: BorderSide(
+                    color: widget.menuBorder.withValues(alpha: 0.6),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? const Color(0xFF1E324F)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: widget.isDark
+                        ? const Color(0xFF334F73)
+                        : const Color(0xFFCBD5E1),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      size: 17,
+                      color: widget.isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        focusNode: _searchFocusNode,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: widget.fieldText,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: widget.searchHintText,
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                            color: widget.mutedColor.withValues(alpha: 0.8),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          border: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                        ),
+                        onChanged: (text) {
+                          setState(() {
+                            _query = text.trim();
+                            _focusedIndex = 0;
+                          });
+                        },
+                        onSubmitted: (_) {
+                          if (filtered.isNotEmpty) {
+                            final enabledItem = filtered.firstWhere((i) => i.isEnabled, orElse: () => filtered.first);
+                            if (enabledItem.isEnabled) {
+                              widget.onSelect(enabledItem.value);
+                            }
+                          }
+                        },
+                      ),
+                    ),
+                    if (_query.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _searchCtrl.clear();
+                            _query = '';
+                            _focusedIndex = 0;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: widget.mutedColor.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 13,
+                            color: widget.mutedColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-            child: Row(
-              children: [
-                Icon(Icons.search_rounded, size: 18, color: widget.mutedColor),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    focusNode: _searchFocusNode,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: widget.fieldText,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: widget.searchHintText,
-                      hintStyle: GoogleFonts.plusJakartaSans(
-                        color: widget.mutedColor.withValues(alpha: 0.8),
-                        fontSize: 13,
+
+
+
+            // Items List or Empty View
+            Flexible(
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: widget.mutedColor.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.search_off_rounded,
+                              size: 26,
+                              color: widget.mutedColor.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'No matching raisers found for "$_query"',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: widget.fieldText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Try searching with a different name or keyword',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: widget.mutedColor,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
                       ),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (text) {
-                      setState(() {
-                        _query = text.trim();
-                        _focusedIndex = 0;
-                      });
-                    },
-                    onSubmitted: (_) {
-                      if (filtered.isNotEmpty) {
-                        final enabledItem = filtered.firstWhere((i) => i.isEnabled, orElse: () => filtered.first);
-                        if (enabledItem.isEnabled) {
-                          widget.onSelect(enabledItem.value);
-                        }
-                      }
-                    },
-                  ),
-                ),
-                if (_query.isNotEmpty)
-                  IconButton(
-                    icon: Icon(Icons.close_rounded, size: 16, color: widget.mutedColor),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                    splashRadius: 14,
-                    tooltip: 'Clear search',
-                    onPressed: () {
-                      setState(() {
-                        _searchCtrl.clear();
-                        _query = '';
-                        _focusedIndex = 0;
-                      });
-                    },
-                  ),
-              ],
-            ),
-          ),
+                    )
+                  : ListView.separated(
+                      controller: _scrollCtrl,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 2),
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final isSelected = item.value == widget.selectedValue;
+                        final isKeyboardFocused = index == _focusedIndex;
+                        final iconCol = !item.isEnabled
+                            ? widget.mutedColor.withValues(alpha: 0.5)
+                            : (item.iconColor ??
+                                (isSelected
+                                    ? (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                                    : (widget.isDark ? const Color(0xFFCBD5E1) : PiggyTrunkTheme.ptPrimary)));
 
-          // Result count or sorting banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            color: widget.isDark
-                ? Colors.white.withValues(alpha: 0.03)
-                : const Color(0xFFF1F5F9),
-            child: Row(
-              children: [
-                Text(
-                  _query.isEmpty
-                      ? 'Sorted: Newest at top (${filtered.length} available)'
-                      : '${filtered.length} matching result${filtered.length == 1 ? '' : 's'}',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: widget.mutedColor,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'Type to search • Enter to select',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: widget.mutedColor.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Items List or Empty View
-          Flexible(
-            child: filtered.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.search_off_rounded, size: 30, color: widget.mutedColor.withValues(alpha: 0.5)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No matching items found for "$_query"',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: widget.mutedColor,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Try checking the spelling or clear search',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: widget.mutedColor.withValues(alpha: 0.7),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.separated(
-                    controller: _scrollCtrl,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    shrinkWrap: true,
-                    itemCount: filtered.length,
-                    separatorBuilder: (context, index) => Divider(
-                      color: widget.menuBorder.withValues(alpha: 0.35),
-                      height: 1,
-                      indent: 12,
-                      endIndent: 12,
-                    ),
-                    itemBuilder: (context, index) {
-                      final item = filtered[index];
-                      final isSelected = item.value == widget.selectedValue;
-                      final isKeyboardFocused = index == _focusedIndex;
-
-                      return InkWell(
-                        onTap: item.isEnabled
-                            ? () => widget.onSelect(item.value)
-                            : null,
-                        hoverColor: widget.accentColor.withValues(alpha: 0.08),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          color: isSelected
-                              ? widget.accentColor.withValues(alpha: 0.12)
-                              : (isKeyboardFocused
-                                  ? widget.accentColor.withValues(alpha: 0.05)
-                                  : Colors.transparent),
-                          child: Row(
-                            children: [
-                              // Left Icon
-                              Icon(
-                                item.icon ?? Icons.person_outline_rounded,
-                                size: 16,
-                                color: !item.isEnabled
-                                    ? widget.mutedColor.withValues(alpha: 0.5)
-                                    : (item.iconColor ??
-                                        (isSelected
-                                            ? (widget.isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
-                                            : widget.mutedColor)),
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: item.isEnabled ? () => widget.onSelect(item.value) : null,
+                            borderRadius: BorderRadius.circular(10),
+                            hoverColor: widget.accentColor.withValues(alpha: 0.08),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? (widget.isDark
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFE8F1FC))
+                                    : (isKeyboardFocused
+                                        ? widget.accentColor.withValues(alpha: 0.08)
+                                        : Colors.transparent),
+                                borderRadius: BorderRadius.circular(10),
+                                border: isSelected
+                                    ? Border.all(
+                                        color: widget.isDark
+                                            ? const Color(0xFF475569)
+                                            : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.4),
+                                        width: 1,
+                                      )
+                                    : null,
                               ),
-                              const SizedBox(width: 10),
-
-                              // Main Label and Subtitle/Notice
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      item.label,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        color: !item.isEnabled
-                                            ? widget.mutedColor.withValues(alpha: 0.55)
-                                            : (isSelected ? widget.accentColor : widget.fieldText),
-                                        fontSize: 13,
-                                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                      ),
+                              child: Row(
+                                children: [
+                                  // Left Icon Badge / Avatar
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: iconCol.withValues(alpha: widget.isDark ? 0.16 : 0.1),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    if (item.subtitle != null && item.subtitle!.isNotEmpty) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        item.subtitle!,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          color: !item.isEnabled
-                                              ? widget.mutedColor.withValues(alpha: 0.5)
-                                              : widget.mutedColor,
-                                          fontSize: 11.5,
-                                          fontStyle: item.isEnabled ? FontStyle.normal : FontStyle.italic,
+                                    child: Icon(
+                                      item.icon ?? Icons.person_outline_rounded,
+                                      size: 16,
+                                      color: iconCol,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+
+                                  // Main Label and Subtitle/Notice
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          item.label,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            color: !item.isEnabled
+                                                ? widget.mutedColor.withValues(alpha: 0.55)
+                                                : (isSelected
+                                                    ? (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                                                    : widget.fieldText),
+                                            fontSize: 13,
+                                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                          ),
+                                        ),
+                                        if (item.subtitle != null && item.subtitle!.isNotEmpty) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            item.subtitle!,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              color: !item.isEnabled
+                                                  ? widget.mutedColor.withValues(alpha: 0.5)
+                                                  : widget.mutedColor,
+                                              fontSize: 11.5,
+                                              fontStyle: item.isEnabled ? FontStyle.normal : FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Badge (e.g. Batch name or status)
+                                  if (item.badge != null && item.badge!.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: item.badgeColor?.withValues(alpha: widget.isDark ? 0.18 : 0.12) ??
+                                            (widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: item.badgeColor?.withValues(alpha: 0.3) ??
+                                              (widget.isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                          width: 0.8,
                                         ),
                                       ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-
-                              // Badge (e.g. Batch name or status)
-                              if (item.badge != null && item.badge!.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: item.badgeColor?.withValues(alpha: 0.12) ??
-                                        (widget.isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                  child: Text(
-                                    item.badge!,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: item.badgeColor ?? widget.mutedColor,
+                                      child: Text(
+                                        item.badge!,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: item.badgeColor ??
+                                              (widget.isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ],
+                                  ],
 
-                              // Right Checkmark indicator if selected
-                              if (isSelected) ...[
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.check_rounded,
-                                  size: 16,
-                                  color: widget.isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
-                                ),
-                              ] else if (!item.isEnabled) ...[
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.lock_outline_rounded,
-                                  size: 14,
-                                  color: widget.mutedColor.withValues(alpha: 0.5),
-                                ),
-                              ],
-                            ],
+                                  // Right Indicator (Checkmark if selected, lock if disabled)
+                                  if (isSelected) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        color: widget.isDark
+                                            ? Colors.white.withValues(alpha: 0.15)
+                                            : PiggyTrunkTheme.ptPrimary.withValues(alpha: 0.18),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.check_rounded,
+                                        size: 13,
+                                        color: widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                      ),
+                                    ),
+                                  ] else if (!item.isEnabled) ...[
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 14,
+                                      color: widget.mutedColor.withValues(alpha: 0.5),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

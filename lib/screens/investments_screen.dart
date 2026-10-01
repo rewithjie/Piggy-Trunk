@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/investment_model.dart';
@@ -566,23 +567,46 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           // ── Metric Cards Skeleton ──
           LayoutBuilder(
             builder: (context, constraints) {
+              final cards = [
+                (
+                  'Total Capital',
+                  Icons.monetization_on_rounded,
+                  _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                ),
+                (
+                  'Stocks Spend',
+                  Icons.inventory_2_rounded,
+                  const Color(0xFF38BDF8),
+                ),
+                (
+                  'Total Heads',
+                  Icons.pets_rounded,
+                  const Color(0xFFFFAA00),
+                ),
+                (
+                  'Active Allocations',
+                  Icons.check_circle_rounded,
+                  PiggyTrunkTheme.ptSuccess,
+                ),
+              ];
+
               final use2x2 = isMobile || constraints.maxWidth < 780;
               if (use2x2) {
                 return Column(
                   children: [
                     Row(
                       children: [
-                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        Expanded(child: _buildMetricCardSkeleton(cards[0].$1, cards[0].$2, cards[0].$3, isMobile, cardBg, cardBorder)),
                         const SizedBox(width: 10),
-                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        Expanded(child: _buildMetricCardSkeleton(cards[1].$1, cards[1].$2, cards[1].$3, isMobile, cardBg, cardBorder)),
                       ],
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        Expanded(child: _buildMetricCardSkeleton(cards[2].$1, cards[2].$2, cards[2].$3, isMobile, cardBg, cardBorder)),
                         const SizedBox(width: 10),
-                        Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                        Expanded(child: _buildMetricCardSkeleton(cards[3].$1, cards[3].$2, cards[3].$3, isMobile, cardBg, cardBorder)),
                       ],
                     ),
                   ],
@@ -590,13 +614,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               }
               return Row(
                 children: [
-                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  Expanded(child: _buildMetricCardSkeleton(cards[0].$1, cards[0].$2, cards[0].$3, isMobile, cardBg, cardBorder)),
                   const SizedBox(width: 14),
-                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  Expanded(child: _buildMetricCardSkeleton(cards[1].$1, cards[1].$2, cards[1].$3, isMobile, cardBg, cardBorder)),
                   const SizedBox(width: 14),
-                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  Expanded(child: _buildMetricCardSkeleton(cards[2].$1, cards[2].$2, cards[2].$3, isMobile, cardBg, cardBorder)),
                   const SizedBox(width: 14),
-                  Expanded(child: _buildMetricCardSkeleton(isMobile, cardBg, cardBorder)),
+                  Expanded(child: _buildMetricCardSkeleton(cards[3].$1, cards[3].$2, cards[3].$3, isMobile, cardBg, cardBorder)),
                 ],
               );
             },
@@ -798,8 +822,18 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
     );
   }
 
-  /// Individual metric card skeleton matching the real metric card layout.
-  Widget _buildMetricCardSkeleton(bool isMobile, Color cardBg, Color cardBorder) {
+  /// Individual metric card skeleton matching the real metric card layout,
+  /// displaying static icon & label and only shimmering the value number.
+  Widget _buildMetricCardSkeleton(
+    String label,
+    IconData icon,
+    Color iconColor,
+    bool isMobile,
+    Color cardBg,
+    Color cardBorder,
+  ) {
+    final hintText = _isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
+
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
@@ -812,11 +846,13 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
       ),
       child: Row(
         children: [
-          ShimmerBox(
-            width: isMobile ? 36 : 42,
-            height: isMobile ? 36 : 42,
-            borderRadius: BorderRadius.circular(10),
-            isDark: _isDark,
+          Container(
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: _isDark ? 0.2 : 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: isMobile ? 18 : 22),
           ),
           SizedBox(width: isMobile ? 10 : 14),
           Expanded(
@@ -824,13 +860,16 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                ShimmerBox(
-                  width: isMobile ? 60 : 80,
-                  height: 10,
-                  borderRadius: BorderRadius.circular(3),
-                  isDark: _isDark,
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: isMobile ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                    color: hintText,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 ShimmerBox(
                   width: isMobile ? 50 : 70,
                   height: isMobile ? 15 : 18,

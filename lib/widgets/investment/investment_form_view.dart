@@ -6,6 +6,7 @@ import '../../models/investment_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/responsive.dart';
 import '../common/searchable_dropdown_field.dart';
+import '../common/shimmer_loading.dart';
 
 class InvestmentFormView extends StatefulWidget {
   final VoidCallback onCancel;
@@ -623,14 +624,224 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
     );
   }
 
+  /// Skeleton for a single labeled form field (dropdown or text input).
+  Widget _buildFormFieldSkeleton({
+    required String label,
+    required bool isMobile,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: _mutedColor,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ShimmerBox(
+          width: double.infinity,
+          height: 48,
+          borderRadius: BorderRadius.circular(10),
+          isDark: _isDark,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
     if (_isLoadingData) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+      return SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: EdgeInsets.all(isMobile ? 12 : 20),
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 1350),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_panelStart, _panelEnd],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              border: Border.all(color: _panelBorder, width: 1),
+              borderRadius: BorderRadius.circular(isMobile ? 16 : 34),
+            ),
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 14 : 34,
+              vertical: isMobile ? 16 : 32,
+            ),
+            child: ShimmerProvider(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header skeleton (Title + Close button)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ShimmerBox(
+                              width: isMobile ? 200 : 280,
+                              height: isMobile ? 22 : 28,
+                              borderRadius: BorderRadius.circular(6),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(height: 8),
+                            ShimmerBox(
+                              width: isMobile ? 260 : 420,
+                              height: 12,
+                              borderRadius: BorderRadius.circular(4),
+                              isDark: _isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                      ShimmerBox(
+                        width: isMobile ? 32 : 36,
+                        height: isMobile ? 32 : 36,
+                        borderRadius: BorderRadius.circular(8),
+                        isDark: _isDark,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Form Card skeleton
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _cardBg,
+                      borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
+                      border: Border.all(color: _cardBorder),
+                    ),
+                    padding: EdgeInsets.all(isMobile ? 16 : 28),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // SELECT BATCH TO FUND label + dropdown skeleton
+                        _buildFormFieldSkeleton(
+                          label: 'SELECT BATCH TO FUND *',
+                          isMobile: isMobile,
+                        ),
+                        const SizedBox(height: 22),
+
+                        // ASSIGN HOG RAISER label + dropdown skeleton
+                        _buildFormFieldSkeleton(
+                          label: 'ASSIGN HOG RAISER *',
+                          isMobile: isMobile,
+                        ),
+                        const SizedBox(height: 22),
+
+                        // INITIAL CAPITAL label + input skeleton
+                        _buildFormFieldSkeleton(
+                          label: 'INITIAL CAPITAL (PHP) *',
+                          isMobile: isMobile,
+                        ),
+                        const SizedBox(height: 22),
+
+                        // TOTAL HEADS label + input skeleton
+                        _buildFormFieldSkeleton(
+                          label: 'TOTAL HEADS *',
+                          isMobile: isMobile,
+                        ),
+                        const SizedBox(height: 22),
+
+                        // HOG TYPE label + checkbox skeletons
+                        Text(
+                          'HOG TYPE *',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: _mutedColor,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            ShimmerBox(
+                              width: 19,
+                              height: 19,
+                              borderRadius: BorderRadius.circular(5),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(width: 10),
+                            ShimmerBox(
+                              width: 70,
+                              height: 13,
+                              borderRadius: BorderRadius.circular(4),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(width: 24),
+                            ShimmerBox(
+                              width: 19,
+                              height: 19,
+                              borderRadius: BorderRadius.circular(5),
+                              isDark: _isDark,
+                            ),
+                            const SizedBox(width: 10),
+                            ShimmerBox(
+                              width: 100,
+                              height: 13,
+                              borderRadius: BorderRadius.circular(4),
+                              isDark: _isDark,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Action buttons skeleton
+                  if (isMobile)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ShimmerBox(
+                          height: 48,
+                          borderRadius: BorderRadius.circular(10),
+                          isDark: _isDark,
+                        ),
+                        const SizedBox(height: 10),
+                        ShimmerBox(
+                          height: 48,
+                          borderRadius: BorderRadius.circular(10),
+                          isDark: _isDark,
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ShimmerBox(
+                          width: 100,
+                          height: 48,
+                          borderRadius: BorderRadius.circular(10),
+                          isDark: _isDark,
+                        ),
+                        const SizedBox(width: 12),
+                        ShimmerBox(
+                          width: 170,
+                          height: 48,
+                          borderRadius: BorderRadius.circular(10),
+                          isDark: _isDark,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -707,6 +918,94 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // SELECT BATCH TO FUND DROPDOWN (Searchable & Sorted Newest First)
+                    Text(
+                      'SELECT BATCH TO FUND *',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: _mutedColor,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SearchableDropdownField<String>(
+                      key: ValueKey('batch_dropdown_${_selectedBatchId}_${_activeBatches.length}'),
+                      value: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
+                          ? _selectedBatchId
+                          : (_activeBatches.isNotEmpty ? _activeBatches.first['batch_id'].toString() : 'unassigned'),
+                      unassignedValue: 'unassigned',
+                      hintText: 'Select or search a batch to fund',
+                      searchHintText: 'Type to search batch name or raiser...',
+                      isDark: _isDark,
+                      fieldBg: _fieldBg,
+                      fieldBorder: _fieldBorder,
+                      fieldFocus: _fieldFocus,
+                      fieldText: _fieldText,
+                      mutedColor: _mutedColor,
+                      cardBg: _cardBg,
+                      cardBorder: _cardBorder,
+                      defaultPrefixIcon: Icons.layers_outlined,
+                      items: _activeBatches.map((b) {
+                        final isUnassigned = b['batch_id'] == 'unassigned';
+                        final rName = (b['raiser_name'] ?? '').toString();
+                        final hasRaiser = rName.isNotEmpty && rName != 'Unassigned';
+                        final count = b['hog_count'] ?? 0;
+                        return SearchableDropdownItem<String>(
+                          value: b['batch_id'].toString(),
+                          label: b['display_label'].toString(),
+                          subtitle: isUnassigned
+                              ? null
+                              : (hasRaiser ? 'Raiser: $rName • $count hogs' : (count > 0 ? '$count hogs' : null)),
+                          badge: hasRaiser ? rName : null,
+                          badgeColor: hasRaiser
+                              ? (_isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
+                              : null,
+                          icon: isUnassigned ? Icons.layers_clear_outlined : Icons.layers_outlined,
+                          iconColor: isUnassigned ? _mutedColor : null,
+                          searchKeywords: '${b['batch_name']} $rName',
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val == null) return;
+                        setState(() {
+                          _selectedBatchId = val;
+                          if (val != 'unassigned') {
+                            final matched = _activeBatches.firstWhere(
+                              (b) => b['batch_id'].toString() == val,
+                              orElse: () => {},
+                            );
+                            final rId = (matched['raiser_id'] ?? '').toString();
+                            if (rId.isNotEmpty) {
+                              if (_activeRaisers.any((r) => r['id'].toString() == rId)) {
+                                _selectedRaiserId = rId;
+                              }
+                            } else {
+                              // If current selected raiser is locked for this new batch, reset raiser to unassigned
+                              final currentRaiser = _activeRaisers.firstWhere(
+                                (r) => r['id'].toString() == _selectedRaiserId,
+                                orElse: () => {},
+                              );
+                              final rBatch = currentRaiser['assigned_batch_id']?.toString();
+                              if (rBatch != null && rBatch.isNotEmpty && rBatch != val) {
+                                _selectedRaiserId = 'unassigned';
+                              }
+                            }
+                            final count = matched['hog_count'];
+                            if (count != null && count > 0 && _totalHogCtrl.text.isEmpty) {
+                              _totalHogCtrl.text = count.toString();
+                            }
+                            final pt = (matched['pig_type'] ?? 'Fattening').toString().trim();
+                            if (pt.isNotEmpty && pt != 'N/A') {
+                              final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
+                              if (parsed.isNotEmpty) _selectedHogTypes = parsed;
+                            }
+                          }
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 22),
+
                     // ASSIGN HOG RAISER DROPDOWN (Searchable & Sorted Newest First)
                     Text(
                       'ASSIGN HOG RAISER *',
@@ -771,19 +1070,23 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                             subText = assignedBatchName;
                           }
 
+                          final defaultBadgeCol = _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary;
+                          Color? bColor;
+                          if (isAssignedToOther) {
+                            bColor = _isDark ? const Color(0xFFFBBF24) : Colors.amber.shade800;
+                          } else if (hasBatch) {
+                            bColor = defaultBadgeCol;
+                          }
+
                           return SearchableDropdownItem<String>(
                             value: r['id'].toString(),
                             label: r['name'].toString(),
                             subtitle: subText.isNotEmpty ? subText : null,
                             badge: hasBatch ? assignedBatchName : null,
-                            badgeColor: isAssignedToOther
-                                ? Colors.amber.shade700
-                                : (isAssignedToCurrent ? PiggyTrunkTheme.ptPrimary : null),
+                            badgeColor: bColor,
                             isEnabled: !isAssignedToOther,
                             icon: isAssignedToOther ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
-                            iconColor: isAssignedToOther
-                                ? _mutedColor
-                                : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
+                            iconColor: isAssignedToOther ? _mutedColor : null,
                             searchKeywords: '${r['name']} $assignedBatchName ${r['pig_type'] ?? ''}',
                           );
                         }),
@@ -804,93 +1107,6 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                               _selectedBatchId = assignedBId;
                             }
                             final pt = (matched['pig_type'] ?? '').toString().trim();
-                            if (pt.isNotEmpty && pt != 'N/A') {
-                              final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
-                              if (parsed.isNotEmpty) _selectedHogTypes = parsed;
-                            }
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 22),
-
-                    // SELECT BATCH TO FUND DROPDOWN (Searchable & Sorted Newest First)
-                    Text(
-                      'SELECT BATCH TO FUND *',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: _mutedColor,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SearchableDropdownField<String>(
-                      key: ValueKey('batch_dropdown_${_selectedBatchId}_${_activeBatches.length}'),
-                      value: _activeBatches.any((b) => b['batch_id'].toString() == _selectedBatchId)
-                          ? _selectedBatchId
-                          : (_activeBatches.isNotEmpty ? _activeBatches.first['batch_id'].toString() : 'unassigned'),
-                      unassignedValue: 'unassigned',
-                      hintText: 'Select or search a batch to fund',
-                      searchHintText: 'Type to search batch name or raiser...',
-                      isDark: _isDark,
-                      fieldBg: _fieldBg,
-                      fieldBorder: _fieldBorder,
-                      fieldFocus: _fieldFocus,
-                      fieldText: _fieldText,
-                      mutedColor: _mutedColor,
-                      cardBg: _cardBg,
-                      cardBorder: _cardBorder,
-                      defaultPrefixIcon: Icons.layers_outlined,
-                      items: _activeBatches.map((b) {
-                        final isUnassigned = b['batch_id'] == 'unassigned';
-                        final rName = (b['raiser_name'] ?? '').toString();
-                        final hasRaiser = rName.isNotEmpty && rName != 'Unassigned';
-                        final count = b['hog_count'] ?? 0;
-                        return SearchableDropdownItem<String>(
-                          value: b['batch_id'].toString(),
-                          label: b['display_label'].toString(),
-                          subtitle: isUnassigned
-                              ? null
-                              : (hasRaiser ? 'Raiser: $rName • $count hogs' : (count > 0 ? '$count hogs' : null)),
-                          badge: hasRaiser ? rName : null,
-                          icon: isUnassigned ? Icons.layers_clear_outlined : Icons.layers_outlined,
-                          iconColor: isUnassigned
-                              ? _mutedColor
-                              : (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary),
-                          searchKeywords: '${b['batch_name']} $rName',
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val == null) return;
-                        setState(() {
-                          _selectedBatchId = val;
-                          if (val != 'unassigned') {
-                            final matched = _activeBatches.firstWhere(
-                              (b) => b['batch_id'].toString() == val,
-                              orElse: () => {},
-                            );
-                            final rId = (matched['raiser_id'] ?? '').toString();
-                            if (rId.isNotEmpty) {
-                              if (_activeRaisers.any((r) => r['id'].toString() == rId)) {
-                                _selectedRaiserId = rId;
-                              }
-                            } else {
-                              // If current selected raiser is locked for this new batch, reset raiser to unassigned
-                              final currentRaiser = _activeRaisers.firstWhere(
-                                (r) => r['id'].toString() == _selectedRaiserId,
-                                orElse: () => {},
-                              );
-                              final rBatch = currentRaiser['assigned_batch_id']?.toString();
-                              if (rBatch != null && rBatch.isNotEmpty && rBatch != val) {
-                                _selectedRaiserId = 'unassigned';
-                              }
-                            }
-                            final count = matched['hog_count'];
-                            if (count != null && count > 0 && _totalHogCtrl.text.isEmpty) {
-                              _totalHogCtrl.text = count.toString();
-                            }
-                            final pt = (matched['pig_type'] ?? 'Fattening').toString().trim();
                             if (pt.isNotEmpty && pt != 'N/A') {
                               final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
                               if (parsed.isNotEmpty) _selectedHogTypes = parsed;

@@ -7,6 +7,12 @@ class AuthService {
   static const String _tokenKey = 'auth_token';
   static const String _userKey = 'user_data';
 
+  /// Centralized role check for the admin portal.
+  static bool isAdminRole(Object? role) {
+    final normalized = role?.toString().trim().toLowerCase() ?? '';
+    return normalized == 'admin' || normalized == 'administrator' || normalized == 'system administrator' || normalized.contains('admin');
+  }
+
   /// Login with email or username and password using Supabase auth.
   Future<Map<String, dynamic>> login({
     required String email,
@@ -20,13 +26,20 @@ class AuthService {
     bool userExistsInDb = false;
     String? matchedEmail;
     try {
-      final query = Supabase.instance.client.from('app_users').select('email, name, role');
+      final query = Supabase.instance.client.from('app_users').select('email, name, role, status');
       final record = await (resolvedEmail.contains('@')
           ? query.ilike('email', resolvedEmail).maybeSingle()
           : query.ilike('name', resolvedEmail).maybeSingle());
 
       if (record != null) {
         userExistsInDb = true;
+        if (!isAdminRole(record['role'])) {
+          return {
+            'success': false,
+            'errorField': 'email',
+            'message': 'This account does not have Administrator access to the Admin Portal.',
+          };
+        }
         if (record['email'] != null) {
           matchedEmail = record['email'].toString().trim().toLowerCase();
         }
@@ -249,6 +262,24 @@ class AuthService {
       return null;
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Verifies that the current session belongs to an administrator.
+  Future<bool> isAdminSession() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return false;
+    try {
+      Map<String, dynamic>? record;
+      final byId = await Supabase.instance.client.from('app_users').select('role').eq('user_id', user.id).maybeSingle();
+      record = byId == null ? null : Map<String, dynamic>.from(byId);
+      if (record == null && user.email != null) {
+        final byEmail = await Supabase.instance.client.from('app_users').select('role').ilike('email', user.email!.trim()).maybeSingle();
+        record = byEmail == null ? null : Map<String, dynamic>.from(byEmail);
+      }
+      return record != null && isAdminRole(record['role']);
+    } catch (_) {
+      return false;
     }
   }
 

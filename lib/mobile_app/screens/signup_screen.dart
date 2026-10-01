@@ -26,10 +26,14 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _middleInitialController =
+      TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
 
   String _selectedRole = 'hog_raiser'; // 'hog_raiser', 'partner', or 'cashier'
   bool _roleInitialized = false;
@@ -64,11 +68,124 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   void dispose() {
-    _fullNameController.dispose();
+    _lastNameController.dispose();
+    _firstNameController.dispose();
+    _middleInitialController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  String _normalizedFullName() {
+    final lastName = _lastNameController.text.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    final firstName = _firstNameController.text.trim().replaceAll(
+      RegExp(r'\s+'),
+      ' ',
+    );
+    final middleInitial = _middleInitialController.text
+        .trim()
+        .replaceAll('.', '')
+        .toUpperCase();
+    return [
+      if (lastName.isNotEmpty) '$lastName,',
+      firstName,
+      if (middleInitial.isNotEmpty) '${middleInitial[0]}.',
+    ].join(' ').trim();
+  }
+
+  Widget _buildNameField(
+    String label,
+    String hint,
+    TextEditingController controller,
+    bool isInitial, {
+    bool hasError = false,
+    double labelFontSize = 12.5,
+    double inputFontSize = 13.5,
+    double inputPaddingV = 7.0,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: labelFontSize,
+            fontWeight: FontWeight.w700,
+            color: hasError ? const Color(0xFFE53935) : const Color(0xFF18314F),
+          ),
+        ),
+        const SizedBox(height: 2),
+        TextField(
+          controller: controller,
+          cursorColor: const Color(0xFF18314F),
+          textCapitalization: TextCapitalization.words,
+          keyboardType: TextInputType.name,
+          maxLength: isInitial ? 1 : null,
+          inputFormatters: [
+            if (isInitial) FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+            if (!isInitial) const NameInputFormatter(),
+          ],
+          onChanged: (_) {
+            if (_fullNameError != null) setState(() => _fullNameError = null);
+          },
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: inputFontSize,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF18314F),
+          ),
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: hint,
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: inputPaddingV,
+            ),
+            hintStyle: GoogleFonts.plusJakartaSans(
+              color: const Color(0xFF64748B),
+              fontSize: inputFontSize,
+              fontWeight: FontWeight.w500,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: BorderSide(
+                color: hasError ? const Color(0xFFE53935) : const Color(0xFFCBD5E1),
+                width: hasError ? 1.4 : 1.2,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: BorderSide(
+                color: hasError ? const Color(0xFFE53935) : const Color(0xFFCBD5E1),
+                width: hasError ? 1.4 : 1.2,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: BorderSide(
+                color: hasError ? const Color(0xFFE53935) : const Color(0xFF18314F),
+                width: 1.6,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 1.4),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10.0),
+              borderSide: const BorderSide(color: Color(0xFFE53935), width: 1.6),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   void _clearErrors() {
@@ -97,9 +214,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            satisfied ? Icons.check_rounded : Icons.radio_button_unchecked_rounded,
+            satisfied
+                ? Icons.check_rounded
+                : Icons.radio_button_unchecked_rounded,
             size: 14,
-            color: satisfied ? const Color(0xFF18314F) : const Color(0xFF94A3B8),
+            color: satisfied
+                ? const Color(0xFF18314F)
+                : const Color(0xFF94A3B8),
           ),
           const SizedBox(width: 6),
           Text(
@@ -107,7 +228,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: 11.5,
               fontWeight: satisfied ? FontWeight.w600 : FontWeight.w500,
-              color: satisfied ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+              color: satisfied
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFF64748B),
             ),
           ),
         ],
@@ -149,7 +272,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _handlePasswordSignUp() async {
     _clearErrors();
 
-    final String fullName = _fullNameController.text.trim();
+    final String fullName = _normalizedFullName();
     final String email = _emailController.text.trim();
     final String password = _passwordController.text;
     final String confirmPassword = _confirmPasswordController.text;
@@ -159,13 +282,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
     String? passErr;
     String? confirmPassErr;
 
-    // 1. Full Name Validation
+    // 1. Normalized name validation: Last Name, First Name, MI
     final nameTrimmed = fullName.trim();
     final nameValidCharsRegex = RegExp(r"^[a-zA-Z\u00C0-\u024F\s\.\-']+$");
-    if (nameTrimmed.isEmpty) {
-      nameErr = 'Please enter your full name.';
+    if (_lastNameController.text.trim().isEmpty ||
+        _firstNameController.text.trim().isEmpty) {
+      nameErr = 'Please enter your last name and first name.';
     } else if (RegExp(r'\d').hasMatch(nameTrimmed)) {
-      nameErr = 'Full name should only contain letters and spaces (no numbers).';
+      nameErr =
+          'Full name should only contain letters and spaces (no numbers).';
     } else if (!nameValidCharsRegex.hasMatch(nameTrimmed)) {
       nameErr = 'Full name contains invalid characters.';
     } else if (nameTrimmed.length < 2) {
@@ -173,7 +298,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     // 2. Email Address Validation
-    final emailRegExp = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    final emailRegExp = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
     if (email.isEmpty) {
       emailErr = 'Please enter your email address.';
     } else if (!emailRegExp.hasMatch(email)) {
@@ -191,10 +318,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
       passErr = 'Password cannot contain emojis or unsupported characters.';
     } else if (!RegExp(r'[a-zA-Z]').hasMatch(password)) {
       passErr = 'Password must contain at least one letter (a-z).';
-    } else if (!RegExp(r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]').hasMatch(password)) {
-      passErr = 'Password must contain at least one number or special character (0-9, !@#...).';
-    } else if (['123456', '12345678', 'password', 'qwerty', '111111', '000000'].contains(password.toLowerCase())) {
-      passErr = 'Password is too common and weak. Please choose a stronger password.';
+    } else if (!RegExp(
+      r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]',
+    ).hasMatch(password)) {
+      passErr =
+          'Password must contain at least one number or special character (0-9, !@#...).';
+    } else if ([
+      '123456',
+      '12345678',
+      'password',
+      'qwerty',
+      '111111',
+      '000000',
+    ].contains(password.toLowerCase())) {
+      passErr =
+          'Password is too common and weak. Please choose a stronger password.';
     }
 
     // 4. Confirm Password Validation
@@ -204,7 +342,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       confirmPassErr = 'Passwords do not match.';
     }
 
-    if (nameErr != null || emailErr != null || passErr != null || confirmPassErr != null) {
+    if (nameErr != null ||
+        emailErr != null ||
+        passErr != null ||
+        confirmPassErr != null) {
       setState(() {
         _fullNameError = nameErr;
         _emailError = emailErr;
@@ -226,6 +367,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         data: {
           'full_name': fullName,
           'name': fullName,
+          'last_name': _lastNameController.text.trim(),
+          'first_name': _firstNameController.text.trim(),
+          'middle_initial': _middleInitialController.text
+              .trim()
+              .replaceAll('.', '')
+              .toUpperCase(),
           'role': _selectedRole,
         },
       );
@@ -237,13 +384,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       // 2. Defensive Client-side Upsert to app_users (if session/trigger allows)
       try {
-        final insertedUser = await Supabase.instance.client.from('app_users').upsert({
-          'supabase_user_id': user.id,
-          'email': email,
-          'name': fullName,
-          'role': _selectedRole,
-          'status': 'Pending',
-        }, onConflict: 'email').select('user_id').maybeSingle();
+        final insertedUser = await Supabase.instance.client
+            .from('app_users')
+            .upsert({
+              'supabase_user_id': user.id,
+              'email': email,
+              'name': fullName,
+              'role': _selectedRole,
+              'status': 'Pending',
+            }, onConflict: 'email')
+            .select('user_id')
+            .maybeSingle();
 
         final userId = insertedUser?['user_id'];
 
@@ -261,7 +412,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               'pig_type': 'N/A',
               'lifecycle_stage': 'N/A',
             }, onConflict: 'user_id');
-          } else if (_selectedRole == 'partner' || _selectedRole == 'investor') {
+          } else if (_selectedRole == 'partner' ||
+              _selectedRole == 'investor') {
             await Supabase.instance.client.from('partner_investors').upsert({
               'user_id': userId,
             }, onConflict: 'user_id');
@@ -275,12 +427,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
         // 4. Send Notification to Admin Web
         try {
-          final String roleDisplay = _selectedRole == 'hog_raiser' || _selectedRole == 'raiser'
+          final String roleDisplay =
+              _selectedRole == 'hog_raiser' || _selectedRole == 'raiser'
               ? 'Hog Raiser'
-              : (_selectedRole == 'partner' || _selectedRole == 'investor' ? 'Partner Investor' : 'Cashier');
+              : (_selectedRole == 'partner' || _selectedRole == 'investor'
+                    ? 'Partner Investor'
+                    : 'Cashier');
           await Supabase.instance.client.from('admin_notifications').insert({
             'title': 'New User Registration',
-            'message': '$fullName ($email) registered as $roleDisplay and is pending approval.',
+            'message':
+                '$fullName ($email) registered as $roleDisplay and is pending approval.',
             'type': 'user_registration',
             'is_read': false,
             'metadata': {
@@ -322,34 +478,45 @@ class _SignUpScreenState extends State<SignUpScreen> {
             lower.contains('already exists') ||
             lower.contains('user_already_exists') ||
             lower.contains('email address is already registered')) {
-          _emailError = 'An account with this email already exists. Please sign in or use another email.';
+          _emailError =
+              'An account with this email already exists. Please sign in or use another email.';
         } else if (lower.contains('password') ||
             lower.contains('weak') ||
             lower.contains('pwned') ||
             lower.contains('characters') ||
             lower.contains('compromised') ||
             lower.contains('security')) {
-          _passwordError = 'Password is too weak or common. Please use a stronger combination of letters and numbers.';
-        } else if (lower.contains('email') && (lower.contains('invalid') || lower.contains('format'))) {
+          _passwordError =
+              'Password is too weak or common. Please use a stronger combination of letters and numbers.';
+        } else if (lower.contains('email') &&
+            (lower.contains('invalid') || lower.contains('format'))) {
           _emailError = 'Please enter a valid email address.';
         } else if (lower.contains('rate limit') ||
             lower.contains('too many requests') ||
             lower.contains('over_email_send_rate_limit')) {
-          _errorMessage = 'Too many registration attempts. Please wait a moment before trying again.';
+          _errorMessage =
+              'Too many registration attempts. Please wait a moment before trying again.';
         } else {
-          _errorMessage = msg.isNotEmpty ? msg : 'Registration failed. Please check your details and try again.';
+          _errorMessage = msg.isNotEmpty
+              ? msg
+              : 'Registration failed. Please check your details and try again.';
         }
       });
     } catch (e) {
       final str = e.toString();
       final lower = str.toLowerCase();
       setState(() {
-        if (lower.contains('email') && (lower.contains('exist') || lower.contains('duplicate'))) {
+        if (lower.contains('email') &&
+            (lower.contains('exist') || lower.contains('duplicate'))) {
           _emailError = 'An account with this email already exists.';
-        } else if (lower.contains('network') || lower.contains('socketexception') || lower.contains('connection')) {
-          _errorMessage = 'Network connection error. Please check your internet connection.';
+        } else if (lower.contains('network') ||
+            lower.contains('socketexception') ||
+            lower.contains('connection')) {
+          _errorMessage =
+              'Network connection error. Please check your internet connection.';
         } else {
-          _errorMessage = 'Registration notice: ${str.replaceAll('Exception:', '').trim()}';
+          _errorMessage =
+              'Registration notice: ${str.replaceAll('Exception:', '').trim()}';
         }
       });
     } finally {
@@ -397,12 +564,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 28),
+            Icon(
+              Icons.check_circle_rounded,
+              color: Color(0xFF10B981),
+              size: 28,
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -590,10 +759,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           if (Navigator.canPop(context)) {
                             Navigator.pop(context);
                           } else {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              '/login',
-                            );
+                            Navigator.pushReplacementNamed(context, '/login');
                           }
                         },
                         borderRadius: BorderRadius.circular(20),
@@ -716,7 +882,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         if (_errorMessage != null) ...[
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFEBEE),
                               borderRadius: BorderRadius.circular(10),
@@ -765,7 +934,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF18314F).withValues(alpha: 0.06),
+                                color: const Color(
+                                  0xFF18314F,
+                                ).withValues(alpha: 0.06),
                                 blurRadius: 18,
                                 spreadRadius: 0,
                                 offset: const Offset(0, 6),
@@ -777,46 +948,26 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             children: [
                               // Select Your Role Section Header
                               Padding(
-                                padding: const EdgeInsets.only(bottom: 7, left: 2, right: 2),
+                                padding: const EdgeInsets.only(
+                                  bottom: 7,
+                                  left: 2,
+                                  right: 2,
+                                ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.assignment_ind_outlined,
-                                          size: 15,
-                                          color: Color(0xFF18314F),
-                                        ),
-                                        const SizedBox(width: 5),
-                                        Text(
-                                          'Select Your Role',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: const Color(0xFF18314F),
-                                            letterSpacing: 0.1,
-                                          ),
-                                        ),
-                                      ],
+                                    const Icon(
+                                      Icons.assignment_ind_outlined,
+                                      size: 15,
+                                      color: Color(0xFF18314F),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF18314F).withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: const Color(0xFF18314F).withValues(alpha: 0.18),
-                                          width: 1.0,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        _getRoleTitle(),
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF18314F),
-                                        ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'Select Your Role',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF18314F),
+                                        letterSpacing: 0.1,
                                       ),
                                     ),
                                   ],
@@ -855,7 +1006,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
                               Padding(
-                                padding: const EdgeInsets.only(top: 4, bottom: 8, left: 4),
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  bottom: 8,
+                                  left: 4,
+                                ),
                                 child: Text(
                                   _getRoleDescription(),
                                   style: GoogleFonts.plusJakartaSans(
@@ -866,98 +1021,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                               ),
 
-                              // Full Name Label
-                              Text(
-                                'Full Name',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: labelFontSize,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF18314F),
-                                ),
+                              // Name fields — label inside field, full-width stacked
+                              _buildNameField(
+                                'Last Name',
+                                'Dela Cruz',
+                                _lastNameController,
+                                false,
+                                hasError: _fullNameError != null,
+                                labelFontSize: labelFontSize,
+                                inputFontSize: inputFontSize,
+                                inputPaddingV: inputPaddingV,
                               ),
-                              const SizedBox(height: 2),
-
-                              // Full Name Input Field
-                              TextField(
-                                controller: _fullNameController,
-                                cursorColor: const Color(0xFF18314F),
-                                textCapitalization: TextCapitalization.words,
-                                inputFormatters: const [CapitalizeWordsInputFormatter()],
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: inputFontSize,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF18314F),
-                                ),
-                                onChanged: (_) {
-                                  if (_fullNameError != null) {
-                                    setState(() => _fullNameError = null);
-                                  }
-                                },
-                                decoration: InputDecoration(
-                                  filled: true,
-                                  fillColor: const Color(0xFFF8FAFC),
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: inputPaddingV,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    borderSide: BorderSide(
-                                      color: _fullNameError != null
-                                          ? const Color(0xFFE53935)
-                                          : const Color(0xFFCBD5E1),
-                                      width: _fullNameError != null ? 1.4 : 1.2,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    borderSide: BorderSide(
-                                      color: _fullNameError != null
-                                          ? const Color(0xFFE53935)
-                                          : const Color(0xFFCBD5E1),
-                                      width: _fullNameError != null ? 1.4 : 1.2,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    borderSide: BorderSide(
-                                      color: _fullNameError != null
-                                          ? const Color(0xFFE53935)
-                                          : const Color(0xFF18314F),
-                                      width: 1.6,
-                                    ),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFE53935),
-                                      width: 1.4,
-                                    ),
-                                  ),
-                                  focusedErrorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10.0),
-                                    borderSide: const BorderSide(
-                                      color: Color(0xFFE53935),
-                                      width: 1.6,
-                                    ),
-                                  ),
-                                  hintText: 'e.g. Juan Dela Cruz',
-                                  hintStyle: GoogleFonts.plusJakartaSans(
-                                    color: const Color(0xFF64748B),
-                                    fontSize: inputFontSize,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.person_outline_rounded,
-                                    color: Color(0xFF18314F),
-                                    size: 20,
-                                  ),
-                                ),
+                              const SizedBox(height: 6),
+                              _buildNameField(
+                                'First Name',
+                                'Juan',
+                                _firstNameController,
+                                false,
+                                hasError: _fullNameError != null,
+                                labelFontSize: labelFontSize,
+                                inputFontSize: inputFontSize,
+                                inputPaddingV: inputPaddingV,
+                              ),
+                              const SizedBox(height: 6),
+                              _buildNameField(
+                                'M.I.',
+                                'M',
+                                _middleInitialController,
+                                true,
+                                hasError: _fullNameError != null,
+                                labelFontSize: labelFontSize,
+                                inputFontSize: inputFontSize,
+                                inputPaddingV: inputPaddingV,
                               ),
                               _buildInlineError(_fullNameError),
                               SizedBox(height: fieldSpacing),
-
                               // Email Label
                               Text(
                                 'Email Address',
@@ -1068,8 +1166,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 obscureText: _obscurePassword,
                                 textCapitalization: TextCapitalization.none,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]')),
+                                  FilteringTextInputFormatter.deny(
+                                    RegExp(r'\s'),
+                                  ),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(
+                                      r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]',
+                                    ),
+                                  ),
                                 ],
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: inputFontSize,
@@ -1132,7 +1236,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       width: 1.6,
                                     ),
                                   ),
-                                  hintText: 'Min. 6 chars (letters & numbers or symbols)',
+                                  hintText:
+                                      'Min. 6 chars (letters & numbers or symbols)',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFF64748B),
                                     fontSize: inputFontSize,
@@ -1162,22 +1267,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               if (_passwordController.text.isNotEmpty) ...[
                                 const SizedBox(height: 6),
                                 Padding(
-                                  padding: const EdgeInsets.only(left: 4.0, bottom: 2.0),
+                                  padding: const EdgeInsets.only(
+                                    left: 4.0,
+                                    bottom: 2.0,
+                                  ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       _buildPasswordRequirementItem(
-                                        satisfied: _passwordController.text.length >= 6,
+                                        satisfied:
+                                            _passwordController.text.length >=
+                                            6,
                                         label: 'At least 6 characters',
                                       ),
                                       _buildPasswordRequirementItem(
-                                        satisfied: RegExp(r'[a-zA-Z]').hasMatch(_passwordController.text),
+                                        satisfied: RegExp(
+                                          r'[a-zA-Z]',
+                                        ).hasMatch(_passwordController.text),
                                         label: 'Contains letters (a-z)',
                                       ),
                                       _buildPasswordRequirementItem(
-                                        satisfied: RegExp(r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]').hasMatch(_passwordController.text),
-                                        label: 'Contains numbers or symbols (0-9, !@#...)',
+                                        satisfied: RegExp(
+                                          r'[0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]',
+                                        ).hasMatch(_passwordController.text),
+                                        label:
+                                            'Contains numbers or symbols (0-9, !@#...)',
                                       ),
                                     ],
                                   ),
@@ -1204,8 +1320,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 obscureText: _obscureConfirmPassword,
                                 textCapitalization: TextCapitalization.none,
                                 inputFormatters: [
-                                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]')),
+                                  FilteringTextInputFormatter.deny(
+                                    RegExp(r'\s'),
+                                  ),
+                                  FilteringTextInputFormatter.allow(
+                                    RegExp(
+                                      r'[a-zA-Z0-9!@#\$%^&*()_\+\-=\[\]{};:"\\|,.<>/?~`]',
+                                    ),
+                                  ),
                                 ],
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: inputFontSize,
@@ -1214,7 +1336,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 ),
                                 onChanged: (_) {
                                   if (_confirmPasswordError != null) {
-                                    setState(() => _confirmPasswordError = null);
+                                    setState(
+                                      () => _confirmPasswordError = null,
+                                    );
                                   }
                                 },
                                 decoration: InputDecoration(
@@ -1231,7 +1355,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       color: _confirmPasswordError != null
                                           ? const Color(0xFFE53935)
                                           : const Color(0xFFCBD5E1),
-                                      width: _confirmPasswordError != null ? 1.4 : 1.2,
+                                      width: _confirmPasswordError != null
+                                          ? 1.4
+                                          : 1.2,
                                     ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
@@ -1240,7 +1366,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       color: _confirmPasswordError != null
                                           ? const Color(0xFFE53935)
                                           : const Color(0xFFCBD5E1),
-                                      width: _confirmPasswordError != null ? 1.4 : 1.2,
+                                      width: _confirmPasswordError != null
+                                          ? 1.4
+                                          : 1.2,
                                     ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
@@ -1287,7 +1415,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     ),
                                     onPressed: () {
                                       setState(() {
-                                        _obscureConfirmPassword = !_obscureConfirmPassword;
+                                        _obscureConfirmPassword =
+                                            !_obscureConfirmPassword;
                                       });
                                     },
                                   ),
@@ -1312,14 +1441,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF18314F).withValues(alpha: 0.25),
+                                      color: const Color(
+                                        0xFF18314F,
+                                      ).withValues(alpha: 0.25),
                                       blurRadius: 10,
                                       offset: const Offset(0, 3),
                                     ),
                                   ],
                                 ),
                                 child: ElevatedButton(
-                                  onPressed: _isLoading ? null : () => _handlePasswordSignUp(),
+                                  onPressed: _isLoading
+                                      ? null
+                                      : () => _handlePasswordSignUp(),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
                                     shadowColor: Colors.transparent,
@@ -1335,7 +1468,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           height: 22,
                                           width: 22,
                                           child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
                                             strokeWidth: 2.2,
                                           ),
                                         )
@@ -1362,7 +1498,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10.0,
+                                    ),
                                     child: Text(
                                       'or continue with',
                                       style: GoogleFonts.plusJakartaSans(
@@ -1395,7 +1533,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   ),
                                 ),
                                 child: ElevatedButton(
-                                  onPressed: _isGoogleLoading ? null : () => _handleGoogleSignUp(),
+                                  onPressed: _isGoogleLoading
+                                      ? null
+                                      : () => _handleGoogleSignUp(),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.white,
                                     foregroundColor: const Color(0xFF1F1F1F),
@@ -1412,12 +1552,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                           height: 20,
                                           width: 20,
                                           child: CircularProgressIndicator(
-                                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF18314F)),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Color(0xFF18314F),
+                                                ),
                                             strokeWidth: 2.0,
                                           ),
                                         )
                                       : Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             SvgPicture.string(
                                               googleLogoSvg,
@@ -1427,11 +1571,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                             const SizedBox(width: 10.0),
                                             Text(
                                               'Sign Up with Google',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 14.0,
-                                                fontWeight: FontWeight.w600,
-                                                color: const Color(0xFF1F1F1F),
-                                              ),
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 14.0,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: const Color(
+                                                      0xFF1F1F1F,
+                                                    ),
+                                                  ),
                                             ),
                                           ],
                                         ),
