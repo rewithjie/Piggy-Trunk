@@ -422,6 +422,34 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         }
       }
 
+      // A batch keeps one hog type. Don't let a Sow investment re-label an existing Fattening batch (or vice versa).
+      if (!isBatchUnassigned && !_isEdit) {
+        try {
+          final existingRows = await _supabase
+              .from('assignments')
+              .select('hog_types(type_name)')
+              .eq('batch_id', _selectedBatchId!);
+          for (final row in (existingRows as List)) {
+            final ht = row['hog_types'];
+            final existingType = (ht is Map ? ht['type_name'] : null)?.toString().toLowerCase() ?? '';
+            if (existingType.isEmpty) continue;
+            final existingIsSow = existingType.contains('sow') || existingType.contains('breed');
+            final newIsSow = hogTypeStr.toLowerCase().contains('sow');
+            if (existingIsSow != newIsSow) {
+              if (!mounted) return;
+              setState(() => _isSubmitting = false);
+              widget.onShowSnackBar(
+                '$batchName is already a ${existingIsSow ? 'Sow / Breeding' : 'Fattening'} batch. Please create a new batch for ${newIsSow ? 'Sow / Breeding' : 'Fattening'} hogs.',
+                isError: true,
+              );
+              return;
+            }
+          }
+        } catch (typeErr) {
+          debugPrint('Notice during batch hog type validation: $typeErr');
+        }
+      }
+
       final payload = <String, dynamic>{
         'hog_raiser_id': isRaiserUnassigned ? null : _selectedRaiserId,
         'raiser_name': raiserName,
@@ -487,8 +515,9 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         // Check if an assignment already exists for this batch
         final existingAssign = await _supabase
             .from('assignments')
-            .select('assignment_id')
+            .select('assignment_id, hog_type_id')
             .eq('batch_id', _selectedBatchId!)
+            .limit(1)
             .maybeSingle();
 
         if (!isRaiserUnassigned && int.tryParse(_selectedRaiserId!) != null) {
@@ -499,7 +528,8 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             await _supabase.from('assignments').update({
               'hog_raiser_id': parsedRaiserId,
               'status': 'active',
-              'hog_type_id': finalHogTypeId,
+              // Keep the batch's existing hog type; only fill it if missing.
+              if (existingAssign['hog_type_id'] == null) 'hog_type_id': finalHogTypeId,
             }).eq('assignment_id', assignPk);
 
             // Seed hogs for the assignment
@@ -546,15 +576,29 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             }
           }
 
-          // Update hog raiser status, lifecycle and preferred type
+          // Update hog raiser status and type without wiping an existing type (e.g. keep Fattening when adding Sow)
           final isSow = hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed');
           final defaultStage = isSow ? 'Gilt' : 'Booster';
+          String currentType = '';
+          try {
+            final cur = await _supabase
+                .from('hog_raisers')
+                .select('pig_type')
+                .eq('hog_raiser_id', parsedRaiserId)
+                .maybeSingle();
+            currentType = (cur?['pig_type'] ?? '').toString().toLowerCase();
+          } catch (_) {}
+          final hadType = currentType.isNotEmpty && currentType != 'none' && currentType != 'n/a';
+          final hadSow = currentType.contains('sow') || currentType.contains('breed');
+          final hadFattening = currentType.contains('fatten');
+          final hasSow = hadSow || isSow;
+          final hasFattening = hadFattening || !isSow;
           await _supabase
               .from('hog_raisers')
               .update({
                 'status': 'Active',
-                'lifecycle_stage': defaultStage,
-                'pig_type': hogTypeStr,
+                if (!hadType) 'lifecycle_stage': defaultStage,
+                'pig_type': hasSow && hasFattening ? 'Sow and Fattening' : (hasSow ? 'Sow' : 'Fattening'),
               })
               .eq('hog_raiser_id', parsedRaiserId);
         }

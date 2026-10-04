@@ -690,11 +690,20 @@ class InvestmentDrawer {
                                                   orElse: () => {},
                                                 );
                                                 final pkCol = raiserRow['real_pk_col'] ?? (raiserRow['id'] != null ? 'id' : 'hog_raiser_id');
+                                                final isSow = hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed');
+                                                String currentType = '';
+                                                try {
+                                                  final cur = await supabase.from('hog_raisers').select('pig_type').eq(pkCol, parsedRaiserId).maybeSingle();
+                                                  currentType = (cur?['pig_type'] ?? '').toString().toLowerCase();
+                                                } catch (_) {}
+                                                final hadType = currentType.isNotEmpty && currentType != 'none' && currentType != 'n/a';
+                                                final hasSow = isSow || currentType.contains('sow') || currentType.contains('breed');
+                                                final hasFattening = !isSow || currentType.contains('fatten');
                                                 await supabase
                                                     .from('hog_raisers')
                                                     .update({
-                                                      'lifecycle_stage': (hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed')) ? 'Gilt' : 'Booster',
-                                                      'pig_type': hogTypeStr,
+                                                      if (!hadType) 'lifecycle_stage': isSow ? 'Gilt' : 'Booster',
+                                                      'pig_type': hasSow && hasFattening ? 'Sow and Fattening' : (hasSow ? 'Sow' : 'Fattening'),
                                                     })
                                                     .eq(pkCol, parsedRaiserId);
                                               }
