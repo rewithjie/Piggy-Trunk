@@ -17,7 +17,8 @@ class StockRequestsTab extends StatefulWidget {
     required double price,
     required int units,
     String? details,
-  }) onInsertLog;
+  })
+  onInsertLog;
 
   const StockRequestsTab({
     super.key,
@@ -42,12 +43,16 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
   bool get _isDark => Theme.of(context).brightness == Brightness.dark;
   Color get _cardBg => _isDark ? const Color(0xFF132238) : Colors.white;
-  Color get _cardBorder => _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+  Color get _cardBorder =>
+      _isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
   Color get _titleColor => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _mutedColor => _isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
-  Color get _fieldBg => _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
+  Color get _mutedColor =>
+      _isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
+  Color get _fieldBg =>
+      _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
   Color get _fieldText => _isDark ? Colors.white : const Color(0xFF18314F);
-  Color get _fieldFocus => _isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
+  Color get _fieldFocus =>
+      _isDark ? const Color(0xFF88A7CE) : const Color(0xFF315C8F);
 
   @override
   void initState() {
@@ -97,10 +102,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       try {
         raisersRaw = await _supabase
             .from('hog_raisers')
-            .select('hog_raiser_id, name, app_users!hog_raisers_user_id_fkey(name, email)');
+            .select(
+              'hog_raiser_id, name, app_users!hog_raisers_user_id_fkey(name, email)',
+            );
       } catch (_) {
         try {
-          raisersRaw = await _supabase.from('hog_raisers').select('hog_raiser_id, name');
+          raisersRaw = await _supabase
+              .from('hog_raisers')
+              .select('hog_raiser_id, name');
         } catch (_) {}
       }
 
@@ -114,19 +123,23 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         Map<String, dynamic>? appUsers;
         if (appUsersRaw is Map) {
           appUsers = Map<String, dynamic>.from(appUsersRaw);
-        } else if (appUsersRaw is List && appUsersRaw.isNotEmpty && appUsersRaw.first is Map) {
+        } else if (appUsersRaw is List &&
+            appUsersRaw.isNotEmpty &&
+            appUsersRaw.first is Map) {
           appUsers = Map<String, dynamic>.from(appUsersRaw.first);
         }
 
         final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
         final raiserDbName = (r['name'] ?? '').toString().trim();
-        final resolvedName = (raiserDbName.isNotEmpty &&
+        final resolvedName =
+            (raiserDbName.isNotEmpty &&
                 raiserDbName.toLowerCase() != 'hog raiser' &&
                 raiserDbName.toUpperCase() != 'N/A')
             ? raiserDbName
-            : (googleOrAppName.isNotEmpty && googleOrAppName.toLowerCase() != 'hog raiser'
-                ? googleOrAppName
-                : (raiserDbName.isNotEmpty ? raiserDbName : 'Hog Raiser'));
+            : (googleOrAppName.isNotEmpty &&
+                      googleOrAppName.toLowerCase() != 'hog raiser'
+                  ? googleOrAppName
+                  : (raiserDbName.isNotEmpty ? raiserDbName : 'Hog Raiser'));
 
         raisersMap[rId] = resolvedName;
       }
@@ -136,7 +149,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       try {
         assignmentsRaw = await _supabase
             .from('assignments')
-            .select('assignment_id, batch_id, hog_raiser_id, status');
+            .select('assignment_id, batch_id, hog_raiser_id, status, hog_types(type_name)');
       } catch (_) {
         try {
           assignmentsRaw = await _supabase.from('assignments').select('*');
@@ -145,7 +158,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
       List<dynamic> batchesRaw = [];
       try {
-        batchesRaw = await _supabase.from('batches').select('batch_id, batch_name');
+        batchesRaw = await _supabase
+            .from('batches')
+            .select('batch_id, batch_name');
       } catch (_) {
         try {
           batchesRaw = await _supabase.from('batches').select('*');
@@ -163,6 +178,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       }
 
       final Map<String, String> assignToBatchMap = {};
+      final Map<String, String> assignToTypeMap = {};
       final Map<String, String> assignToRaiserMap = {};
       final Map<String, String> raiserToActiveBatchMap = {};
       for (var a in assignmentsRaw) {
@@ -171,9 +187,13 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         final bId = a['batch_id']?.toString() ?? '';
         final rId = a['hog_raiser_id']?.toString() ?? '';
         final status = (a['status'] ?? '').toString().toLowerCase();
+        final rawHogType = (a['hog_types'] is Map ? a['hog_types']['type_name'] : a['pig_type'])?.toString() ?? '';
         if (aId.isNotEmpty) {
           if (bId.isNotEmpty && batchNameMap.containsKey(bId)) {
             assignToBatchMap[aId] = batchNameMap[bId]!;
+          }
+          if (rawHogType.isNotEmpty) {
+            assignToTypeMap[aId] = rawHogType;
           }
           if (rId.isNotEmpty) {
             assignToRaiserMap[aId] = rId;
@@ -197,7 +217,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         String resolvedName = 'Hog Raiser';
         if (rId.isNotEmpty && raisersMap.containsKey(rId)) {
           resolvedName = raisersMap[rId]!;
-        } else if (aId.isNotEmpty && assignToRaiserMap.containsKey(aId) && raisersMap.containsKey(assignToRaiserMap[aId])) {
+        } else if (aId.isNotEmpty &&
+            assignToRaiserMap.containsKey(aId) &&
+            raisersMap.containsKey(assignToRaiserMap[aId])) {
           resolvedName = raisersMap[assignToRaiserMap[aId]]!;
         } else if ((rMap['user_name'] ?? '').toString().trim().isNotEmpty) {
           resolvedName = (rMap['user_name'] ?? '').toString().trim();
@@ -206,11 +228,18 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         }
 
         String resolvedBatch = 'Unassigned';
-        final joinedAssignment = rMap['assignments'] is Map ? rMap['assignments'] as Map : null;
-        final joinedBatch = joinedAssignment?['batches'] is Map ? joinedAssignment!['batches'] as Map : null;
-        final joinedBatchName = (joinedBatch?['batch_name'] ?? '').toString().trim();
+        final joinedAssignment = rMap['assignments'] is Map
+            ? rMap['assignments'] as Map
+            : null;
+        final joinedBatch = joinedAssignment?['batches'] is Map
+            ? joinedAssignment!['batches'] as Map
+            : null;
+        final joinedBatchName = (joinedBatch?['batch_name'] ?? '')
+            .toString()
+            .trim();
 
-        if (joinedBatchName.isNotEmpty && joinedBatchName.toLowerCase() != 'null') {
+        if (joinedBatchName.isNotEmpty &&
+            joinedBatchName.toLowerCase() != 'null') {
           resolvedBatch = joinedBatchName;
         } else if (aId.isNotEmpty && assignToBatchMap.containsKey(aId)) {
           resolvedBatch = assignToBatchMap[aId]!;
@@ -218,10 +247,24 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           resolvedBatch = raiserToActiveBatchMap[rId]!;
         }
 
-        if (resolvedBatch.contains('(')) {
-          final parts = resolvedBatch.split('(');
-          if (parts.last.endsWith(')')) {
-            resolvedBatch = parts.sublist(0, parts.length - 1).join('(').trim();
+        final rawNotesStr = (rMap['notes'] ?? '').toString();
+        if ((resolvedBatch == 'Unassigned' || resolvedBatch.isEmpty) &&
+            rawNotesStr.contains('[Batch: ') &&
+            rawNotesStr.contains(']')) {
+          final startIdx = rawNotesStr.indexOf('[Batch: ') + 8;
+          final endIdx = rawNotesStr.indexOf(']', startIdx);
+          if (endIdx > startIdx) {
+            resolvedBatch = rawNotesStr.substring(startIdx, endIdx).trim();
+          }
+        }
+        rMap['notes'] = rawNotesStr.replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
+
+        // Attach hog type label if known and not already in batch name
+        final hType = assignToTypeMap[aId] ?? (joinedAssignment?['hog_types'] is Map ? joinedAssignment!['hog_types']['type_name'] : null)?.toString();
+        if (hType != null && hType.toString().trim().isNotEmpty) {
+          final tClean = hType.toString().trim();
+          if (!resolvedBatch.toLowerCase().contains(tClean.toLowerCase())) {
+            resolvedBatch = '$resolvedBatch ($tClean)';
           }
         }
 
@@ -259,17 +302,26 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
-    final filteredRequests = _stockRequests.where((req) {
+    final groupedList = _groupRequests(_stockRequests);
+    final filteredRequests = groupedList.where((req) {
       final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
       if (_requestsFilter != 'All' && status != _requestsFilter.toUpperCase()) {
         return false;
       }
       final q = _searchCtrl.text.trim().toLowerCase();
       if (q.isNotEmpty) {
-        final raiserName = (req['fetched_raiser_name'] ?? '').toString().toLowerCase();
-        final category = (req['category'] ?? '').toString().toLowerCase();
-        final feedType = (req['feed_type'] ?? '').toString().toLowerCase();
-        if (!raiserName.contains(q) && !category.contains(q) && !feedType.contains(q)) {
+        final raiserName = (req['fetched_raiser_name'] ?? '')
+            .toString()
+            .toLowerCase();
+        final items =
+            (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+            [req];
+        final anyMatch = items.any((i) {
+          final cat = (i['category'] ?? '').toString().toLowerCase();
+          final feed = (i['feed_type'] ?? '').toString().toLowerCase();
+          return cat.contains(q) || feed.contains(q);
+        });
+        if (!raiserName.contains(q) && !anyMatch) {
           return false;
         }
       }
@@ -287,14 +339,27 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                   TextField(
                     controller: _searchCtrl,
                     onChanged: (_) => setState(() {}),
-                    style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 13.5),
+                    style: GoogleFonts.plusJakartaSans(
+                      color: _fieldText,
+                      fontSize: 13.5,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Search request or raiser...',
-                      hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 13.5),
-                      prefixIcon: Icon(Icons.search_rounded, color: _mutedColor, size: 20),
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                        color: _mutedColor,
+                        fontSize: 13.5,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: _mutedColor,
+                        size: 20,
+                      ),
                       filled: true,
                       fillColor: _fieldBg,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide(color: _cardBorder),
@@ -311,7 +376,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                       Expanded(
                         child: _buildRequestFilterChip(
                           'All',
-                          'All Requests (${_stockRequests.length})',
+                          'All Requests (${groupedList.length})',
                           isMobile: true,
                         ),
                       ),
@@ -319,7 +384,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                       Expanded(
                         child: _buildRequestFilterChip(
                           'Pending',
-                          'Pending (${_stockRequests.where((r) => (r['status'] ?? '').toString().toUpperCase() == 'PENDING').length})',
+                          'Pending (${groupedList.where((r) => (r['status'] ?? '').toString().toUpperCase() == 'PENDING').length})',
                           isMobile: true,
                         ),
                       ),
@@ -350,21 +415,38 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                     child: TextField(
                       controller: _searchCtrl,
                       onChanged: (_) => setState(() {}),
-                      style: GoogleFonts.plusJakartaSans(color: _fieldText, fontSize: 14),
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _fieldText,
+                        fontSize: 14,
+                      ),
                       decoration: InputDecoration(
-                        hintText: 'Search raiser name, category, or feed type...',
-                        hintStyle: GoogleFonts.plusJakartaSans(color: _mutedColor, fontSize: 14),
-                        prefixIcon: Icon(Icons.search_rounded, color: _mutedColor, size: 20),
+                        hintText:
+                            'Search raiser name, category, or feed type...',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                          color: _mutedColor,
+                          fontSize: 14,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: _mutedColor,
+                          size: 20,
+                        ),
                         filled: true,
                         fillColor: _fieldBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: _cardBorder),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: _fieldFocus, width: 1.5),
+                          borderSide: BorderSide(
+                            color: _fieldFocus,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -372,16 +454,24 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                   const SizedBox(width: 14),
                   Row(
                     children: [
-                      _buildRequestFilterChip('All', 'All (${_stockRequests.length})'),
+                      _buildRequestFilterChip(
+                        'All',
+                        'All (${groupedList.length})',
+                      ),
                       const SizedBox(width: 8),
-                      _buildRequestFilterChip('Pending', 'Pending (${_stockRequests.where((r) => (r['status'] ?? '').toString().toUpperCase() == 'PENDING').length})'),
+                      _buildRequestFilterChip(
+                        'Pending',
+                        'Pending (${groupedList.where((r) => (r['status'] ?? '').toString().toUpperCase() == 'PENDING').length})',
+                      ),
                       const SizedBox(width: 8),
                       _buildRequestFilterChip('Approved', 'Approved'),
                       const SizedBox(width: 8),
                       _buildRequestFilterChip('Rejected', 'Rejected'),
                       const SizedBox(width: 8),
                       IconButton(
-                        onPressed: _isLoadingRequests ? null : _loadStockRequests,
+                        onPressed: _isLoadingRequests
+                            ? null
+                            : _loadStockRequests,
                         tooltip: 'Refresh requests',
                         icon: _isLoadingRequests
                             ? SizedBox(
@@ -389,13 +479,17 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                  color: _isDark
+                                      ? Colors.white
+                                      : PiggyTrunkTheme.ptPrimary,
                                 ),
                               )
                             : Icon(
                                 Icons.refresh_rounded,
                                 size: 20,
-                                color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                color: _isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
                               ),
                       ),
                     ],
@@ -411,7 +505,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
             minWidth: 720,
             cardBg: _cardBg,
             cardBorder: _cardBorder,
-            headerBg: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
+            headerBg: _isDark
+                ? const Color(0xFF1B2E48)
+                : const Color(0xFFEDF4FC),
             columnWidths: const {
               0: FlexColumnWidth(1.2),
               1: FlexColumnWidth(0.95),
@@ -473,7 +569,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
               borderRadius: BorderRadius.circular(17),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final tableWidth = constraints.maxWidth > 820 ? constraints.maxWidth : 820.0;
+                  final tableWidth = constraints.maxWidth > 920
+                      ? constraints.maxWidth
+                      : 920.0;
                   return Scrollbar(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -481,19 +579,24 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                         width: tableWidth,
                         child: Table(
                           columnWidths: const {
-                            0: FlexColumnWidth(1.2),
-                            1: FlexColumnWidth(0.95),
-                            2: FlexColumnWidth(1.2),
-                            3: FlexColumnWidth(0.85),
-                            4: FlexColumnWidth(1.0),
-                            5: FixedColumnWidth(180),
+                            0: FlexColumnWidth(1.15),
+                            1: FlexColumnWidth(1.0),
+                            2: FlexColumnWidth(1.5),
+                            3: FlexColumnWidth(0.9),
+                            4: FlexColumnWidth(0.95),
+                            5: FixedColumnWidth(160),
                           },
-                          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                          defaultVerticalAlignment:
+                              TableCellVerticalAlignment.middle,
                           children: [
                             TableRow(
                               decoration: BoxDecoration(
-                                color: _isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
-                                border: Border(bottom: BorderSide(color: _cardBorder)),
+                                color: _isDark
+                                    ? const Color(0xFF1B2E48)
+                                    : const Color(0xFFEDF4FC),
+                                border: Border(
+                                  bottom: BorderSide(color: _cardBorder),
+                                ),
                               ),
                               children: [
                                 _tableHeaderCell('RAISER NAME'),
@@ -504,7 +607,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 _tableHeaderCell('ACTIONS', isCenter: true),
                               ],
                             ),
-                            ...filteredRequests.map((req) => _buildRequestRow(req)),
+                            ...filteredRequests.map(
+                              (req) => _buildRequestRow(req),
+                            ),
                           ],
                         ),
                       ),
@@ -536,12 +641,20 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     );
   }
 
-  Widget _buildRequestFilterChip(String filterValue, String label, {bool isMobile = false}) {
+  Widget _buildRequestFilterChip(
+    String filterValue,
+    String label, {
+    bool isMobile = false,
+  }) {
     final isSelected = _requestsFilter == filterValue;
     final activeBg = _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
     final activeTextColor = _isDark ? PiggyTrunkTheme.ptPrimary : Colors.white;
-    final unselectedBg = _isDark ? const Color(0xFF1A2B44) : const Color(0xFFF1F5F9);
-    final unselectedBorder = _isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0);
+    final unselectedBg = _isDark
+        ? const Color(0xFF1A2B44)
+        : const Color(0xFFF1F5F9);
+    final unselectedBorder = _isDark
+        ? const Color(0xFF28405D)
+        : const Color(0xFFE2E8F0);
     final unselectedTextColor = _mutedColor;
 
     return InkWell(
@@ -555,8 +668,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        constraints: BoxConstraints(minHeight: isMobile ? 38 : 38, minWidth: isMobile ? 0 : 48),
-        padding: EdgeInsets.symmetric(horizontal: isMobile ? 2 : 16, vertical: 8),
+        constraints: BoxConstraints(
+          minHeight: isMobile ? 38 : 38,
+          minWidth: isMobile ? 0 : 48,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 2 : 16,
+          vertical: 8,
+        ),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? activeBg : unselectedBg,
@@ -592,21 +711,29 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
   TableRow _buildRequestRow(Map<String, dynamic> req) {
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
-    final raiserName = req['fetched_raiser_name'] ??
+    final raiserName =
+        req['fetched_raiser_name'] ??
         req['raiser_name'] ??
         req['hog_raiser_name'] ??
         req['user_name'] ??
         raiser?['name'] ??
         'Unknown Raiser';
-    final requestDate = req['request_date']?.toString() ?? 'N/A';
+    final requestDate = _formatDateTimeString(
+      req['created_at'] ?? req['request_date'],
+    );
+    final isGroup = req['is_group'] == true;
+    final items =
+        (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [req];
     final category = req['category']?.toString().trim() ?? 'Feeds';
     final rawFeedType = req['feed_type']?.toString().trim() ?? '';
-    final hasDistinctFeedType = rawFeedType.isNotEmpty &&
+    final hasDistinctFeedType =
+        rawFeedType.isNotEmpty &&
         rawFeedType.toUpperCase() != 'N/A' &&
         rawFeedType.toLowerCase() != category.toLowerCase();
     final mainItem = hasDistinctFeedType ? rawFeedType : category;
     final subItem = hasDistinctFeedType ? category : null;
-    final quantity = req['quantity']?.toString() ?? '0';
+    final quantity =
+        req['total_quantity']?.toString() ?? req['quantity']?.toString() ?? '0';
     final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
 
     Color statusFg;
@@ -620,7 +747,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
     return TableRow(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5))),
+        border: Border(
+          bottom: BorderSide(color: _cardBorder.withValues(alpha: 0.5)),
+        ),
       ),
       children: [
         Padding(
@@ -640,6 +769,8 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Text(
             requestDate,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.plusJakartaSans(
               color: _mutedColor,
               fontWeight: FontWeight.w600,
@@ -649,24 +780,93 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: isGroup
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      items
+                          .map((i) => (i['feed_type'] ?? i['category']).toString())
+                          .where((s) => s.isNotEmpty && s != 'N/A')
+                          .join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _titleColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      items
+                          .map((i) => (i['category'] ?? '').toString())
+                          .where((c) => c.isNotEmpty && c != 'N/A')
+                          .toSet()
+                          .join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _mutedColor,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      mainItem,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: _titleColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                    if (subItem != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subItem,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: _mutedColor,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                mainItem,
+                isGroup ? '$quantity units total' : '$quantity units',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.plusJakartaSans(
                   color: _titleColor,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.bold,
                   fontSize: 12.5,
                 ),
               ),
-              if (subItem != null) ...[
+              if (isGroup) ...[
                 const SizedBox(height: 2),
                 Text(
-                  subItem,
+                  '(${items.length} products)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
                     color: _mutedColor,
                     fontWeight: FontWeight.w500,
@@ -675,17 +875,6 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                 ),
               ],
             ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          child: Text(
-            '$quantity units',
-            style: GoogleFonts.plusJakartaSans(
-              color: _titleColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 12.5,
-            ),
           ),
         ),
         Padding(
@@ -751,10 +940,18 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
-                            color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.08 : 0.1),
+                            color:
+                                (_isDark
+                                        ? Colors.white
+                                        : PiggyTrunkTheme.ptPrimary)
+                                    .withValues(alpha: _isDark ? 0.08 : 0.1),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: _isDark ? 0.22 : 0.3),
+                              color:
+                                  (_isDark
+                                          ? Colors.white
+                                          : PiggyTrunkTheme.ptPrimary)
+                                      .withValues(alpha: _isDark ? 0.22 : 0.3),
                               width: 1,
                             ),
                           ),
@@ -762,7 +959,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             child: Icon(
                               Icons.visibility_outlined,
                               size: 16,
-                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              color: _isDark
+                                  ? Colors.white
+                                  : PiggyTrunkTheme.ptPrimary,
                             ),
                           ),
                         ),
@@ -775,16 +974,22 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                     Tooltip(
                       message: 'Approve Request',
                       child: InkWell(
-                        onTap: _isProcessingRequest ? null : () => _showApproveDialog(req),
+                        onTap: _isProcessingRequest
+                            ? null
+                            : () => _showApproveDialog(req),
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
-                            color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.12),
+                            color: PiggyTrunkTheme.ptSuccess.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.4),
+                              color: PiggyTrunkTheme.ptSuccess.withValues(
+                                alpha: 0.4,
+                              ),
                               width: 1,
                             ),
                           ),
@@ -803,16 +1008,22 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                     Tooltip(
                       message: 'Reject Request',
                       child: InkWell(
-                        onTap: _isProcessingRequest ? null : () => _confirmRejectRequest(req),
+                        onTap: _isProcessingRequest
+                            ? null
+                            : () => _confirmRejectRequest(req),
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
                           width: 30,
                           height: 30,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF758C).withValues(alpha: 0.12),
+                            color: const Color(
+                              0xFFFF758C,
+                            ).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: const Color(0xFFFF758C).withValues(alpha: 0.4),
+                              color: const Color(
+                                0xFFFF758C,
+                              ).withValues(alpha: 0.4),
                               width: 1,
                             ),
                           ),
@@ -838,19 +1049,23 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
   void _showRequestDetailsModal(Map<String, dynamic> req) {
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
-    final raiserName = req['fetched_raiser_name'] ??
+    final raiserName =
+        req['fetched_raiser_name'] ??
         req['raiser_name'] ??
         req['hog_raiser_name'] ??
         req['user_name'] ??
         raiser?['name'] ??
         'Unknown Raiser';
     final batchName = req['fetched_batch_name'] ?? 'General Stock';
-    final requestDate = req['request_date']?.toString() ?? req['created_at']?.toString() ?? 'N/A';
-    final category = req['category']?.toString() ?? 'Feeds';
-    final feedType = req['feed_type']?.toString() ?? 'N/A';
-    final quantity = req['quantity']?.toString() ?? '0';
+    final requestDate = _formatDateTimeString(
+      req['created_at'] ?? req['request_date'],
+    );
+    final isGroup = req['is_group'] == true;
+    final items =
+        (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [req];
     final status = req['status']?.toString().toUpperCase() ?? 'PENDING';
-    final notes = (req['notes'] ?? '').toString().trim();
+    final rawNotes = (req['notes'] ?? '').toString().trim();
+    final notes = rawNotes.replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
     final decisionDate = req['decision_date']?.toString();
     final rejectionReason = (req['rejection_reason'] ?? '').toString().trim();
 
@@ -871,20 +1086,6 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
       statusIcon = Icons.hourglass_top_rounded;
     }
 
-    // Matching products for stock visibility
-    final categoryClean = category.trim().toLowerCase();
-    final matchingProducts = widget.products.where((p) {
-      final pCat = p.category.trim().toLowerCase();
-      if (categoryClean.contains('feed') || categoryClean == 'feeds' || categoryClean == 'pagkain') {
-        return pCat.contains('feed') || pCat == 'feeds';
-      } else if (categoryClean.contains('vitamin') || categoryClean == 'bitamina') {
-        return pCat.contains('vitamin') || pCat == 'vitamins';
-      } else if (categoryClean.contains('med') || categoryClean == 'gamot') {
-        return pCat.contains('med') || pCat == 'medicines' || pCat == 'medicine';
-      }
-      return pCat == categoryClean;
-    }).toList();
-
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -898,13 +1099,23 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         final isMobile = screenWidth < 600;
         final drawerWidth = isMobile ? screenWidth : 460.0;
 
-        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
+        final isDark =
+            Theme.of(dialogCtx).brightness == Brightness.dark ||
+            Theme.of(context).brightness == Brightness.dark;
         final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
-        final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final borderColor = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFD7E3F3);
         final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
-        final mutedColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
-        final cardBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF8FAFC);
-        final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFE2E8F0);
+        final mutedColor = isDark
+            ? const Color(0xFF9AB1CB)
+            : const Color(0xFF6F8096);
+        final cardBg = isDark
+            ? const Color(0xFF1A2B44)
+            : const Color(0xFFF8FAFC);
+        final cardBorder = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFE2E8F0);
 
         return Transform.translate(
           offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
@@ -917,7 +1128,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                 height: double.infinity,
                 decoration: BoxDecoration(
                   color: drawerBg,
-                  border: Border(left: BorderSide(color: borderColor, width: 1.5)),
+                  border: Border(
+                    left: BorderSide(color: borderColor, width: 1.5),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
@@ -931,22 +1144,33 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                     children: [
                       // Header
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 18,
+                        ),
                         decoration: BoxDecoration(
                           color: drawerBg,
-                          border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                          border: Border(
+                            bottom: BorderSide(color: borderColor, width: 1),
+                          ),
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                                color:
+                                    (isDark
+                                            ? Colors.white
+                                            : PiggyTrunkTheme.ptPrimary)
+                                        .withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
                                 Icons.assignment_outlined,
-                                color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                color: isDark
+                                    ? Colors.white
+                                    : PiggyTrunkTheme.ptPrimary,
                                 size: 20,
                               ),
                             ),
@@ -965,7 +1189,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    'Request ID #${req['request_id'] ?? ''}',
+                                    isGroup
+                                        ? '${items.length} Supplies Requested'
+                                        : 'Request ID #${req['request_id'] ?? ''}',
                                     style: GoogleFonts.plusJakartaSans(
                                       color: mutedColor,
                                       fontSize: 12,
@@ -977,7 +1203,11 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             ),
                             IconButton(
                               onPressed: () => Navigator.of(dialogCtx).pop(),
-                              icon: Icon(Icons.close_rounded, color: titleColor, size: 22),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: titleColor,
+                                size: 22,
+                              ),
                               tooltip: 'Close',
                             ),
                           ],
@@ -994,18 +1224,24 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               // Status Banner
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: statusBg,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: statusFg.withValues(alpha: 0.3)),
+                                  border: Border.all(
+                                    color: statusFg.withValues(alpha: 0.3),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
                                     Icon(statusIcon, color: statusFg, size: 20),
                                     const SizedBox(width: 10),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Status: $status',
@@ -1018,7 +1254,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         Text(
                                           'Requested on $requestDate',
                                           style: GoogleFonts.plusJakartaSans(
-                                            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                                            color: isDark
+                                                ? const Color(0xFFCBD5E1)
+                                                : const Color(0xFF475569),
                                             fontSize: 11.5,
                                             fontWeight: FontWeight.w500,
                                           ),
@@ -1031,7 +1269,10 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               const SizedBox(height: 18),
 
                               // Raiser & Batch Card
-                              _buildDetailSectionTitle('RAISER & BATCH INFORMATION', titleColor),
+                              _buildDetailSectionTitle(
+                                'RAISER & BATCH INFORMATION',
+                                titleColor,
+                              ),
                               const SizedBox(height: 8),
                               Container(
                                 decoration: BoxDecoration(
@@ -1042,40 +1283,236 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
                                   children: [
-                                    _buildDetailRow('Hog Raiser', raiserName, Icons.person_outline_rounded, titleColor, mutedColor, isDark),
+                                    _buildDetailRow(
+                                      'Hog Raiser',
+                                      raiserName,
+                                      Icons.person_outline_rounded,
+                                      titleColor,
+                                      mutedColor,
+                                      isDark,
+                                    ),
                                     const Divider(height: 20, thickness: 0.8),
-                                    _buildDetailRow('Assigned Batch', batchName, Icons.layers_outlined, titleColor, mutedColor, isDark),
+                                    _buildDetailRow(
+                                      'Assigned Batch',
+                                      batchName,
+                                      Icons.layers_outlined,
+                                      titleColor,
+                                      mutedColor,
+                                      isDark,
+                                    ),
                                     const Divider(height: 20, thickness: 0.8),
-                                    _buildDetailRow('Date Submitted', requestDate, Icons.calendar_today_outlined, titleColor, mutedColor, isDark),
+                                    _buildDetailRow(
+                                      'Date & Time Submitted',
+                                      requestDate,
+                                      Icons.schedule_rounded,
+                                      titleColor,
+                                      mutedColor,
+                                      isDark,
+                                    ),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 18),
 
-                              // Requested Item Card
-                              _buildDetailSectionTitle('REQUESTED SUPPLY', titleColor),
-                              const SizedBox(height: 8),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: cardBg,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: cardBorder),
-                                ),
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    _buildDetailRow('Category', category, Icons.category_outlined, titleColor, mutedColor, isDark),
-                                    const Divider(height: 20, thickness: 0.8),
-                                    _buildDetailRow('Item / Feed Type', feedType.isNotEmpty && feedType != 'N/A' ? feedType : category, Icons.inventory_2_outlined, titleColor, mutedColor, isDark),
-                                    const Divider(height: 20, thickness: 0.8),
-                                    _buildDetailRow('Quantity Requested', '$quantity units / sacks', Icons.format_list_numbered_rounded, titleColor, mutedColor, isDark, isHighlight: true),
-                                  ],
-                                ),
+                              // Requested Item(s) Card
+                              _buildDetailSectionTitle(
+                                items.length > 1
+                                    ? 'REQUESTED SUPPLIES (${items.length} ITEMS)'
+                                    : 'REQUESTED SUPPLY',
+                                titleColor,
                               ),
+                              const SizedBox(height: 8),
+                              ...items.map((it) {
+                                final itCat =
+                                    it['category']?.toString() ?? 'Feeds';
+                                final itFeedType =
+                                    it['feed_type']?.toString() ?? 'N/A';
+                                final itQty = it['quantity']?.toString() ?? '0';
+                                final itProd = _findMatchingProduct(
+                                  itCat,
+                                  itFeedType,
+                                );
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: cardBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: cardBorder),
+                                  ),
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    children: [
+                                      if (itProd?.image != null &&
+                                          itProd!.image!.isNotEmpty) ...[
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 14,
+                                          ),
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? const Color(0xFF132238)
+                                                : Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: cardBorder,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 56,
+                                                height: 56,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: cardBorder
+                                                        .withValues(alpha: 0.5),
+                                                  ),
+                                                ),
+                                                child: ClipRRect(
+                                                  borderRadius:
+                                                      BorderRadius.circular(7),
+                                                  child: Image.network(
+                                                    itProd.image!,
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder: (_, _, _) => Icon(
+                                                      Icons
+                                                          .inventory_2_outlined,
+                                                      color: mutedColor,
+                                                      size: 24,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      itProd.name,
+                                                      style:
+                                                          GoogleFonts.plusJakartaSans(
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            color: titleColor,
+                                                          ),
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 3),
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 6,
+                                                                vertical: 2,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: isDark
+                                                                ? const Color(
+                                                                    0xFF1E293B,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFFE2E8F0,
+                                                                  ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
+                                                          ),
+                                                          child: Text(
+                                                            itCat.toUpperCase(),
+                                                            style:
+                                                                GoogleFonts.plusJakartaSans(
+                                                                  fontSize: 10,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  color:
+                                                                      mutedColor,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Text(
+                                                          '${itProd.units} in stock',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontSize: 11,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color:
+                                                                itProd.units <=
+                                                                    5
+                                                                ? const Color(
+                                                                    0xFFFF758C,
+                                                                  )
+                                                                : PiggyTrunkTheme
+                                                                      .ptSuccess,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      _buildDetailRow(
+                                        'Category',
+                                        itCat,
+                                        Icons.category_outlined,
+                                        titleColor,
+                                        mutedColor,
+                                        isDark,
+                                      ),
+                                      const Divider(height: 16, thickness: 0.8),
+                                      _buildDetailRow(
+                                        'Item / Feed Type',
+                                        itFeedType.isNotEmpty &&
+                                                itFeedType != 'N/A'
+                                            ? itFeedType
+                                            : itCat,
+                                        Icons.inventory_2_outlined,
+                                        titleColor,
+                                        mutedColor,
+                                        isDark,
+                                      ),
+                                      const Divider(height: 16, thickness: 0.8),
+                                      _buildDetailRow(
+                                        'Quantity Requested',
+                                        '$itQty units / sacks',
+                                        Icons.format_list_numbered_rounded,
+                                        titleColor,
+                                        mutedColor,
+                                        isDark,
+                                        isHighlight: true,
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
                               const SizedBox(height: 18),
 
                               // RAISER'S MESSAGE (HIGHLIGHTED)
-                              _buildDetailSectionTitle("RAISER'S MESSAGE / NOTE", titleColor),
+                              _buildDetailSectionTitle(
+                                "RAISER'S MESSAGE / NOTE",
+                                titleColor,
+                              ),
                               const SizedBox(height: 8),
                               Container(
                                 width: double.infinity,
@@ -1093,13 +1530,19 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         Icon(
                                           Icons.chat_bubble_outline_rounded,
                                           size: 16,
-                                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                          color: isDark
+                                              ? Colors.white
+                                              : PiggyTrunkTheme.ptPrimary,
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          notes.isNotEmpty ? 'Message from Raiser' : 'No Message Attached',
+                                          notes.isNotEmpty
+                                              ? 'Message from Raiser'
+                                              : 'No Message Attached',
                                           style: GoogleFonts.plusJakartaSans(
-                                            color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                            color: isDark
+                                                ? Colors.white
+                                                : PiggyTrunkTheme.ptPrimary,
                                             fontWeight: FontWeight.w700,
                                             fontSize: 12,
                                           ),
@@ -1108,12 +1551,20 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      notes.isNotEmpty ? notes : 'The raiser did not include any specific notes with this stock request.',
+                                      notes.isNotEmpty
+                                          ? notes
+                                          : 'The raiser did not include any specific notes with this stock request.',
                                       style: GoogleFonts.plusJakartaSans(
-                                        color: notes.isNotEmpty ? titleColor : mutedColor,
+                                        color: notes.isNotEmpty
+                                            ? titleColor
+                                            : mutedColor,
                                         fontSize: 13.5,
-                                        fontWeight: notes.isNotEmpty ? FontWeight.w600 : FontWeight.w400,
-                                        fontStyle: notes.isNotEmpty ? FontStyle.normal : FontStyle.italic,
+                                        fontWeight: notes.isNotEmpty
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                        fontStyle: notes.isNotEmpty
+                                            ? FontStyle.normal
+                                            : FontStyle.italic,
                                         height: 1.45,
                                       ),
                                     ),
@@ -1122,24 +1573,39 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               ),
 
                               // Rejection Reason (if rejected)
-                              if (status == 'REJECTED' && rejectionReason.isNotEmpty) ...[
+                              if (status == 'REJECTED' &&
+                                  rejectionReason.isNotEmpty) ...[
                                 const SizedBox(height: 18),
-                                _buildDetailSectionTitle('REJECTION REASON', const Color(0xFFFF758C)),
+                                _buildDetailSectionTitle(
+                                  'REJECTION REASON',
+                                  const Color(0xFFFF758C),
+                                ),
                                 const SizedBox(height: 8),
                                 Container(
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.12 : 0.08),
+                                    color: const Color(
+                                      0xFFFF758C,
+                                    ).withValues(alpha: _isDark ? 0.12 : 0.08),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFFF758C).withValues(alpha: 0.3)),
+                                    border: Border.all(
+                                      color: const Color(
+                                        0xFFFF758C,
+                                      ).withValues(alpha: 0.3),
+                                    ),
                                   ),
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
                                         children: [
-                                          const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFFF758C)),
+                                          const Icon(
+                                            Icons.info_outline_rounded,
+                                            size: 16,
+                                            color: Color(0xFFFF758C),
+                                          ),
                                           const SizedBox(width: 8),
                                           Text(
                                             'Admin Reason ($decisionDate)',
@@ -1164,62 +1630,6 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                 ),
                               ],
-
-                              // Matching Inventory Stocks
-                              if (matchingProducts.isNotEmpty) ...[
-                                const SizedBox(height: 18),
-                                _buildDetailSectionTitle('CURRENT INVENTORY STOCKS', titleColor),
-                                const SizedBox(height: 8),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: cardBg,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: cardBorder),
-                                  ),
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    children: matchingProducts.take(3).map((prod) {
-                                      final inStock = prod.units;
-                                      final isLow = inStock <= 5;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 4),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                prod.name,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  color: titleColor,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 12.5,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: isLow
-                                                    ? const Color(0xFFFF758C).withValues(alpha: 0.15)
-                                                    : PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                '$inStock in stock',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  color: isLow ? const Color(0xFFFF758C) : PiggyTrunkTheme.ptSuccess,
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ),
@@ -1230,7 +1640,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           color: drawerBg,
-                          border: Border(top: BorderSide(color: borderColor, width: 1)),
+                          border: Border(
+                            top: BorderSide(color: borderColor, width: 1),
+                          ),
                         ),
                         child: status == 'PENDING'
                             ? Row(
@@ -1242,11 +1654,27 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         _confirmRejectRequest(req);
                                       },
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFFFF758C),
-                                        side: BorderSide(color: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.35 : 0.3)),
-                                        backgroundColor: const Color(0xFFFF758C).withValues(alpha: _isDark ? 0.1 : 0.08),
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        foregroundColor: const Color(
+                                          0xFFFF758C,
+                                        ),
+                                        side: BorderSide(
+                                          color: const Color(0xFFFF758C)
+                                              .withValues(
+                                                alpha: _isDark ? 0.35 : 0.3,
+                                              ),
+                                        ),
+                                        backgroundColor: const Color(0xFFFF758C)
+                                            .withValues(
+                                              alpha: _isDark ? 0.1 : 0.08,
+                                            ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
                                       ),
                                       child: Text(
                                         'Reject',
@@ -1265,9 +1693,15 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         Navigator.of(dialogCtx).pop();
                                         _showApproveDialog(req);
                                       },
-                                      icon: const Icon(Icons.check_rounded, size: 18, color: Colors.white),
+                                      icon: const Icon(
+                                        Icons.check_rounded,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
                                       label: Text(
-                                        'Approve & Fulfill',
+                                        isGroup
+                                            ? 'Approve & Fulfill (${items.length} Items)'
+                                            : 'Approve & Fulfill',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 13.5,
@@ -1275,10 +1709,17 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                         ),
                                       ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: PiggyTrunkTheme.ptSuccess,
+                                        backgroundColor:
+                                            PiggyTrunkTheme.ptSuccess,
                                         foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 14),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
                                         elevation: 0,
                                       ),
                                     ),
@@ -1288,11 +1729,16 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             : SizedBox(
                                 width: double.infinity,
                                 child: OutlinedButton(
-                                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                                  onPressed: () =>
+                                      Navigator.of(dialogCtx).pop(),
                                   style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     side: BorderSide(color: borderColor),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
                                   ),
                                   child: Text(
                                     'Close',
@@ -1328,8 +1774,17 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, IconData icon, Color titleColor, Color mutedColor, bool isDark, {bool isHighlight = false}) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    IconData icon,
+    Color titleColor,
+    Color mutedColor,
+    bool isDark, {
+    bool isHighlight = false,
+  }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 16, color: mutedColor),
         const SizedBox(width: 10),
@@ -1341,56 +1796,818 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
             color: mutedColor,
           ),
         ),
-        const Spacer(),
-        Text(
-          value,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w700,
-            color: isHighlight ? (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary) : titleColor,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w700,
+              color: isHighlight
+                  ? (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                  : titleColor,
+            ),
           ),
         ),
       ],
     );
   }
 
+  String _formatDateTimeString(dynamic dateVal) {
+    if (dateVal == null) return 'N/A';
+    final str = dateVal.toString().trim();
+    if (str.isEmpty || str == 'N/A') return 'N/A';
+    try {
+      DateTime dt = DateTime.parse(str).toLocal();
+      if (dt.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+        dt = dt.subtract(dt.timeZoneOffset);
+      }
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      final formattedDate = '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+      if (str.contains('T') || str.contains(':') || str.contains(' ')) {
+        final hour = dt.hour > 12
+            ? dt.hour - 12
+            : (dt.hour == 0 ? 12 : dt.hour);
+        final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+        final minute = dt.minute.toString().padLeft(2, '0');
+        return '$formattedDate • $hour:$minute $ampm';
+      }
+      return formattedDate;
+    } catch (_) {
+      return str;
+    }
+  }
+
+  List<Map<String, dynamic>> _groupRequests(List<Map<String, dynamic>> list) {
+    final Map<String, List<Map<String, dynamic>>> groupMap = {};
+    for (final req in list) {
+      final rKey = (req['hog_raiser_id'] ?? req['fetched_raiser_name'] ?? '')
+          .toString();
+      final aKey = (req['assignment_id'] ?? '').toString();
+      final notesKey = (req['notes'] ?? '').toString().replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
+      final statusKey = (req['status'] ?? 'pending').toString().toLowerCase();
+      final createdAtStr = (req['created_at'] ?? req['request_date'] ?? '')
+          .toString();
+      String timeKey = createdAtStr;
+      try {
+        final dt = DateTime.parse(createdAtStr);
+        timeKey = '${dt.year}-${dt.month}-${dt.day} ${dt.hour}:${dt.minute}';
+      } catch (_) {
+        timeKey = createdAtStr;
+      }
+      final key = [rKey, aKey, timeKey, notesKey, statusKey].join('__');
+      groupMap.putIfAbsent(key, () => []).add(req);
+    }
+
+    final List<Map<String, dynamic>> result = [];
+    for (final items in groupMap.values) {
+      final primary = Map<String, dynamic>.from(items.first);
+      primary['items'] = items;
+      primary['is_group'] = items.length > 1;
+      primary['item_count'] = items.length;
+      final totalQty = items.fold<int>(0, (sum, i) {
+        final q = i['quantity'];
+        if (q is num) return sum + q.toInt();
+        return sum + (int.tryParse(q?.toString() ?? '1') ?? 1);
+      });
+      primary['total_quantity'] = totalQty;
+      result.add(primary);
+    }
+    return result;
+  }
+
+  Product? _findMatchingProduct(String category, String feedType) {
+    final catClean = category.trim().toLowerCase();
+    final feedClean = feedType.trim().toLowerCase();
+
+    if (feedClean.isNotEmpty) {
+      // 1. Exact name match
+      for (final p in widget.products) {
+        if (p.name.trim().toLowerCase() == feedClean) {
+          return p;
+        }
+      }
+
+      // 2. Full substring match
+      for (final p in widget.products) {
+        final pName = p.name.trim().toLowerCase();
+        if (pName.contains(feedClean) || feedClean.contains(pName)) {
+          return p;
+        }
+      }
+
+      // 3. Best token overlap match
+      Product? bestProduct;
+      int bestScore = 0;
+      final feedTokens = feedClean
+          .split(RegExp(r'[^a-zA-Z0-9]+'))
+          .where((t) => t.length > 2)
+          .toSet();
+
+      for (final p in widget.products) {
+        final pName = p.name.trim().toLowerCase();
+        final pTokens = pName
+            .split(RegExp(r'[^a-zA-Z0-9]+'))
+            .where((t) => t.length > 2)
+            .toSet();
+        final overlap = feedTokens.intersection(pTokens).length;
+        if (overlap > bestScore) {
+          bestScore = overlap;
+          bestProduct = p;
+        }
+      }
+
+      if (bestProduct != null && bestScore > 0) {
+        return bestProduct;
+      }
+    }
+
+    // 4. Fallback only if feedType is blank: match first product of same category
+    if (feedClean.isEmpty && catClean.isNotEmpty) {
+      for (final p in widget.products) {
+        final pCat = p.category.trim().toLowerCase();
+        if (catClean.contains('feed') || catClean == 'feeds' || catClean == 'pagkain') {
+          if (pCat.contains('feed') || pCat == 'feeds') return p;
+        } else if (catClean.contains('vitamin') || catClean == 'bitamina') {
+          if (pCat.contains('vitamin') || pCat == 'vitamins') return p;
+        } else if (catClean.contains('med') || catClean == 'gamot') {
+          if (pCat.contains('med') || pCat == 'medicines' || pCat == 'medicine') return p;
+        } else if (pCat == catClean) {
+          return p;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _showApproveGroupDialog(Map<String, dynamic> req) async {
+    final items =
+        (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [req];
+    final raiser = req['hog_raisers'] as Map<String, dynamic>?;
+    final raiserName =
+        req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
+    final raiserId = req['hog_raiser_id'];
+    final batchName = req['fetched_batch_name'] ?? 'General Stock';
+    final rawNotes = (req['notes'] ?? '').toString().trim();
+    final notes = rawNotes.replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
+    final groupApprovalMsgController = TextEditingController();
+
+    final List<Map<String, dynamic>> itemsWithProducts = [];
+    for (final item in items) {
+      final cat = item['category']?.toString() ?? 'Feeds';
+      final feed = item['feed_type']?.toString() ?? '';
+      final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+      final prod = _findMatchingProduct(cat, feed);
+      final hasStock = prod != null && prod.units >= qty;
+      itemsWithProducts.add({
+        'item': item,
+        'product': prod,
+        'quantity': qty,
+        'has_stock': hasStock,
+      });
+    }
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Approve Supply Request Drawer',
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (dialogCtx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (dialogCtx, anim1, anim2, child) {
+        final curvedValue = Curves.easeOutCubic.transform(anim1.value);
+        final screenWidth = MediaQuery.of(dialogCtx).size.width;
+        final isMobile = screenWidth < 600;
+        final drawerWidth = isMobile ? screenWidth : 440.0;
+
+        final isDark =
+            Theme.of(dialogCtx).brightness == Brightness.dark ||
+            Theme.of(context).brightness == Brightness.dark;
+        final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
+        final borderColor = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFD7E3F3);
+        final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
+        final mutedColor = isDark
+            ? const Color(0xFF9AB1CB)
+            : const Color(0xFF6F8096);
+        final cardBg = isDark
+            ? const Color(0xFF1A2B44)
+            : const Color(0xFFEFF6FF);
+        final cardBorder = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFBFDBFE);
+
+        return Transform.translate(
+          offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: drawerWidth,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: drawerBg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                      blurRadius: 24,
+                      offset: const Offset(-4, 0),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: borderColor, width: 1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFF10B981,
+                                ).withValues(alpha: isDark ? 0.2 : 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(
+                                    0xFF10B981,
+                                  ).withValues(alpha: 0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.task_alt_rounded,
+                                color: Color(0xFF10B981),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Approve Supply Request',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: titleColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Fulfill ${items.length} items for $raiserName',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: mutedColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: mutedColor,
+                                size: 20,
+                              ),
+                              splashRadius: 20,
+                              onPressed: () => Navigator.of(dialogCtx).pop(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'RAISER & BATCH',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: mutedColor,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: cardBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: cardBorder),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      raiserName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: titleColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Batch: $batchName • ${items.length} items (${req['total_quantity']} total units)',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: mutedColor,
+                                      ),
+                                    ),
+                                    if (notes.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Note: "$notes"',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          fontStyle: FontStyle.italic,
+                                          color: isDark
+                                              ? Colors.amber[200]
+                                              : const Color(0xFFB45309),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'ITEMS TO DISPATCH (${items.length})',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: mutedColor,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ...itemsWithProducts.map((entry) {
+                                final item =
+                                    entry['item'] as Map<String, dynamic>;
+                                final prod = entry['product'] as Product?;
+                                final qty = entry['quantity'] as int;
+                                final hasStock = entry['has_stock'] as bool;
+                                final cat =
+                                    item['category']?.toString() ?? 'Feeds';
+                                final feed =
+                                    item['feed_type']?.toString() ?? '';
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: hasStock
+                                          ? (isDark
+                                                ? const Color(0xFF334155)
+                                                : const Color(0xFFE2E8F0))
+                                          : const Color(
+                                              0xFFFF758C,
+                                            ).withValues(alpha: 0.5),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFFE2E8F0),
+                                          ),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            7,
+                                          ),
+                                          child:
+                                              (prod?.image != null &&
+                                                  prod!.image!.isNotEmpty)
+                                              ? Image.network(
+                                                  prod.image!,
+                                                  fit: BoxFit.contain,
+                                                  errorBuilder: (_, _, _) =>
+                                                      const Icon(
+                                                        Icons
+                                                            .inventory_2_outlined,
+                                                        size: 20,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.inventory_2_outlined,
+                                                  size: 20,
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prod?.name ??
+                                                  (feed.isNotEmpty
+                                                      ? feed
+                                                      : cat),
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: titleColor,
+                                                  ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              'Requesting: $qty units • Stock: ${prod?.units ?? 0}',
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: hasStock
+                                                        ? (isDark
+                                                              ? const Color(
+                                                                  0xFF94A3B8,
+                                                                )
+                                                              : const Color(
+                                                                  0xFF64748B,
+                                                                ))
+                                                        : const Color(
+                                                            0xFFFF758C,
+                                                          ),
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        hasStock
+                                            ? Icons.check_circle_rounded
+                                            : Icons.warning_rounded,
+                                        size: 18,
+                                        color: hasStock
+                                            ? const Color(0xFF10B981)
+                                            : const Color(0xFFFF758C),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              const SizedBox(height: 18),
+                              Text(
+                                'MESSAGE TO RAISER (OPTIONAL)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: mutedColor,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: groupApprovalMsgController,
+                                maxLines: 3,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  color: titleColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'e.g., Stock approved and ready for pickup tomorrow morning.',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    color: mutedColor.withValues(alpha: 0.7),
+                                  ),
+                                  filled: true,
+                                  fillColor: isDark
+                                      ? const Color(0xFF1A2B44)
+                                      : const Color(0xFFF5F8FE),
+                                  contentPadding: const EdgeInsets.all(12),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: BorderSide(
+                                      color: isDark
+                                          ? const Color(0xFF2A3E5B)
+                                          : const Color(0xFFC9D8EC),
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFF10B981),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: drawerBg,
+                          border: Border(
+                            top: BorderSide(color: borderColor, width: 1),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.of(dialogCtx).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(color: borderColor),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: titleColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: _isProcessingRequest
+                                    ? null
+                                    : () {
+                                        final msg = groupApprovalMsgController.text.trim();
+                                        Navigator.of(dialogCtx).pop();
+                                        _processApproveGroupRequest(
+                                          items: items,
+                                          req: req,
+                                          raiserName: raiserName,
+                                          raiserId: raiserId,
+                                          approvalMessage: msg.isNotEmpty ? msg : null,
+                                        );
+                                      },
+                                icon: const Icon(
+                                  Icons.check_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  'Approve & Dispatch All',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.5,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: PiggyTrunkTheme.ptSuccess,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _processApproveGroupRequest({
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> req,
+    required String raiserName,
+    dynamic raiserId,
+    String? approvalMessage,
+  }) async {
+    setState(() => _isProcessingRequest = true);
+    try {
+      final nowDay = DateTime.now().toIso8601String().split('T').first;
+      for (final item in items) {
+        final rId = item['request_id'];
+        final qty = (item['quantity'] as num?)?.toInt() ?? 1;
+        final matchedProd = _findMatchingProduct(
+          item['category']?.toString() ?? '',
+          item['feed_type']?.toString() ?? '',
+        );
+        if (matchedProd != null) {
+          final newUnits = (matchedProd.units - qty).clamp(0, 999999);
+          await _supabase
+              .from('inventory_products')
+              .update({'units': newUnits})
+              .eq('id', matchedProd.id);
+          await widget.onInsertLog(
+            productId: matchedProd.id,
+            productName: matchedProd.name,
+            action: 'REQUEST_APPROVE',
+            price: matchedProd.price,
+            units: newUnits,
+            details:
+                'Approved in request for $raiserName. Dispatched -$qty units. Remaining: $newUnits.',
+          );
+        }
+        await _supabase
+            .from('stock_requests')
+            .update({'status': 'approved', 'decision_date': nowDay})
+            .eq('request_id', rId);
+      }
+
+      if (raiserId != null) {
+        // Delete any generic duplicate notifications created by database trigger
+        try {
+          await _supabase
+              .from('raiser_notifications')
+              .delete()
+              .eq('hog_raiser_id', raiserId)
+              .eq('title', 'Stock Request Update');
+        } catch (_) {}
+
+        final summary = items
+            .map((i) => "${i['quantity']}x ${i['feed_type'] ?? i['category']}")
+            .join(', ');
+        String notifMessage = 'Your request for $summary has been approved.';
+        if (approvalMessage != null && approvalMessage.trim().isNotEmpty) {
+          notifMessage += '\n\nNote: "${approvalMessage.trim()}"';
+        }
+
+        try {
+          await _supabase.from('raiser_notifications').insert({
+            'hog_raiser_id': raiserId,
+            'title': 'Stock Request Approved',
+            'message': notifMessage,
+            'type': 'request_approved',
+            'is_read': false,
+          });
+        } catch (_) {}
+      }
+
+      widget.onShowSnackBar(
+        'Stock request (${items.length} items) for $raiserName approved successfully!',
+        backgroundColor: PiggyTrunkTheme.ptSuccess,
+      );
+
+      await _loadStockRequests();
+      widget.onProductsReload();
+    } catch (e) {
+      debugPrint('Error approving group stock request: $e');
+      widget.onShowSnackBar(
+        'Failed to approve request: $e',
+        backgroundColor: Colors.redAccent,
+      );
+    } finally {
+      setState(() => _isProcessingRequest = false);
+    }
+  }
+
+  Future<void> _processRejectGroupRequest({
+    required List<Map<String, dynamic>> items,
+    required dynamic raiserId,
+    required String raiserName,
+    required String rejectionReason,
+  }) async {
+    setState(() => _isProcessingRequest = true);
+    try {
+      final nowDay = DateTime.now().toIso8601String().split('T').first;
+      for (final item in items) {
+        final rId = item['request_id'];
+        try {
+          await _supabase
+              .from('stock_requests')
+              .update({
+                'status': 'rejected',
+                'decision_date': nowDay,
+                'rejection_reason': rejectionReason.isNotEmpty
+                    ? rejectionReason
+                    : null,
+              })
+              .eq('request_id', rId);
+        } catch (_) {
+          await _supabase
+              .from('stock_requests')
+              .update({'status': 'rejected', 'decision_date': nowDay})
+              .eq('request_id', rId);
+        }
+      }
+
+      if (raiserId != null) {
+        final summary = items
+            .map((i) => "${i['quantity']}x ${i['feed_type'] ?? i['category']}")
+            .join(', ');
+        final notifMsg = rejectionReason.isNotEmpty
+            ? 'Your request for $summary has been rejected. Reason: "$rejectionReason"'
+            : 'Your request for $summary has been rejected.';
+        try {
+          await _supabase.from('raiser_notifications').insert({
+            'hog_raiser_id': raiserId,
+            'title': 'Stock Request Update',
+            'message': notifMsg,
+            'type': 'request_rejected',
+            'is_read': false,
+          });
+        } catch (_) {}
+      }
+
+      widget.onShowSnackBar(
+        'Stock request (${items.length} items) from $raiserName has been rejected.',
+        backgroundColor: Colors.orange,
+      );
+
+      await _loadStockRequests();
+    } catch (e) {
+      debugPrint('Error rejecting stock request: $e');
+      widget.onShowSnackBar(
+        'Failed to reject request: $e',
+        backgroundColor: Colors.redAccent,
+      );
+    } finally {
+      setState(() => _isProcessingRequest = false);
+    }
+  }
+
   Future<void> _showApproveDialog(Map<String, dynamic> req) async {
+    if (req['is_group'] == true) {
+      return _showApproveGroupDialog(req);
+    }
     final category = req['category']?.toString() ?? 'Feeds';
     final feedType = req['feed_type']?.toString() ?? '';
     final requestedQuantity = (req['quantity'] as num?)?.toInt() ?? 1;
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
-    final raiserName = req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
+    final raiserName =
+        req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
     final requestId = req['request_id'];
-    final notes = (req['notes'] ?? '').toString().trim();
+    final rawNotes = (req['notes'] ?? '').toString().trim();
+    final notes = rawNotes.replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
 
-    final categoryClean = category.trim().toLowerCase();
-    List<Product> matchingProducts = widget.products.where((p) {
-      final pCat = p.category.trim().toLowerCase();
-      if (categoryClean.contains('feed') || categoryClean == 'feeds' || categoryClean == 'pagkain') {
-        return pCat.contains('feed') || pCat == 'feeds';
-      } else if (categoryClean.contains('vitamin') || categoryClean == 'bitamina') {
-        return pCat.contains('vitamin') || pCat == 'vitamins';
-      } else if (categoryClean.contains('med') || categoryClean == 'gamot') {
-        return pCat.contains('med') || pCat == 'medicines' || pCat == 'medicine';
-      }
-      return pCat == categoryClean;
-    }).toList();
-
-    if (matchingProducts.isEmpty) {
-      matchingProducts = widget.products;
-    }
-
-    Product? selectedProduct;
-    if (matchingProducts.isNotEmpty) {
-      if (categoryClean.contains('feed') && feedType.isNotEmpty) {
-        selectedProduct = matchingProducts.firstWhere(
-          (p) => p.name.toLowerCase().contains(feedType.toLowerCase()),
-          orElse: () => matchingProducts.first,
-        );
-      } else {
-        selectedProduct = matchingProducts.first;
-      }
-    }
+    // Auto-match exact product from inventory
+    final matchedProduct = _findMatchingProduct(category, feedType);
+    final approvalMsgController = TextEditingController();
 
     showGeneralDialog<void>(
       context: context,
@@ -1405,15 +2622,29 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         final isMobile = screenWidth < 600;
         final drawerWidth = isMobile ? screenWidth : 420.0;
 
-        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
+        final isDark =
+            Theme.of(dialogCtx).brightness == Brightness.dark ||
+            Theme.of(context).brightness == Brightness.dark;
         final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
-        final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final borderColor = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFD7E3F3);
         final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
-        final mutedColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
-        final fieldBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
-        final fieldBorder = isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
-        final cardBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFEFF6FF);
-        final cardBorder = isDark ? const Color(0xFF28405D) : const Color(0xFFBFDBFE);
+        final mutedColor = isDark
+            ? const Color(0xFF9AB1CB)
+            : const Color(0xFF6F8096);
+        final fieldBg = isDark
+            ? const Color(0xFF1A2B44)
+            : const Color(0xFFF5F8FE);
+        final fieldBorder = isDark
+            ? const Color(0xFF2A3E5B)
+            : const Color(0xFFC9D8EC);
+        final cardBg = isDark
+            ? const Color(0xFF1A2B44)
+            : const Color(0xFFEFF6FF);
+        final cardBorder = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFBFDBFE);
 
         return Transform.translate(
           offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
@@ -1423,8 +2654,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
               color: Colors.transparent,
               child: StatefulBuilder(
                 builder: (stfCtx, setStateDialog) {
-                  Product? selectedProdInDialog = selectedProduct;
-                  final hasSufficientStock = selectedProdInDialog != null && selectedProdInDialog.units >= requestedQuantity;
+                  final hasSufficientStock =
+                      matchedProduct != null &&
+                      matchedProduct.units >= requestedQuantity;
 
                   return Container(
                     width: drawerWidth,
@@ -1433,7 +2665,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                       color: drawerBg,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.2),
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.6 : 0.2,
+                          ),
                           blurRadius: 24,
                           offset: const Offset(-4, 0),
                         ),
@@ -1445,19 +2679,31 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                         children: [
                           // Header
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
                             decoration: BoxDecoration(
-                              border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: borderColor,
+                                  width: 1,
+                                ),
+                              ),
                             ),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(9),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                    color: const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: isDark ? 0.2 : 0.1),
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
-                                      color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                                      color: const Color(
+                                        0xFF10B981,
+                                      ).withValues(alpha: 0.3),
                                       width: 1,
                                     ),
                                   ),
@@ -1470,7 +2716,8 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Approve Request',
@@ -1493,9 +2740,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: mutedColor,
+                                    size: 20,
+                                  ),
                                   splashRadius: 20,
-                                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                                  onPressed: () =>
+                                      Navigator.of(dialogCtx).pop(),
                                 ),
                               ],
                             ),
@@ -1528,32 +2780,46 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                       border: Border.all(color: cardBorder),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
                                               raiserName,
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 14.5,
-                                                fontWeight: FontWeight.w800,
-                                                color: titleColor,
-                                              ),
+                                              style:
+                                                  GoogleFonts.plusJakartaSans(
+                                                    fontSize: 14.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: titleColor,
+                                                  ),
                                             ),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFF2563EB).withValues(alpha: 0.15),
-                                                borderRadius: BorderRadius.circular(6),
+                                                color: const Color(
+                                                  0xFF2563EB,
+                                                ).withValues(alpha: 0.15),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
                                               ),
                                               child: Text(
                                                 category,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: const Color(0xFF3B82F6),
-                                                ),
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: const Color(
+                                                        0xFF3B82F6,
+                                                      ),
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -1580,28 +2846,44 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                           const SizedBox(height: 10),
                                           Container(
                                             width: double.infinity,
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 8,
+                                            ),
                                             decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF111C2E) : Colors.white,
-                                              borderRadius: BorderRadius.circular(8),
+                                              color: isDark
+                                                  ? const Color(0xFF111C2E)
+                                                  : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                               border: Border.all(
-                                                color: isDark ? const Color(0xFF2C3E55) : const Color(0xFFCBD5E1),
+                                                color: isDark
+                                                    ? const Color(0xFF2C3E55)
+                                                    : const Color(0xFFCBD5E1),
                                               ),
                                             ),
                                             child: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
-                                                const Icon(Icons.speaker_notes_outlined, size: 15, color: Color(0xFFD97706)),
+                                                const Icon(
+                                                  Icons.speaker_notes_outlined,
+                                                  size: 15,
+                                                  color: Color(0xFFD97706),
+                                                ),
                                                 const SizedBox(width: 6),
                                                 Expanded(
                                                   child: Text(
                                                     'Notes: "$notes"',
-                                                    style: GoogleFonts.plusJakartaSans(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
-                                                      fontStyle: FontStyle.italic,
-                                                      color: titleColor,
-                                                    ),
+                                                    style:
+                                                        GoogleFonts.plusJakartaSans(
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          fontStyle:
+                                                              FontStyle.italic,
+                                                          color: titleColor,
+                                                        ),
                                                   ),
                                                 ),
                                               ],
@@ -1613,9 +2895,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                   const SizedBox(height: 20),
 
-                                  // Product to Deduct Stock From
+                                  // Item to Dispatch From Inventory (Auto-matched)
                                   Text(
-                                    'SELECT PRODUCT TO DISPATCH FROM ($category ONLY) *',
+                                    'ITEM TO DISPATCH FROM INVENTORY',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w800,
@@ -1624,88 +2906,233 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  DropdownButtonFormField<Product>(
-                                    initialValue: selectedProduct,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: fieldBg,
-                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        borderSide: BorderSide(color: fieldBorder),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                                      ),
-                                    ),
-                                    dropdownColor: fieldBg,
-                                    borderRadius: BorderRadius.circular(12),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      color: titleColor,
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    items: matchingProducts.map((prod) {
-                                      return DropdownMenuItem<Product>(
-                                        value: prod,
-                                        child: Text(
-                                          '${prod.name} (${prod.units} in stock)',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (val) {
-                                      setStateDialog(() {
-                                        selectedProduct = val;
-                                      });
-                                    },
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // Stock availability warning / preview
-                                  if (selectedProdInDialog != null) ...[
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? const Color(0xFF1E293B)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
                                         color: hasSufficientStock
-                                            ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.12 : 0.08)
-                                            : const Color(0xFFFF758C).withValues(alpha: isDark ? 0.12 : 0.08),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: hasSufficientStock
-                                              ? const Color(0xFF10B981).withValues(alpha: 0.3)
-                                              : const Color(0xFFFF758C).withValues(alpha: 0.3),
-                                          width: 1,
-                                        ),
+                                            ? (isDark
+                                                ? const Color(0xFF334155)
+                                                : const Color(0xFFE2E8F0))
+                                            : const Color(0xFFFF758C)
+                                                .withValues(alpha: 0.5),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            hasSufficientStock ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
-                                            color: hasSufficientStock ? const Color(0xFF10B981) : const Color(0xFFFF758C),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              hasSufficientStock
-                                                  ? 'Stock available. ${selectedProdInDialog.units} units in stock. After dispatch: ${selectedProdInDialog.units - requestedQuantity} units.'
-                                                  : 'Insufficient stock! Only ${selectedProdInDialog.units} units available ($requestedQuantity needed).',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: hasSufficientStock
-                                                    ? (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF065F46))
-                                                    : (isDark ? const Color(0xFFFDA4AF) : const Color(0xFF9F1239)),
-                                              ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
                                             ),
                                           ),
-                                        ],
+                                          child: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(7),
+                                            child: (matchedProduct?.image !=
+                                                        null &&
+                                                    matchedProduct!
+                                                        .image!.isNotEmpty)
+                                                ? Image.network(
+                                                    matchedProduct.image!,
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder:
+                                                        (_, _, _) =>
+                                                            const Icon(
+                                                      Icons
+                                                          .inventory_2_outlined,
+                                                      size: 20,
+                                                    ),
+                                                  )
+                                                : const Icon(
+                                                    Icons
+                                                        .inventory_2_outlined,
+                                                    size: 20,
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                matchedProduct?.name ??
+                                                    (feedType.isNotEmpty
+                                                        ? feedType
+                                                        : category),
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: titleColor,
+                                                ),
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                matchedProduct != null
+                                                    ? 'In Stock: ${matchedProduct.units} units • Deducting: $requestedQuantity units'
+                                                    : 'Product not registered in inventory stock table',
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: hasSufficientStock
+                                                      ? mutedColor
+                                                      : const Color(
+                                                          0xFFFF758C),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          hasSufficientStock
+                                              ? Icons.check_circle_rounded
+                                              : Icons.warning_rounded,
+                                          size: 20,
+                                          color: hasSufficientStock
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFFFF758C),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  // Stock preview banner
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: hasSufficientStock
+                                          ? const Color(0xFF10B981)
+                                              .withValues(
+                                              alpha: isDark ? 0.12 : 0.08,
+                                            )
+                                          : const Color(0xFFFF758C)
+                                              .withValues(
+                                              alpha: isDark ? 0.12 : 0.08,
+                                            ),
+                                      borderRadius:
+                                          BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: hasSufficientStock
+                                            ? const Color(0xFF10B981)
+                                                .withValues(alpha: 0.3)
+                                            : const Color(0xFFFF758C)
+                                                .withValues(alpha: 0.3),
+                                        width: 1,
                                       ),
                                     ),
-                                  ],
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          hasSufficientStock
+                                              ? Icons
+                                                  .check_circle_outline_rounded
+                                              : Icons.error_outline_rounded,
+                                          color: hasSufficientStock
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFFFF758C),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            hasSufficientStock
+                                                ? 'Stock available. ${matchedProduct.units} units in stock. After dispatch: ${matchedProduct.units - requestedQuantity} units.'
+                                                : (matchedProduct != null
+                                                    ? 'Insufficient stock! Only ${matchedProduct.units} units available ($requestedQuantity needed).'
+                                                    : 'Item "$feedType" is not registered in inventory stock table.'),
+                                            style:
+                                                GoogleFonts.plusJakartaSans(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: hasSufficientStock
+                                                  ? (isDark
+                                                      ? const Color(
+                                                          0xFF6EE7B7,
+                                                        )
+                                                      : const Color(
+                                                          0xFF065F46,
+                                                        ))
+                                                  : (isDark
+                                                      ? const Color(
+                                                          0xFFFDA4AF,
+                                                        )
+                                                      : const Color(
+                                                          0xFF9F1239,
+                                                        )),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+
+                                  // Message to Raiser (Optional)
+                                  Text(
+                                    'MESSAGE TO RAISER (OPTIONAL)',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: mutedColor,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: approvalMsgController,
+                                    maxLines: 3,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      color: titleColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          'e.g., Stock approved and ready for pickup tomorrow morning.',
+                                      hintStyle:
+                                          GoogleFonts.plusJakartaSans(
+                                        fontSize: 12.5,
+                                        color: mutedColor.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                      filled: true,
+                                      fillColor: fieldBg,
+                                      contentPadding: const EdgeInsets.all(12),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        borderSide: BorderSide(
+                                          color: fieldBorder,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        borderSide: const BorderSide(
+                                          color: Color(0xFF10B981),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -1716,18 +3143,25 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: drawerBg,
-                              border: Border(top: BorderSide(color: borderColor, width: 1)),
+                              border: Border(
+                                top: BorderSide(color: borderColor, width: 1),
+                              ),
                             ),
                             child: Row(
                               children: [
                                 Expanded(
                                   child: OutlinedButton(
-                                    onPressed: _isProcessingRequest ? null : () => Navigator.of(dialogCtx).pop(),
+                                    onPressed: _isProcessingRequest
+                                        ? null
+                                        : () => Navigator.of(dialogCtx).pop(),
                                     style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
                                       side: BorderSide(color: fieldBorder),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
                                       ),
                                     ),
                                     child: Text(
@@ -1743,101 +3177,153 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   flex: 2,
-                                    child: ElevatedButton.icon(
-                                      onPressed: (_isProcessingRequest || !hasSufficientStock)
-                                          ? null
-                                          : () async {
-                                              Navigator.of(dialogCtx).pop();
-                                              await _processApproveRequest(
-                                                requestId: requestId,
-                                                product: selectedProdInDialog,
-                                                requestedUnits: requestedQuantity,
-                                                raiserName: raiserName,
-                                                raiserId: req['hog_raiser_id'],
-                                              );
-                                            },
-                                      icon: _isProcessingRequest
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                            )
-                                          : const Icon(Icons.check_rounded, size: 18),
-                                      label: Text(
-                                        _isProcessingRequest ? 'Processing...' : 'Confirm Approval',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13.5,
-                                          color: Colors.white,
-                                        ),
+                                  child: ElevatedButton.icon(
+                                    onPressed: (_isProcessingRequest ||
+                                            !hasSufficientStock)
+                                        ? null
+                                        : () async {
+                                            final msg = approvalMsgController
+                                                .text
+                                                .trim();
+                                            Navigator.of(dialogCtx).pop();
+                                            await _processApproveRequest(
+                                              requestId: requestId,
+                                              product: matchedProduct,
+                                              requestedUnits:
+                                                  requestedQuantity,
+                                              raiserName: raiserName,
+                                              raiserId: req['hog_raiser_id'],
+                                              feedType: feedType,
+                                              category: category,
+                                              approvalMessage: msg.isNotEmpty
+                                                  ? msg
+                                                  : null,
+                                            );
+                                          },
+                                    icon: _isProcessingRequest
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child:
+                                                CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.check_rounded,
+                                            size: 18,
+                                          ),
+                                    label: Text(
+                                      _isProcessingRequest
+                                          ? 'Processing...'
+                                          : 'Confirm Approval',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13.5,
+                                        color: Colors.white,
                                       ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF10B981),
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          const Color(0xFF10B981),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(10),
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _processApproveRequest({
     required dynamic requestId,
-    required Product product,
+    Product? product,
     required int requestedUnits,
     required String raiserName,
     dynamic raiserId,
+    String feedType = '',
+    String category = 'Feeds',
+    String? approvalMessage,
   }) async {
     setState(() => _isProcessingRequest = true);
     try {
-      final newUnits = product.units - requestedUnits;
-      await _supabase
-          .from('inventory_products')
-          .update({'units': newUnits})
-          .eq('id', product.id);
+      int remainingUnits = 0;
+      if (product != null) {
+        remainingUnits =
+            (product.units - requestedUnits).clamp(0, 999999);
+        await _supabase
+            .from('inventory_products')
+            .update({'units': remainingUnits})
+            .eq('id', product.id);
 
-      await _supabase.from('stock_requests').update({
-        'status': 'approved',
-        'decision_date': DateTime.now().toIso8601String().split('T').first,
-      }).eq('request_id', requestId);
+        await widget.onInsertLog(
+          productId: product.id,
+          productName: product.name,
+          action: 'REQUEST_APPROVE',
+          price: product.price,
+          units: remainingUnits,
+          details:
+              'Approved request for $raiserName. Dispatched -$requestedUnits units. Remaining: $remainingUnits units.',
+        );
+      }
+
+      final nowDay = DateTime.now().toIso8601String().split('T').first;
+      await _supabase
+          .from('stock_requests')
+          .update({
+            'status': 'approved',
+            'decision_date': nowDay,
+          })
+          .eq('request_id', requestId);
 
       if (raiserId != null) {
+        // Delete generic duplicate notifications created by DB trigger
+        try {
+          await _supabase
+              .from('raiser_notifications')
+              .delete()
+              .eq('hog_raiser_id', raiserId)
+              .eq('title', 'Stock Request Update');
+        } catch (_) {}
+
+        final itemName =
+            product?.name ?? (feedType.isNotEmpty ? feedType : category);
+        String notifMessage =
+            'Your request for $requestedUnits $itemName has been approved.';
+        if (approvalMessage != null && approvalMessage.trim().isNotEmpty) {
+          notifMessage += '\n\nNote: "${approvalMessage.trim()}"';
+        }
+
         try {
           await _supabase.from('raiser_notifications').insert({
             'hog_raiser_id': raiserId,
-            'title': 'Stock Request Update',
-            'message': 'Your request for $requestedUnits ${product.name} has been approved.',
+            'title': 'Stock Request Approved',
+            'message': notifMessage,
             'type': 'request_approved',
             'is_read': false,
           });
         } catch (_) {}
       }
-
-      await widget.onInsertLog(
-        productId: product.id,
-        productName: product.name,
-        action: 'REQUEST_APPROVE',
-        price: product.price,
-        units: newUnits,
-        details: 'Approved request for $raiserName. Dispatched -$requestedUnits units. Remaining: $newUnits units.',
-      );
 
       widget.onShowSnackBar(
         'Stock request for $raiserName approved successfully! Dispatched $requestedUnits units.',
@@ -1862,10 +3348,13 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     final feedType = req['feed_type']?.toString() ?? '';
     final requestedQuantity = (req['quantity'] as num?)?.toInt() ?? 1;
     final raiser = req['hog_raisers'] as Map<String, dynamic>?;
-    final raiserName = req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
+    final raiserName =
+        req['fetched_raiser_name'] ?? raiser?['name'] ?? 'Unknown Raiser';
     final requestId = req['request_id'];
     final raiserId = req['hog_raiser_id'];
-    final itemDesc = feedType.isNotEmpty ? '$requestedQuantity $feedType' : '$requestedQuantity $category';
+    final itemDesc = feedType.isNotEmpty
+        ? '$requestedQuantity $feedType'
+        : '$requestedQuantity $category';
 
     final reasonController = TextEditingController();
 
@@ -1882,13 +3371,23 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
         final isMobile = screenWidth < 600;
         final drawerWidth = isMobile ? screenWidth : 420.0;
 
-        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark || Theme.of(context).brightness == Brightness.dark;
+        final isDark =
+            Theme.of(dialogCtx).brightness == Brightness.dark ||
+            Theme.of(context).brightness == Brightness.dark;
         final drawerBg = isDark ? const Color(0xFF132238) : Colors.white;
-        final borderColor = isDark ? const Color(0xFF28405D) : const Color(0xFFD7E3F3);
+        final borderColor = isDark
+            ? const Color(0xFF28405D)
+            : const Color(0xFFD7E3F3);
         final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
-        final mutedColor = isDark ? const Color(0xFF9AB1CB) : const Color(0xFF6F8096);
-        final fieldBg = isDark ? const Color(0xFF1A2B44) : const Color(0xFFF5F8FE);
-        final fieldBorder = isDark ? const Color(0xFF2A3E5B) : const Color(0xFFC9D8EC);
+        final mutedColor = isDark
+            ? const Color(0xFF9AB1CB)
+            : const Color(0xFF6F8096);
+        final fieldBg = isDark
+            ? const Color(0xFF1A2B44)
+            : const Color(0xFFF5F8FE);
+        final fieldBorder = isDark
+            ? const Color(0xFF2A3E5B)
+            : const Color(0xFFC9D8EC);
 
         return Transform.translate(
           offset: Offset((1.0 - curvedValue) * drawerWidth, 0.0),
@@ -1915,19 +3414,28 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                     children: [
                       // Header
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
                         decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: borderColor, width: 1)),
+                          border: Border(
+                            bottom: BorderSide(color: borderColor, width: 1),
+                          ),
                         ),
                         child: Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.all(9),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF758C).withValues(alpha: isDark ? 0.15 : 0.1),
+                                color: const Color(
+                                  0xFFFF758C,
+                                ).withValues(alpha: isDark ? 0.15 : 0.1),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: const Color(0xFFFF758C).withValues(alpha: 0.3),
+                                  color: const Color(
+                                    0xFFFF758C,
+                                  ).withValues(alpha: 0.3),
                                   width: 1,
                                 ),
                               ),
@@ -1963,9 +3471,14 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.close_rounded, color: mutedColor, size: 20),
+                              icon: Icon(
+                                Icons.close_rounded,
+                                color: mutedColor,
+                                size: 20,
+                              ),
                               splashRadius: 20,
-                              onPressed: () => Navigator.of(dialogCtx).pop(false),
+                              onPressed: () =>
+                                  Navigator.of(dialogCtx).pop(false),
                             ),
                           ],
                         ),
@@ -1988,7 +3501,7 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Ang mensaheng ito ay ipapadala bilang notification sa Hog Raiser upang malaman niya kung bakit hindi na-approve ang kaniyang request.',
+                                'This message will be sent as a notification to the Hog Raiser to explain why their request could not be approved.',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   color: mutedColor,
@@ -1999,13 +3512,15 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                               TextField(
                                 controller: reasonController,
                                 maxLines: 4,
-                                textCapitalization: TextCapitalization.sentences,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13.5,
                                   color: titleColor,
                                 ),
                                 decoration: InputDecoration(
-                                  hintText: 'Hal. Kulang ang stock sa warehouse, o paki-update ang batch info...',
+                                  hintText:
+                                      'e.g., Insufficient warehouse stock, please check back later or update batch details...',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     fontSize: 13,
                                     color: mutedColor,
@@ -2023,7 +3538,10 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFFF758C), width: 1.5),
+                                    borderSide: const BorderSide(
+                                      color: Color(0xFFFF758C),
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2037,15 +3555,20 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: drawerBg,
-                          border: Border(top: BorderSide(color: borderColor, width: 1)),
+                          border: Border(
+                            top: BorderSide(color: borderColor, width: 1),
+                          ),
                         ),
                         child: Row(
                           children: [
                             Expanded(
                               child: OutlinedButton(
-                                onPressed: () => Navigator.of(dialogCtx).pop(false),
+                                onPressed: () =>
+                                    Navigator.of(dialogCtx).pop(false),
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   side: BorderSide(color: fieldBorder),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
@@ -2065,8 +3588,13 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                             Expanded(
                               flex: 2,
                               child: ElevatedButton.icon(
-                                onPressed: () => Navigator.of(dialogCtx).pop(true),
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
+                                onPressed: () =>
+                                    Navigator.of(dialogCtx).pop(true),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
                                 label: Text(
                                   'Confirm Rejection',
                                   style: GoogleFonts.plusJakartaSans(
@@ -2078,7 +3606,9 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFFF758C),
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
@@ -2101,13 +3631,25 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
 
     if (isConfirmed == true) {
       final reasonText = reasonController.text.trim();
-      await _processRejectRequest(
-        requestId: requestId,
-        raiserId: raiserId,
-        raiserName: raiserName,
-        itemDesc: itemDesc,
-        rejectionReason: reasonText,
-      );
+      if (req['is_group'] == true) {
+        final items =
+            (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
+            [req];
+        await _processRejectGroupRequest(
+          items: items,
+          raiserId: raiserId,
+          raiserName: raiserName,
+          rejectionReason: reasonText,
+        );
+      } else {
+        await _processRejectRequest(
+          requestId: requestId,
+          raiserId: raiserId,
+          raiserName: raiserName,
+          itemDesc: itemDesc,
+          rejectionReason: reasonText,
+        );
+      }
     }
   }
 
@@ -2121,16 +3663,30 @@ class _StockRequestsTabState extends State<StockRequestsTab> {
     setState(() => _isProcessingRequest = true);
     try {
       try {
-        await _supabase.from('stock_requests').update({
-          'status': 'rejected',
-          'decision_date': DateTime.now().toIso8601String().split('T').first,
-          'rejection_reason': rejectionReason.isNotEmpty ? rejectionReason : null,
-        }).eq('request_id', requestId);
+        await _supabase
+            .from('stock_requests')
+            .update({
+              'status': 'rejected',
+              'decision_date': DateTime.now()
+                  .toIso8601String()
+                  .split('T')
+                  .first,
+              'rejection_reason': rejectionReason.isNotEmpty
+                  ? rejectionReason
+                  : null,
+            })
+            .eq('request_id', requestId);
       } catch (_) {
-        await _supabase.from('stock_requests').update({
-          'status': 'rejected',
-          'decision_date': DateTime.now().toIso8601String().split('T').first,
-        }).eq('request_id', requestId);
+        await _supabase
+            .from('stock_requests')
+            .update({
+              'status': 'rejected',
+              'decision_date': DateTime.now()
+                  .toIso8601String()
+                  .split('T')
+                  .first,
+            })
+            .eq('request_id', requestId);
       }
 
       if (raiserId != null) {

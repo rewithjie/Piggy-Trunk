@@ -753,8 +753,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     final strings = AppStrings.of(context);
 
     final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
-    final bool hasInvestment = widget.investedAmount > 0;
-    final bool isFundedAndActive = hasActiveBatch && hasInvestment;
 
     final String rawPigType = (widget.raiserData['pig_type'] ?? '').toString().trim();
     final bool isRaiserTypeSet = rawPigType.isNotEmpty &&
@@ -766,7 +764,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
         ? widget.activeAssignments[0]['hog_types']['type_name'].toString()
         : (isRaiserTypeSet ? rawPigType : strings.unassigned);
 
-    final String displayPigType = isFundedAndActive
+    final String displayPigType = hasActiveBatch
         ? (assignedType.toLowerCase() == 'sow' ? 'Sow' : 'Fattening')
         : strings.unassigned;
 
@@ -775,7 +773,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
         ? rawStage
         : (hasActiveBatch ? (widget.activeAssignments[0]['lifecycle_stage'] ?? 'Booster').toString() : 'Booster');
 
-    final String displayStage = isFundedAndActive ? activeStage : strings.unassigned;
+    final String displayStage = hasActiveBatch ? activeStage : strings.unassigned;
 
     final int totalHogs = widget.hogsList.length;
     final int sickHogsCount = widget.hogsList.where((h) {
@@ -873,7 +871,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
               _buildFeedsCard(
                 title: strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages',
                 badgeText: displayPigType,
-                stages: (isFundedAndActive && displayPigType == 'Sow')
+                stages: (displayPigType == 'Sow')
                     ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
                     : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'],
                 activeStage: displayStage,
@@ -1433,8 +1431,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   Widget _buildTimeline(List<String> stages, String activeStage) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
-    final bool hasInvestment = widget.investedAmount > 0;
-    final bool isFundedAndActive = hasActiveBatch && hasInvestment;
     final bool isUnassigned = activeStage.toLowerCase() == 'unassigned';
     int activeIndex = isUnassigned
         ? -1
@@ -1500,11 +1496,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   );
                 }
 
-                final isFuture = !hasInvestment || index > activeIndex;
+                final isFuture = index > activeIndex;
 
                 return GestureDetector(
                   onTap: () {
-                    if (isFundedAndActive && isFuture) {
+                    if (hasActiveBatch && isFuture) {
                       _showStageProgressionDialog(context, stages[index]);
                     }
                   },

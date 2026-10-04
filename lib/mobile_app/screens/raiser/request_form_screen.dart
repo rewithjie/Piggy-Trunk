@@ -54,20 +54,131 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   static const Color _warningAmber = Color(0xFFF59E0B);
   static const Color _dangerRed = Color(0xFFFF758C);
 
+  late List<Map<String, dynamic>> _assignments;
+  RealtimeChannel? _assignmentsChannel;
+
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory.isNotEmpty ? widget.initialCategory : 'All';
+    _assignments = List<Map<String, dynamic>>.from(widget.activeAssignments);
 
-    if (widget.activeAssignments.isNotEmpty) {
-      _selectedAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
+    if (_assignments.isNotEmpty) {
+      _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
     }
 
     _loadInventoryProducts();
+    _refreshAssignments();
+    _subscribeToRealtime();
+  }
+
+  @override
+  void didUpdateWidget(covariant RequestFormScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeAssignments != oldWidget.activeAssignments) {
+      setState(() {
+        _assignments = List<Map<String, dynamic>>.from(widget.activeAssignments);
+        if (_selectedAssignmentId == null ||
+            !_assignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId)) {
+          _selectedAssignmentId = _assignments.isNotEmpty
+              ? BigInt.from(_assignments[0]['assignment_id'] as num)
+              : null;
+        }
+      });
+    }
+  }
+
+  void _subscribeToRealtime() {
+    try {
+      _assignmentsChannel = _supabase
+          .channel('public:request_form_assignments_${DateTime.now().millisecondsSinceEpoch}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assignments',
+            callback: (payload) {
+              debugPrint('Realtime: assignments changed, refreshing batch assignments...');
+              if (mounted) _refreshAssignments();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'batches',
+            callback: (payload) {
+              debugPrint('Realtime: batches changed, refreshing batch assignments...');
+              if (mounted) _refreshAssignments();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Error subscribing to assignments channel: $e');
+    }
+  }
+
+  Future<void> _refreshAssignments() async {
+    final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
+    if (raiserId == null) return;
+    try {
+      final res = await _supabase
+          .from('assignments')
+          .select('*, hog_types(*), batches(*)')
+          .eq('hog_raiser_id', raiserId)
+          .or('status.eq.active,status.eq.Active,status.eq.assigned');
+      final list = List<Map<String, dynamic>>.from(res);
+
+      List<dynamic> allBatchesRaw = [];
+      try {
+        allBatchesRaw = await _supabase.from('batches').select('*');
+      } catch (_) {}
+      final Map<String, Map<String, dynamic>> allBatchesMap = {};
+      for (var bRow in allBatchesRaw) {
+        if (bRow is Map) {
+          final id = (bRow['batch_id'] ?? bRow['id'])?.toString();
+          if (id != null) allBatchesMap[id] = Map<String, dynamic>.from(bRow);
+        }
+      }
+
+      final activeList = <Map<String, dynamic>>[];
+      for (var a in list) {
+        Map<String, dynamic>? b;
+        if (a['batches'] is Map) {
+          b = Map<String, dynamic>.from(a['batches'] as Map);
+        } else if (a['batches'] is List && (a['batches'] as List).isNotEmpty && (a['batches'] as List).first is Map) {
+          b = Map<String, dynamic>.from((a['batches'] as List).first as Map);
+        }
+        if (b == null && a['batch_id'] != null) {
+          b = allBatchesMap[a['batch_id'].toString()];
+          if (b != null) a['batches'] = b;
+        }
+
+        final bStatus = (b?['status'] ?? b?['batch_status'] ?? 'Active').toString().toLowerCase();
+        if (bStatus != 'archived' && bStatus != 'deleted') {
+          activeList.add(a);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _assignments = activeList;
+          if (_assignments.isEmpty) {
+            _selectedAssignmentId = null;
+          } else if (_selectedAssignmentId == null ||
+              !_assignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId)) {
+            _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing assignments: $e');
+    }
   }
 
   @override
   void dispose() {
+    if (_assignmentsChannel != null) {
+      _supabase.removeChannel(_assignmentsChannel!);
+    }
     _searchCtrl.dispose();
     _generalNotesController.dispose();
     super.dispose();
@@ -144,7 +255,16 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   }
 
   String _formatAssignmentLabel(Map<String, dynamic> a) {
-    final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
+    final bData = a['batches'];
+    String rawBatchName = '';
+    if (bData is Map) {
+      rawBatchName = bData['batch_name']?.toString() ?? '';
+    } else if (bData is List && bData.isNotEmpty && bData.first is Map) {
+      rawBatchName = bData.first['batch_name']?.toString() ?? '';
+    }
+    if (rawBatchName.isEmpty) {
+      rawBatchName = (a['batch_name'] ?? (a['assignment_id'] != null ? 'Batch #${a['assignment_id']}' : 'No Batch')).toString();
+    }
     String displayBatchName = rawBatchName;
     if (rawBatchName.contains(' (')) {
       final parts = rawBatchName.split(' (');
@@ -152,18 +272,24 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
       }
     }
-    final rawHogType = a['hog_types']?['type_name']?.toString() ??
-        a['pig_type']?.toString() ??
-        widget.raiserData['pig_type']?.toString() ??
-        '';
-    final heads = a['assigned_heads'] ?? a['initial_count'];
-    final headsStr = heads != null ? ' • $heads heads' : '';
-    return '$displayBatchName${rawHogType.isNotEmpty ? " ($rawHogType$headsStr)" : headsStr}';
+    final htData = a['hog_types'];
+    String rawHogType = '';
+    if (htData is Map) {
+      rawHogType = htData['type_name']?.toString() ?? '';
+    } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+      rawHogType = htData.first['type_name']?.toString() ?? '';
+    }
+    if (rawHogType.isEmpty) {
+      rawHogType = a['pig_type']?.toString() ??
+          widget.raiserData['pig_type']?.toString() ??
+          '';
+    }
+    return '$displayBatchName${rawHogType.isNotEmpty ? " ($rawHogType)" : ""}';
   }
 
   void _addToCart(POSProduct product) {
     final strings = AppStrings.of(context);
-    if (widget.activeAssignments.isEmpty) {
+    if (_assignments.isEmpty) {
       PiggyToast.showWarning(
         context,
         strings.isFilipino
@@ -299,8 +425,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
       if (raiserId == null) throw Exception('Raiser profile is not available.');
 
-      final today = DateTime.now().toIso8601String().split('T').first;
+      final now = DateTime.now();
+      final nowIso = now.toUtc().toIso8601String();
+      final today = now.toIso8601String().split('T').first;
       final generalNotes = _generalNotesController.text.trim();
+
+      final isRealAssignment = _selectedAssignmentId != null &&
+          _selectedAssignmentId! < BigInt.from(900000);
+      final int? validAssignmentId = isRealAssignment ? _selectedAssignmentId!.toInt() : null;
+
+      // Keep only clean raiser notes without injecting any automated tags
+      final String? cleanNotes = generalNotes.isNotEmpty ? generalNotes : null;
 
       final List<Map<String, dynamic>> requestsToInsert = [];
       final List<String> descriptions = [];
@@ -312,17 +447,21 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         );
         final qty = entry.value;
 
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
+        final Map<String, dynamic> reqItem = {
           'hog_raiser_id': raiserId,
           'status': 'pending',
           'request_date': today,
           'category': prod.category.isNotEmpty ? prod.category : 'Feeds',
           'quantity': qty,
           'feed_type': prod.name,
-          'notes': generalNotes.isNotEmpty ? generalNotes : null,
-        });
+          'notes': cleanNotes,
+          'created_at': nowIso,
+        };
+        if (validAssignmentId != null) {
+          reqItem['assignment_id'] = validAssignmentId;
+        }
 
+        requestsToInsert.add(reqItem);
         descriptions.add('$qty x ${prod.name}');
       }
 
@@ -330,7 +469,43 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         throw Exception('No valid items to request.');
       }
 
-      await _supabase.from('stock_requests').insert(requestsToInsert);
+      try {
+        await _supabase.from('stock_requests').insert(requestsToInsert);
+      } catch (insertErr) {
+        final errStr = insertErr.toString().toLowerCase();
+        debugPrint('Notice: stock_requests insert failed: $insertErr');
+
+        final bool isFkError = errStr.contains('stock_requests_assignment_id_fkey') ||
+            errStr.contains('23503') ||
+            errStr.contains('foreign key constraint');
+
+        final fallbackList = requestsToInsert.map((r) {
+          final m = Map<String, dynamic>.from(r);
+          m.remove('created_at');
+          if (isFkError) {
+            m.remove('assignment_id');
+          }
+          return m;
+        }).toList();
+
+        try {
+          await _supabase.from('stock_requests').insert(fallbackList);
+        } catch (retryErr) {
+          final retryErrStr = retryErr.toString().toLowerCase();
+          if (retryErrStr.contains('stock_requests_assignment_id_fkey') ||
+              retryErrStr.contains('23503') ||
+              retryErrStr.contains('foreign key constraint')) {
+            final noAssignList = fallbackList.map((r) {
+              final m = Map<String, dynamic>.from(r);
+              m.remove('assignment_id');
+              return m;
+            }).toList();
+            await _supabase.from('stock_requests').insert(noAssignList);
+          } else {
+            rethrow;
+          }
+        }
+      }
 
       final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
       final itemsSummary = descriptions.join(', ');
@@ -366,6 +541,245 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  void _showProductImagePreview(POSProduct p) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+    final isOutOfStock = p.units <= 0;
+    final isLowStock = p.units > 0 && p.units <= 10;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final currentQty = _cart[p.id] ?? 0;
+            return Dialog(
+              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              surfaceTintColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Header with Image and close button
+                      Stack(
+                        children: [
+                          Container(
+                            height: 280,
+                            width: double.infinity,
+                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                            child: p.image != null && p.image!.isNotEmpty
+                                ? InteractiveViewer(
+                                    minScale: 0.8,
+                                    maxScale: 4.0,
+                                    child: Image.network(
+                                      p.image!,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, _, _) => Center(
+                                        child: Icon(
+                                          _getCategoryIcon(p.category),
+                                          color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.6),
+                                          size: 64,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Center(
+                                    child: Icon(
+                                      _getCategoryIcon(p.category),
+                                      color: PiggyTrunkTheme.ptMuted.withValues(alpha: 0.6),
+                                      size: 64,
+                                    ),
+                                  ),
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: GestureDetector(
+                              onTap: () => Navigator.pop(dialogCtx),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                p.category.toUpperCase(),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (p.image != null && p.image!.isNotEmpty)
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.zoom_in_rounded, size: 12, color: Colors.white70),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Pinch to zoom',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.name,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? Colors.white : _brandColor,
+                                height: 1.3,
+                              ),
+                            ),
+                            if (p.description.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                p.description,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '₱${p.price.toStringAsFixed(2)}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDark ? Colors.white : _brandColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: isOutOfStock
+                                                ? _dangerRed
+                                                : isLowStock
+                                                    ? _warningAmber
+                                                    : _successGreen,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          isOutOfStock
+                                              ? (strings.isFilipino ? 'Ubos na' : 'Out of Stock')
+                                              : isLowStock
+                                                  ? (strings.isFilipino ? 'Kakaunti: ${p.units}' : 'Low Stock: ${p.units}')
+                                                  : (strings.isFilipino ? 'Tira: ${p.units}' : 'Stock: ${p.units}'),
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: isOutOfStock
+                                                ? _dangerRed
+                                                : isLowStock
+                                                    ? _warningAmber
+                                                    : _successGreen,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                if (!isOutOfStock && widget.activeAssignments.isNotEmpty)
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      _addToCart(p);
+                                      setDialogState(() {});
+                                      setState(() {});
+                                    },
+                                    icon: const Icon(Icons.add_rounded, size: 16),
+                                    label: Text(
+                                      currentQty > 0
+                                          ? (strings.isFilipino ? 'Dagdag ($currentQty)' : 'Add More ($currentQty)')
+                                          : (strings.isFilipino ? 'Magdagdag' : 'Add to Request'),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _brandColor,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _openKioskCartModal() {
@@ -449,18 +863,33 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ),
                         ),
                         if (_cart.isNotEmpty)
-                          TextButton(
-                            onPressed: () {
+                          InkWell(
+                            onTap: () {
                               setState(() => _cart.clear());
                               setModalState(() {});
                               Navigator.pop(modalCtx);
                             },
-                            child: Text(
-                              strings.isFilipino ? 'Alisin Lahat' : 'Clear All',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: _dangerRed,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.delete_outline_rounded,
+                                    size: 15,
+                                    color: _dangerRed,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    strings.isFilipino ? 'Alisin Lahat' : 'Clear All',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      color: _dangerRed,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -865,12 +1294,21 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     required AppStrings strings,
     required StateSetter setModalState,
   }) {
-    final selectedAssignment = widget.activeAssignments.firstWhere(
+    final selectedAssignment = _assignments.firstWhere(
       (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
-      orElse: () => widget.activeAssignments.first,
+      orElse: () => _assignments.isNotEmpty ? _assignments.first : {},
     );
-    final rawBatchName = selectedAssignment['batches']?['batch_name'] ??
-        'Assignment #${selectedAssignment['assignment_id']}';
+    final bData = selectedAssignment['batches'];
+    String rawBatchName = '';
+    if (bData is Map) {
+      rawBatchName = bData['batch_name']?.toString() ?? '';
+    } else if (bData is List && bData.isNotEmpty && bData.first is Map) {
+      rawBatchName = bData.first['batch_name']?.toString() ?? '';
+    }
+    if (rawBatchName.isEmpty) {
+      rawBatchName = (selectedAssignment['batch_name'] ??
+          (selectedAssignment['assignment_id'] != null ? 'Batch #${selectedAssignment['assignment_id']}' : 'No Batch')).toString();
+    }
     String displayBatchName = rawBatchName;
     if (rawBatchName.contains(' (')) {
       final parts = rawBatchName.split(' (');
@@ -878,16 +1316,24 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
       }
     }
-    final rawHogType = selectedAssignment['hog_types']?['type_name']?.toString() ??
-        selectedAssignment['pig_type']?.toString() ??
-        widget.raiserData['pig_type']?.toString() ??
-        'Fattening';
-    final heads = selectedAssignment['assigned_heads'] ?? selectedAssignment['initial_count'];
-    final headsStr = heads != null ? '$heads heads' : '';
-    final hasMultiple = widget.activeAssignments.length > 1;
+    final htData = selectedAssignment['hog_types'];
+    String rawHogType = '';
+    if (htData is Map) {
+      rawHogType = htData['type_name']?.toString() ?? '';
+    } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+      rawHogType = htData.first['type_name']?.toString() ?? '';
+    }
+    if (rawHogType.isEmpty) {
+      rawHogType = selectedAssignment['pig_type']?.toString() ??
+          widget.raiserData['pig_type']?.toString() ??
+          'Fattening';
+    }
+
+
+    final hasMultipleBatches = _assignments.length > 1;
 
     return InkWell(
-      onTap: hasMultiple ? () => _showBatchPickerModal(context, setModalState) : null,
+      onTap: hasMultipleBatches ? () => _showBatchPickerModal(context, setModalState) : null,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -972,24 +1418,13 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ),
                         ),
                       ),
-                      if (headsStr.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          headsStr,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: mutedColor,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            if (hasMultiple)
+            if (hasMultipleBatches) ...[
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
@@ -1018,20 +1453,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     ),
                   ],
                 ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF10B981),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  size: 14,
-                  color: Colors.white,
-                ),
               ),
+            ],
           ],
         ),
       ),
@@ -1131,14 +1554,23 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    itemCount: widget.activeAssignments.length,
+                    itemCount: _assignments.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (ctx, index) {
-                      final a = widget.activeAssignments[index];
+                      final a = _assignments[index];
                       final aId = BigInt.from(a['assignment_id'] as num);
                       final isSelected = aId == _selectedAssignmentId;
 
-                      final rawBatchName = a['batches']?['batch_name'] ?? 'Assignment #${a['assignment_id']}';
+                      final bData = a['batches'];
+                      String rawBatchName = '';
+                      if (bData is Map) {
+                        rawBatchName = bData['batch_name']?.toString() ?? '';
+                      } else if (bData is List && bData.isNotEmpty && bData.first is Map) {
+                        rawBatchName = bData.first['batch_name']?.toString() ?? '';
+                      }
+                      if (rawBatchName.isEmpty) {
+                        rawBatchName = (a['batch_name'] ?? 'Assignment #${a['assignment_id']}').toString();
+                      }
                       String displayBatchName = rawBatchName;
                       if (rawBatchName.contains(' (')) {
                         final parts = rawBatchName.split(' (');
@@ -1146,12 +1578,19 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
                         }
                       }
-                      final rawHogType = a['hog_types']?['type_name']?.toString() ??
-                          a['pig_type']?.toString() ??
-                          widget.raiserData['pig_type']?.toString() ??
-                          'Fattening';
-                      final heads = a['assigned_heads'] ?? a['initial_count'];
-                      final headsStr = heads != null ? '$heads heads' : '';
+                      final htData = a['hog_types'];
+                      String rawHogType = '';
+                      if (htData is Map) {
+                        rawHogType = htData['type_name']?.toString() ?? '';
+                      } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+                        rawHogType = htData.first['type_name']?.toString() ?? '';
+                      }
+                      if (rawHogType.isEmpty) {
+                        rawHogType = a['pig_type']?.toString() ??
+                            widget.raiserData['pig_type']?.toString() ??
+                            'Fattening';
+                      }
+
 
                       return InkWell(
                         onTap: () {
@@ -1228,16 +1667,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                             ),
                                           ),
                                         ),
-                                        if (headsStr.isNotEmpty) ...[
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            headsStr,
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 11,
-                                              color: mutedColor,
-                                            ),
-                                          ),
-                                        ],
+
                                       ],
                                     ),
                                   ],
@@ -1279,7 +1709,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     Color mutedColor,
     AppStrings strings,
   ) {
-    if (widget.activeAssignments.isEmpty) {
+    if (_assignments.isEmpty) {
       return Container(
         margin: const EdgeInsets.fromLTRB(18, 2, 18, 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1324,10 +1754,11 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       );
     }
 
-    final hasMultiple = widget.activeAssignments.length > 1;
-    final selectedAssignment = widget.activeAssignments.firstWhere(
+    final hasMultipleBatches = _assignments.length > 1;
+
+    final selectedAssignment = _assignments.firstWhere(
       (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
-      orElse: () => widget.activeAssignments.first,
+      orElse: () => _assignments.first,
     );
 
     return Container(
@@ -1346,7 +1777,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         ],
       ),
       child: InkWell(
-        onTap: hasMultiple ? () => _showBatchPickerModal(context) : null,
+        onTap: hasMultipleBatches ? () => _showBatchPickerModal(context) : null,
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -1381,10 +1812,10 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (hasMultiple) ...[
+              if (hasMultipleBatches) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(6),
@@ -1395,13 +1826,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       Text(
                         strings.isFilipino ? 'Palitan' : 'Change',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: isDark ? const Color(0xFF38BDF8) : _brandColor,
                         ),
                       ),
-                      const SizedBox(width: 2),
-                      Icon(Icons.unfold_more_rounded, size: 13, color: isDark ? const Color(0xFF38BDF8) : _brandColor),
+                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.unfold_more_rounded,
+                        size: 14,
+                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                      ),
                     ],
                   ),
                 ),
@@ -1513,66 +1948,6 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Quick Cart Button
-                      GestureDetector(
-                        onTap: _openKioskCartModal,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _cart.isNotEmpty
-                                  ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
-                                  : (isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder),
-                              width: _cart.isNotEmpty ? 1.5 : 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Icon(
-                                Icons.shopping_basket_outlined,
-                                color: _cart.isNotEmpty
-                                    ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
-                                    : mutedColor,
-                                size: 21,
-                              ),
-                              if (_cart.isNotEmpty)
-                                Positioned(
-                                  top: 5,
-                                  right: 5,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(3.5),
-                                    decoration: const BoxDecoration(
-                                      color: _dangerRed,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                                    child: Text(
-                                      '${_cart.length}',
-                                      textAlign: TextAlign.center,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),
@@ -1908,58 +2283,110 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image Container
+          // Image Container (Clickable to preview)
           Expanded(
-            child: Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                  child: Container(
-                    width: double.infinity,
-                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                    child: p.image != null && p.image!.isNotEmpty
-                        ? Image.network(
-                            p.image!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Center(
+            child: GestureDetector(
+              onTap: () => _showProductImagePreview(p),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                      child: p.image != null && p.image!.isNotEmpty
+                          ? Image.network(
+                              p.image!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Center(
+                                child: Icon(
+                                  _getCategoryIcon(p.category),
+                                  color: mutedColor.withValues(alpha: 0.6),
+                                  size: 36,
+                                ),
+                              ),
+                            )
+                          : Center(
                               child: Icon(
                                 _getCategoryIcon(p.category),
                                 color: mutedColor.withValues(alpha: 0.6),
                                 size: 36,
                               ),
                             ),
-                          )
-                        : Center(
-                            child: Icon(
-                              _getCategoryIcon(p.category),
-                              color: mutedColor.withValues(alpha: 0.6),
-                              size: 36,
-                            ),
-                          ),
-                  ),
-                ),
-                // Category Pill on Image
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.65),
-                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(
-                      p.category.toUpperCase(),
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 0.4,
+                  ),
+                  // Category Pill on Image
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        p.category.toUpperCase(),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.4,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  // Zoom hint icon
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                    ),
+                  ),
+                  // In-cart quantity badge on image
+                  if (inCartQty > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_rounded, color: Colors.white, size: 10),
+                            const SizedBox(width: 2),
+                            Text(
+                              '$inCartQty',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
 
@@ -2040,15 +2467,15 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     // Action Button
                     if (isOutOfStock)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
                         decoration: BoxDecoration(
                           color: mutedColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(9),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           strings.isFilipino ? 'Wala' : 'Out',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w700,
                             color: mutedColor,
                           ),
@@ -2056,20 +2483,20 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       )
                     else if (widget.activeAssignments.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7.5),
                         decoration: BoxDecoration(
                           color: mutedColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(9),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.lock_outline_rounded, size: 13, color: mutedColor),
+                            Icon(Icons.lock_outline_rounded, size: 14, color: mutedColor),
                             const SizedBox(width: 4),
                             Text(
                               strings.isFilipino ? 'Bawal' : 'Locked',
                               style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11.5,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: mutedColor,
                               ),
@@ -2077,19 +2504,19 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ],
                         ),
                       )
-                    else if (inCartQty <= 0)
+                    else
                       InkWell(
                         onTap: () => _addToCart(p),
-                        borderRadius: BorderRadius.circular(9),
+                        borderRadius: BorderRadius.circular(10),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8.5),
                           decoration: BoxDecoration(
                             color: isDark ? Colors.white : _brandColor,
-                            borderRadius: BorderRadius.circular(9),
+                            borderRadius: BorderRadius.circular(10),
                             boxShadow: [
                               BoxShadow(
-                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.2),
-                                blurRadius: 4,
+                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.22),
+                                blurRadius: 5,
                                 offset: const Offset(0, 2),
                               ),
                             ],
@@ -2099,64 +2526,20 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                             children: [
                               Icon(
                                 Icons.add_rounded,
-                                size: 16,
+                                size: 17,
                                 color: isDark ? _brandColor : Colors.white,
                               ),
-                              const SizedBox(width: 3),
+                              const SizedBox(width: 4),
                               Text(
                                 strings.isFilipino ? 'Magdagdag' : 'Add',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12.5,
+                                  fontSize: 13.5,
                                   fontWeight: FontWeight.w800,
                                   color: isDark ? _brandColor : Colors.white,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      )
-                    else
-                      Container(
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            InkWell(
-                              onTap: () => _decrementCart(p),
-                              borderRadius: BorderRadius.circular(7),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                                child: Icon(
-                                  inCartQty <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
-                                  size: 15,
-                                  color: inCartQty <= 1 ? _dangerRed : textColor,
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 7),
-                              child: Text(
-                                '$inCartQty',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: textColor,
-                                ),
-                              ),
-                            ),
-                            InkWell(
-                              onTap: () => _addToCart(p),
-                              borderRadius: BorderRadius.circular(7),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-                                child: Icon(Icons.add_rounded, size: 15, color: textColor),
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                   ],

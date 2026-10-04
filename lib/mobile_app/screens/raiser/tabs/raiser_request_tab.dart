@@ -30,6 +30,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     if (_requestView == 'history') {
       return RequestHistoryScreen(
         raiserData: widget.raiserData,
+        initialRequests: widget.requestsList,
         onBack: () {
           setState(() {
             _requestView = 'form';

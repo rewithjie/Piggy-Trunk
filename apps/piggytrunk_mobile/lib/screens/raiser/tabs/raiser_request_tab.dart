@@ -151,6 +151,7 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     } else if (_requestView == 'history') {
       return RequestHistoryScreen(
         raiserData: widget.raiserData,
+        initialRequests: widget.requestsList,
         onBack: () {
           setState(() {
             _requestView = _previousRequestView ?? 'home';

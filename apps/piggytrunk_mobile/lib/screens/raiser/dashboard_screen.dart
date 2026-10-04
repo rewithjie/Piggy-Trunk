@@ -46,15 +46,54 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
 
   static const Color _brandColor = Color(0xFF18314F);
 
+  RealtimeChannel? _dashboardAssignmentsChannel;
+
   @override
   void initState() {
     super.initState();
     _fetchRaiserData();
+    _subscribeToAssignmentsRealtime();
   }
 
-  Future<void> _fetchRaiserData() async {
+  void _subscribeToAssignmentsRealtime() {
+    try {
+      _dashboardAssignmentsChannel = Supabase.instance.client
+          .channel('public:dashboard_assignments_${DateTime.now().millisecondsSinceEpoch}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'assignments',
+            callback: (payload) {
+              debugPrint('Dashboard realtime: assignments updated, refreshing silently...');
+              if (mounted) _fetchRaiserData(showLoading: false);
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'batches',
+            callback: (payload) {
+              debugPrint('Dashboard realtime: batches updated, refreshing silently...');
+              if (mounted) _fetchRaiserData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Error subscribing to dashboard assignments realtime: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_dashboardAssignmentsChannel != null) {
+      Supabase.instance.client.removeChannel(_dashboardAssignmentsChannel!);
+    }
+    super.dispose();
+  }
+
+  Future<void> _fetchRaiserData({bool showLoading = true}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (showLoading) setState(() => _isLoading = true);
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
@@ -171,35 +210,56 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .eq('hog_raiser_id', raiserId.toString());
 
       double totalCapital = 0.0;
-      int totalHogsFromInvestment = 0;
       for (var row in (capitalRes as List? ?? [])) {
         totalCapital += (row['initial_capital'] as num?)?.toDouble() ?? 0.0;
-        totalHogsFromInvestment += (row['total_hog'] as num?)?.toInt() ?? 0;
       }
 
-      // 4. Fetch assignments
-      final assignmentsRes = await Supabase.instance.client
-          .from('assignments')
-          .select('*, hog_types(*), batches(*)')
-          .eq('hog_raiser_id', raiserId)
-          .eq('status', 'active');
+      // 4. Fetch assignments with flexible status matching
+      List<dynamic> assignmentsRes = [];
+      try {
+        assignmentsRes = await Supabase.instance.client
+            .from('assignments')
+            .select('*, hog_types(*), batches(*)')
+            .eq('hog_raiser_id', raiserId)
+            .or('status.eq.active,status.eq.Active,status.eq.assigned');
+      } catch (_) {
+        try {
+          assignmentsRes = await Supabase.instance.client
+              .from('assignments')
+              .select('*')
+              .eq('hog_raiser_id', raiserId);
+        } catch (_) {}
+      }
+
+      List<dynamic> allBatchesRaw = [];
+      try {
+        allBatchesRaw = await Supabase.instance.client.from('batches').select('*');
+      } catch (_) {}
+      final Map<String, Map<String, dynamic>> allBatchesMap = {};
+      for (var bRow in allBatchesRaw) {
+        if (bRow is Map) {
+          final id = (bRow['batch_id'] ?? bRow['id'])?.toString();
+          if (id != null) allBatchesMap[id] = Map<String, dynamic>.from(bRow);
+        }
+      }
+
       final rawAssignments = List<Map<String, dynamic>>.from(assignmentsRes);
       final assignments = <Map<String, dynamic>>[];
       for (var a in rawAssignments) {
-        final b = a['batches'] as Map<String, dynamic>?;
-        if (b != null) {
-          final bStatus = (b['status'] ?? '').toString().toLowerCase();
-          if (bStatus != 'archived' && bStatus != 'deleted') {
-            assignments.add(a);
-          }
-        } else {
-          // Clean up orphaned assignment record
-          try {
-            Supabase.instance.client
-                .from('assignments')
-                .delete()
-                .eq('assignment_id', a['assignment_id']);
-          } catch (_) {}
+        Map<String, dynamic>? b;
+        if (a['batches'] is Map) {
+          b = Map<String, dynamic>.from(a['batches'] as Map);
+        } else if (a['batches'] is List && (a['batches'] as List).isNotEmpty && (a['batches'] as List).first is Map) {
+          b = Map<String, dynamic>.from((a['batches'] as List).first as Map);
+        }
+        if (b == null && a['batch_id'] != null) {
+          b = allBatchesMap[a['batch_id'].toString()];
+          if (b != null) a['batches'] = b;
+        }
+
+        final bStatus = (b?['status'] ?? b?['batch_status'] ?? 'Active').toString().toLowerCase();
+        if (bStatus != 'archived' && bStatus != 'deleted') {
+          assignments.add(a);
         }
       }
 
@@ -232,78 +292,59 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
           .toList();
 
-      // Prune duplicate excess hogs if count exceeds the assigned investment heads
-      final int maxAllowedHogs = totalHogsFromInvestment > 0 ? totalHogsFromInvestment : (assignments.isNotEmpty ? 1 : 0);
-      if (maxAllowedHogs > 0 && hogs.length > maxAllowedHogs) {
-        final excessHogs = hogs.sublist(maxAllowedHogs);
-        for (var excess in excessHogs) {
-          final excessId = excess['hog_id'];
-          if (excessId != null) {
-            try {
-              await Supabase.instance.client.from('hogs').delete().eq('hog_id', excessId);
-            } catch (_) {}
-          }
-        }
-        hogs = hogs.sublist(0, maxAllowedHogs);
-      }
-
-      // If hogs table is empty but investment assigned heads exist, auto-seed and display
-      if (hogs.isEmpty && totalHogsFromInvestment > 0 && assignments.isNotEmpty) {
-        final assignId = assignments[0]['assignment_id'] ?? assignments[0]['id'];
-        final pigType = (raiser['pig_type'] ?? 'Fattening').toString();
-
-        final List<Map<String, dynamic>> seededHogs = [];
-        for (int i = 1; i <= totalHogsFromInvestment; i++) {
-          try {
-            Map<String, dynamic>? res;
-            try {
-              res = await Supabase.instance.client.from('hogs').insert({
-                'assignment_id': assignId,
-                'status': 'active',
-                'health_status': 'healthy',
-                'weight': 15.0,
-              }).select().maybeSingle();
-            } catch (_) {
-              res = await Supabase.instance.client.from('hogs').insert({
-                'assignment_id': assignId,
-                'status': 'active',
-                'health_status': 'healthy',
-              }).select().maybeSingle();
-            }
-            if (res != null) {
-              final m = Map<String, dynamic>.from(res);
-              m['pig_type'] = pigType;
-              seededHogs.add(m);
-            }
-          } catch (_) {}
-        }
-
-        if (seededHogs.isNotEmpty) {
-          hogs = seededHogs;
-        } else {
-          hogs = List.generate(totalHogsFromInvestment, (i) => {
-            'hog_id': i + 1,
-            'assignment_id': assignId,
-            'status': 'active',
-            'health_status': 'healthy',
-            'pig_type': pigType,
-            'weight': 15.0,
-          });
-        }
-      }
-
       hogs.sort((a, b) {
         final aId = a['hog_id'] as num? ?? 0;
         final bId = b['hog_id'] as num? ?? 0;
         return aId.compareTo(bId);
       });
 
+      // Create lookup map of assignment_id -> assignment to strictly isolate hog types by their own batch
+      final Map<String, Map<String, dynamic>> assignmentMap = {};
+      for (var a in assignments) {
+        final aId = (a['assignment_id'] ?? a['id'])?.toString();
+        if (aId != null) assignmentMap[aId] = a;
+      }
+
+      // Assign each hog's pig_type strictly from ITS OWN assigned batch
+      for (var hog in hogs) {
+        final aId = hog['assignment_id']?.toString();
+        final assign = aId != null ? assignmentMap[aId] : null;
+
+        String assignedBatchType = '';
+        if (assign != null) {
+          final ht = assign['hog_types'];
+          if (ht is Map) {
+            assignedBatchType = (ht['type_name'] ?? '').toString();
+          } else if (ht is List && ht.isNotEmpty && ht.first is Map) {
+            assignedBatchType = (ht.first['type_name'] ?? '').toString();
+          }
+          if (assignedBatchType.isEmpty) {
+            assignedBatchType = (assign['pig_type'] ?? '').toString();
+          }
+        }
+
+        if (assignedBatchType.isNotEmpty) {
+          hog['pig_type'] = assignedBatchType.toLowerCase().contains('sow') || assignedBatchType.toLowerCase().contains('breed')
+              ? 'Sow'
+              : 'Fattening';
+        } else {
+          final rawHogType = (hog['pig_type'] ?? hog['type_name'] ?? hog['type'] ?? '').toString().trim();
+          if (rawHogType.isNotEmpty && rawHogType != 'null' && rawHogType != 'None' && rawHogType != 'N/A') {
+            hog['pig_type'] = rawHogType.toLowerCase().contains('sow') || rawHogType.toLowerCase().contains('breed')
+                ? 'Sow'
+                : 'Fattening';
+          } else {
+            hog['pig_type'] = 'Fattening';
+          }
+        }
+      }
+
       // 6. Fetch stock requests & calculate distributed stocks spend
       List<dynamic> requestsRes = [];
       try {
         requestsRes = await Supabase.instance.client
             .from('stock_requests')
-            .select('*, assignments!inner(*, batches(*))')
+            .select('*, assignments(*, batches(*))')
             .eq('hog_raiser_id', raiserId)
             .order('request_date', ascending: false)
             .order('request_id', ascending: false);
@@ -349,7 +390,27 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           }
         }
       } catch (pErr) {
-        debugPrint('Notice fetching product prices: $pErr');
+        debugPrint('Notice fetching product prices from inventory_products: $pErr');
+      }
+
+      if (productPriceMap.isEmpty) {
+        try {
+          final productsRes = await Supabase.instance.client
+              .from('products')
+              .select('name, price, category');
+          for (var p in (productsRes as List? ?? [])) {
+            if (p is! Map) continue;
+            final pName = (p['name'] ?? '').toString().trim().toLowerCase();
+            final pCat = (p['category'] ?? '').toString().trim().toLowerCase();
+            final pPrice = (p['price'] as num?)?.toDouble() ?? 0.0;
+            if (pName.isNotEmpty && pPrice > 0) productPriceMap[pName] = pPrice;
+            if (pCat.isNotEmpty && pPrice > 0 && !productPriceMap.containsKey(pCat)) {
+              productPriceMap[pCat] = pPrice;
+            }
+          }
+        } catch (pErr2) {
+          debugPrint('Notice fetching product prices from products: $pErr2');
+        }
       }
 
       const double defaultFeedPrice = 1650.0;
@@ -362,9 +423,23 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
           final fType = (req['feed_type'] ?? '').toString().trim();
           final cat = (req['category'] ?? '').toString().trim();
-          final unitPrice = productPriceMap[fType.toLowerCase()] ??
-              productPriceMap[cat.toLowerCase()] ??
-              defaultFeedPrice;
+          final fTypeLower = fType.toLowerCase();
+          final catLower = cat.toLowerCase();
+
+          double unitPrice = productPriceMap[fTypeLower] ?? productPriceMap[catLower] ?? 0.0;
+          if (unitPrice == 0.0 && fTypeLower.isNotEmpty) {
+            for (var entry in productPriceMap.entries) {
+              if (entry.key.isNotEmpty &&
+                  (fTypeLower.contains(entry.key) || entry.key.contains(fTypeLower))) {
+                unitPrice = entry.value;
+                break;
+              }
+            }
+          }
+          if (unitPrice == 0.0) {
+            unitPrice = defaultFeedPrice;
+          }
+
           final totalAmount = qty * unitPrice;
           totalStocksSpend += totalAmount;
 
@@ -383,7 +458,11 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
-      final double combinedInvestedAmount = totalCapital + totalStocksSpend;
+      // Option B: Deductive / Remaining Capital Budget model (Pabawas)
+      // Initial Capital is the allocated budget; approved stock requests deduct from this budget.
+      final double combinedInvestedAmount = totalCapital > 0
+          ? (totalCapital - totalStocksSpend).clamp(0.0, double.infinity)
+          : 0.0;
 
       // 7. Fetch health reports
       final reportsRes = await Supabase.instance.client
@@ -399,7 +478,39 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           .select('*')
           .eq('hog_raiser_id', raiserId)
           .order('created_at', ascending: false);
-      final notifications = List<Map<String, dynamic>>.from(notifRes);
+      final rawNotifications = List<Map<String, dynamic>>.from(notifRes);
+
+      // Clean up trigger duplicate notifications from DB in the background
+      final hasApprovedStockNotif = rawNotifications.any((n) {
+        final t = (n['title'] ?? '').toString();
+        return t.contains('Stock Request Approved') || t.contains('Kahilingan ng Stock');
+      });
+      if (hasApprovedStockNotif) {
+        try {
+          Supabase.instance.client
+              .from('raiser_notifications')
+              .delete()
+              .eq('hog_raiser_id', raiserId)
+              .eq('title', 'Stock Request Update')
+              .then((_) {}, onError: (_) {});
+        } catch (_) {}
+      }
+
+      // Deduplicate notifications list so raiser sees exactly 1 notification
+      final List<Map<String, dynamic>> notifications = [];
+      for (final n in rawNotifications) {
+        final title = (n['title'] ?? '').toString();
+        final msg = (n['message'] ?? n['content'] ?? '').toString();
+        final isTriggerDuplicate = (title == 'Stock Request Update') &&
+            (msg.contains('Feeds has been') ||
+                msg.contains('Medicines has been') ||
+                msg.contains('Vitamins has been') ||
+                msg.contains('supplies has been'));
+        if (isTriggerDuplicate && hasApprovedStockNotif) {
+          continue; // Suppress redundant individual trigger item
+        }
+        notifications.add(n);
+      }
 
       // Resolve email, pig type, lifecycle stage and avatar with fallbacks
       final resolvedEmail = (raiser['email'] != null &&
@@ -476,29 +587,44 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         } catch (_) {}
       }
 
-      String resolvedPigType = (raiser['pig_type'] != null &&
-              raiser['pig_type'].toString().trim().isNotEmpty &&
-              raiser['pig_type'] != 'N/A')
-          ? raiser['pig_type'].toString().trim()
-          : 'N/A';
-
-      String resolvedStage = (raiser['lifecycle_stage'] != null &&
-              raiser['lifecycle_stage'].toString().trim().isNotEmpty &&
-              raiser['lifecycle_stage'] != 'N/A')
-          ? raiser['lifecycle_stage'].toString().trim()
-          : 'N/A';
+      String resolvedPigType = 'None';
+      String resolvedStage = 'No Active Batch';
 
       if (assignments.isNotEmpty) {
-        if (resolvedPigType == 'N/A') {
-          resolvedPigType = assignments[0]['hog_types']?['type_name']?.toString() ??
-              assignments[0]['pig_type']?.toString() ??
-              'N/A';
+        final List<String> activeTypes = [];
+        for (var a in assignments) {
+          final tName = (a['hog_types'] is Map
+                  ? a['hog_types']['type_name']
+                  : (a['hog_types'] is List && (a['hog_types'] as List).isNotEmpty
+                      ? (a['hog_types'] as List).first['type_name']
+                      : null)) ??
+              a['pig_type'];
+          if (tName != null && tName.toString().trim().isNotEmpty) {
+            activeTypes.add(tName.toString().trim());
+          }
         }
-        if (resolvedStage == 'N/A') {
-          resolvedStage = assignments[0]['lifecycle_stage']?.toString() ??
-              assignments[0]['current_stage']?.toString() ??
-              'N/A';
+
+        if (activeTypes.isNotEmpty) {
+          final hasSow = activeTypes.any((t) => t.toLowerCase().contains('sow') || t.toLowerCase().contains('breed'));
+          final hasFattening = activeTypes.any((t) => t.toLowerCase().contains('fatten'));
+          if (hasSow && hasFattening) {
+            resolvedPigType = 'Sow & Fattening';
+          } else if (hasSow) {
+            resolvedPigType = 'Sow';
+          } else {
+            resolvedPigType = 'Fattening';
+          }
+        } else {
+          resolvedPigType = 'Fattening';
         }
+
+        resolvedStage = assignments[0]['lifecycle_stage']?.toString() ??
+            assignments[0]['current_stage']?.toString() ??
+            (raiser['lifecycle_stage'] != null &&
+                    raiser['lifecycle_stage'].toString().trim().isNotEmpty &&
+                    raiser['lifecycle_stage'] != 'N/A'
+                ? raiser['lifecycle_stage'].toString().trim()
+                : 'Active Cycle');
       }
 
       final Map<String, dynamic> combinedRaiserData = Map<String, dynamic>.from(raiser);
@@ -520,14 +646,22 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           _reportsList = reports;
           _notificationsList = notifications;
           if (_activeAssignments.isNotEmpty) {
-            _selectedAssignmentId = BigInt.from(_activeAssignments[0]['assignment_id'] as num);
+            final exists = _selectedAssignmentId != null &&
+                _activeAssignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId);
+            if (!exists) {
+              _selectedAssignmentId = BigInt.from(_activeAssignments[0]['assignment_id'] as num);
+            }
+          } else {
+            _selectedAssignmentId = null;
           }
         });
 
         // Auto-check if farm location is not set and prompt user to allow GPS access
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _checkAndPromptLocation();
-        });
+        if (showLoading) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _checkAndPromptLocation();
+          });
+        }
       }
     } catch (e, stacktrace) {
       debugPrint('DEBUG ERROR in _fetchRaiserData: $e');
@@ -537,7 +671,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && showLoading) {
         setState(() => _isLoading = false);
       }
     }
@@ -1253,8 +1387,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                     const SizedBox(height: 6),
                     TextField(
                       controller: addressController,
-                      readOnly: true,
-                      onTap: isDetectingGps ? null : autoDetectGps,
+                      readOnly: false,
                       style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
                       decoration: InputDecoration(
                         hintText: strings.enterAddressHint,

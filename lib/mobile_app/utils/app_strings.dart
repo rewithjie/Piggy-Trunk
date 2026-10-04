@@ -56,7 +56,9 @@ class AppStrings {
   // ================= Dashboard / Home Tab =================
   String get totalCurrentInvestment => isFilipino ? 'KABUUANG KASALUKUYANG PUHUNAN' : 'TOTAL CURRENT INVESTMENT';
   String get initialCapital => isFilipino ? 'Paunang Puhunan' : 'Initial Capital';
-  String get stockRequestsSpend => isFilipino ? 'Mga Kahilingan sa Stock' : 'Stock Requests';
+  String get stockRequestsSpend => isFilipino ? 'Ibinawas sa Puhunan' : 'Deducted Supplies';
+  String get deductedLabel => isFilipino ? 'Bawas' : 'Deducted';
+  String get remainingBudget => isFilipino ? 'Natitirang Puhunan' : 'Remaining Budget';
   String get activeBatch => isFilipino ? 'Aktibong Batch' : 'Active Batch';
   String get quickSummary => isFilipino ? 'Mabilisang Buod' : 'Quick Summary';
   String get totalHogs => isFilipino ? 'Kabuuang Baboy' : 'Total Hogs';
@@ -205,7 +207,7 @@ class AppStrings {
       ? 'Matagumpay na nailipat ang yugto ng $hogName sa $targetStage!'
       : 'Successfully updated feed stage of $hogName to $targetStage!';
   String get fatteningTag => isFilipino ? 'Pagpapataba' : 'Fattening';
-  String get sowBreedTag => isFilipino ? 'Palahi / Sow' : 'Sow / Breed';
+  String get sowBreedTag => isFilipino ? 'Palahi / Sow' : 'Sow / Breeding';
   String get feedStageLabel => isFilipino ? 'Yugto ng Pakain' : 'Feed Stage';
   String get hogDetailsTitle => isFilipino ? 'Detalye ng Baboy' : 'Hog Details';
   String get update => isFilipino ? 'I-update' : 'Update';

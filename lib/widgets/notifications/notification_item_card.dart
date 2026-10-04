@@ -59,6 +59,17 @@ class NotificationItemCard extends StatelessWidget {
       return '/settings';
     }
 
+    // Batch Milestone & Harvest Notifications -> /batches
+    if (type == 'batch' ||
+        type.contains('batch') ||
+        title.contains('batch ready') ||
+        title.contains('harvest') ||
+        message.contains('final stage') ||
+        message.contains('ready for harvest') ||
+        message.contains('ready for selling')) {
+      return '/batches';
+    }
+
     // 0. Stock Requests -> /inventory (Raiser Stock Requests Tab)
     if (type == 'stock_request' ||
         type.contains('stock') ||

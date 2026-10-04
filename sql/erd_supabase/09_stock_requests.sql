@@ -8,7 +8,9 @@ create table if not exists public.stock_requests (
   category text not null default 'Feeds',
   quantity integer not null default 1,
   feed_type text,
-  notes text
+  notes text,
+  rejection_reason text,
+  created_at timestamptz not null default now()
 );
 
 create index if not exists idx_stock_requests_assignment on public.stock_requests(assignment_id);

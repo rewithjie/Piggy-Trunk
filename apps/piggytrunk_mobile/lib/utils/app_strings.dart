@@ -41,7 +41,9 @@ class AppStrings {
   String get helloGreeting => isFilipino ? 'Kumusta Tagapag-alaga,' : 'Hello Hog Raiser,';
   String get totalCurrentInvestment => isFilipino ? 'KABUUANG KASALUKUYANG PUHUNAN' : 'TOTAL CURRENT INVESTMENT';
   String get initialCapital => isFilipino ? 'Paunang Puhunan' : 'Initial Capital';
-  String get stockRequestsSpend => isFilipino ? 'Mga Kahilingan sa Stock' : 'Stock Requests';
+  String get stockRequestsSpend => isFilipino ? 'Ibinawas sa Puhunan' : 'Deducted Supplies';
+  String get deductedLabel => isFilipino ? 'Bawas' : 'Deducted';
+  String get remainingBudget => isFilipino ? 'Natitirang Puhunan' : 'Remaining Budget';
   String get activeBatch => isFilipino ? 'Aktibong Batch' : 'Active Batch';
   String get quickSummary => isFilipino ? 'Mabilisang Buod' : 'Quick Summary';
   String get totalHogs => isFilipino ? 'Kabuuang Baboy' : 'Total Hogs';

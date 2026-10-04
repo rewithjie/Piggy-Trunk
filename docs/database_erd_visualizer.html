@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piggy Trunk - Supabase ERD Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-card: #162032;
+      --surface-header: #1e293b;
+      --border: #2d3748;
+      --border-focus: #38bdf8;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      
+      --purple: #a855f7;
+      --emerald: #10b981;
+      --cyan: #06b6d4;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --indigo: #6366f1;
+      --blue: #3b82f6;
+
+      --pk-color: #fbbf24;
+      --fk-color: #38bdf8;
+      --uk-color: #34d399;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* TOP HEADER & CONTROLS */
+    header {
+      height: 64px;
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #f43f5e, #ec4899);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(244, 63, 94, 0.35);
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .search-box {
+      position: relative;
+      width: 260px;
+    }
+
+    .search-box input {
+      width: 100%;
+      height: 38px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 12px 0 34px;
+      color: #fff;
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      fill: var(--text-dim);
+    }
+
+    .filter-pills {
+      display: flex;
+      gap: 6px;
+      background: #0f172a;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .pill-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .pill-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .pill-btn.active {
+      background: #2563eb;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    .btn {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1e293b;
+      color: #f1f5f9;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border-color: #0284c7;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+
+    /* MAIN VIEWPORT */
+    .viewport-container {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - 64px);
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 50%, #111a2e 0%, #090d16 100%);
+      cursor: grab;
+    }
+
+    .viewport-container:active {
+      cursor: grabbing;
+    }
+
+    /* GRID BACKGROUND */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+
+    /* ZOOM/PAN WORLD WRAPPER */
+    #world {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    /* SVG CONNECTOR LINES */
+    #svg-connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 6000px;
+      height: 6000px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .rel-line {
+      fill: none;
+      stroke: #475569;
+      stroke-width: 2;
+      stroke-linecap: round;
+      opacity: 0.45;
+      transition: stroke 0.25s, stroke-width 0.25s, opacity 0.25s;
+    }
+
+    .rel-line.active {
+      stroke: #38bdf8;
+      stroke-width: 3.5;
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6));
+    }
+
+    .rel-line.dimmed {
+      opacity: 0.1;
+    }
+
+    /* TABLE CARDS */
+    .table-card {
+      position: absolute;
+      width: 290px;
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      z-index: 10;
+      cursor: default;
+      transition: border-color 0.2s, box-shadow 0.2s, opacity 0.25s;
+      overflow: hidden;
+    }
+
+    .table-card:hover {
+      border-color: #64748b;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+    }
+
+    .table-card.selected {
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 0 2px #38bdf8, 0 18px 45px rgba(56, 189, 248, 0.35);
+      z-index: 25;
+    }
+
+    .table-card.dimmed {
+      opacity: 0.25;
+    }
+
+    .card-header {
+      padding: 10px 14px;
+      background: var(--surface-header);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: grab;
+    }
+
+    .card-header:active {
+      cursor: grabbing;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .module-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .table-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #fff;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .tag-count {
+      font-size: 10px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    .card-body {
+      padding: 6px 0;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .card-body::-webkit-scrollbar {
+      width: 4px;
+    }
+    .card-body::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+
+    .col-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 14px;
+      font-size: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      transition: background 0.15s;
+    }
+
+    .col-row:last-child {
+      border-bottom: none;
+    }
+
+    .col-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .col-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-pk {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--pk-color);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+
+    .badge-fk {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--fk-color);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+    }
+
+    .badge-uk {
+      background: rgba(52, 211, 153, 0.15);
+      color: var(--uk-color);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+    }
+
+    .col-name {
+      font-family: 'Fira Code', monospace;
+      font-size: 11.5px;
+      color: #e2e8f0;
+    }
+
+    .col-type {
+      font-size: 10.5px;
+      color: var(--text-dim);
+      font-family: 'Fira Code', monospace;
+      margin-left: 8px;
+    }
+
+    /* FLOATING BOTTOM TOOLBAR */
+    .canvas-toolbar {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 50;
+    }
+
+    .tool-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+
+    .zoom-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      width: 48px;
+      text-align: center;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .separator {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      margin: 0 4px;
+    }
+
+    /* RIGHT SIDEBAR INSPECTOR */
+    #inspector {
+      position: absolute;
+      right: -360px;
+      top: 64px;
+      width: 360px;
+      height: calc(100vh - 64px);
+      background: rgba(17, 24, 39, 0.98);
+      backdrop-filter: blur(16px);
+      border-left: 1px solid var(--border);
+      z-index: 90;
+      transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: -10px 0 35px rgba(0, 0, 0, 0.5);
+    }
+
+    #inspector.open {
+      right: 0;
+    }
+
+    .inspector-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .inspector-title {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: 'Fira Code', monospace;
+      color: #38bdf8;
+    }
+
+    .close-inspector {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .close-inspector:hover {
+      color: #fff;
+    }
+
+    .inspector-content {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .rel-badge-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .rel-item {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .rel-item:hover {
+      border-color: #38bdf8;
+      background: #1e293b;
+    }
+
+    .rel-item-title {
+      font-family: 'Fira Code', monospace;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .rel-item-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* MODAL FOR CODE EXPORT */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      width: 720px;
+      max-width: 90vw;
+      max-height: 85vh;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+      overflow: hidden;
+    }
+
+    .modal-head {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1e293b;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .code-area {
+      width: 100%;
+      height: 380px;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      outline: none;
+      resize: none;
+      white-space: pre;
+    }
+
+    .modal-foot {
+      padding: 14px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: #111827;
+    }
+
+    /* TOAST NOTIFICATION */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #0284c7;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 18px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      z-index: 300;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🐷</div>
+      <div>
+        <div class="brand-title">Piggy Trunk Schema Visualizer</div>
+        <div class="brand-subtitle">Interactive Supabase ERD (21 Tables)</div>
+      </div>
+    </div>
+
+    <!-- FILTER BUTTONS -->
+    <div class="filter-pills">
+      <button class="pill-btn active" onclick="filterModule('all')">All</button>
+      <button class="pill-btn" onclick="filterModule('auth')">Auth & Users</button>
+      <button class="pill-btn" onclick="filterModule('farm')">Farm & Livestock</button>
+      <button class="pill-btn" onclick="filterModule('inventory')">Inventory & POS</button>
+      <button class="pill-btn" onclick="filterModule('investment')">Investments</button>
+      <button class="pill-btn" onclick="filterModule('notification')">Notifications</button>
+    </div>
+
+    <!-- SEARCH & EXPORT -->
+    <div class="header-actions">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24"><path d="M10 2a8 8 0 015.293 13.707l5 5a1 1 0 01-1.414 1.414l-5-5A8 8 0 1110 2zm0 2a6 6 0 100 12 6 6 0 000-12z"/></svg>
+        <input type="text" id="searchInput" placeholder="Search table or column..." oninput="handleSearch(this.value)">
+      </div>
+
+      <button class="btn" onclick="openModal('dbml')">
+        <span>📋 DBML Export</span>
+      </button>
+
+      <button class="btn btn-primary" onclick="exportPNG()">
+        <span>📸 Export / Print</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- WORKSPACE CANVAS -->
+  <div class="viewport-container" id="viewport">
+    <div class="grid-bg"></div>
+
+    <div id="world">
+      <!-- SVG Connectors -->
+      <svg id="svg-connections">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+          </marker>
+          <marker id="arrow-default" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+          </marker>
+        </defs>
+      </svg>
+
+      <!-- Tables Container -->
+      <div id="tables-container"></div>
+    </div>
+
+    <!-- FLOATING CANVAS CONTROLS -->
+    <div class="canvas-toolbar">
+      <button class="tool-btn" onclick="zoom(-0.15)" title="Zoom Out">−</button>
+      <span class="zoom-text" id="zoomLevel">100%</span>
+      <button class="tool-btn" onclick="zoom(0.15)" title="Zoom In">+</button>
+      <div class="separator"></div>
+      <button class="tool-btn" onclick="resetView()" title="Fit / Reset View">⛶</button>
+      <button class="tool-btn" onclick="autoLayout()" title="Auto Organize">⚡</button>
+    </div>
+  </div>
+
+  <!-- SIDEBAR INSPECTOR -->
+  <div id="inspector">
+    <div class="inspector-header">
+      <div>
+        <div style="font-size: 11px; text-transform: uppercase; color: var(--text-dim); font-weight: 700;">Table Inspector</div>
+        <div class="inspector-title" id="insp-table-name">app_users</div>
+      </div>
+      <button class="close-inspector" onclick="closeInspector()">×</button>
+    </div>
+    <div class="inspector-content">
+      <div>
+        <div class="section-title">Module Category</div>
+        <div id="insp-module" style="font-weight: 700; font-size: 13px;">Auth & Profiles</div>
+      </div>
+      <div>
+        <div class="section-title">Columns (<span id="insp-col-count">0</span>)</div>
+        <div id="insp-columns" style="display: flex; flex-direction: column; gap: 4px; font-family: 'Fira Code', monospace; font-size: 11.5px;"></div>
+      </div>
+      <div>
+        <div class="section-title">Foreign Keys Outbound</div>
+        <div id="insp-outbound" class="rel-badge-list"></div>
+      </div>
+      <div>
+        <div class="section-title">Referenced By (Inbound)</div>
+        <div id="insp-inbound" class="rel-badge-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT MODAL -->
+  <div class="modal-overlay" id="exportModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title" id="modalTitle">Export DBML Code</div>
+        <button class="close-inspector" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="modalTextarea" class="code-area" readonly></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeModal()">Close</button>
+        <button class="btn btn-primary" onclick="copyModalCode()">Copy Code</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast">Copied to clipboard!</div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // -------------------------------------------------------------
+    // SCHEMA SPECIFICATION (21 SUPABASE TABLES)
+    // -------------------------------------------------------------
+    const MODULE_COLORS = {
+      auth: '#a855f7',         // Purple
+      farm: '#10b981',         // Emerald
+      inventory: '#f59e0b',    // Amber
+      investment: '#f43f5e',   // Rose
+      notification: '#6366f1'  // Indigo
+    };
+
+    const TABLES = [
+      // AUTH & PROFILES
+      {
+        id: 'app_users',
+        name: 'app_users',
+        module: 'auth',
+        x: 650, y: 100,
+        columns: [
+          { name: 'user_id', type: 'bigint', pk: true },
+          { name: 'name', type: 'text' },
+          { name: 'email', type: 'text', uk: true },
+          { name: 'password_hash', type: 'text' },
+          { name: 'role', type: 'text' },
+          { name: 'status', type: 'text' },
+          { name: 'created_at', type: 'timestamptz' },
+          { name: 'created_by', type: 'bigint', fk: 'app_users.user_id' },
+          { name: 'supabase_user_id', type: 'uuid', uk: true }
+        ]
+      },
+      {
+        id: 'cashiers',
+        name: 'cashiers',
+        module: 'auth',
+        x: 300, y: 80,
+        columns: [
+          { name: 'cashier_id', type: 'bigint', pk: true },
+          { name: 'user_id', type: 'bigint', fk: 'app_users.user_id', uk: true },
+          { name: 'date_hired', type: 'date' },
+          { name: 'status', type: 'text' },
+          { name: 'avatar_url', type: 'text' }
+        ]
+      },
+      {
+        id: 'partner_investors',
+        name: 'partner_investors',
+        module: 'auth',
+        x: 1050, y: 100,
+        columns: [
+          { name: 'partner_investor_id', type: 'bigint', pk: true },
+          { name: 'user_id', type: 'bigint', fk: 'app_users.user_id', uk: true },
+          { name: 'address', type: 'text' },
+          { name: 'contact_number', type: 'text' },
+          { name: 'registration_date', type: 'date' },
+          { name: 'avatar_url', type: 'text' }
+        ]
+      },
+      {
+        id: 'hog_raisers',
+        name: 'hog_raisers',
+        module: 'auth',
+        x: 650, y: 480,
+        columns: [
+          { name: 'hog_raiser_id', type: 'bigint', pk: true },
+          { name: 'user_id', type: 'bigint', fk: 'app_users.user_id', uk: true },
+          { name: 'name', type: 'text' },
+          { name: 'email', type: 'text' },
+          { name: 'phone', type: 'text' },
+          { name: 'address', type: 'text' },
+          { name: 'account_status', type: 'text' },
+          { name: 'pig_type', type: 'text' },
+          { name: 'status', type: 'text' },
+          { name: 'lifecycle_stage', type: 'text' },
+          { name: 'avatar_url', type: 'text' }
+        ]
+      },
+
+      // FARM & LIVESTOCK
+      {
+        id: 'batches',
+        name: 'batches',
+        module: 'farm',
+        x: 1050, y: 420,
+        columns: [
+          { name: 'batch_id', type: 'bigint', pk: true },
+          { name: 'batch_name', type: 'text', uk: true },
+          { name: 'date_created', type: 'date' },
+          { name: 'status', type: 'text' }
+        ]
+      },
+      {
+        id: 'hog_types',
+        name: 'hog_types',
+        module: 'farm',
+        x: 1050, y: 640,
+        columns: [
+          { name: 'hog_type_id', type: 'bigint', pk: true },
+          { name: 'type_name', type: 'text', uk: true },
+          { name: 'description', type: 'text' },
+          { name: 'ending_feed', type: 'text' }
+        ]
+      },
+      {
+        id: 'assignments',
+        name: 'assignments',
+        module: 'farm',
+        x: 650, y: 920,
+        columns: [
+          { name: 'assignment_id', type: 'bigint', pk: true },
+          { name: 'batch_id', type: 'bigint', fk: 'batches.batch_id' },
+          { name: 'hog_raiser_id', type: 'bigint', fk: 'hog_raisers.hog_raiser_id' },
+          { name: 'hog_type_id', type: 'bigint', fk: 'hog_types.hog_type_id' },
+          { name: 'assigned_date', type: 'date' },
+          { name: 'status', type: 'text' }
+        ]
+      },
+      {
+        id: 'hogs',
+        name: 'hogs',
+        module: 'farm',
+        x: 650, y: 1220,
+        columns: [
+          { name: 'hog_id', type: 'bigint', pk: true },
+          { name: 'assignment_id', type: 'bigint', fk: 'assignments.assignment_id' },
+          { name: 'status', type: 'text' },
+          { name: 'health_status', type: 'text' },
+          { name: 'weight', type: 'numeric' },
+          { name: 'last_updated', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'hog_reports',
+        name: 'hog_reports',
+        module: 'farm',
+        x: 280, y: 1220,
+        columns: [
+          { name: 'report_id', type: 'bigint', pk: true },
+          { name: 'hog_id', type: 'bigint', fk: 'hogs.hog_id' },
+          { name: 'hog_raiser_id', type: 'bigint', fk: 'hog_raisers.hog_raiser_id' },
+          { name: 'report_type', type: 'text' },
+          { name: 'description', type: 'text' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+
+      // STOCK REQUESTS
+      {
+        id: 'stock_requests',
+        name: 'stock_requests',
+        module: 'farm',
+        x: 280, y: 880,
+        columns: [
+          { name: 'request_id', type: 'bigint', pk: true },
+          { name: 'hog_raiser_id', type: 'bigint', fk: 'hog_raisers.hog_raiser_id' },
+          { name: 'assignment_id', type: 'bigint', fk: 'assignments.assignment_id' },
+          { name: 'request_date', type: 'date' },
+          { name: 'category', type: 'text' },
+          { name: 'feed_type', type: 'text' },
+          { name: 'quantity', type: 'integer' },
+          { name: 'status', type: 'text' },
+          { name: 'decision_date', type: 'date' },
+          { name: 'notes', type: 'text' },
+          { name: 'rejection_reason', type: 'text' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+
+      // INVENTORY & POS
+      {
+        id: 'inventory_products',
+        name: 'inventory_products',
+        module: 'inventory',
+        x: 1450, y: 100,
+        columns: [
+          { name: 'id', type: 'uuid', pk: true },
+          { name: 'name', type: 'text' },
+          { name: 'category', type: 'text' },
+          { name: 'price', type: 'numeric' },
+          { name: 'units', type: 'integer' },
+          { name: 'sold', type: 'integer' },
+          { name: 'lead_time_days', type: 'integer' },
+          { name: 'safety_stock', type: 'integer' },
+          { name: 'reorder_point', type: 'integer' },
+          { name: 'is_archived', type: 'boolean' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'inventory_logs',
+        name: 'inventory_logs',
+        module: 'inventory',
+        x: 1820, y: 100,
+        columns: [
+          { name: 'id', type: 'uuid', pk: true },
+          { name: 'product_id', type: 'uuid', fk: 'inventory_products.id' },
+          { name: 'product_name', type: 'text' },
+          { name: 'action', type: 'text' },
+          { name: 'performed_by', type: 'text' },
+          { name: 'price', type: 'numeric' },
+          { name: 'units', type: 'integer' },
+          { name: 'details', type: 'text' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'pos_sales',
+        name: 'pos_sales',
+        module: 'inventory',
+        x: 1450, y: 550,
+        columns: [
+          { name: 'id', type: 'uuid', pk: true },
+          { name: 'order_id', type: 'text' },
+          { name: 'product_id', type: 'uuid', fk: 'inventory_products.id' },
+          { name: 'product_name', type: 'text' },
+          { name: 'category', type: 'text' },
+          { name: 'quantity', type: 'integer' },
+          { name: 'unit_price', type: 'numeric' },
+          { name: 'total_amount', type: 'numeric' },
+          { name: 'sale_date', type: 'timestamptz' },
+          { name: 'customer_name', type: 'text' },
+          { name: 'payment_method', type: 'text' },
+          { name: 'cashier_name', type: 'text' }
+        ]
+      },
+      {
+        id: 'products',
+        name: 'products',
+        module: 'inventory',
+        x: 1820, y: 480,
+        columns: [
+          { name: 'product_id', type: 'bigint', pk: true },
+          { name: 'product_name', type: 'text' },
+          { name: 'unit_price', type: 'numeric' },
+          { name: 'current_stock', type: 'integer' },
+          { name: 'category', type: 'text' }
+        ]
+      },
+      {
+        id: 'sales',
+        name: 'sales',
+        module: 'inventory',
+        x: 1820, y: 750,
+        columns: [
+          { name: 'sale_id', type: 'bigint', pk: true },
+          { name: 'product_id', type: 'bigint', fk: 'products.product_id' },
+          { name: 'hog_raiser_id', type: 'bigint', fk: 'hog_raisers.hog_raiser_id' },
+          { name: 'performed_by', type: 'bigint', fk: 'app_users.user_id' },
+          { name: 'quantity', type: 'integer' },
+          { name: 'total_amount', type: 'numeric' },
+          { name: 'sale_date', type: 'timestamptz' }
+        ]
+      },
+
+      // INVESTMENTS
+      {
+        id: 'investments',
+        name: 'investments',
+        module: 'investment',
+        x: 1050, y: 880,
+        columns: [
+          { name: 'investment_id', type: 'bigint', pk: true },
+          { name: 'batch_id', type: 'bigint', fk: 'batches.batch_id' },
+          { name: 'partner_investor_id', type: 'bigint', fk: 'partner_investors.partner_investor_id' },
+          { name: 'amount', type: 'numeric' },
+          { name: 'date_invested', type: 'date' },
+          { name: 'status', type: 'text' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'investment_records',
+        name: 'investment_records',
+        module: 'investment',
+        x: 1050, y: 1180,
+        columns: [
+          { name: 'id', type: 'uuid', pk: true },
+          { name: 'hog_raiser_id', type: 'text' },
+          { name: 'raiser_name', type: 'text' },
+          { name: 'initial_capital', type: 'numeric' },
+          { name: 'hog_type', type: 'text' },
+          { name: 'total_hog', type: 'integer' },
+          { name: 'investment_date', type: 'date' },
+          { name: 'stage', type: 'text' }
+        ]
+      },
+
+      // NOTIFICATIONS & AUDIT
+      {
+        id: 'admin_notifications',
+        name: 'admin_notifications',
+        module: 'notification',
+        x: 280, y: 350,
+        columns: [
+          { name: 'notification_id', type: 'bigint', pk: true },
+          { name: 'title', type: 'text' },
+          { name: 'message', type: 'text' },
+          { name: 'type', type: 'text' },
+          { name: 'is_read', type: 'boolean' },
+          { name: 'metadata', type: 'jsonb' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'raiser_notifications',
+        name: 'raiser_notifications',
+        module: 'notification',
+        x: 280, y: 620,
+        columns: [
+          { name: 'notification_id', type: 'bigint', pk: true },
+          { name: 'hog_raiser_id', type: 'bigint', fk: 'hog_raisers.hog_raiser_id' },
+          { name: 'title', type: 'text' },
+          { name: 'message', type: 'text' },
+          { name: 'type', type: 'text' },
+          { name: 'is_read', type: 'boolean' },
+          { name: 'metadata', type: 'jsonb' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'partner_notifications',
+        name: 'partner_notifications',
+        module: 'notification',
+        x: 1450, y: 1000,
+        columns: [
+          { name: 'notification_id', type: 'bigint', pk: true },
+          { name: 'partner_investor_id', type: 'bigint', fk: 'partner_investors.partner_investor_id' },
+          { name: 'title', type: 'text' },
+          { name: 'message', type: 'text' },
+          { name: 'type', type: 'text' },
+          { name: 'is_read', type: 'boolean' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      },
+      {
+        id: 'admin_password_resets',
+        name: 'admin_password_resets',
+        module: 'notification',
+        x: 650, y: -160,
+        columns: [
+          { name: 'id', type: 'bigint', pk: true },
+          { name: 'email', type: 'text' },
+          { name: 'otp_code', type: 'text' },
+          { name: 'expires_at', type: 'timestamptz' },
+          { name: 'used', type: 'boolean' },
+          { name: 'created_at', type: 'timestamptz' }
+        ]
+      }
+    ];
+
+    // PARSE RELATIONSHIPS
+    const RELATIONS = [];
+    TABLES.forEach(sourceTable => {
+      sourceTable.columns.forEach(col => {
+        if (col.fk) {
+          const [targetTableId, targetCol] = col.fk.split('.');
+          RELATIONS.push({
+            id: `${sourceTable.id}.${col.name}->${targetTableId}.${targetCol}`,
+            sourceTable: sourceTable.id,
+            sourceCol: col.name,
+            targetTable: targetTableId,
+            targetCol: targetCol
+          });
+        }
+      });
+    });
+
+    // -------------------------------------------------------------
+    // CANVAS PAN & ZOOM STATE
+    // -------------------------------------------------------------
+    let scale = 0.8;
+    let panX = 120;
+    let panY = 160;
+    let isPanning = false;
+    let startX = 0;
+    let startY = 0;
+    let selectedTable = null;
+
+    const viewport = document.getElementById('viewport');
+    const world = document.getElementById('world');
+    const tablesContainer = document.getElementById('tables-container');
+    const svgConnections = document.getElementById('svg-connections');
+    const zoomText = document.getElementById('zoomLevel');
+
+    function updateTransform() {
+      world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      zoomText.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    // Viewport Pan
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target === viewport || e.target.classList.contains('grid-bg') || e.target.tagName === 'svg') {
+        isPanning = true;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isPanning) {
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        updateTransform();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+    });
+
+    // Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = 1.1;
+      const oldScale = scale;
+      if (e.deltaY < 0) {
+        scale = Math.min(scale * zoomFactor, 2.5);
+      } else {
+        scale = Math.max(scale / zoomFactor, 0.25);
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      panX = mouseX - (mouseX - panX) * (scale / oldScale);
+      panY = mouseY - (mouseY - panY) * (scale / oldScale);
+
+      updateTransform();
+    }, { passive: false });
+
+    function zoom(delta) {
+      scale = Math.min(Math.max(scale + delta, 0.25), 2.5);
+      updateTransform();
+    }
+
+    function resetView() {
+      scale = 0.8;
+      panX = 120;
+      panY = 160;
+      updateTransform();
+      clearHighlight();
+    }
+
+    // -------------------------------------------------------------
+    // RENDER TABLES & CONNECTIONS
+    // -------------------------------------------------------------
+    function renderTables() {
+      tablesContainer.innerHTML = '';
+      TABLES.forEach(table => {
+        const card = document.createElement('div');
+        card.id = `table-${table.id}`;
+        card.className = 'table-card';
+        card.style.left = `${table.x}px`;
+        card.style.top = `${table.y}px`;
+
+        const modColor = MODULE_COLORS[table.module] || '#38bdf8';
+
+        let colHtml = '';
+        table.columns.forEach(c => {
+          let badge = '';
+          if (c.pk) badge += '<span class="badge badge-pk">PK</span>';
+          if (c.fk) badge += `<span class="badge badge-fk" title="FK -> ${c.fk}">FK</span>`;
+          if (c.uk && !c.pk) badge += '<span class="badge badge-uk">UK</span>';
+
+          colHtml += `
+            <div class="col-row">
+              <div class="col-left">
+                ${badge}
+                <span class="col-name">${c.name}</span>
+              </div>
+              <span class="col-type">${c.type}</span>
+            </div>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="card-header" id="header-${table.id}">
+            <div class="header-left">
+              <span class="module-dot" style="background: ${modColor}; box-shadow: 0 0 8px ${modColor}"></span>
+              <span class="table-name">${table.name}</span>
+            </div>
+            <span class="tag-count">${table.columns.length} cols</span>
+          </div>
+          <div class="card-body">
+            ${colHtml}
+          </div>
+        `;
+
+        // Card Selection & Details
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectTable(table.id);
+        });
+
+        // Draggable Card
+        makeDraggable(card, table);
+
+        tablesContainer.appendChild(card);
+      });
+
+      renderConnections();
+    }
+
+    // MAKE DRAGGABLE
+    function makeDraggable(element, tableData) {
+      let dragStartX, dragStartY;
+      const header = element.querySelector('.card-header');
+
+      header.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+
+        function onMouseMove(moveEvent) {
+          const dx = (moveEvent.clientX - dragStartX) / scale;
+          const dy = (moveEvent.clientY - dragStartY) / scale;
+          tableData.x += dx;
+          tableData.y += dy;
+          element.style.left = `${tableData.x}px`;
+          element.style.top = `${tableData.y}px`;
+          dragStartX = moveEvent.clientX;
+          dragStartY = moveEvent.clientY;
+          updateConnections();
+        }
+
+        function onMouseUp() {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    // RENDER SVG BEZIER CONNECTOR PATHS
+    function renderConnections() {
+      // Keep defs
+      const defs = svgConnections.querySelector('defs');
+      svgConnections.innerHTML = '';
+      svgConnections.appendChild(defs);
+
+      RELATIONS.forEach(rel => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.id = `rel-${rel.id}`;
+        path.setAttribute('class', 'rel-line');
+        path.setAttribute('marker-end', 'url(#arrow-default)');
+        svgConnections.appendChild(path);
+      });
+
+      updateConnections();
+    }
+
+    function updateConnections() {
+      RELATIONS.forEach(rel => {
+        const sourceTable = TABLES.find(t => t.id === rel.sourceTable);
+        const targetTable = TABLES.find(t => t.id === rel.targetTable);
+        const path = document.getElementById(`rel-${rel.id}`);
+        if (!sourceTable || !targetTable || !path) return;
+
+        const cardWidth = 290;
+        const sourceCard = document.getElementById(`table-${sourceTable.id}`);
+        const targetCard = document.getElementById(`table-${targetTable.id}`);
+        const sourceHeight = sourceCard ? sourceCard.offsetHeight : 200;
+        const targetHeight = targetCard ? targetCard.offsetHeight : 200;
+
+        // Calculate anchors
+        let x1, y1, x2, y2;
+
+        if (sourceTable.x + cardWidth < targetTable.x) {
+          x1 = sourceTable.x + cardWidth;
+          y1 = sourceTable.y + 60;
+          x2 = targetTable.x;
+          y2 = targetTable.y + 60;
+        } else if (sourceTable.x > targetTable.x + cardWidth) {
+          x1 = sourceTable.x;
+          y1 = sourceTable.y + 60;
+          x2 = targetTable.x + cardWidth;
+          y2 = targetTable.y + 60;
+        } else {
+          x1 = sourceTable.x + cardWidth / 2;
+          y1 = sourceTable.y < targetTable.y ? sourceTable.y + sourceHeight : sourceTable.y;
+          x2 = targetTable.x + cardWidth / 2;
+          y2 = sourceTable.y < targetTable.y ? targetTable.y : targetTable.y + targetHeight;
+        }
+
+        const dx = Math.abs(x2 - x1) * 0.5;
+        const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+        path.setAttribute('d', d);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // INTERACTION: SELECT TABLE & HIGHLIGHT RELATIONS
+    // -------------------------------------------------------------
+    function selectTable(tableId) {
+      selectedTable = tableId;
+      const target = TABLES.find(t => t.id === tableId);
+      if (!target) return;
+
+      // Find all related tables
+      const relatedTables = new Set([tableId]);
+      const activeRelIds = [];
+
+      RELATIONS.forEach(rel => {
+        if (rel.sourceTable === tableId) {
+          relatedTables.add(rel.targetTable);
+          activeRelIds.push(rel.id);
+        } else if (rel.targetTable === tableId) {
+          relatedTables.add(rel.sourceTable);
+          activeRelIds.push(rel.id);
+        }
+      });
+
+      // Update card styles
+      TABLES.forEach(t => {
+        const card = document.getElementById(`table-${t.id}`);
+        if (!card) return;
+        if (t.id === tableId) {
+          card.classList.add('selected');
+          card.classList.remove('dimmed');
+        } else if (relatedTables.has(t.id)) {
+          card.classList.remove('selected');
+          card.classList.remove('dimmed');
+        } else {
+          card.classList.remove('selected');
+          card.classList.add('dimmed');
+        }
+      });
+
+      // Update lines
+      RELATIONS.forEach(rel => {
+        const path = document.getElementById(`rel-${rel.id}`);
+        if (!path) return;
+        if (activeRelIds.includes(rel.id)) {
+          path.classList.add('active');
+          path.classList.remove('dimmed');
+          path.setAttribute('marker-end', 'url(#arrow)');
+        } else {
+          path.classList.remove('active');
+          path.classList.add('dimmed');
+          path.setAttribute('marker-end', 'url(#arrow-default)');
+        }
+      });
+
+      openInspector(target);
+    }
+
+    function clearHighlight() {
+      selectedTable = null;
+      document.querySelectorAll('.table-card').forEach(c => {
+        c.classList.remove('selected', 'dimmed');
+      });
+      document.querySelectorAll('.rel-line').forEach(l => {
+        l.classList.remove('active', 'dimmed');
+        l.setAttribute('marker-end', 'url(#arrow-default)');
+      });
+      closeInspector();
+    }
+
+    viewport.addEventListener('click', (e) => {
+      if (e.target === viewport || e.target.classList.contains('grid-bg')) {
+        clearHighlight();
+      }
+    });
+
+    // -------------------------------------------------------------
+    // SEARCH & FILTER
+    // -------------------------------------------------------------
+    function handleSearch(query) {
+      query = query.trim().toLowerCase();
+      if (!query) {
+        clearHighlight();
+        return;
+      }
+
+      TABLES.forEach(t => {
+        const card = document.getElementById(`table-${t.id}`);
+        const matchTable = t.name.toLowerCase().includes(query);
+        const matchCol = t.columns.some(c => c.name.toLowerCase().includes(query));
+        if (matchTable || matchCol) {
+          card.classList.remove('dimmed');
+        } else {
+          card.classList.add('dimmed');
+        }
+      });
+    }
+
+    function filterModule(mod) {
+      document.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (mod === 'all') {
+        clearHighlight();
+        return;
+      }
+
+      TABLES.forEach(t => {
+        const card = document.getElementById(`table-${t.id}`);
+        if (t.module === mod) {
+          card.classList.remove('dimmed');
+        } else {
+          card.classList.add('dimmed');
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // INSPECTOR PANEL
+    // -------------------------------------------------------------
+    function openInspector(table) {
+      const panel = document.getElementById('inspector');
+      panel.classList.add('open');
+
+      document.getElementById('insp-table-name').textContent = table.name;
+      document.getElementById('insp-module').textContent = table.module.toUpperCase();
+      document.getElementById('insp-col-count').textContent = table.columns.length;
+
+      // Render columns
+      const colBox = document.getElementById('insp-columns');
+      colBox.innerHTML = table.columns.map(c => `
+        <div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #1e293b;">
+          <span style="color:#e2e8f0;">${c.pk ? '🔑 ' : ''}${c.name}</span>
+          <span style="color:#64748b;">${c.type}</span>
+        </div>
+      `).join('');
+
+      // Outbound FKs
+      const outbound = RELATIONS.filter(r => r.sourceTable === table.id);
+      const outBox = document.getElementById('insp-outbound');
+      outBox.innerHTML = outbound.length ? outbound.map(r => `
+        <div class="rel-item" onclick="selectTable('${r.targetTable}')">
+          <div class="rel-item-title">→ ${r.targetTable}</div>
+          <div class="rel-item-sub">FK: ${r.sourceCol} references ${r.targetCol}</div>
+        </div>
+      `).join('') : '<div style="font-size:12px; color:#64748b;">No outbound foreign keys</div>';
+
+      // Inbound FKs
+      const inbound = RELATIONS.filter(r => r.targetTable === table.id);
+      const inBox = document.getElementById('insp-inbound');
+      inBox.innerHTML = inbound.length ? inbound.map(r => `
+        <div class="rel-item" onclick="selectTable('${r.sourceTable}')">
+          <div class="rel-item-title">← ${r.sourceTable}</div>
+          <div class="rel-item-sub">Referenced by ${r.sourceTable}.${r.sourceCol}</div>
+        </div>
+      `).join('') : '<div style="font-size:12px; color:#64748b;">No inbound references</div>';
+    }
+
+    function closeInspector() {
+      document.getElementById('inspector').classList.remove('open');
+    }
+
+    // -------------------------------------------------------------
+    // AUTO LAYOUT
+    // -------------------------------------------------------------
+    function autoLayout() {
+      // Organized in clean columns by functional domain
+      const modules = ['auth', 'farm', 'inventory', 'investment', 'notification'];
+      const cols = {
+        auth: 300,
+        farm: 700,
+        inventory: 1100,
+        investment: 1500,
+        notification: 1900
+      };
+      const rowTops = { auth: 80, farm: 80, inventory: 80, investment: 80, notification: 80 };
+
+      TABLES.forEach(t => {
+        const m = t.module;
+        t.x = cols[m] || 300;
+        t.y = rowTops[m];
+        rowTops[m] += 360;
+        const card = document.getElementById(`table-${t.id}`);
+        if (card) {
+          card.style.left = `${t.x}px`;
+          card.style.top = `${t.y}px`;
+        }
+      });
+      updateConnections();
+      showToast('Schema auto-aligned!');
+    }
+
+    // -------------------------------------------------------------
+    // DBML GENERATOR
+    // -------------------------------------------------------------
+    function generateDBML() {
+      let out = '// Piggy Trunk Supabase Database Schema (DBML)\n';
+      out += '// Paste into https://dbdiagram.io to visualize or export as PDF/PNG\n\n';
+
+      TABLES.forEach(t => {
+        out += `Table ${t.name} {\n`;
+        t.columns.forEach(c => {
+          let settings = [];
+          if (c.pk) settings.push('pk');
+          if (c.uk && !c.pk) settings.push('unique');
+          const setStr = settings.length ? ` [${settings.join(', ')}]` : '';
+          out += `  ${c.name} ${c.type}${setStr}\n`;
+        });
+        out += '}\n\n';
+      });
+
+      RELATIONS.forEach(r => {
+        out += `Ref: ${r.sourceTable}.${r.sourceCol} > ${r.targetTable}.${r.targetCol}\n`;
+      });
+
+      return out;
+    }
+
+    function openModal(type) {
+      const modal = document.getElementById('exportModal');
+      const textarea = document.getElementById('modalTextarea');
+      const title = document.getElementById('modalTitle');
+
+      if (type === 'dbml') {
+        title.textContent = 'Piggy Trunk DBML (For dbdiagram.io)';
+        textarea.value = generateDBML();
+      }
+      modal.classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('exportModal').classList.remove('open');
+    }
+
+    function copyModalCode() {
+      const textarea = document.getElementById('modalTextarea');
+      textarea.select();
+      navigator.clipboard.writeText(textarea.value);
+      showToast('DBML code copied to clipboard!');
+      closeModal();
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2600);
+    }
+
+    // -------------------------------------------------------------
+    // EXPORT HIGH-RES PNG
+    // -------------------------------------------------------------
+    function exportPNG() {
+      showToast('Opening print dialog (Save as PDF / Image)...');
+      window.print();
+    }
+
+    // INITIALIZE
+    renderTables();
+    updateTransform();
+  </script>
+</body>
+</html>

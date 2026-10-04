@@ -61,8 +61,15 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
           _loadRaisers(keyword: targetRaiserName).then((_) {
             if (mounted && _raisers.isNotEmpty) {
               final match = _raisers.firstWhere(
-                (r) => (targetRaiserId != null && r['hog_raiser_id']?.toString() == targetRaiserId) ||
-                       (targetRaiserName.isNotEmpty && (r['name'] ?? '').toString().toLowerCase() == targetRaiserName.toLowerCase()),
+                (r) {
+                  final rId = (r['hog_raiser_id'] ?? r['id'] ?? '').toString();
+                  if (targetRaiserId != null && targetRaiserId.isNotEmpty && rId == targetRaiserId) {
+                    return true;
+                  }
+                  final rName = (r['name'] ?? '').toString().toLowerCase();
+                  final targetLower = targetRaiserName.toLowerCase();
+                  return targetLower.isNotEmpty && (rName == targetLower || rName.contains(targetLower) || targetLower.contains(rName));
+                },
                 orElse: () => _raisers.first,
               );
               RaiserProfileDrawer.show(
@@ -189,9 +196,6 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
       dynamic query = _supabase
           .from('hog_raisers')
           .select('hog_raiser_id, name, address, phone, pig_type, status, account_status, lifecycle_stage, user_id, app_users!hog_raisers_user_id_fkey(name, email, supabase_user_id)');
-      if (keyword != null && keyword.trim().isNotEmpty) {
-        query = query.or('name.ilike.%$keyword%,address.ilike.%$keyword%,phone.ilike.%$keyword%');
-      }
       dynamic response;
       try {
         response = await query.order('hog_raiser_id', ascending: false);
@@ -199,9 +203,99 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
         response = await query.order('name', ascending: true);
       }
 
+      // Fetch active assignments to dynamically determine active pig_types for each raiser
+      final Map<String, Set<String>> raiserActivePigTypes = {};
+      final Set<String> raisersWithActiveAssignments = {};
+      try {
+        List<dynamic> activeAssignments = [];
+        try {
+          activeAssignments = await _supabase
+              .from('assignments')
+              .select('assignment_id, batch_id, hog_raiser_id, status, hog_types(type_name)');
+        } catch (_) {
+          try {
+            activeAssignments = await _supabase
+                .from('assignments')
+                .select('assignment_id, batch_id, hog_raiser_id, status');
+          } catch (_) {
+            try {
+              activeAssignments = await _supabase
+                  .from('assignments')
+                  .select('*');
+            } catch (_) {}
+          }
+        }
+
+        // Also fetch active investments as fallback if hog_types wasn't joined
+        List<dynamic> invRecords = [];
+        try {
+          invRecords = await _supabase
+              .from('investment_records')
+              .select('hog_raiser_id, batch_name, batch_id, hog_type, status');
+        } catch (_) {}
+
+        final Map<String, String> batchToTypeFromInv = {};
+        final Map<String, Set<String>> raiserToTypesFromInv = {};
+        for (var inv in invRecords) {
+          if (inv is! Map) continue;
+          final invStatus = (inv['status'] ?? '').toString().toLowerCase();
+          if (invStatus == 'archived' || invStatus == 'completed') continue;
+          final rId = (inv['hog_raiser_id'] ?? '').toString();
+          final bId = (inv['batch_id'] ?? '').toString();
+          final hType = (inv['hog_type'] ?? '').toString().trim();
+          if (hType.isNotEmpty && hType.toUpperCase() != 'N/A') {
+            if (bId.isNotEmpty) batchToTypeFromInv[bId] = hType;
+            if (rId.isNotEmpty) {
+              raiserToTypesFromInv.putIfAbsent(rId, () => {}).add(hType);
+            }
+          }
+        }
+
+        for (var a in activeAssignments) {
+          if (a is! Map) continue;
+          final st = (a['status'] ?? 'active').toString().toLowerCase();
+          if (st == 'completed' || st == 'archived' || st == 'deleted') continue;
+
+          final rId = (a['hog_raiser_id'] ?? '').toString();
+          if (rId.isEmpty) continue;
+          raisersWithActiveAssignments.add(rId);
+
+          String? tName;
+          final ht = a['hog_types'];
+          if (ht is Map) {
+            tName = ht['type_name']?.toString();
+          } else if (ht is List && ht.isNotEmpty && ht.first is Map) {
+            tName = ht.first['type_name']?.toString();
+          }
+
+          if (tName == null || tName.isEmpty || tName.toUpperCase() == 'N/A') {
+            final bId = (a['batch_id'] ?? '').toString();
+            if (bId.isNotEmpty && batchToTypeFromInv.containsKey(bId)) {
+              tName = batchToTypeFromInv[bId];
+            } else if (a['pig_type'] != null && a['pig_type'].toString().trim().isNotEmpty) {
+              tName = a['pig_type'].toString().trim();
+            }
+          }
+
+          if (tName != null && tName.trim().isNotEmpty && tName.toUpperCase() != 'N/A') {
+            raiserActivePigTypes.putIfAbsent(rId, () => {}).add(tName.trim());
+          }
+        }
+
+        for (var rId in raisersWithActiveAssignments) {
+          if (!raiserActivePigTypes.containsKey(rId) || raiserActivePigTypes[rId]!.isEmpty) {
+            if (raiserToTypesFromInv.containsKey(rId)) {
+              raiserActivePigTypes.putIfAbsent(rId, () => {}).addAll(raiserToTypesFromInv[rId]!);
+            }
+          }
+        }
+      } catch (err) {
+        debugPrint('Notice resolving raiser active pig types: $err');
+      }
+
       if (!mounted) return;
       setState(() {
-        _raisers = (response as List).cast<Map<String, dynamic>>().map((r) {
+        var mappedRaisers = (response as List).cast<Map<String, dynamic>>().map((r) {
           final appUsers = r['app_users'] as Map<String, dynamic>?;
           final googleOrAppName = (appUsers?['name'] ?? '').toString().trim();
           final raiserName = (r['name'] ?? '').toString().trim();
@@ -222,17 +316,96 @@ class _HogRaiserScreenState extends State<HogRaiserScreen> {
             resolvedAvatarUrl = _supabase.storage.from('profile_pictures').getPublicUrl('avatars/$matchedFile');
           }
 
+          final typesSet = raiserActivePigTypes[raiserIdStr] ?? {};
+          final bool hasActiveBatch = raisersWithActiveAssignments.contains(raiserIdStr);
+
+          final bool hasSow = typesSet.any((t) {
+            final l = t.toLowerCase();
+            return l.contains('sow') || l.contains('breed') || l.contains('inahin');
+          });
+          final bool hasFattening = typesSet.any((t) {
+            final l = t.toLowerCase();
+            return l.contains('fatten') || l.contains('baboy');
+          });
+
+          String resolvedPigType;
+          if (hasSow && hasFattening) {
+            resolvedPigType = 'Sow and Fattening';
+          } else if (hasSow) {
+            resolvedPigType = 'Sow';
+          } else if (hasFattening) {
+            resolvedPigType = 'Fattening';
+          } else if (typesSet.isNotEmpty) {
+            resolvedPigType = typesSet.join(' and ');
+          } else if (hasActiveBatch) {
+            final raw = (r['pig_type'] ?? '').toString().trim();
+            final l = raw.toLowerCase();
+            if (l.contains('sow') && l.contains('fatten')) {
+              resolvedPigType = 'Sow and Fattening';
+            } else if (l.contains('sow') || l.contains('breed')) {
+              resolvedPigType = 'Sow';
+            } else if (l.contains('fatten')) {
+              resolvedPigType = 'Fattening';
+            } else {
+              resolvedPigType = 'Fattening';
+            }
+          } else {
+            resolvedPigType = 'Unassigned';
+          }
+
+          final currentDbPigType = (r['pig_type'] ?? '').toString().trim();
+          if (currentDbPigType != resolvedPigType && raiserIdStr.isNotEmpty && r['hog_raiser_id'] != null) {
+            _supabase.from('hog_raisers').update({'pig_type': resolvedPigType}).eq('hog_raiser_id', r['hog_raiser_id']).then((_) {}).catchError((_) {});
+          }
+
           return {
             ...r,
             'name': resolvedFullName,
             'email': appUsers?['email'] ?? '',
             'supabase_user_id': appUsers?['supabase_user_id'],
             'avatar_url': resolvedAvatarUrl ?? r['avatar_url'],
+            'pig_type': resolvedPigType,
           };
         }).where((r) => r['supabase_user_id'] != null).toList();
 
+        if (keyword != null && keyword.trim().isNotEmpty) {
+          final cleanKw = keyword.trim().toLowerCase();
+          final terms = cleanKw
+              .split(RegExp(r'[, ]+'))
+              .map((t) => t.trim())
+              .where((t) => t.isNotEmpty)
+              .toList();
+
+          mappedRaisers = mappedRaisers.where((r) {
+            final rName = (r['name'] ?? '').toString().toLowerCase();
+            final rEmail = (r['email'] ?? '').toString().toLowerCase();
+            final rPhone = (r['phone'] ?? '').toString().toLowerCase();
+            final rAddress = (r['address'] ?? '').toString().toLowerCase();
+            final rId = (r['hog_raiser_id'] ?? r['id'] ?? '').toString().toLowerCase();
+
+            // Match exact phrase
+            if (rName.contains(cleanKw) ||
+                rEmail.contains(cleanKw) ||
+                rPhone.contains(cleanKw) ||
+                rAddress.contains(cleanKw) ||
+                rId == cleanKw) {
+              return true;
+            }
+
+            // Or match all individual words
+            return terms.isNotEmpty &&
+                terms.every((t) =>
+                    rName.contains(t) ||
+                    rEmail.contains(t) ||
+                    rPhone.contains(t) ||
+                    rAddress.contains(t));
+          }).toList();
+        }
+
+        _raisers = mappedRaisers;
         _loadErrorMessage = null;
       });
+
     } catch (e) {
       if (!mounted) return;
       setState(() {

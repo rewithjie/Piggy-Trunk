@@ -45,6 +45,28 @@ class RaiserProfileDrawer {
     return null;
   }
 
+  static String formatPigType(dynamic raw) {
+    final str = (raw ?? '').toString().trim();
+    if (str.isEmpty ||
+        str.toUpperCase() == 'N/A' ||
+        str.toUpperCase() == 'NONE' ||
+        str.toUpperCase() == 'UNASSIGNED' ||
+        str.toLowerCase() == 'null') {
+      return 'Unassigned';
+    }
+    final lower = str.toLowerCase();
+    final bool hasSow = lower.contains('sow') || lower.contains('breed') || lower.contains('inahin');
+    final bool hasFattening = lower.contains('fatten') || lower.contains('baboy');
+    if (hasSow && hasFattening) {
+      return 'Sow and Fattening';
+    } else if (hasSow) {
+      return 'Sow';
+    } else if (hasFattening) {
+      return 'Fattening';
+    }
+    return str;
+  }
+
   static Widget _buildAvatarWidget({
     required BuildContext context,
     required String initials,
@@ -152,20 +174,7 @@ class RaiserProfileDrawer {
     final email = (row['email'] ?? 'N/A').toString();
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
-    final rawPigType = (row['pig_type'] ?? '').toString().trim();
-    final cleanParts = rawPigType
-        .split(RegExp(r'[,;]'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
-        .map((s) {
-          final l = s.toLowerCase();
-          if (l.contains('sow') || l.contains('breed')) return 'Sow';
-          if (l.contains('fatten')) return 'Fattening';
-          return s;
-        })
-        .toSet()
-        .toList();
-    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.join(', ');
+    final pigType = formatPigType(row['pig_type']);
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);
@@ -417,20 +426,7 @@ class RaiserProfileDrawer {
     final email = (row['email'] ?? 'N/A').toString();
     final phone = (row['phone'] ?? 'N/A').toString();
     final address = (row['address'] ?? 'N/A').toString();
-    final rawPigType = (row['pig_type'] ?? '').toString().trim();
-    final cleanParts = rawPigType
-        .split(RegExp(r'[,;]'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty && s.toUpperCase() != 'N/A' && s.toUpperCase() != 'NONE' && s.toUpperCase() != 'UNASSIGNED')
-        .map((s) {
-          final l = s.toLowerCase();
-          if (l.contains('sow') || l.contains('breed')) return 'Sow';
-          if (l.contains('fatten')) return 'Fattening';
-          return s;
-        })
-        .toSet()
-        .toList();
-    final pigType = cleanParts.isEmpty ? 'Unassigned' : cleanParts.join(', ');
+    final pigType = formatPigType(row['pig_type']);
     final status = (row['account_status'] ?? row['status'] ?? 'Active').toString().toUpperCase();
     final isPending = status == 'PENDING';
     final avatarUrl = _getAvatarUrl(row);

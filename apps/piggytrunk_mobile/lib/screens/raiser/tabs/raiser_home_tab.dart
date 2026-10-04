@@ -52,7 +52,7 @@ class RaiserHomeTab extends StatelessWidget {
 
   String _formatDate(String dateStr) {
     try {
-      final date = DateTime.parse(dateStr);
+      final date = DateTime.parse(dateStr).toLocal();
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     } catch (_) {
@@ -69,9 +69,28 @@ class RaiserHomeTab extends StatelessWidget {
     // Active assignment & investment details
     final hasActiveBatch = activeAssignments.isNotEmpty;
     final hasInvestment = investedAmount > 0;
-    final String activeBatchName = hasActiveBatch
-        ? (activeAssignments[0]['batches']?['batch_name'] ?? 'Active Batch').toString()
-        : '';
+    final List<String> allBatchNames = [];
+    for (var a in activeAssignments) {
+      String n = '';
+      if (a['batches'] is Map) {
+        n = (a['batches']['batch_name'] ?? a['batches']['name'] ?? '').toString();
+      } else if (a['batches'] is List && (a['batches'] as List).isNotEmpty && (a['batches'] as List).first is Map) {
+        n = ((a['batches'] as List).first['batch_name'] ?? '').toString();
+      }
+      if (n.isEmpty) n = (a['batch_name'] ?? '').toString();
+      if (n.contains('(')) {
+        final parts = n.split('(');
+        if (parts.last.endsWith(')')) {
+          n = parts.sublist(0, parts.length - 1).join('(').trim();
+        }
+      }
+      if (n.isNotEmpty && !allBatchNames.contains(n)) {
+        allBatchNames.add(n);
+      }
+    }
+    final String activeBatchName = allBatchNames.isNotEmpty
+        ? allBatchNames.join(strings.isFilipino ? ' at ' : ' and ')
+        : (hasActiveBatch ? 'Active Batch' : '');
 
     // Pig Type and Lifecycle stage
     final String rawPigType = (raiserData['pig_type'] ?? '').toString().trim();
@@ -302,14 +321,14 @@ class RaiserHomeTab extends StatelessWidget {
                                           '  •  ',
                                           style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
                                         ),
-                                        const Icon(Icons.inventory_2_outlined, size: 12, color: Color(0xFF6EE7B7)),
+                                        const Icon(Icons.remove_circle_outline_rounded, size: 12, color: Color(0xFFFCA5A5)),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '${strings.stockRequestsSpend}: ${_formatCurrency(stocksSpendAmount)}',
+                                          '${strings.deductedLabel}: -${_formatCurrency(stocksSpendAmount)}',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF6EE7B7),
+                                            color: const Color(0xFFFCA5A5),
                                           ),
                                         ),
                                       ],
@@ -389,7 +408,6 @@ class RaiserHomeTab extends StatelessWidget {
                     icon: Icons.pets_rounded,
                     accentColor: const Color(0xFFEF5B6C),
                     bgColor: const Color(0xFFFEF2F2),
-                    onTap: () => onNavigateToTab(2),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -404,7 +422,6 @@ class RaiserHomeTab extends StatelessWidget {
                     icon: Icons.health_and_safety_rounded,
                     accentColor: sickHogsCount == 0 ? const Color(0xFF10B981) : const Color(0xFFF59E0B),
                     bgColor: sickHogsCount == 0 ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
-                    onTap: () => onNavigateToTab(2),
                   ),
                 ),
               ],
@@ -421,7 +438,6 @@ class RaiserHomeTab extends StatelessWidget {
                     icon: Icons.assignment_rounded,
                     accentColor: const Color(0xFFF59E0B),
                     bgColor: const Color(0xFFFFFBEB),
-                    onTap: () => onNavigateToTab(1),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -581,7 +597,7 @@ class RaiserHomeTab extends StatelessWidget {
                     children: requestsList.take(3).map((req) {
                       final dateStr = _formatDate(req['request_date'] ?? '');
                       final status = (req['status'] ?? 'Pending').toString();
-                      final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? 'N/A').toString();
+                      final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? '').toString().trim();
                       String batchName = rawBatchName;
                       if (rawBatchName.contains('(')) {
                         final parts = rawBatchName.split('(');
@@ -589,11 +605,18 @@ class RaiserHomeTab extends StatelessWidget {
                           batchName = parts.sublist(0, parts.length - 1).join('(').trim();
                         }
                       }
+                      final feedType = (req['feed_type'] ?? '').toString().trim();
+                      final category = (req['category'] ?? '').toString().trim();
+                      final productName = feedType.isNotEmpty
+                          ? feedType
+                          : (category.isNotEmpty ? category : strings.request);
+                      final qty = (req['quantity'] as num?)?.toInt();
+                      final itemLabel = qty != null ? '$qty × $productName' : productName;
 
                       return _buildActivityItem(
                         context: context,
                         icon: Icons.assignment_outlined,
-                        title: '${strings.request} ($batchName)',
+                        title: batchName.isNotEmpty ? '$itemLabel ($batchName)' : itemLabel,
                         subtitle: '$dateStr • ${strings.isFilipino ? "Katayuan" : "Status"}: ${strings.formatStatus(status).toUpperCase()}',
                         isCompleted: status.toLowerCase() == 'approved',
                       );
@@ -645,7 +668,6 @@ class RaiserHomeTab extends StatelessWidget {
     required IconData icon,
     required Color accentColor,
     required Color bgColor,
-    VoidCallback? onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
@@ -653,62 +675,56 @@ class RaiserHomeTab extends StatelessWidget {
     final textColor = isDark ? Colors.white : _brandColor;
     final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? accentColor.withValues(alpha: 0.15) : bgColor,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: accentColor, size: 18),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark ? accentColor.withValues(alpha: 0.15) : bgColor,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                if (onTap != null)
-                  Icon(Icons.arrow_forward_ios_rounded, color: mutedColor.withValues(alpha: 0.6), size: 12),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: textColor,
+                child: Icon(icon, color: accentColor, size: 18),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: textColor,
             ),
-            const SizedBox(height: 2),
-            Text(
-              title,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: mutedColor,
-              ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: mutedColor,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1196,8 +1212,8 @@ class RaiserHomeTab extends StatelessWidget {
                             const SizedBox(height: 6),
                             Text(
                               strings.isFilipino
-                                  ? 'Kabuuang pinagsamang puhunan at mga feeds/gamot na naipamahagi sa iyong batch.'
-                                  : 'Combined total of initial capital funding and feeds/supplies dispatched to your batch.',
+                                  ? 'Natitirang badyet o puhunan matapos ibawas ang mga naipamahaging feeds at gamot sa iyong batch.'
+                                  : 'Remaining investment budget after deducting distributed feeds and medicines for your batch.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11.5,
                                 color: Colors.white.withValues(alpha: 0.75),
@@ -1210,7 +1226,7 @@ class RaiserHomeTab extends StatelessWidget {
 
                       const SizedBox(height: 16),
 
-                      // Two Summary Cards: Initial Capital & Supplies Spend
+                      // Two Summary Cards: Initial Capital & Deducted Supplies
                       Row(
                         children: [
                           Expanded(
@@ -1283,10 +1299,10 @@ class RaiserHomeTab extends StatelessWidget {
                                       Container(
                                         padding: const EdgeInsets.all(6),
                                         decoration: BoxDecoration(
-                                          color: _successGreen.withValues(alpha: 0.1),
+                                          color: const Color(0xFFEF4444).withValues(alpha: 0.1),
                                           borderRadius: BorderRadius.circular(8),
                                         ),
-                                        child: const Icon(Icons.inventory_2_outlined, color: _successGreen, size: 16),
+                                        child: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFFEF4444), size: 16),
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
@@ -1301,16 +1317,18 @@ class RaiserHomeTab extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    _formatCurrency(stocksSpendAmount),
+                                    stocksSpendAmount > 0
+                                        ? '-${_formatCurrency(stocksSpendAmount)}'
+                                        : _formatCurrency(0.0),
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
-                                      color: _successGreen,
+                                      color: stocksSpendAmount > 0 ? const Color(0xFFEF4444) : mutedTextColor,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    strings.isFilipino ? 'Naipamahaging supply' : 'Distributed supplies',
+                                    strings.isFilipino ? 'Ibinawas sa badyet' : 'Deducted from budget',
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       color: mutedTextColor,
@@ -1321,6 +1339,36 @@ class RaiserHomeTab extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+
+                      // Formula summary pill
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: cardBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.calculate_outlined, size: 16, color: mutedTextColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                strings.isFilipino
+                                    ? '${_formatCurrency(initialCapital)} (Puhunan) - ${_formatCurrency(stocksSpendAmount)} (Bawas) = ${_formatCurrency(investedAmount)} (Natitira)'
+                                    : '${_formatCurrency(initialCapital)} (Capital) - ${_formatCurrency(stocksSpendAmount)} (Deducted) = ${_formatCurrency(investedAmount)} (Remaining)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: primaryTextColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 20),
@@ -1455,26 +1503,26 @@ class RaiserHomeTab extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(
-                                      _formatCurrency(total),
+                                      '-${_formatCurrency(total)}',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,
-                                        color: primaryTextColor,
+                                        color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
                                       ),
                                     ),
                                     const SizedBox(height: 3),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: _successGreen.withValues(alpha: 0.12),
+                                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
-                                        strings.filterDistributed.toUpperCase(),
+                                        strings.isFilipino ? 'IBINAWAS' : 'DEDUCTED',
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w800,
-                                          color: _successGreen,
+                                          color: const Color(0xFFEF4444),
                                         ),
                                       ),
                                     ),

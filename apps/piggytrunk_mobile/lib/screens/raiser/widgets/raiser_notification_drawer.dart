@@ -52,9 +52,31 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
 
   String _selectedFilter = 'Active'; // 'Active', 'Requests', 'Approved', 'History'
 
-  List<Map<String, dynamic>> get _filteredNotifications {
-    if (_selectedFilter == 'History') return widget.notificationsList;
+  List<Map<String, dynamic>> get _deduplicatedNotifications {
+    final hasApprovedStock = widget.notificationsList.any((n) {
+      final t = (n['title'] ?? '').toString();
+      return t.contains('Stock Request Approved') || t.contains('Kahilingan ng Stock');
+    });
+
     return widget.notificationsList.where((n) {
+      final title = (n['title'] ?? '').toString();
+      final msg = (n['message'] ?? n['content'] ?? '').toString();
+      final isTriggerDuplicate = (title == 'Stock Request Update') &&
+          (msg.contains('Feeds has been') ||
+              msg.contains('Medicines has been') ||
+              msg.contains('Vitamins has been') ||
+              msg.contains('supplies has been'));
+      if (isTriggerDuplicate && hasApprovedStock) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredNotifications {
+    final sourceList = _deduplicatedNotifications;
+    if (_selectedFilter == 'History') return sourceList;
+    return sourceList.where((n) {
       final isRead = n['is_read'] == true;
       if (_selectedFilter == 'Active') return !isRead;
 
@@ -103,7 +125,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
     final textColor = isDark ? Colors.white : _brandColor;
     final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
-    final unreadCount = widget.notificationsList.where((n) => n['is_read'] == false).length;
+    final unreadCount = _deduplicatedNotifications.where((n) => n['is_read'] == false).length;
     final displayList = _filteredNotifications;
 
     return DraggableScrollableSheet(
@@ -229,7 +251,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterTab('Active', '${strings.tabActive} (${widget.notificationsList.where((n) => n['is_read'] != true).length})')),
+                  Expanded(child: _buildFilterTab('Active', '${strings.tabActive} (${_deduplicatedNotifications.where((n) => n['is_read'] != true).length})')),
                   const SizedBox(width: 6),
                   Expanded(child: _buildFilterTab('Requests', strings.request)),
                   const SizedBox(width: 6),

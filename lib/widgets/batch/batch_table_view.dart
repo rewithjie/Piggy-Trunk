@@ -568,39 +568,55 @@ class BatchTableView extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Center(
-              child: Tooltip(
-                message: 'View Batch Details',
-                waitDuration: const Duration(milliseconds: 250),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildActionButton(
+                    icon: Icons.visibility_outlined,
+                    tooltip: 'View Batch Details',
+                    color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                    bgColor: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.08 : 0.1),
+                    borderColor: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.22 : 0.3),
                     onTap: () => onViewDetails(batch),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.08 : 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: (isDark ? Colors.white : PiggyTrunkTheme.ptPrimary).withValues(alpha: isDark ? 0.22 : 0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.visibility_outlined,
-                          size: 16,
-                          color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                        ),
-                      ),
-                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String tooltip,
+    required Color color,
+    required Color bgColor,
+    required Color borderColor,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 250),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor, width: 1),
+            ),
+            child: Center(
+              child: Icon(icon, size: 16, color: color),
+            ),
+          ),
+        ),
       ),
     );
   }

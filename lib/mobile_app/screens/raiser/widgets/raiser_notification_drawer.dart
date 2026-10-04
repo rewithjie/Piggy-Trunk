@@ -53,9 +53,31 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
 
   String _selectedFilter = 'Active'; // 'Active', 'Requests', 'Approved', 'History'
 
-  List<Map<String, dynamic>> get _filteredNotifications {
-    if (_selectedFilter == 'History') return widget.notificationsList;
+  List<Map<String, dynamic>> get _deduplicatedNotifications {
+    final hasApprovedStock = widget.notificationsList.any((n) {
+      final t = (n['title'] ?? '').toString();
+      return t.contains('Stock Request Approved') || t.contains('Kahilingan ng Stock');
+    });
+
     return widget.notificationsList.where((n) {
+      final title = (n['title'] ?? '').toString();
+      final msg = (n['message'] ?? n['content'] ?? '').toString();
+      final isTriggerDuplicate = (title == 'Stock Request Update') &&
+          (msg.contains('Feeds has been') ||
+              msg.contains('Medicines has been') ||
+              msg.contains('Vitamins has been') ||
+              msg.contains('supplies has been'));
+      if (isTriggerDuplicate && hasApprovedStock) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredNotifications {
+    final sourceList = _deduplicatedNotifications;
+    if (_selectedFilter == 'History') return sourceList;
+    return sourceList.where((n) {
       final isRead = n['is_read'] == true;
       if (_selectedFilter == 'Active') return !isRead;
 
@@ -95,6 +117,178 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
     return strings.formatRelativeTime(dateValue);
   }
 
+  String _resolveCategoryLabel(String type, AppStrings strings) {
+    final t = type.toLowerCase();
+    if (t.contains('stock') || t.contains('request')) {
+      return strings.isFilipino ? 'Kahilingan ng Stock' : 'Stock Request';
+    } else if (t.contains('health') || t.contains('sick')) {
+      return strings.isFilipino ? 'Ulat Pangkalusugan' : 'Health Alert';
+    } else if (t.contains('batch')) {
+      return strings.isFilipino ? 'Pagtatalaga ng Batch' : 'Batch Assignment';
+    } else if (t.contains('invest')) {
+      return strings.isFilipino ? 'Puhunan' : 'Investment';
+    } else if (t.contains('stage')) {
+      return strings.isFilipino ? 'Yugto ng Pakain' : 'Feeds Stage';
+    }
+    return strings.isFilipino ? 'Alerto' : 'Notice';
+  }
+
+  void _showNotificationDetail({
+    required BuildContext context,
+    required Map<String, dynamic> notif,
+    required String title,
+    required String message,
+    required String timeStr,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String categoryLabel,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final strings = AppStrings.of(context);
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: bg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top header with Icon & Category & Close Button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: iconBg,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(icon, color: iconColor, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: iconBg,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            categoryLabel,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: iconColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, size: 20, color: mutedColor),
+                      onPressed: () => Navigator.of(dialogCtx).pop(),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Time
+                Row(
+                  children: [
+                    Icon(Icons.schedule_rounded, size: 13, color: mutedColor),
+                    const SizedBox(width: 5),
+                    Text(
+                      timeStr,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: mutedColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Message container
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: SelectableText(
+                    message.isNotEmpty ? message : title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Close Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogCtx).pop();
+                      widget.onRefreshNotifications();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.white : _brandColor,
+                      foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      strings.isFilipino ? 'Naiintindihan' : 'Close',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
@@ -104,7 +298,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
     final textColor = isDark ? Colors.white : _brandColor;
     final mutedColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
-    final unreadCount = widget.notificationsList.where((n) => n['is_read'] == false).length;
+    final unreadCount = _deduplicatedNotifications.where((n) => n['is_read'] == false).length;
     final displayList = _filteredNotifications;
 
     return DraggableScrollableSheet(
@@ -230,7 +424,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 children: [
-                  Expanded(child: _buildFilterTab('Active', '${strings.tabActive} (${widget.notificationsList.where((n) => n['is_read'] != true).length})')),
+                  Expanded(child: _buildFilterTab('Active', '${strings.tabActive} (${_deduplicatedNotifications.where((n) => n['is_read'] != true).length})')),
                   const SizedBox(width: 6),
                   Expanded(child: _buildFilterTab('Requests', strings.request)),
                   const SizedBox(width: 6),
@@ -318,8 +512,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         final notif = displayList[index];
                         final isRead = notif['is_read'] == true;
                         final notifId = (notif['notification_id'] ?? notif['id']) as int?;
-                        final title = NotificationService.cleanText((notif['title'] ?? 'Notification').toString());
-                        final message = NotificationService.cleanText((notif['message'] ?? notif['content'] ?? '').toString());
+                        final rawTitle = (notif['title'] ?? 'Notification').toString();
+                        final rawMessage = (notif['message'] ?? notif['content'] ?? '').toString();
+                        final title = NotificationService.localizeTitle(rawTitle, strings.isFilipino);
+                        final message = NotificationService.localizeMessage(rawMessage, strings.isFilipino);
                         final timeStr = _formatTime(notif['created_at'], strings);
                         final type = (notif['type'] ?? notif['category'] ?? '').toString().toLowerCase();
 
@@ -348,39 +544,30 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                             ? sheetBorder
                             : (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.4) : const Color(0xFFCBD5E1));
 
-                        return GestureDetector(
-                          onTap: () {
-                            if (!isRead && notifId != null) {
-                              widget.onMarkNotificationAsRead(notifId);
-                            }
-                            // Auto close the notification bottom sheet
-                            Navigator.of(context).pop();
-
-                            // Redirect to matching screen
-                            if (widget.onNavigateToTab != null) {
-                              final lowerType = type.toLowerCase();
-                              final lowerTitle = title.toLowerCase();
-                              final lowerMsg = message.toLowerCase();
-
-                              if (lowerType.contains('stock') ||
-                                  lowerType.contains('request') ||
-                                  lowerTitle.contains('request') ||
-                                  lowerMsg.contains('request') ||
-                                  lowerTitle.contains('stock') ||
-                                  lowerMsg.contains('stock')) {
-                                widget.onNavigateToTab!(1); // Request Screen
-                              } else if (lowerType.contains('health') ||
-                                  lowerType.contains('sick') ||
-                                  lowerType.contains('hog') ||
-                                  lowerType.contains('batch') ||
-                                  lowerType.contains('stage') ||
-                                  lowerTitle.contains('hog')) {
-                                widget.onNavigateToTab!(2); // Hogs Screen
-                              } else {
-                                widget.onNavigateToTab!(1); // Default to Request screen
+                        return MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              if (!isRead && notifId != null) {
+                                setState(() {
+                                  notif['is_read'] = true;
+                                });
+                                widget.onMarkNotificationAsRead(notifId);
                               }
-                            }
-                          },
+
+                              _showNotificationDetail(
+                                context: context,
+                                notif: notif,
+                                title: title,
+                                message: message,
+                                timeStr: timeStr,
+                                icon: notifIcon,
+                                iconColor: iconColor,
+                                iconBg: iconBg,
+                                categoryLabel: _resolveCategoryLabel(type, strings),
+                              );
+                            },
                           child: Container(
                             margin: const EdgeInsets.only(bottom: 10),
                             padding: const EdgeInsets.all(14),
@@ -473,8 +660,9 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                               ],
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
                     ),
             ),
           ],

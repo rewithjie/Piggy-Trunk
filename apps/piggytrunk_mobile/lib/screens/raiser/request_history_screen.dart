@@ -9,11 +9,13 @@ import 'widgets/raiser_empty_state.dart';
 class RequestHistoryScreen extends StatefulWidget {
   final Map<String, dynamic> raiserData;
   final VoidCallback onBack;
+  final List<Map<String, dynamic>>? initialRequests;
 
   const RequestHistoryScreen({
     super.key,
     required this.raiserData,
     required this.onBack,
+    this.initialRequests,
   });
 
   @override
@@ -25,6 +27,8 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
   List<Map<String, dynamic>> _requests = [];
   bool _isLoading = true;
 
+  Map<String, String> _productImages = {};
+
   static const Color _brandColor = Color(0xFF18314F);
   static const Color _successGreen = Color(0xFF10B981);
   static const Color _warningAmber = Color(0xFFF59E0B);
@@ -33,7 +37,38 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialRequests != null && widget.initialRequests!.isNotEmpty) {
+      _requests = List<Map<String, dynamic>>.from(widget.initialRequests!);
+      _isLoading = false;
+    }
     _fetchRequests();
+    _loadProductImages();
+  }
+
+  Future<void> _loadProductImages() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('inventory_products')
+          .select('name, image, category');
+      final Map<String, String> imgMap = {};
+      for (var row in (res as List? ?? [])) {
+        if (row is! Map) continue;
+        final name = (row['name'] ?? '').toString().trim().toLowerCase();
+        final img = (row['image'] ?? '').toString().trim();
+        final cat = (row['category'] ?? '').toString().trim().toLowerCase();
+        if (img.isNotEmpty) {
+          if (name.isNotEmpty) imgMap[name] = img;
+          if (cat.isNotEmpty && !imgMap.containsKey(cat)) imgMap[cat] = img;
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _productImages = imgMap;
+        });
+      }
+    } catch (e) {
+      debugPrint('Notice loading product images for requests: $e');
+    }
   }
 
   Future<void> _fetchRequests() async {
@@ -44,25 +79,26 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     }
 
     try {
-      final res = await Supabase.instance.client
-          .from('stock_requests')
-          .select('''
-            request_id,
-            category,
-            feed_type,
-            quantity,
-            request_date,
-            status,
-            rejection_reason,
-            notes,
-            assignments(batches(batch_name))
-          ''')
-          .eq('hog_raiser_id', raiserId)
-          .order('request_date', ascending: false)
-          .order('request_id', ascending: false);
+      List<dynamic> res = [];
+      try {
+        res = await Supabase.instance.client
+            .from('stock_requests')
+            .select('*, assignments(batches(batch_name))')
+            .eq('hog_raiser_id', raiserId)
+            .order('request_date', ascending: false)
+            .order('request_id', ascending: false);
+      } catch (err1) {
+        debugPrint('Notice: stock_requests joined fetch failed: $err1');
+        res = await Supabase.instance.client
+            .from('stock_requests')
+            .select('*')
+            .eq('hog_raiser_id', raiserId)
+            .order('request_date', ascending: false)
+            .order('request_id', ascending: false);
+      }
 
       if (mounted) {
-        final list = List<Map<String, dynamic>>.from(res as List);
+        final list = List<Map<String, dynamic>>.from(res);
         list.sort((a, b) {
           final dateA = (a['request_date'] ?? '').toString();
           final dateB = (b['request_date'] ?? '').toString();
@@ -82,20 +118,102 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
         });
       }
     } catch (e) {
+      debugPrint('Error fetching stock requests: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  List<Map<String, dynamic>> _groupRequests(List<Map<String, dynamic>> list) {
+    final Map<String, List<Map<String, dynamic>>> groupMap = {};
+    for (final req in list) {
+      final aKey = (req['assignment_id'] ?? '').toString();
+      final notesKey = (req['notes'] ?? '').toString().trim();
+      final statusKey = (req['status'] ?? 'pending').toString().toLowerCase();
+      final createdAtStr = (req['created_at'] ?? req['request_date'] ?? '').toString();
+      String timeKey = createdAtStr;
+      try {
+        final dt = DateTime.parse(createdAtStr);
+        timeKey = '${dt.year}-${dt.month}-${dt.day} ${dt.hour}:${dt.minute}';
+      } catch (_) {
+        timeKey = createdAtStr;
+      }
+      final key = [aKey, timeKey, notesKey, statusKey].join('__');
+      groupMap.putIfAbsent(key, () => []).add(req);
+    }
+
+    final List<Map<String, dynamic>> result = [];
+    for (final items in groupMap.values) {
+      final primary = Map<String, dynamic>.from(items.first);
+      primary['items'] = items;
+      primary['is_group'] = items.length > 1;
+      primary['item_count'] = items.length;
+      final totalQty = items.fold<int>(0, (sum, i) {
+        final q = i['quantity'];
+        if (q is num) return sum + q.toInt();
+        return sum + (int.tryParse(q?.toString() ?? '1') ?? 1);
+      });
+      primary['total_quantity'] = totalQty;
+      result.add(primary);
+    }
+    return result;
+  }
+
+  String? _resolveProductImage(String? feedType, String category) {
+    final rawFeedName = feedType?.toString().trim().toLowerCase() ?? '';
+    final rawCatName = category.trim().toLowerCase();
+    String? productImg = _productImages[rawFeedName];
+    if (productImg == null || productImg.isEmpty) {
+      for (final entry in _productImages.entries) {
+        if (rawFeedName.isNotEmpty && (rawFeedName.contains(entry.key) || entry.key.contains(rawFeedName))) {
+          productImg = entry.value;
+          break;
+        }
+      }
+    }
+    productImg ??= _productImages[rawCatName];
+    return productImg;
+  }
+
+  String _formatUnitString(BuildContext context, String category, int quantity) {
+    final strings = AppStrings.of(context);
+    final cat = category.toLowerCase();
+    if (cat.contains('feed')) {
+      return quantity == 1
+          ? (strings.isFilipino ? 'Sako' : 'Sack')
+          : (strings.isFilipino ? 'mga Sako' : 'Sacks');
+    }
+    return quantity == 1
+        ? (strings.isFilipino ? 'Piraso' : 'Unit')
+        : (strings.isFilipino ? 'mga Piraso' : 'Units');
+  }
+
+  IconData _getCategoryIcon(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('vit')) return Icons.medication_liquid_rounded;
+    if (cat.contains('med')) return Icons.medical_services_rounded;
+    return Icons.grass_rounded;
+  }
+
+  Color _getCategoryColor(String category) {
+    final cat = category.toLowerCase();
+    if (cat.contains('vit')) return const Color(0xFF8B5CF6);
+    if (cat.contains('med')) return _dangerRed;
+    return const Color(0xFF10B981);
+  }
+
+  List<Map<String, dynamic>> get _groupedRequests => _groupRequests(_requests);
+
   List<Map<String, dynamic>> get _filteredRequests {
-    if (_activeTab == 'All' || _activeTab == 'Lahat') return _requests;
+    final grouped = _groupedRequests;
+    if (_activeTab == 'All' || _activeTab == 'Lahat') return grouped;
     if (_activeTab == 'Pending') {
-      return _requests.where((r) {
+      return grouped.where((r) {
         final s = (r['status'] ?? '').toString().toLowerCase();
         return s == 'pending' || s == 'for_approval';
       }).toList();
     }
     // Completed includes approved, rejected, delivered, completed
-    return _requests.where((r) {
+    return grouped.where((r) {
       final s = (r['status'] ?? '').toString().toLowerCase();
       return s != 'pending' && s != 'for_approval';
     }).toList();
@@ -104,11 +222,14 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
   String _formatDateString(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return 'N/A';
     try {
-      final date = DateTime.parse(dateStr);
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      if (date.isAfter(DateTime.now().add(const Duration(minutes: 5)))) {
+        date = date.subtract(date.timeZoneOffset);
+      }
       final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       final formattedDate = '${months[date.month - 1]} ${date.day}, ${date.year}';
 
-      if (dateStr.contains('T') || dateStr.contains(' ')) {
+      if (dateStr.contains('T') || dateStr.contains(' ') || dateStr.contains(':')) {
         final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
         final ampm = date.hour >= 12 ? 'PM' : 'AM';
         final minute = date.minute.toString().padLeft(2, '0');
@@ -129,14 +250,16 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
     final cardBorder = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
     final textColor = isDark ? Colors.white : _brandColor;
     final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+
+    final grouped = _groupedRequests;
     final filtered = _filteredRequests;
 
-    final int pendingCount = _requests.where((r) {
+    final int pendingCount = grouped.where((r) {
       final s = (r['status'] ?? '').toString().toLowerCase();
       return s == 'pending' || s == 'for_approval';
     }).length;
 
-    final int completedCount = _requests.where((r) {
+    final int completedCount = grouped.where((r) {
       final s = (r['status'] ?? '').toString().toLowerCase();
       return s != 'pending' && s != 'for_approval';
     }).length;
@@ -186,7 +309,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                     child: _buildFilterChip(
                       'All',
                       strings.filterAll,
-                      _requests.length,
+                      grouped.length,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -292,12 +415,12 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                             itemCount: filtered.length,
                             itemBuilder: (context, index) {
                               final req = filtered[index];
-                              final dateStr = _formatDateString(req['request_date']);
+                              final isGroup = req['is_group'] == true;
+                              final items = (req['items'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [req];
+                              final dateStr = _formatDateString(req['created_at']?.toString() ?? req['request_date']?.toString());
                               final status = (req['status'] ?? 'Pending').toString();
-                              final quantity = req['quantity'] ?? 1;
-                              final category = (req['category'] ?? 'Feeds').toString();
-                              final feedType = req['feed_type'];
                               final notes = (req['notes'] ?? '').toString().trim();
+                              final displayNotes = notes.replaceAll(RegExp(r'\[Batch:\s*[^\]]+\]'), '').trim();
                               final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? 'Batch').toString();
 
                               String batchName = rawBatchName;
@@ -305,6 +428,13 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 final parts = rawBatchName.split('(');
                                 if (parts.last.endsWith(')')) {
                                   batchName = parts.sublist(0, parts.length - 1).join('(').trim();
+                                }
+                              }
+                              if ((batchName == 'Batch' || batchName == 'Unassigned') && notes.contains('[Batch: ') && notes.contains(']')) {
+                                final startIdx = notes.indexOf('[Batch: ') + 8;
+                                final endIdx = notes.indexOf(']', startIdx);
+                                if (endIdx > startIdx) {
+                                  batchName = notes.substring(startIdx, endIdx).trim();
                                 }
                               }
 
@@ -326,28 +456,284 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 statusBgColor = isDark ? const Color(0xFF312E81) : const Color(0xFFEEF2FF);
                               }
 
-                              IconData itemIcon = Icons.grass_rounded;
-                              Color itemColor = const Color(0xFF10B981);
-                              Color itemBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
+                              if (isGroup) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 14),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: surfaceBg,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(color: cardBorder),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Header
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: isDark ? Colors.white.withValues(alpha: 0.08) : _brandColor.withValues(alpha: 0.08),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: isDark ? Colors.white.withValues(alpha: 0.15) : _brandColor.withValues(alpha: 0.15),
+                                                width: 1.0,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Icon(
+                                                Icons.inventory_2_rounded,
+                                                color: isDark ? Colors.white : _brandColor,
+                                                size: 22,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  strings.isFilipino ? 'Kahilingan ng Gamit' : 'Supply Request',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: textColor,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  '$batchName • $dateStr',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 12,
+                                                    color: mutedColor,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                            decoration: BoxDecoration(
+                                              color: statusBgColor,
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                                            ),
+                                            child: Text(
+                                              strings.formatStatus(status).toUpperCase(),
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                color: statusColor,
+                                                letterSpacing: 0.4,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 14),
 
-                              if (category.toLowerCase() == 'vitamins') {
-                                itemIcon = Icons.medication_liquid_rounded;
-                                itemColor = const Color(0xFF8B5CF6);
-                                itemBg = isDark ? const Color(0xFF4C1D95) : const Color(0xFFF3E8FF);
-                              } else if (category.toLowerCase() == 'medicine') {
-                                itemIcon = Icons.medical_services_rounded;
-                                itemColor = _dangerRed;
-                                itemBg = _dangerRed.withValues(alpha: isDark ? 0.15 : 0.1);
+                                      // Group Items List
+                                      ...items.map((item) {
+                                        final itemCat = (item['category'] ?? 'Feeds').toString();
+                                        final itemFeed = item['feed_type'];
+                                        final itemQty = (item['quantity'] as num?)?.toInt() ?? 1;
+                                        final itemUnitWord = _formatUnitString(context, itemCat, itemQty);
+                                        final itemImg = _resolveProductImage(itemFeed?.toString(), itemCat);
+                                        final itemCatIcon = _getCategoryIcon(itemCat);
+                                        final itemCatColor = _getCategoryColor(itemCat);
+                                        final itemDisplayName = (itemFeed != null && itemFeed.toString().trim().isNotEmpty)
+                                            ? itemFeed.toString().trim()
+                                            : itemCat;
+
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF16253B) : const Color(0xFFF8FAFC),
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: isDark ? const Color(0xFF283A52) : const Color(0xFFE2E8F0),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              // Crisp Pure White Container with BoxFit.contain - NO background tint!
+                                              Container(
+                                                width: 42,
+                                                height: 42,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(
+                                                    color: const Color(0xFFE2E8F0),
+                                                    width: 0.8,
+                                                  ),
+                                                ),
+                                                padding: const EdgeInsets.all(2.5),
+                                                child: ClipRRect(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  child: (itemImg != null && itemImg.isNotEmpty)
+                                                      ? Image.network(
+                                                          itemImg,
+                                                          width: 37,
+                                                          height: 37,
+                                                          fit: BoxFit.contain,
+                                                          errorBuilder: (_, _, _) => Icon(itemCatIcon, color: itemCatColor, size: 20),
+                                                        )
+                                                      : Icon(itemCatIcon, color: itemCatColor, size: 20),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      itemDisplayName,
+                                                      style: GoogleFonts.plusJakartaSans(
+                                                        fontSize: 13,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: textColor,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 2),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: itemCatColor.withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        itemCat.toUpperCase(),
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w800,
+                                                          color: itemCatColor,
+                                                          letterSpacing: 0.3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                                    width: 0.8,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  '$itemQty $itemUnitWord',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    color: textColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+
+                                      if (displayNotes.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(Icons.notes_rounded, size: 14, color: mutedColor),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  displayNotes,
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11.5,
+                                                    color: mutedColor,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      if (lowerStatus == 'rejected' && (req['rejection_reason'] != null && req['rejection_reason'].toString().trim().isNotEmpty)) ...[
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: _dangerRed.withValues(alpha: isDark ? 0.15 : 0.08),
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(color: _dangerRed.withValues(alpha: 0.3)),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Icon(Icons.info_outline_rounded, size: 14, color: _dangerRed),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  '${strings.isFilipino ? "Dahilan" : "Reason"}: ${req['rejection_reason']}',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 11.5,
+                                                    color: _dangerRed,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
                               }
 
-                              final unitWord = category.toLowerCase() == 'feeds'
-                                  ? (quantity == 1 ? (strings.isFilipino ? 'Sako' : 'Sack') : (strings.isFilipino ? 'mga Sako' : 'Sacks'))
-                                  : (quantity == 1 ? (strings.isFilipino ? 'Piraso' : 'Unit') : (strings.isFilipino ? 'mga Piraso' : 'Units'));
+                              // Single item request
+                              final category = (req['category'] ?? 'Feeds').toString();
+                              final feedType = req['feed_type'];
+                              final quantity = (req['quantity'] as num?)?.toInt() ?? 1;
+                              final unitWord = _formatUnitString(context, category, quantity);
                               final ofWord = strings.isFilipino ? 'ng' : 'of';
                               String titleText = '$quantity $unitWord $ofWord $category';
                               if (feedType != null && feedType.toString().trim().isNotEmpty && feedType.toString().trim().toLowerCase() != category.toLowerCase()) {
                                 titleText = '$quantity $unitWord $ofWord ${feedType.toString().trim()}';
                               }
+
+                              final productImg = _resolveProductImage(feedType?.toString(), category);
+                              final itemIcon = _getCategoryIcon(category);
+                              final itemColor = _getCategoryColor(category);
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
@@ -369,14 +755,31 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                   children: [
                                     Row(
                                       children: [
+                                        // Crisp Pure White Container with BoxFit.contain - NO background tint!
                                         Container(
-                                          width: 44,
-                                          height: 44,
+                                          width: 46,
+                                          height: 46,
                                           decoration: BoxDecoration(
-                                            color: itemBg,
+                                            color: Colors.white,
                                             borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                              width: 1.0,
+                                            ),
                                           ),
-                                          child: Icon(itemIcon, color: itemColor, size: 22),
+                                          padding: const EdgeInsets.all(3.0),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(9),
+                                            child: (productImg != null && productImg.isNotEmpty)
+                                                ? Image.network(
+                                                    productImg,
+                                                    width: 40,
+                                                    height: 40,
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder: (_, _, _) => Icon(itemIcon, color: itemColor, size: 22),
+                                                  )
+                                                : Icon(itemIcon, color: itemColor, size: 22),
+                                          ),
                                         ),
                                         const SizedBox(width: 14),
                                         Expanded(
@@ -403,6 +806,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                             ],
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                           decoration: BoxDecoration(

@@ -7,24 +7,21 @@ class BatchDetailDrawer {
   static void show({
     required BuildContext context,
     required Map<String, dynamic> batch,
-    required VoidCallback onEdit,
-    required VoidCallback onArchive,
-    required VoidCallback onDelete,
+    VoidCallback? onEdit,
+    VoidCallback? onArchive,
+    VoidCallback? onDelete,
   }) {
     final isMobile = MediaQuery.of(context).size.width < 720;
     if (isMobile) {
-      _showBottomSheet(context, batch, onEdit, onArchive, onDelete);
+      _showBottomSheet(context, batch);
     } else {
-      _showSideDrawer(context, batch, onEdit, onArchive, onDelete);
+      _showSideDrawer(context, batch);
     }
   }
 
   static void _showBottomSheet(
     BuildContext context,
     Map<String, dynamic> batch,
-    VoidCallback onEdit,
-    VoidCallback onArchive,
-    VoidCallback onDelete,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
@@ -103,9 +100,9 @@ class BatchDetailDrawer {
                           children: [
                             _detailRow('Batch Name', batchName, hintText, titleColor),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _detailRow('Assigned Raiser', raiserName, hintText, titleColor),
+                            _detailRow('Assigned Raiser', raiserName, hintText, titleColor, customValue: _buildRaiserValue(batch['raiser_name']?.toString(), titleColor)),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                            _detailRow('Status', status, hintText, titleColor),
+                            _detailRow('Status', status, hintText, titleColor, customValue: _buildStatusValue(status)),
                             Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
                             _detailRow('Date Created', dateCreated, hintText, titleColor),
                           ],
@@ -119,32 +116,8 @@ class BatchDetailDrawer {
                         titleColor: titleColor,
                         hintText: hintText,
                       ),
+                      const SizedBox(height: 24),
                     ],
-                  ),
-                ),
-              ),
-              Divider(color: cardBorder.withValues(alpha: 0.5), height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(sheetContext),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                      foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Close',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -158,9 +131,6 @@ class BatchDetailDrawer {
   static void _showSideDrawer(
     BuildContext context,
     Map<String, dynamic> batch,
-    VoidCallback onEdit,
-    VoidCallback onArchive,
-    VoidCallback onDelete,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF132238) : Colors.white;
@@ -249,9 +219,9 @@ class BatchDetailDrawer {
                                   children: [
                                     _detailRow('Batch Name', batchName, hintText, titleColor),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _detailRow('Assigned Raiser', raiserName, hintText, titleColor),
+                                    _detailRow('Assigned Raiser', raiserName, hintText, titleColor, customValue: _buildRaiserValue(batch['raiser_name']?.toString(), titleColor)),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
-                                    _detailRow('Status', status, hintText, titleColor),
+                                    _detailRow('Status', status, hintText, titleColor, customValue: _buildStatusValue(status)),
                                     Divider(color: cardBorder.withValues(alpha: 0.35), height: 1),
                                     _detailRow('Date Created', dateCreated, hintText, titleColor),
                                   ],
@@ -265,32 +235,8 @@ class BatchDetailDrawer {
                                 titleColor: titleColor,
                                 hintText: hintText,
                               ),
+                              const SizedBox(height: 24),
                             ],
-                          ),
-                        ),
-                      ),
-                      Divider(color: cardBorder.withValues(alpha: 0.5), height: 1),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(dialogContext),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
-                              foregroundColor: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              'Close',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? PiggyTrunkTheme.ptPrimary : Colors.white,
-                              ),
-                            ),
                           ),
                         ),
                       ),
@@ -305,11 +251,109 @@ class BatchDetailDrawer {
     );
   }
 
-  static Widget _detailRow(String label, String value, Color labelColor, Color valueColor) {
+  static Widget _buildRaiserValue(String? rawRaiser, Color valueColor) {
+    final clean = (rawRaiser ?? '').trim();
+    final bool hasRaiser = clean.isNotEmpty &&
+        clean.toLowerCase() != 'unassigned' &&
+        clean.toLowerCase() != 'none' &&
+        clean != 'null';
+
+    if (hasRaiser) {
+      return Text(
+        clean,
+        textAlign: TextAlign.right,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w700,
+          color: valueColor,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.person_off_outlined, size: 13, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 5),
+              Text(
+                'No raiser at the moment',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _buildStatusValue(String rawStatus) {
+    final sUpper = rawStatus.toUpperCase().trim();
+    final bool isActive = sUpper == 'ACTIVE';
+    final bool isCompleted = sUpper == 'COMPLETED' || sUpper == 'HARVESTED';
+
+    final Color badgeColor = isActive
+        ? PiggyTrunkTheme.ptSuccess
+        : (isCompleted ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8));
+
+    final String displayText = sUpper == 'UNASSIGNED' ? 'STANDBY' : sUpper;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: badgeColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: badgeColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                displayText,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: badgeColor,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static Widget _detailRow(String label, String value, Color labelColor, Color valueColor, {Widget? customValue}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
@@ -322,15 +366,16 @@ class BatchDetailDrawer {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: valueColor,
-              ),
-            ),
+            child: customValue ??
+                Text(
+                  value,
+                  textAlign: TextAlign.right,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: valueColor,
+                  ),
+                ),
           ),
         ],
       ),
@@ -520,7 +565,6 @@ class _BatchHogsListState extends State<_BatchHogsList> {
             itemBuilder: (context, idx) {
               final hog = _hogs[idx];
               final stageName = _resolveStageName(hog['stage_id'] ?? hog['lifecycle_stage']);
-              final weight = (hog['weight'] as num?)?.toDouble() ?? 15.0;
               final health = (hog['health_status'] ?? 'healthy').toString().toLowerCase();
               final isSick = health == 'sick' || health == 'fever' || health == 'injured';
               final isObserving = health.contains('observ');
@@ -556,49 +600,56 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Hog #${idx + 1}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: titleColor,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Weight: ${weight.toStringAsFixed(1)} kg',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: hintText,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        'Hog #${idx + 1}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: titleColor,
+                        ),
                       ),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Text(
-                            stageName,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
-                            ),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final isComplete = stageName.toLowerCase() == 'selling' ||
+                                stageName.toLowerCase() == 'lactation';
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isComplete
+                                    ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.22 : 0.12)
+                                    : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isComplete
+                                      ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.6 : 0.4)
+                                      : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isComplete) ...[
+                                    const Icon(Icons.check_rounded, size: 10, color: Color(0xFF10B981)),
+                                    const SizedBox(width: 3),
+                                  ],
+                                  Text(
+                                    isComplete ? '$stageName • Complete' : stageName,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: isComplete
+                                          ? const Color(0xFF10B981)
+                                          : (isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 4),
                         Row(

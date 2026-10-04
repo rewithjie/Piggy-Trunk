@@ -1,0 +1,264 @@
+// ==============================================================================
+// PIGGY TRUNK SUPABASE DATABASE SCHEMA (DBML)
+// Use in: https://dbdiagram.io, https://eraser.io, or https://quickdbd.com
+// ==============================================================================
+
+Table app_users {
+  user_id bigint [pk, increment]
+  name text [not null]
+  email text [unique, not null]
+  password_hash text
+  role text [not null, default: 'hog_raiser', note: 'admin | cashier | partner_investor | hog_raiser']
+  status text [not null, default: 'active']
+  created_at timestamptz [not null, default: `now()`]
+  created_by bigint
+  supabase_user_id uuid [unique]
+}
+
+Table cashiers {
+  cashier_id bigint [pk, increment]
+  user_id bigint [unique, not null]
+  date_hired date [not null, default: `current_date`]
+  status text [not null, default: 'active']
+  avatar_url text
+}
+
+Table partner_investors {
+  partner_investor_id bigint [pk, increment]
+  user_id bigint [unique, not null]
+  address text
+  contact_number text
+  registration_date date [not null, default: `current_date`]
+  avatar_url text
+}
+
+Table hog_raisers {
+  hog_raiser_id bigint [pk, increment]
+  user_id bigint [unique, not null]
+  name text
+  email text
+  phone text
+  address text
+  account_status text [not null, default: 'active']
+  pig_type text [not null, default: 'Fattening']
+  status text [not null, default: 'Active']
+  lifecycle_stage text [not null, default: 'Booster']
+  avatar_url text
+}
+
+Table batches {
+  batch_id bigint [pk, increment]
+  batch_name text [unique, not null]
+  date_created date [not null, default: `current_date`]
+  status text [not null, default: 'Active']
+}
+
+Table hog_types {
+  hog_type_id bigint [pk, increment]
+  type_name text [unique, not null]
+  description text
+  ending_feed text
+}
+
+Table assignments {
+  assignment_id bigint [pk, increment]
+  batch_id bigint [not null]
+  hog_raiser_id bigint [not null]
+  hog_type_id bigint [not null]
+  assigned_date date [not null, default: `current_date`]
+  status text [not null, default: 'active']
+}
+
+Table hogs {
+  hog_id bigint [pk, increment]
+  assignment_id bigint [not null]
+  status text [not null, default: 'active']
+  health_status text [not null, default: 'healthy']
+  weight numeric(6,2) [default: 15.0]
+  last_updated timestamptz [not null, default: `now()`]
+}
+
+Table stock_requests {
+  request_id bigint [pk, increment]
+  hog_raiser_id bigint [not null]
+  assignment_id bigint
+  request_date date [not null, default: `current_date`]
+  category text [not null, default: 'Feeds']
+  feed_type text
+  quantity integer [not null, default: 1]
+  status text [not null, default: 'pending']
+  decision_date date
+  notes text
+  rejection_reason text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table products {
+  product_id bigint [pk, increment]
+  product_name text [not null]
+  unit_price numeric(12,2) [not null]
+  current_stock integer [not null, default: 0]
+  category text
+}
+
+Table inventory_products {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  category text [not null, default: 'Feeds']
+  category_id text
+  description text [not null, default: '']
+  price numeric(12,2) [not null, default: 0]
+  units integer [not null, default: 0]
+  sold integer [not null, default: 0]
+  image text
+  lead_time_days integer [not null, default: 3]
+  safety_stock integer [not null, default: 5]
+  reorder_point integer
+  is_archived boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table inventory_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  product_id uuid
+  product_name text [not null]
+  action text [not null]
+  performed_by text [not null]
+  price numeric(12,2) [not null]
+  units integer [not null]
+  details text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table sales {
+  sale_id bigint [pk, increment]
+  quantity integer [not null]
+  total_amount numeric(14,2) [not null]
+  sale_date timestamptz [not null, default: `now()`]
+  type text
+  product_id bigint
+  hog_raiser_id bigint
+  performed_by bigint
+}
+
+Table pos_sales {
+  id uuid [pk, default: `gen_random_uuid()`]
+  order_id text [not null]
+  product_id uuid
+  product_name text [not null]
+  category text [not null, default: 'Feeds']
+  quantity integer [not null]
+  unit_price numeric(12,2) [not null, default: 0]
+  total_amount numeric(12,2) [not null, default: 0]
+  sale_date timestamptz [not null, default: `now()`]
+  customer_name text [default: 'Walk-in Customer']
+  customer_type text [default: 'Walk-in']
+  payment_method text [default: 'Cash']
+  cashier_name text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table investments {
+  investment_id bigint [pk, increment]
+  amount numeric(14,2) [not null]
+  date_invested date [not null, default: `current_date`]
+  status text [not null, default: 'active']
+  batch_id bigint [not null]
+  partner_investor_id bigint [not null]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table investment_records {
+  id uuid [pk, default: `gen_random_uuid()`]
+  hog_raiser_id text [not null]
+  raiser_name text [not null]
+  initial_capital numeric(14,2) [not null, default: 0]
+  hog_type text [not null, default: 'Fattening']
+  total_hog integer [not null, default: 0]
+  investment_date date [not null, default: `current_date`]
+  stage text [not null, default: 'pending']
+}
+
+Table hog_reports {
+  report_id bigint [pk, increment]
+  hog_id bigint [not null]
+  hog_raiser_id bigint [not null]
+  report_type text [not null]
+  description text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table admin_notifications {
+  notification_id bigint [pk, increment]
+  title text [not null]
+  message text [not null]
+  type text [not null]
+  is_read boolean [not null, default: false]
+  metadata jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table raiser_notifications {
+  notification_id bigint [pk, increment]
+  hog_raiser_id bigint [not null]
+  title text [not null]
+  message text [not null]
+  type text [not null]
+  is_read boolean [not null, default: false]
+  metadata jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table partner_notifications {
+  notification_id bigint [pk, increment]
+  partner_investor_id bigint [not null]
+  title text [not null]
+  message text [not null]
+  type text [not null, default: 'general']
+  is_read boolean [not null, default: false]
+  metadata jsonb
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table admin_password_resets {
+  id bigint [pk, increment]
+  email text [not null]
+  otp_code text [not null]
+  expires_at timestamptz [not null]
+  used boolean [default: false]
+  created_at timestamptz [default: `now()`]
+}
+
+// -------------------------------------------------------------
+// RELATIONSHIPS (FOREIGN KEYS)
+// -------------------------------------------------------------
+
+Ref: cashiers.user_id - app_users.user_id [delete: cascade]
+Ref: partner_investors.user_id - app_users.user_id [delete: cascade]
+Ref: hog_raisers.user_id - app_users.user_id [delete: cascade]
+Ref: app_users.created_by > app_users.user_id [delete: set null]
+
+Ref: assignments.batch_id > batches.batch_id [delete: cascade]
+Ref: assignments.hog_type_id > hog_types.hog_type_id [delete: restrict]
+Ref: assignments.hog_raiser_id > hog_raisers.hog_raiser_id [delete: cascade]
+
+Ref: hogs.assignment_id > assignments.assignment_id [delete: cascade]
+
+Ref: stock_requests.hog_raiser_id > hog_raisers.hog_raiser_id [delete: cascade]
+Ref: stock_requests.assignment_id > assignments.assignment_id [delete: set null]
+
+Ref: hog_reports.hog_id > hogs.hog_id [delete: cascade]
+Ref: hog_reports.hog_raiser_id > hog_raisers.hog_raiser_id [delete: cascade]
+
+Ref: inventory_logs.product_id > inventory_products.id [delete: set null]
+Ref: pos_sales.product_id > inventory_products.id [delete: set null]
+
+Ref: sales.product_id > products.product_id [delete: set null]
+Ref: sales.hog_raiser_id > hog_raisers.hog_raiser_id [delete: set null]
+Ref: sales.performed_by > app_users.user_id [delete: cascade]
+
+Ref: investments.batch_id > batches.batch_id [delete: cascade]
+Ref: investments.partner_investor_id > partner_investors.partner_investor_id [delete: cascade]
+
+Ref: raiser_notifications.hog_raiser_id > hog_raisers.hog_raiser_id [delete: cascade]
+Ref: partner_notifications.partner_investor_id > partner_investors.partner_investor_id [delete: cascade]

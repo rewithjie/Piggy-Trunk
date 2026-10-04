@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 class LocationResult {
   final bool success;
   final String? address;
+  final String? street;
   final String? barangay;
   final String? municipality;
   final String? province;
@@ -20,6 +21,7 @@ class LocationResult {
   LocationResult({
     required this.success,
     this.address,
+    this.street,
     this.barangay,
     this.municipality,
     this.province,
@@ -73,9 +75,9 @@ class LocationService {
     }
   }
 
-  /// Requests permission (if needed), fetches the device GPS position,
-  /// and reverse-geocodes it into a human-readable Philippine address string
-  /// with explicit focus on resolving the Barangay, Municipality, and Province.
+  /// Requests permission (if needed), fetches the device GPS position with highest accuracy,
+  /// and reverse-geocodes it into a precise, human-readable address with maximum zoom (zoom=18)
+  /// to pinpoint the exact person/device location (House #, Street/Road, Purok, Brgy, City, Province).
   Future<LocationResult> getCurrentAddress({bool requestPermission = true}) async {
     try {
       // 1. Check if location services are enabled on the device
@@ -113,12 +115,12 @@ class LocationService {
         );
       }
 
-      // 3. Get device coordinates
+      // 3. Get device coordinates with maximum navigation-grade hardware accuracy
       Position? position;
       try {
         position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.best,
+            accuracy: LocationAccuracy.bestForNavigation,
             timeLimit: Duration(seconds: 15),
           ),
         );
@@ -138,35 +140,73 @@ class LocationService {
       final lng = position.longitude;
       debugPrint('[LocationService] Detected GPS: lat=$lat, lng=$lng');
 
-      // 4. Reverse Geocode (Multi-tiered strategy)
-      LocationResult? geocodeResult;
+      // 4. Reverse Geocode (Multi-tiered strategy with maximum zoom 18)
+      LocationResult? nativeResult;
+      LocationResult? iqResult;
+      LocationResult? nominatimResult;
 
-      // Tier 1: LocationIQ REST API (with zoom=14 for exact Barangay/Village level resolution)
+      // Tier 1 (Mobile Native): Google Play Services / Apple CoreLocation
+      if (!kIsWeb) {
+        nativeResult = await _reverseGeocodeNative(lat, lng);
+      }
+
+      // Tier 2: LocationIQ REST API (with zoom=18 for maximum building / rooftop / street level resolution)
       final apiKey = locationIqApiKey;
       if (apiKey.isNotEmpty) {
-        geocodeResult = await _reverseGeocodeLocationIQ(lat, lng, apiKey);
+        iqResult = await _reverseGeocodeLocationIQ(lat, lng, apiKey);
       }
 
-      // Tier 2: Native Android / iOS Geocoder fallback
-      if (geocodeResult == null || geocodeResult.address == null || geocodeResult.address!.trim().isEmpty || geocodeResult.barangay == null) {
-        final nativeResult = await _reverseGeocodeNative(lat, lng);
-        if (nativeResult != null && nativeResult.address != null && nativeResult.address!.trim().isNotEmpty) {
-          geocodeResult = nativeResult;
+      // Tier 3: OpenStreetMap Nominatim fallback (with zoom=18)
+      if (iqResult == null || iqResult.barangay == null || iqResult.barangay!.trim().isEmpty) {
+        nominatimResult = await _reverseGeocodeNominatim(lat, lng);
+      }
+
+      // Barangay: area-level lookup (zoom=14) matches the barangay boundary that CONTAINS the point.
+      // At zoom=18 the result snaps to the nearest road, and roads crossing barangay borders
+      // inherit the neighbouring barangay — that's why the next brgy was being detected.
+      LocationResult? areaResult;
+      if (apiKey.isNotEmpty) {
+        areaResult = await _reverseGeocodeLocationIQ(lat, lng, apiKey, zoom: 14);
+      }
+      if (areaResult?.barangay == null) {
+        areaResult = await _reverseGeocodeNominatim(lat, lng, zoom: 14);
+      }
+
+      // Select the highest-precision components across all providers
+      final bestStreet = iqResult?.street ?? nominatimResult?.street ?? nativeResult?.street;
+      final bestBarangay = areaResult?.barangay ?? nativeResult?.barangay ?? iqResult?.barangay ?? nominatimResult?.barangay;
+      final bestMunicipality = iqResult?.municipality ?? nominatimResult?.municipality ?? nativeResult?.municipality;
+
+      // Prefer province like "Pangasinan" over region like "Ilocos Region"
+      final candidateProvinces = [
+        iqResult?.province,
+        nominatimResult?.province,
+        nativeResult?.province,
+      ].where((p) => p != null && p.trim().isNotEmpty).cast<String>().toList();
+
+      String? bestProvince;
+      for (final p in candidateProvinces) {
+        if (!p.toLowerCase().contains('region')) {
+          bestProvince = p;
+          break;
         }
       }
+      bestProvince ??= candidateProvinces.isNotEmpty ? candidateProvinces.first : null;
 
-      // Tier 3: OpenStreetMap Nominatim fallback (zoom=14)
-      if (geocodeResult == null || geocodeResult.address == null || geocodeResult.address!.trim().isEmpty) {
-        geocodeResult = await _reverseGeocodeNominatim(lat, lng);
-      }
+      final parts = <String>[];
+      if (bestStreet != null && bestStreet.isNotEmpty) parts.add(bestStreet);
+      if (bestBarangay != null && bestBarangay.isNotEmpty) parts.add(bestBarangay);
+      if (bestMunicipality != null && bestMunicipality.isNotEmpty) parts.add(bestMunicipality);
+      if (bestProvince != null && bestProvince.isNotEmpty) parts.add(bestProvince);
 
-      if (geocodeResult != null && geocodeResult.address != null && geocodeResult.address!.trim().isNotEmpty) {
+      if (parts.isNotEmpty) {
         return LocationResult(
           success: true,
-          address: geocodeResult.address,
-          barangay: geocodeResult.barangay,
-          municipality: geocodeResult.municipality,
-          province: geocodeResult.province,
+          address: parts.join(', '),
+          street: bestStreet,
+          barangay: bestBarangay,
+          municipality: bestMunicipality,
+          province: bestProvince,
           latitude: lat,
           longitude: lng,
         );
@@ -200,12 +240,12 @@ class LocationService {
     }
   }
 
-  /// Tier 1: LocationIQ REST API
+  /// Tier 2: LocationIQ REST API (zoom=18 for exact building / house / rooftop level resolution)
   /// Documentation: https://locationiq.com/docs#reverse-geocoding
-  Future<LocationResult?> _reverseGeocodeLocationIQ(double lat, double lon, String apiKey) async {
+  Future<LocationResult?> _reverseGeocodeLocationIQ(double lat, double lon, String apiKey, {int zoom = 18}) async {
     try {
       final url = Uri.parse(
-        'https://us1.locationiq.com/v1/reverse?key=$apiKey&lat=$lat&lon=$lon&format=json&zoom=14&addressdetails=1',
+        'https://us1.locationiq.com/v1/reverse?key=$apiKey&lat=$lat&lon=$lon&format=json&zoom=$zoom&addressdetails=1',
       );
 
       final response = await http.get(
@@ -224,10 +264,72 @@ class LocationService {
         if (address != null) {
           final parts = <String>[];
 
-          // Check all possible tags where Philippine Barangays are mapped
-          final dynamic rawBrgy = address['suburb'] ??
-              address['village'] ??
-              address['quarter'] ??
+          // 1. Exact Spot: House Number, Building, Landmark, Amenity, Shop
+          final houseNumber = address['house_number']?.toString().trim();
+          final building = (address['building'] ??
+                  address['house_name'] ??
+                  address['amenity'] ??
+                  address['shop'] ??
+                  address['office'] ??
+                  address['tourism'])
+              ?.toString()
+              .trim();
+
+          // 2. Road / Street / Thoroughfare
+          var road = (address['road'] ??
+                  address['street'] ??
+                  address['pedestrian'] ??
+                  address['footway'] ??
+                  address['path'] ??
+                  address['track'] ??
+                  address['highway'])
+              ?.toString()
+              .trim();
+
+          if ((road == null || road.isEmpty) && address['quarter'] != null) {
+            final q = address['quarter'].toString().trim();
+            final isStreet = RegExp(r'\b(street|road|st\.?|rd\.?|ave|avenue|hwy|highway|dr|drive|lane|ln|alley)\b', caseSensitive: false).hasMatch(q);
+            if (isStreet) {
+              road = q;
+            }
+          }
+
+          // Form exact street string
+          String? exactStreet;
+          if (houseNumber != null && houseNumber.isNotEmpty && road != null && road.isNotEmpty) {
+            exactStreet = '$houseNumber $road';
+          } else if (building != null && building.isNotEmpty && road != null && road.isNotEmpty) {
+            exactStreet = '$building, $road';
+          } else if (road != null && road.isNotEmpty) {
+            exactStreet = road;
+          } else if (building != null && building.isNotEmpty) {
+            exactStreet = building;
+          }
+
+          if (exactStreet != null && exactStreet.isNotEmpty) {
+            parts.add(exactStreet);
+          }
+
+          // 3. Purok / Sitio / Neighbourhood
+          final rawNeighbourhood = (address['neighbourhood'] ??
+                  address['purok'] ??
+                  address['sitio'] ??
+                  address['hamlet'] ??
+                  address['subdivision'])
+              ?.toString()
+              .trim();
+
+          // 4. Municipality / City / Town (evaluate first to assist in barangay parsing)
+          final rawCity = address['city'] ?? address['town'] ?? address['municipality'] ?? address['county'];
+          String? municipality;
+          if (rawCity != null && rawCity.toString().trim().isNotEmpty) {
+            final c = rawCity.toString().trim();
+            municipality = c.toLowerCase().endsWith('city') ? c : (c.toLowerCase() == 'san carlos' ? '$c City' : c);
+          }
+
+          // 5. Barangay
+          dynamic rawBrgy = address['village'] ??
+              address['suburb'] ??
               address['neighbourhood'] ??
               address['hamlet'] ??
               address['residential'] ??
@@ -235,42 +337,69 @@ class LocationService {
               address['subdistrict'] ??
               address['barangay'];
 
+          if (rawBrgy == null && address['quarter'] != null) {
+            final q = address['quarter'].toString().trim();
+            final isStreet = RegExp(r'\b(street|road|st\.?|rd\.?|ave|avenue|hwy|highway|dr|drive|lane|ln|alley)\b', caseSensitive: false).hasMatch(q);
+            if (!isStreet) {
+              rawBrgy = q;
+            }
+          }
+
           String? formattedBrgy;
           if (rawBrgy != null && rawBrgy.toString().trim().isNotEmpty) {
             final b = rawBrgy.toString().trim();
             final cleanBrgy = b.replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
             formattedBrgy = 'Brgy. $cleanBrgy';
-            parts.add(formattedBrgy);
           } else if (data['display_name'] != null) {
-            // Regex match for Barangay in display_name
             final displayName = data['display_name'].toString();
             final match = RegExp(r'(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\s\-]+?)(?:,|$)', caseSensitive: false).firstMatch(displayName);
             if (match != null && match.group(1) != null) {
               formattedBrgy = 'Brgy. ${match.group(1)!.trim()}';
-              parts.add(formattedBrgy);
+            } else if (municipality != null && municipality.isNotEmpty) {
+              final mLower = municipality.toLowerCase();
+              final tokens = displayName.split(',').map((s) => s.trim()).toList();
+              final cityIdx = tokens.indexWhere((t) => t.toLowerCase() == mLower || t.toLowerCase() == '$mLower city');
+              if (cityIdx > 0) {
+                final candidate = tokens[cityIdx - 1];
+                final isStreet = RegExp(r'\b(street|road|st\.?|rd\.?|ave|avenue|hwy|highway|dr|drive|lane|ln|alley)\b', caseSensitive: false).hasMatch(candidate);
+                if (!isStreet && !candidate.toLowerCase().contains('unnamed') && !candidate.toLowerCase().contains('philippines')) {
+                  final clean = candidate.replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
+                  formattedBrgy = 'Brgy. $clean';
+                }
+              }
             }
           }
 
-          // Municipality / City / Town
-          final city = address['city'] ?? address['town'] ?? address['municipality'] ?? address['county'];
-          String? municipality;
-          if (city != null && city.toString().trim().isNotEmpty) {
-            municipality = city.toString().trim();
+          // Add neighbourhood / purok if distinct
+          if (rawNeighbourhood != null &&
+              rawNeighbourhood.isNotEmpty &&
+              (formattedBrgy == null || !rawNeighbourhood.toLowerCase().contains(formattedBrgy.toLowerCase())) &&
+              (exactStreet == null || !exactStreet.toLowerCase().contains(rawNeighbourhood.toLowerCase()))) {
+            parts.add(rawNeighbourhood);
+          }
+
+          if (formattedBrgy != null && formattedBrgy.isNotEmpty) {
+            parts.add(formattedBrgy);
+          }
+
+          if (municipality != null && municipality.isNotEmpty) {
             parts.add(municipality);
           }
 
-          // Province / State
-          final state = address['state'] ?? address['province'] ?? address['region'];
+          // 6. Province / State (prefer specific province like Pangasinan over Ilocos Region)
           String? province;
+          final state = address['province'] ?? address['state'];
           if (state != null && state.toString().trim().isNotEmpty) {
             province = state.toString().trim();
-            parts.add(province);
+          } else if (address['region'] != null && address['region'].toString().trim().isNotEmpty) {
+            province = address['region'].toString().trim();
           }
 
           if (parts.isNotEmpty) {
             return LocationResult(
               success: true,
               address: parts.join(', '),
+              street: exactStreet,
               barangay: formattedBrgy,
               municipality: municipality,
               province: province,
@@ -288,11 +417,11 @@ class LocationService {
     return null;
   }
 
-  /// Tier 2: OpenStreetMap Nominatim with Enhanced Philippine Barangay extraction
-  Future<LocationResult?> _reverseGeocodeNominatim(double lat, double lon) async {
+  /// Tier 3: OpenStreetMap Nominatim with zoom=18 for exact building / house / rooftop level resolution
+  Future<LocationResult?> _reverseGeocodeNominatim(double lat, double lon, {int zoom = 18}) async {
     try {
       final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=14&addressdetails=1',
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=$zoom&addressdetails=1',
       );
       final response = await http.get(
         url,
@@ -308,11 +437,57 @@ class LocationService {
         if (address != null) {
           final parts = <String>[];
 
-          final dynamic rawBrgy = address['suburb'] ??
-              address['village'] ??
+          // 1. Exact Spot: House Number, Building, Landmark, Amenity, Shop
+          final houseNumber = address['house_number']?.toString().trim();
+          final building = (address['building'] ??
+                  address['house_name'] ??
+                  address['amenity'] ??
+                  address['shop'] ??
+                  address['office'] ??
+                  address['tourism'])
+              ?.toString()
+              .trim();
+
+          // 2. Road / Street / Thoroughfare
+          final road = (address['road'] ??
+                  address['street'] ??
+                  address['pedestrian'] ??
+                  address['footway'] ??
+                  address['path'] ??
+                  address['track'] ??
+                  address['highway'])
+              ?.toString()
+              .trim();
+
+          // Form exact street string
+          String? exactStreet;
+          if (houseNumber != null && houseNumber.isNotEmpty && road != null && road.isNotEmpty) {
+            exactStreet = '$houseNumber $road';
+          } else if (building != null && building.isNotEmpty && road != null && road.isNotEmpty) {
+            exactStreet = '$building, $road';
+          } else if (road != null && road.isNotEmpty) {
+            exactStreet = road;
+          } else if (building != null && building.isNotEmpty) {
+            exactStreet = building;
+          }
+
+          if (exactStreet != null && exactStreet.isNotEmpty) {
+            parts.add(exactStreet);
+          }
+
+          // 3. Purok / Sitio / Neighbourhood
+          final rawNeighbourhood = (address['neighbourhood'] ??
+                  address['purok'] ??
+                  address['sitio'] ??
+                  address['hamlet'] ??
+                  address['subdivision'])
+              ?.toString()
+              .trim();
+
+          // 4. Barangay
+          final dynamic rawBrgy = address['village'] ??
+              address['suburb'] ??
               address['quarter'] ??
-              address['neighbourhood'] ??
-              address['hamlet'] ??
               address['residential'] ??
               address['city_district'] ??
               address['subdistrict'] ??
@@ -323,17 +498,26 @@ class LocationService {
             final b = rawBrgy.toString().trim();
             final cleanBrgy = b.replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
             formattedBrgy = 'Brgy. $cleanBrgy';
-            parts.add(formattedBrgy);
           } else if (data['display_name'] != null) {
             final displayName = data['display_name'].toString();
             final match = RegExp(r'(?:Brgy\.?|Barangay)\s+([A-Za-z0-9\s\-]+?)(?:,|$)', caseSensitive: false).firstMatch(displayName);
             if (match != null && match.group(1) != null) {
               formattedBrgy = 'Brgy. ${match.group(1)!.trim()}';
-              parts.add(formattedBrgy);
             }
           }
 
-          // Municipality / City / Town
+          if (rawNeighbourhood != null &&
+              rawNeighbourhood.isNotEmpty &&
+              (formattedBrgy == null || !rawNeighbourhood.toLowerCase().contains(formattedBrgy.toLowerCase())) &&
+              (exactStreet == null || !exactStreet.toLowerCase().contains(rawNeighbourhood.toLowerCase()))) {
+            parts.add(rawNeighbourhood);
+          }
+
+          if (formattedBrgy != null && formattedBrgy.isNotEmpty) {
+            parts.add(formattedBrgy);
+          }
+
+          // 5. Municipality / City / Town
           final city = address['city'] ?? address['town'] ?? address['municipality'] ?? address['county'];
           String? municipality;
           if (city != null && city.toString().trim().isNotEmpty) {
@@ -341,7 +525,7 @@ class LocationService {
             parts.add(municipality);
           }
 
-          // Province / State
+          // 6. Province / State
           final state = address['state'] ?? address['province'] ?? address['region'];
           String? province;
           if (state != null && state.toString().trim().isNotEmpty) {
@@ -353,6 +537,7 @@ class LocationService {
             return LocationResult(
               success: true,
               address: parts.join(', '),
+              street: exactStreet,
               barangay: formattedBrgy,
               municipality: municipality,
               province: province,
@@ -369,7 +554,7 @@ class LocationService {
           if (split.length >= 3) {
             return LocationResult(
               success: true,
-              address: split.take(3).map((s) => s.trim()).join(', '),
+              address: split.take(4).map((s) => s.trim()).join(', '),
               latitude: lat,
               longitude: lon,
             );
@@ -388,47 +573,98 @@ class LocationService {
     return null;
   }
 
-  /// Tier 3: Native Android / iOS Geocoder
+  /// Tier 1: Native Android / iOS Geocoder (Google Play Services / Apple CoreLocation)
   Future<LocationResult?> _reverseGeocodeNative(double lat, double lon) async {
     try {
       final placemarks = await Geocoding().placemarkFromCoordinates(lat, lon);
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
-        debugPrint('[LocationService] Native Placemark: subLocality="${p.subLocality}", name="${p.name}", street="${p.street}", locality="${p.locality}", subAdmin="${p.subAdministrativeArea}", admin="${p.administrativeArea}"');
-        final parts = <String>[];
+        debugPrint('[LocationService] Native Placemark: subLocality="${p.subLocality}", name="${p.name}", street="${p.street}", thoroughfare="${p.thoroughfare}", subThoroughfare="${p.subThoroughfare}", locality="${p.locality}", subAdmin="${p.subAdministrativeArea}", admin="${p.administrativeArea}"');
 
-        String? formattedBrgy;
-        // Sub-locality / Barangay
-        if (p.subLocality != null && p.subLocality!.trim().isNotEmpty) {
-          final sl = p.subLocality!.trim();
-          final clean = sl.replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
-          formattedBrgy = 'Brgy. $clean';
-          parts.add(formattedBrgy);
-        } else if (p.name != null &&
-            (p.name!.toLowerCase().contains('brgy') || p.name!.toLowerCase().contains('barangay'))) {
-          final clean = p.name!.trim().replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
-          formattedBrgy = 'Brgy. $clean';
-          parts.add(formattedBrgy);
-        } else if (p.thoroughfare != null &&
-            p.thoroughfare!.trim().isNotEmpty &&
-            !p.thoroughfare!.toLowerCase().contains('unnamed')) {
-          parts.add(p.thoroughfare!.trim());
+        // Helper to check if a string is a Plus Code (e.g. "7Q5G+5W San Carlos") or "Unnamed"
+        bool isIgnorable(String? s) {
+          if (s == null || s.trim().isEmpty) return true;
+          final lower = s.trim().toLowerCase();
+          if (lower.contains('unnamed')) return true;
+          if (RegExp(r'^[A-Z0-9]{4,8}\+[A-Z0-9]{2,}', caseSensitive: false).hasMatch(s)) return true;
+          return false;
         }
 
-        // Locality (City or Municipality)
+        final rawSubLocality = p.subLocality?.trim();
+        final rawStreet = p.street?.trim();
+        final rawThoroughfare = p.thoroughfare?.trim();
+        final rawSubThoroughfare = p.subThoroughfare?.trim();
+        final rawName = p.name?.trim();
+
+        // 1. Exact Street / House / Landmark
+        String? exactStreet;
+        if (rawStreet != null &&
+            !isIgnorable(rawStreet) &&
+            (rawSubLocality == null || !rawStreet.toLowerCase().contains(rawSubLocality.toLowerCase()))) {
+          exactStreet = rawStreet;
+        } else if (rawThoroughfare != null && !isIgnorable(rawThoroughfare)) {
+          if (rawSubThoroughfare != null && rawSubThoroughfare.isNotEmpty) {
+            exactStreet = '$rawSubThoroughfare $rawThoroughfare';
+          } else {
+            exactStreet = rawThoroughfare;
+          }
+        } else if (rawName != null &&
+            !isIgnorable(rawName) &&
+            (rawSubLocality == null || !rawName.toLowerCase().contains(rawSubLocality.toLowerCase())) &&
+            !rawName.toLowerCase().contains('brgy') &&
+            !rawName.toLowerCase().contains('barangay')) {
+          exactStreet = rawName;
+        }
+
+        // 2. Sub-locality / Barangay (scan all placemarks)
+        String? formattedBrgy;
+        for (final pl in placemarks) {
+          if (pl.subLocality != null && pl.subLocality!.trim().isNotEmpty) {
+            final clean = pl.subLocality!.trim().replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
+            formattedBrgy = 'Brgy. $clean';
+            break;
+          }
+        }
+        if (formattedBrgy == null) {
+          for (final pl in placemarks) {
+            final nm = pl.name?.trim();
+            if (nm != null && (nm.toLowerCase().contains('brgy') || nm.toLowerCase().contains('barangay'))) {
+              final clean = nm.replaceFirst(RegExp(r'^(Brgy\.?|Barangay)\s*', caseSensitive: false), '');
+              formattedBrgy = 'Brgy. $clean';
+              break;
+            }
+          }
+        }
+
+        // 3. Locality (City or Municipality)
         String? municipality;
         if (p.locality != null && p.locality!.trim().isNotEmpty) {
-          municipality = p.locality!.trim();
-          parts.add(municipality);
+          final c = p.locality!.trim();
+          municipality = c.toLowerCase().endsWith('city') ? c : (c.toLowerCase() == 'san carlos' ? '$c City' : c);
         } else if (p.subAdministrativeArea != null && p.subAdministrativeArea!.trim().isNotEmpty) {
           municipality = p.subAdministrativeArea!.trim();
-          parts.add(municipality);
         }
 
-        // Administrative Area (Province)
+        // 4. Administrative Area (Province)
+        // Prefer subAdministrativeArea (e.g. Pangasinan) over administrativeArea (e.g. Ilocos Region)
         String? province;
-        if (p.administrativeArea != null && p.administrativeArea!.trim().isNotEmpty) {
+        if (p.subAdministrativeArea != null && p.subAdministrativeArea!.trim().isNotEmpty && p.subAdministrativeArea != municipality) {
+          province = p.subAdministrativeArea!.trim();
+        } else if (p.administrativeArea != null && p.administrativeArea!.trim().isNotEmpty) {
           province = p.administrativeArea!.trim();
+        }
+
+        final parts = <String>[];
+        if (exactStreet != null && exactStreet.isNotEmpty) {
+          parts.add(exactStreet);
+        }
+        if (formattedBrgy != null && formattedBrgy.isNotEmpty) {
+          parts.add(formattedBrgy);
+        }
+        if (municipality != null && municipality.isNotEmpty) {
+          parts.add(municipality);
+        }
+        if (province != null && province.isNotEmpty) {
           parts.add(province);
         }
 
@@ -436,6 +672,7 @@ class LocationService {
           return LocationResult(
             success: true,
             address: parts.join(', '),
+            street: exactStreet,
             barangay: formattedBrgy,
             municipality: municipality,
             province: province,

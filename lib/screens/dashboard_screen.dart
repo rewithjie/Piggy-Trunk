@@ -110,7 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         invList = await _supabase
             .from('investment_records')
             .select('*')
-            .order('investment_date', ascending: false);
+            .order('investment_date', ascending: true);
       } catch (invErr) {
         debugPrint('Notice loading investment_records with order: $invErr');
         try {
@@ -120,10 +120,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
+      // Guarantee chronological order in memory (earliest investment first)
+      invList.sort((a, b) {
+        final dateA = (a['investment_date'] ?? a['created_at'] ?? '').toString();
+        final dateB = (b['investment_date'] ?? b['created_at'] ?? '').toString();
+        final c = dateA.compareTo(dateB);
+        if (c != 0) return c;
+        final idA = int.tryParse((a['id'] ?? '').toString()) ?? 0;
+        final idB = int.tryParse((b['id'] ?? '').toString()) ?? 0;
+        return idA.compareTo(idB);
+      });
+
       double calculatedInitialCapital = 0;
       double calculatedFatteningInitialCapital = 0;
       double calculatedSowInitialCapital = 0;
       final Map<String, Set<String>> raiserInvestmentTypesMap = {};
+      final Map<String, List<String>> raiserInvestmentHogTypesListMap = {};
       final Map<String, DateTime> raiserLatestInvestmentDate = {};
       final Map<String, String> raiserBatchNameMap = {};
 
@@ -147,6 +159,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Collect ALL distinct pig types per raiser (not just first)
         if (rId.isNotEmpty && rawHt.isNotEmpty) {
           raiserInvestmentTypesMap.putIfAbsent(rId, () => {}).add(rawHt);
+          final int tHog = (inv['total_hog'] as num?)?.toInt() ?? 1;
+          final String resolvedType = (rawHt.toLowerCase().contains('sow') || rawHt.toLowerCase().contains('breed')) ? 'Sow' : 'Fattening';
+          for (int i = 0; i < tHog; i++) {
+            raiserInvestmentHogTypesListMap.putIfAbsent(rId, () => []).add(resolvedType);
+          }
         }
 
         final invDateStr = (inv['investment_date'] ?? '').toString();
@@ -187,6 +204,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // 4. Fetch assignments and active hogs to reflect actual active batch and stage
       final Map<String, dynamic> raiserLatestAssignmentMap = {};
       final Map<String, int> raiserLatestStageIdMap = {};
+      final Map<String, int> raiserSowStageIdMap = {};
+      final Map<String, int> raiserFatteningStageIdMap = {};
+      final Map<String, List<Map<String, dynamic>>> raiserHogsMap = {};
 
       try {
         List<dynamic> assignmentsRes = [];
@@ -223,15 +243,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           if (!raiserLatestAssignmentMap.containsKey(rId)) {
             raiserLatestAssignmentMap[rId] = a;
-            final aId = (a['assignment_id'] ?? '').toString();
-            final hogs = assignHogsMap[aId] ?? [];
-            if (hogs.isNotEmpty) {
+
+            // Gather all hogs across all assignments for this raiser
+            final allRaiserHogs = <Map<String, dynamic>>[];
+            for (var asgn in assignmentsRes) {
+              if (asgn is! Map) continue;
+              if ((asgn['hog_raiser_id'] ?? '').toString() == rId) {
+                final asgnId = (asgn['assignment_id'] ?? '').toString();
+                allRaiserHogs.addAll(assignHogsMap[asgnId] ?? []);
+              }
+            }
+
+            if (allRaiserHogs.isNotEmpty) {
+              allRaiserHogs.sort((x, y) => ((x['hog_id'] as num?)?.toInt() ?? 0).compareTo((y['hog_id'] as num?)?.toInt() ?? 0));
+              final typeList = raiserInvestmentHogTypesListMap[rId] ?? [];
+
               int maxStage = 1;
-              for (var hog in hogs) {
+              int maxSow = 1;
+              int maxFat = 1;
+              bool hasSow = false;
+              bool hasFat = false;
+
+              for (int idx = 0; idx < allRaiserHogs.length; idx++) {
+                final hog = allRaiserHogs[idx];
                 final sId = int.tryParse((hog['stage_id'] ?? '1').toString()) ?? 1;
                 if (sId > maxStage) maxStage = sId;
+
+                String pType = (hog['pig_type'] ?? '').toString().trim();
+                if (pType.isEmpty && idx < typeList.length) {
+                  pType = typeList[idx];
+                }
+                if (pType.isEmpty) pType = 'Fattening';
+
+                if (pType.toLowerCase().contains('sow') || pType.toLowerCase().contains('breed')) {
+                  hasSow = true;
+                  if (sId > maxSow) maxSow = sId;
+                } else {
+                  hasFat = true;
+                  if (sId > maxFat) maxFat = sId;
+                }
               }
+
               raiserLatestStageIdMap[rId] = maxStage;
+              if (hasSow) raiserSowStageIdMap[rId] = maxSow;
+              if (hasFat) raiserFatteningStageIdMap[rId] = maxFat;
+              raiserHogsMap[rId] = allRaiserHogs;
             }
           }
         }
@@ -386,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final rawType = combinedTypeSet.join(', ');
 
           final cleanParts = rawType
-              .split(RegExp(r'[,;]'))
+              .split(RegExp(r'[,;]|\band\b', caseSensitive: false))
               .map((p) => p.trim())
               .where((p) =>
                   p.isNotEmpty &&
@@ -403,7 +459,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .toSet()
               .toList();
 
-          final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+          final cleanedType = cleanParts.isEmpty
+              ? 'Unassigned'
+              : (cleanParts.length == 2 && cleanParts.contains('Sow') && cleanParts.contains('Fattening')
+                  ? 'Sow and Fattening'
+                  : cleanParts.join(' and '));
           copy['pig_type'] = cleanedType;
           final isBreeding = cleanedType.toLowerCase().contains('sow');
 
@@ -411,6 +471,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (raiserLatestStageIdMap.containsKey(idStr)) {
             copy['lifecycle_stage'] = _resolveStageName(raiserLatestStageIdMap[idStr], isBreeding);
           }
+          if (raiserSowStageIdMap.containsKey(idStr)) {
+            copy['sow_lifecycle_stage'] = _resolveStageName(raiserSowStageIdMap[idStr], true);
+          }
+          if (raiserFatteningStageIdMap.containsKey(idStr)) {
+            copy['fattening_lifecycle_stage'] = _resolveStageName(raiserFatteningStageIdMap[idStr], false);
+          }
+          copy['hogs'] = raiserHogsMap[idStr] ?? [];
 
           // Attach batch name (align with mobile app fallback if batches table is empty)
           if (raiserBatchNameMap.containsKey(idStr)) {
@@ -568,7 +635,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final copy = Map<String, dynamic>.from(r);
         final rawType = (copy['pig_type'] ?? '').toString().trim();
         final cleanParts = rawType
-            .split(RegExp(r'[,;]'))
+            .split(RegExp(r'[,;]|\band\b', caseSensitive: false))
             .map((p) => p.trim())
             .where((p) =>
                 p.isNotEmpty &&
@@ -584,7 +651,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             })
             .toSet()
             .toList();
-        final cleanedType = cleanParts.isEmpty ? 'N/A' : cleanParts.join(', ');
+        final cleanedType = cleanParts.isEmpty
+            ? 'Unassigned'
+            : (cleanParts.length == 2 && cleanParts.contains('Sow') && cleanParts.contains('Fattening')
+                ? 'Sow and Fattening'
+                : cleanParts.join(' and '));
         copy['pig_type'] = cleanedType;
         copy['batch_name'] = 'Batch ${copy['name']}';
         return copy;
@@ -1050,6 +1121,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 final raiser = _activeRaisersList[index];
                 final name = (raiser['name'] ?? 'Hog Raiser').toString();
                 final rawPigType = (raiser['pig_type'] ?? '').toString().trim();
+                final raiserHogs = (raiser['hogs'] as List? ?? []).whereType<Map<String, dynamic>>().toList();
+                final int totalHogsCount = raiserHogs.length;
+                int completedHogsCount = 0;
+                for (var h in raiserHogs) {
+                  final hType = (h['pig_type'] ?? '').toString();
+                  final hIsBreed = hType.toLowerCase().contains('sow') || hType.toLowerCase().contains('breed');
+                  final st = _resolveStageName(h['stage_id'] ?? h['lifecycle_stage'], hIsBreed).toLowerCase();
+                  if (st == 'selling' || st == 'lactation') {
+                    completedHogsCount++;
+                  }
+                }
+                final bool allHogsComplete = totalHogsCount > 0 && completedHogsCount == totalHogsCount;
+                final bool partiallyComplete = totalHogsCount > 0 && completedHogsCount > 0 && completedHogsCount < totalHogsCount;
+
                 final cleanList = rawPigType
                     .split(RegExp(r'[,;]'))
                     .map((s) => s.trim())
@@ -1073,10 +1158,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     })
                     .toSet()
                     .toList();
+                cleanList.sort((a, b) {
+                  if (a == 'FATTENING') return -1;
+                  if (b == 'FATTENING') return 1;
+                  return 0;
+                });
                 final bool isUnassigned = cleanList.isEmpty;
-                final String displayBadge = isUnassigned
-                    ? 'UNASSIGNED'
-                    : cleanList.join(', ');
                 final currentStage = isUnassigned
                     ? 'Unassigned'
                     : (raiser['lifecycle_stage'] ?? 'Booster').toString();
@@ -1104,36 +1191,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        if (batchName.isNotEmpty &&
-                            batchName != 'Unassigned')
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _isDark
-                                  ? const Color(0xFF1E293B)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: _isDark
-                                    ? const Color(0xFF475569)
-                                    : const Color(0xFFCBD5E1),
-                                width: 1,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (batchName.isNotEmpty &&
+                                batchName != 'Unassigned')
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _isDark
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: _isDark
+                                        ? const Color(0xFF475569)
+                                        : const Color(0xFFCBD5E1),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  batchName,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: _isDark
+                                        ? const Color(0xFF94A3B8)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              batchName,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: _isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF64748B),
+                            if (allHogsComplete) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981)
+                                      .withValues(alpha: _isDark ? 0.22 : 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFF10B981)
+                                        .withValues(alpha: _isDark ? 0.6 : 0.4),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      size: 11,
+                                      color: Color(0xFF10B981),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'COMPLETE',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF10B981),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
+                            ] else if (partiallyComplete) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0284C7)
+                                      .withValues(alpha: _isDark ? 0.22 : 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFF0284C7)
+                                        .withValues(alpha: _isDark ? 0.6 : 0.4),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.pie_chart_outline_rounded,
+                                      size: 11,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$completedHogsCount/$totalHogsCount Complete',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0284C7),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -1143,76 +1312,181 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         'fattening',
                         isUnassigned: true,
                       )
-                    else
+                    else if (raiserHogs.isNotEmpty)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: () {
-                          // Determine which pig types to show lifecycles for
-                          final types = cleanList.isNotEmpty
-                              ? cleanList
-                              : ['FATTENING'];
-                          final widgets = <Widget>[];
-                          for (int i = 0; i < types.length; i++) {
-                            final pt = types[i];
-                            final ptKey = pt.toLowerCase().contains('sow') ||
-                                    pt.toLowerCase().contains('breed')
-                                ? 'sow'
-                                : 'fattening';
-                            if (i > 0) {
-                              widgets.add(const SizedBox(height: 16));
-                            }
-                            // Always show pig type label above lifecycle
-                            {
-                              widgets.add(
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 9,
-                                          vertical: 3,
+                        children: raiserHogs.asMap().entries.map((entry) {
+                          final idx = entry.key;
+                          final h = entry.value;
+                          final tag = h['tag_number'] ?? '#${idx + 1}';
+                          final hType = (h['pig_type'] ?? (cleanList.isNotEmpty ? cleanList.first : 'Fattening')).toString();
+                          final hIsBreed = hType.toLowerCase().contains('sow') || hType.toLowerCase().contains('breed');
+                          final ptKey = hIsBreed ? 'sow' : 'fattening';
+                          final stageForHog = _resolveStageName(h['stage_id'] ?? h['lifecycle_stage'], hIsBreed);
+                          final isHogDone = stageForHog.toLowerCase() == 'selling' || stageForHog.toLowerCase() == 'lactation';
+
+                          return Container(
+                            margin: EdgeInsets.only(top: idx > 0 ? 18 : 0),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _isDark ? const Color(0xFF0F172A).withValues(alpha: 0.6) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _isDark ? const Color(0xFF26354A) : const Color(0xFFE2E8F0),
+                                width: 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.pets_rounded,
+                                          size: 15,
+                                          color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
                                         ),
+                                        const SizedBox(width: 7),
+                                        Text(
+                                          'Hog $tag',
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: _textDark,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                          decoration: BoxDecoration(
+                                            color: _isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: _isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            ptKey == 'sow' ? 'SOW / BREEDING' : 'FATTENING',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: _isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (isHogDone)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                                         decoration: BoxDecoration(
-                                          color: _isDark
-                                              ? const Color(0xFF1E293B)
-                                              : const Color(0xFFF1F5F9),
+                                          color: const Color(0xFF10B981).withValues(alpha: _isDark ? 0.22 : 0.12),
                                           borderRadius: BorderRadius.circular(4),
                                           border: Border.all(
-                                            color: _isDark
-                                                ? const Color(0xFF334155)
-                                                : const Color(0xFFCBD5E1),
+                                            color: const Color(0xFF10B981).withValues(alpha: _isDark ? 0.6 : 0.4),
                                             width: 1,
                                           ),
                                         ),
-                                        child: Text(
-                                          ptKey == 'sow'
-                                              ? 'SOW / BREEDING'
-                                              : 'FATTENING',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w700,
-                                            color: _isDark
-                                                ? const Color(0xFF94A3B8)
-                                                : const Color(0xFF64748B),
-                                          ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.check_circle_rounded, size: 11, color: Color(0xFF10B981)),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              'COMPLETE',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: const Color(0xFF10B981),
+                                                letterSpacing: 0.3,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        'Current: $stageForHog',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: _isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
                                         ),
                                       ),
-                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                _buildLifecycleMap(
+                                  stageForHog,
+                                  ptKey,
+                                  isUnassigned: false,
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      )
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: cleanList.map((pt) {
+                          final ptKey = pt.toLowerCase().contains('sow') ||
+                                  pt.toLowerCase().contains('breed')
+                              ? 'sow'
+                              : 'fattening';
+                          final stageForType = ptKey == 'sow'
+                              ? (raiser['sow_lifecycle_stage'] ?? 'Booster')
+                              : (raiser['fattening_lifecycle_stage'] ?? currentStage);
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _isDark
+                                        ? const Color(0xFF1E293B)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: _isDark
+                                          ? const Color(0xFF334155)
+                                          : const Color(0xFFCBD5E1),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    ptKey == 'sow'
+                                        ? 'SOW / BREEDING'
+                                        : 'FATTENING',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: _isDark
+                                          ? const Color(0xFF94A3B8)
+                                          : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
-                              );
-                            }
-                            widgets.add(
+                              ),
                               _buildLifecycleMap(
-                                currentStage,
+                                stageForType,
                                 ptKey,
                                 isUnassigned: false,
                               ),
-                            );
-                          }
-                          return widgets;
-                        }(),
+                            ],
+                          );
+                        }).toList(),
                       ),
                   ],
                 );
@@ -1288,6 +1562,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final normalizedIndex = isUnassigned
         ? -1
         : (activeIndex < 0 ? 0 : activeIndex);
+    final bool isLastStageReached = !isUnassigned && normalizedIndex == lifecycleStages.length - 1;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1295,17 +1570,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         Widget buildStepContent(int index) {
           final stage = lifecycleStages[index];
-          final isDone = !isUnassigned && index < normalizedIndex;
-          final isCurrent = !isUnassigned && index == normalizedIndex;
+          final bool isStepDone = !isUnassigned && (index < normalizedIndex || isLastStageReached);
+          final bool isStepCurrent = !isUnassigned && index == normalizedIndex && !isLastStageReached;
 
           Color bgColor;
           Color fgColor;
           IconData icon;
-          if (isDone) {
+          if (isStepDone) {
             bgColor = const Color(0xFF10B981);
             fgColor = Colors.white;
-            icon = Icons.check;
-          } else if (isCurrent) {
+            icon = Icons.check_rounded;
+          } else if (isStepCurrent) {
             bgColor = _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary;
             fgColor = _isDark ? const Color(0xFF0F172A) : Colors.white;
             icon = Icons.priority_high_rounded;
@@ -1331,7 +1606,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 decoration: BoxDecoration(
                   color: bgColor,
                   shape: BoxShape.circle,
-                  border: isCurrent
+                  border: isStepCurrent
                       ? Border.all(
                           color: _isDark
                               ? Colors.white
@@ -1339,14 +1614,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           width: 2,
                         )
                       : null,
-                  boxShadow: isCurrent
+                  boxShadow: (isStepCurrent || (isLastStageReached && index == lifecycleStages.length - 1))
                       ? [
                           BoxShadow(
-                            color:
-                                (_isDark
-                                        ? Colors.white
-                                        : PiggyTrunkTheme.ptPrimary)
-                                    .withValues(alpha: 0.25),
+                            color: (isStepCurrent
+                                    ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
+                                    : const Color(0xFF10B981))
+                                .withValues(alpha: 0.25),
                             blurRadius: 10,
                             spreadRadius: 1,
                           ),
@@ -1361,12 +1635,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
-                  fontWeight: isCurrent
+                  fontWeight: isStepCurrent
                       ? FontWeight.w800
-                      : (isDone ? FontWeight.w700 : FontWeight.w600),
-                  color: isCurrent
+                      : (isStepDone ? FontWeight.w700 : FontWeight.w600),
+                  color: isStepCurrent
                       ? (_isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                      : (isDone ? _textDark : _mutedDark),
+                      : (isStepDone ? const Color(0xFF10B981) : _mutedDark),
                 ),
               ),
             ],
@@ -1389,11 +1663,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
           );
         }
 
-        // On Desktop: Evenly spaced across the card
-        return Row(
-          children: List.generate(lifecycleStages.length, (index) {
-            return Expanded(child: Center(child: buildStepContent(index)));
-          }),
+        // On Desktop: Evenly spaced across the card with connecting line
+        final totalWidth = constraints.maxWidth;
+        final stepWidth = totalWidth / lifecycleStages.length;
+
+        return Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            // Connecting line positioned at vertical center of 44px circles (top: 21)
+            Positioned(
+              top: 21,
+              left: stepWidth / 2,
+              right: stepWidth / 2,
+              child: Row(
+                children: List.generate(lifecycleStages.length - 1, (index) {
+                  final isPassed = !isUnassigned && (index < normalizedIndex || isLastStageReached);
+                  return Expanded(
+                    child: Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: isPassed
+                            ? const Color(0xFF10B981)
+                            : (_isDark ? const Color(0xFF334A66) : const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            // Step nodes
+            Row(
+              children: List.generate(lifecycleStages.length, (index) {
+                return Expanded(child: Center(child: buildStepContent(index)));
+              }),
+            ),
+          ],
         );
       },
     );

@@ -119,8 +119,16 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
       if (raiserId == null) throw Exception('Raiser profile is not available.');
 
-      final today = DateTime.now().toIso8601String().split('T').first;
+      final now = DateTime.now();
+      final nowIso = now.toUtc().toIso8601String();
+      final today = now.toIso8601String().split('T').first;
       final generalNotes = _generalNotesController.text.trim();
+
+      final isRealAssignment = _selectedAssignmentId != null &&
+          _selectedAssignmentId! < BigInt.from(900000);
+      final int? validAssignmentId = isRealAssignment ? _selectedAssignmentId!.toInt() : null;
+
+      final String? cleanGeneralNotes = generalNotes.isNotEmpty ? generalNotes : null;
 
       final List<Map<String, dynamic>> requestsToInsert = [];
       final List<String> descriptions = [];
@@ -128,54 +136,66 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       if (_feedsSelected && _feedsQuantity > 0) {
         final feedDetail = _feedsDetailController.text.trim();
         final effectiveFeedType = feedDetail.isNotEmpty ? feedDetail : 'Feeds';
-        final feedsNotes = generalNotes.isNotEmpty ? generalNotes : null;
 
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
+        final Map<String, dynamic> feedsPayload = {
           'hog_raiser_id': raiserId,
           'status': 'pending',
           'request_date': today,
           'category': 'Feeds',
           'quantity': _feedsQuantity,
           'feed_type': effectiveFeedType,
-          'notes': feedsNotes,
-        });
+          'notes': cleanGeneralNotes,
+          'created_at': nowIso,
+        };
+        if (validAssignmentId != null) {
+          feedsPayload['assignment_id'] = validAssignmentId;
+        }
+
+        requestsToInsert.add(feedsPayload);
         descriptions.add('$_feedsQuantity ${_feedsQuantity > 1 ? "sacks" : "sack"} of $effectiveFeedType');
       }
 
       if (_medicineSelected && _medicineQuantity > 0) {
         final medDetail = _medicineDetailController.text.trim();
         final effectiveMedName = medDetail.isNotEmpty ? medDetail : 'Medicine';
-        final medNotes = generalNotes.isNotEmpty ? generalNotes : null;
 
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
+        final Map<String, dynamic> medPayload = {
           'hog_raiser_id': raiserId,
           'status': 'pending',
           'request_date': today,
           'category': 'Medicine',
           'quantity': _medicineQuantity,
           'feed_type': effectiveMedName,
-          'notes': medNotes,
-        });
+          'notes': cleanGeneralNotes,
+          'created_at': nowIso,
+        };
+        if (validAssignmentId != null) {
+          medPayload['assignment_id'] = validAssignmentId;
+        }
+
+        requestsToInsert.add(medPayload);
         descriptions.add('$_medicineQuantity ${_medicineQuantity > 1 ? "pcs" : "pc"} of $effectiveMedName (Medicine)');
       }
 
       if (_vitaminsSelected && _vitaminsQuantity > 0) {
         final vitDetail = _vitaminsDetailController.text.trim();
         final effectiveVitName = vitDetail.isNotEmpty ? vitDetail : 'Vitamins';
-        final vitNotes = generalNotes.isNotEmpty ? generalNotes : null;
 
-        requestsToInsert.add({
-          'assignment_id': _selectedAssignmentId!.toInt(),
+        final Map<String, dynamic> vitPayload = {
           'hog_raiser_id': raiserId,
           'status': 'pending',
           'request_date': today,
           'category': 'Vitamins',
           'quantity': _vitaminsQuantity,
           'feed_type': effectiveVitName,
-          'notes': vitNotes,
-        });
+          'notes': cleanGeneralNotes,
+          'created_at': nowIso,
+        };
+        if (validAssignmentId != null) {
+          vitPayload['assignment_id'] = validAssignmentId;
+        }
+
+        requestsToInsert.add(vitPayload);
         descriptions.add('$_vitaminsQuantity ${_vitaminsQuantity > 1 ? "pcs" : "pc"} of $effectiveVitName (Vitamins)');
       }
 
@@ -183,7 +203,43 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         throw Exception('No valid items to request.');
       }
 
-      await Supabase.instance.client.from('stock_requests').insert(requestsToInsert);
+      try {
+        await Supabase.instance.client.from('stock_requests').insert(requestsToInsert);
+      } catch (insertErr) {
+        final errStr = insertErr.toString().toLowerCase();
+        debugPrint('Notice: stock_requests insert failed: $insertErr');
+
+        final bool isFkError = errStr.contains('stock_requests_assignment_id_fkey') ||
+            errStr.contains('23503') ||
+            errStr.contains('foreign key constraint');
+
+        final fallbackList = requestsToInsert.map((r) {
+          final m = Map<String, dynamic>.from(r);
+          m.remove('created_at');
+          if (isFkError) {
+            m.remove('assignment_id');
+          }
+          return m;
+        }).toList();
+
+        try {
+          await Supabase.instance.client.from('stock_requests').insert(fallbackList);
+        } catch (retryErr) {
+          final retryErrStr = retryErr.toString().toLowerCase();
+          if (retryErrStr.contains('stock_requests_assignment_id_fkey') ||
+              retryErrStr.contains('23503') ||
+              retryErrStr.contains('foreign key constraint')) {
+            final noAssignList = fallbackList.map((r) {
+              final m = Map<String, dynamic>.from(r);
+              m.remove('assignment_id');
+              return m;
+            }).toList();
+            await Supabase.instance.client.from('stock_requests').insert(noAssignList);
+          } else {
+            rethrow;
+          }
+        }
+      }
 
       final raiserName = widget.raiserData['name'] ?? 'Hog Raiser';
       final itemsSummary = descriptions.join(' and ');

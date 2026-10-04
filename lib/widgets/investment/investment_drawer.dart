@@ -661,10 +661,26 @@ class InvestmentDrawer {
                                                 if (!isEdit) 'stage': 'active',
                                               };
 
-                                              if (isEdit) {
-                                                await supabase.from('investment_records').update(payload).eq('id', existingInvestment.id);
-                                              } else {
-                                                await supabase.from('investment_records').insert(payload);
+                                              try {
+                                                if (isEdit) {
+                                                  await supabase.from('investment_records').update(payload).eq('id', existingInvestment.id);
+                                                } else {
+                                                  await supabase.from('investment_records').insert(payload);
+                                                }
+                                              } catch (dbErr) {
+                                                final errStr = dbErr.toString().toLowerCase();
+                                                if (errStr.contains('batch_id') || errStr.contains('batch_name') || errStr.contains('pgrst204')) {
+                                                  final fallbackPayload = Map<String, dynamic>.from(payload)
+                                                    ..remove('batch_id')
+                                                    ..remove('batch_name');
+                                                  if (isEdit) {
+                                                    await supabase.from('investment_records').update(fallbackPayload).eq('id', existingInvestment.id);
+                                                  } else {
+                                                    await supabase.from('investment_records').insert(fallbackPayload);
+                                                  }
+                                                } else {
+                                                  rethrow;
+                                                }
                                               }
 
                                               if (!isUnassigned && int.tryParse(selectedRaiserId!) != null) {
@@ -677,7 +693,7 @@ class InvestmentDrawer {
                                                 await supabase
                                                     .from('hog_raisers')
                                                     .update({
-                                                      'lifecycle_stage': 'Booster',
+                                                      'lifecycle_stage': (hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed')) ? 'Gilt' : 'Booster',
                                                       'pig_type': hogTypeStr,
                                                     })
                                                     .eq(pkCol, parsedRaiserId);

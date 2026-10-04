@@ -898,7 +898,6 @@ class _AssignedHogsSectionState extends State<_AssignedHogsSection> {
             itemBuilder: (context, idx) {
               final hog = _hogs[idx];
               final stageName = _resolveStageName(hog['stage_id'] ?? hog['lifecycle_stage'], isBreeding);
-              final weight = (hog['weight'] as num?)?.toDouble() ?? 15.0;
               final health = (hog['health_status'] ?? 'healthy').toString().toLowerCase();
               final isSick = health == 'sick' || health == 'fever' || health == 'injured';
               final isObserving = health.contains('observ');
@@ -941,48 +940,34 @@ class _AssignedHogsSectionState extends State<_AssignedHogsSection> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Hog #${idx + 1}',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: titleColor,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: isBreeding
-                                      ? const Color(0xFF8B5CF6).withValues(alpha: 0.12)
-                                      : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  isBreeding ? 'Sow / Breeding' : 'Fattening',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: isBreeding
-                                        ? const Color(0xFFA78BFA)
-                                        : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
                           Text(
-                            'Weight: ${weight.toStringAsFixed(1)} kg',
+                            'Hog #${idx + 1}',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: hintText,
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: titleColor,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isBreeding
+                                  ? const Color(0xFF8B5CF6).withValues(alpha: 0.12)
+                                  : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              isBreeding ? 'Sow / Breeding' : 'Fattening',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: isBreeding
+                                    ? const Color(0xFFA78BFA)
+                                    : (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary),
+                              ),
                             ),
                           ),
                         ],
@@ -991,23 +976,44 @@ class _AssignedHogsSectionState extends State<_AssignedHogsSection> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Text(
-                            stageName,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
-                            ),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final isComplete = stageName.toLowerCase() == 'selling' ||
+                                stageName.toLowerCase() == 'lactation';
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isComplete
+                                    ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.22 : 0.12)
+                                    : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isComplete
+                                      ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.6 : 0.4)
+                                      : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isComplete) ...[
+                                    const Icon(Icons.check_rounded, size: 11, color: Color(0xFF10B981)),
+                                    const SizedBox(width: 3),
+                                  ],
+                                  Text(
+                                    isComplete ? '$stageName • Complete' : stageName,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: isComplete
+                                          ? const Color(0xFF10B981)
+                                          : (isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 4),
                         Row(

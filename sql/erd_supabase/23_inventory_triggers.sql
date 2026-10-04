@@ -109,32 +109,10 @@ drop trigger if exists trigger_on_stock_request_insert on public.stock_requests;
 drop function if exists public.notify_admin_on_stock_request();
 
 
--- 4. Trigger Function: Notify Raiser when Stock Request status changes (Approved/Rejected)
-create or replace function public.notify_raiser_on_request_update()
-returns trigger as $$
-begin
-  if (old.status is distinct from new.status) then
-    insert into public.raiser_notifications (hog_raiser_id, title, message, type, metadata)
-    values (
-      new.hog_raiser_id,
-      'Stock Request Update',
-      'Your request for ' || new.quantity || ' ' || coalesce(new.category, 'supplies') || ' has been ' || lower(new.status) || '.',
-      'request_status',
-      jsonb_build_object(
-        'request_id', new.request_id,
-        'status', new.status,
-        'category', new.category,
-        'quantity', new.quantity
-      )
-    );
-  end if;
-  return new;
-end;
-$$ language plpgsql security definer;
-
+-- 4. Stock Request Update Notification:
+-- Dropped generic database triggers to prevent duplicate notifications on multi-product requests.
+-- Rich detailed notification (with item breakdown and custom admin message) is created directly upon request approval/rejection.
 drop trigger if exists trigger_on_stock_request_update on public.stock_requests;
-create trigger trigger_on_stock_request_update
-  after update of status on public.stock_requests
-  for each row execute function public.notify_raiser_on_request_update();
+drop function if exists public.notify_raiser_on_request_update();
 
 commit;

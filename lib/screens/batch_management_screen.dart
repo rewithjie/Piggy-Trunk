@@ -327,12 +327,6 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
                                         onViewDetails: (batch) => BatchDetailDrawer.show(
                                           context: context,
                                           batch: batch,
-                                          onEdit: () => setState(() {
-                                            _showBatchForm = true;
-                                            _editingBatch = batch;
-                                          }),
-                                          onArchive: () => _archiveBatch(batch),
-                                          onDelete: () => _deleteBatch(batch),
                                         ),
                                         onEditBatch: (batch) => setState(() {
                                           _showBatchForm = true;
@@ -401,6 +395,54 @@ class _BatchManagementScreenState extends State<BatchManagementScreen> {
     final batchId = batch['batch_id'] ?? batch['id'];
     if (batchId == null) return;
 
+    int activeHogsCount = 0;
+    String? assignedRaiserName;
+    try {
+      final assignmentsRes = await _supabase
+          .from('assignments')
+          .select('assignment_id, status, hog_raisers(name)')
+          .eq('batch_id', batchId);
+      
+      final activeAssignments = (assignmentsRes as List).where((a) {
+        final s = (a['status'] ?? 'active').toString().toLowerCase();
+        return s != 'archived' && s != 'deleted';
+      }).toList();
+
+      if (activeAssignments.isNotEmpty) {
+        final firstA = activeAssignments.first;
+        if (firstA['hog_raisers'] is Map) {
+          final hr = firstA['hog_raisers'];
+          assignedRaiserName = (hr['name'] ?? '').toString().trim();
+        }
+        final aIds = activeAssignments.map((a) => a['assignment_id']).toList();
+        if (aIds.isNotEmpty) {
+          final hogsRes = await _supabase
+              .from('hogs')
+              .select('hog_id')
+              .inFilter('assignment_id', aIds)
+              .eq('status', 'active');
+          activeHogsCount = (hogsRes as List).length;
+        }
+      }
+    } catch (e) {
+      debugPrint('Active batch safety guard check error: $e');
+    }
+
+    if (activeHogsCount > 0 || (assignedRaiserName != null && assignedRaiserName.isNotEmpty)) {
+      if (!mounted) return;
+      final raiserText = assignedRaiserName != null && assignedRaiserName.isNotEmpty ? ' to $assignedRaiserName' : '';
+      await SlideOverConfirmationDrawer.show(
+        context: context,
+        title: 'Active Batch Protected',
+        message: 'Cannot delete "$batchName": This batch currently has $activeHogsCount live hogs assigned$raiserText.\n\nDeleting an active batch will wipe live farm animals and cause errors on the raiser\'s mobile app.\n\nPlease complete the raising cycle or archive the batch instead.',
+        confirmButtonText: 'I Understand',
+        actionType: SlideOverActionType.info,
+        customIcon: Icons.shield_outlined,
+      );
+      return;
+    }
+
+    if (!mounted) return;
     final confirmed = await SlideOverConfirmationDrawer.show(
       context: context,
       title: 'Delete Hog Batch',

@@ -104,6 +104,103 @@ class NotificationService {
     return text.replaceAll(emojiRegex, '').replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
+  /// Translates notification title based on the active language (isFilipino)
+  static String localizeTitle(String title, bool isFilipino) {
+    final clean = cleanText(title).trim();
+    if (isFilipino) return clean;
+
+    final lower = clean.toLowerCase();
+    if (lower.contains('bagong investment na na-assign') ||
+        (lower.contains('bagong investment') && lower.contains('na-assign'))) {
+      return 'New Investment Assigned to You!';
+    }
+    if (lower.contains('bagong batch na na-assign') ||
+        (lower.contains('bagong batch') && lower.contains('na-assign'))) {
+      return 'New Batch Assigned to You!';
+    }
+    if (lower.contains('pondo para sa iyong batch') || lower.contains('bagong pondo')) {
+      return 'New Funds Allocated for Your Batch!';
+    }
+    if (lower.contains('bagong stock ng feeds') || lower.contains('bagong supply')) {
+      return 'New Feeds & Supplies Available!';
+    }
+    if (lower.contains('naaprubahan ang iyong request') || lower.contains('naaprubahan')) {
+      return 'Your Request Has Been Approved!';
+    }
+    if (lower.contains('tinanggihan ang iyong request') || lower.contains('tinanggihan')) {
+      return 'Your Request Was Declined';
+    }
+    if (lower.contains('na-update ang lifecycle') || lower.contains('stage updated')) {
+      return 'Lifecycle Stage Updated';
+    }
+    if (lower.contains('ulat sa kalusugan') || lower.contains('health report')) {
+      return 'Health Report Update';
+    }
+    return clean;
+  }
+
+  /// Translates notification message based on the active language (isFilipino)
+  static String localizeMessage(String message, bool isFilipino) {
+    final clean = cleanText(message).trim();
+    if (isFilipino) return clean;
+
+    // Pattern 1: Nag-assign ang Admin ng bagong Investment na may X Type na may pondong ₱Y para sa iyong pangangalaga.
+    final investRegexWithCapital = RegExp(
+      r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*([a-zA-Z\s]+)?\s*na may pondong\s*([₱\d,.]+)\s*para sa iyong pangangalaga\.?',
+      caseSensitive: false,
+    );
+    final match1 = investRegexWithCapital.firstMatch(clean);
+    if (match1 != null) {
+      final count = match1.group(1) ?? '1';
+      final type = match1.group(2)?.trim() ?? 'hog';
+      final capital = match1.group(3) ?? '';
+      return 'Admin assigned a new investment of $count $type with a budget of $capital for your care.';
+    }
+
+    final investRegexSimple = RegExp(
+      r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*([a-zA-Z\s]+)?\s*para sa iyong pangangalaga\.?',
+      caseSensitive: false,
+    );
+    final match2 = investRegexSimple.firstMatch(clean);
+    if (match2 != null) {
+      final count = match2.group(1) ?? '1';
+      final type = match2.group(2)?.trim() ?? 'hog';
+      return 'Admin assigned a new investment of $count $type for your care.';
+    }
+
+    // Pattern 2: Na-assign sa iyo ng Admin ang X. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.
+    final batchRegex = RegExp(
+      r'na-assign sa iyo ng admin ang\s*(.*?)\.\s*maaari mo nang simulan ang pagsubaybay.*?logs\.?',
+      caseSensitive: false,
+    );
+    final match3 = batchRegex.firstMatch(clean);
+    if (match3 != null) {
+      final batchName = match3.group(1) ?? 'the batch';
+      return 'Admin assigned $batchName to you. You can now start monitoring and updating logs.';
+    }
+
+    // Pattern 3: Naglaan ang partner ng karagdagang pondo...
+    if (clean.toLowerCase().contains('naglaan ang partner ng karagdagang pondo')) {
+      return clean
+          .replaceAll(RegExp(r'Naglaan ang partner ng karagdagang pondo', caseSensitive: false), 'Partner allocated additional funds')
+          .replaceAll(RegExp(r'para sa iyong batch', caseSensitive: false), 'for your batch');
+    }
+
+    // Pattern 4: Stock request approved / declined
+    if (clean.toLowerCase().contains('naaprubahan ang iyong request para sa')) {
+      return clean
+          .replaceAll(RegExp(r'Naaprubahan ang iyong request para sa', caseSensitive: false), 'Your request has been approved for')
+          .replaceAll(RegExp(r'Maaari mo na itong kunin sa tindahan\.?', caseSensitive: false), 'You can now claim it from the store.');
+    }
+
+    if (clean.toLowerCase().contains('tinanggihan ang iyong request para sa')) {
+      return clean
+          .replaceAll(RegExp(r'Tinanggihan ang iyong request para sa', caseSensitive: false), 'Your request was declined for');
+    }
+
+    return clean;
+  }
+
   /// Shows a native OS status bar / lockscreen notification
   Future<void> showNotification({
     int? id,

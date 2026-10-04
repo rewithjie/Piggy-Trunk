@@ -91,10 +91,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         .replaceAll('.', '')
         .toUpperCase();
     return [
-      if (lastName.isNotEmpty) '$lastName,',
       firstName,
       if (middleInitial.isNotEmpty) '${middleInitial[0]}.',
-    ].join(' ').trim();
+      lastName,
+    ].where((p) => p.isNotEmpty).join(' ');
   }
 
   Widget _buildNameField(
@@ -282,12 +282,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     String? passErr;
     String? confirmPassErr;
 
-    // 1. Normalized name validation: Last Name, First Name, MI
+    // 1. Normalized name validation: First Name, MI, Last Name
     final nameTrimmed = fullName.trim();
     final nameValidCharsRegex = RegExp(r"^[a-zA-Z\u00C0-\u024F\s\.\-']+$");
-    if (_lastNameController.text.trim().isEmpty ||
-        _firstNameController.text.trim().isEmpty) {
-      nameErr = 'Please enter your last name and first name.';
+    if (_firstNameController.text.trim().isEmpty ||
+        _lastNameController.text.trim().isEmpty) {
+      nameErr = 'Please enter your first name and last name.';
     } else if (RegExp(r'\d').hasMatch(nameTrimmed)) {
       nameErr =
           'Full name should only contain letters and spaces (no numbers).';
@@ -683,17 +683,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  String _getRoleTitle() {
-    switch (_selectedRole) {
-      case 'partner':
-        return 'Partner Investor';
-      case 'cashier':
-        return 'Cashier';
-      case 'hog_raiser':
-      default:
-        return 'Hog Raiser';
-    }
-  }
 
   String _getRoleDescription() {
     switch (_selectedRole) {
@@ -1023,19 +1012,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                               // Name fields — label inside field, full-width stacked
                               _buildNameField(
-                                'Last Name',
-                                'Dela Cruz',
-                                _lastNameController,
-                                false,
-                                hasError: _fullNameError != null,
-                                labelFontSize: labelFontSize,
-                                inputFontSize: inputFontSize,
-                                inputPaddingV: inputPaddingV,
-                              ),
-                              const SizedBox(height: 6),
-                              _buildNameField(
                                 'First Name',
-                                'Juan',
+                                'e.g. Juan',
                                 _firstNameController,
                                 false,
                                 hasError: _fullNameError != null,
@@ -1045,10 +1023,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                               const SizedBox(height: 6),
                               _buildNameField(
-                                'M.I.',
-                                'M',
+                                'Middle Initial (optional)',
+                                'e.g. M',
                                 _middleInitialController,
                                 true,
+                                hasError: _fullNameError != null,
+                                labelFontSize: labelFontSize,
+                                inputFontSize: inputFontSize,
+                                inputPaddingV: inputPaddingV,
+                              ),
+                              const SizedBox(height: 6),
+                              _buildNameField(
+                                'Last Name',
+                                'e.g. Dela Cruz',
+                                _lastNameController,
+                                false,
                                 hasError: _fullNameError != null,
                                 labelFontSize: labelFontSize,
                                 inputFontSize: inputFontSize,
