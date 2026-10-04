@@ -427,8 +427,10 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         try {
           final existingRows = await _supabase
               .from('assignments')
-              .select('hog_types(type_name)')
-              .eq('batch_id', _selectedBatchId!);
+              .select('hog_types(type_name), status')
+              .eq('batch_id', _selectedBatchId!)
+              .neq('status', 'archived')
+              .neq('status', 'completed');
           for (final row in (existingRows as List)) {
             final ht = row['hog_types'];
             final existingType = (ht is Map ? ht['type_name'] : null)?.toString().toLowerCase() ?? '';
