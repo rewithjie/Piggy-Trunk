@@ -1052,7 +1052,10 @@ class RaiserHomeTab extends StatelessWidget {
     final hogStage = _getHogCurrentStage(hog, isBreeding, fallbackStage);
     final hogName = _getHogDisplayName(hog, index, strings);
 
-    final weightNum = (hog['weight'] as num?)?.toDouble();
+    final rawWeight = hog['weight'] ?? hog['current_weight'];
+    final weightNum = rawWeight is num
+        ? rawWeight.toDouble()
+        : double.tryParse(rawWeight?.toString() ?? '');
     final weightStr = weightNum != null && weightNum > 0 ? '${weightNum.toStringAsFixed(1)} kg' : '';
     final healthStatus = (hog['health_status'] ?? 'Healthy').toString();
     final isSick = healthStatus.toLowerCase() == 'sick' ||

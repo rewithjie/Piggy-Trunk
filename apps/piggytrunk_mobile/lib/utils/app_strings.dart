@@ -37,8 +37,23 @@ class AppStrings {
   String get navInventory => isFilipino ? 'IMBENTARYO' : 'INVENTORY';
   String get navPOS => isFilipino ? 'POS' : 'POS';
 
+  // ─── Time-based greeting ────────────────────────────────────────────────
+  // Automatically detects device local time — no hardcoding.
+  // 12:00 AM – 11:59 AM  → Morning  (kasama ang 1AM, 2AM, 3AM = umaga na)
+  // 12:00 PM – 5:59 PM   → Afternoon
+  // 6:00 PM  – 11:59 PM  → Evening
+  String get helloGreeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return isFilipino ? 'Magandang Umaga,' : 'Good Morning,';
+    } else if (hour < 18) {
+      return isFilipino ? 'Magandang Hapon,' : 'Good Afternoon,';
+    } else {
+      return isFilipino ? 'Magandang Gabi,' : 'Good Evening,';
+    }
+  }
+
   // ================= Dashboard / Home Tab =================
-  String get helloGreeting => isFilipino ? 'Kumusta Tagapag-alaga,' : 'Hello Hog Raiser,';
   String get totalCurrentInvestment => isFilipino ? 'KABUUANG KASALUKUYANG PUHUNAN' : 'TOTAL CURRENT INVESTMENT';
   String get initialCapital => isFilipino ? 'Paunang Puhunan' : 'Initial Capital';
   String get stockRequestsSpend => isFilipino ? 'Ibinawas sa Puhunan' : 'Deducted Supplies';
@@ -142,6 +157,8 @@ class AppStrings {
   String get submitReportButton => isFilipino ? 'Magsumite ng Ulat' : 'Submit Report';
   String get searchHog => isFilipino ? 'Maghanap ng tag number...' : 'Search tag number...';
   String get statusHealthy => isFilipino ? 'Malusog' : 'Healthy';
+  String get statusRecovered => isFilipino ? 'Nakabawi' : 'Recovered';
+  String get logWeight => isFilipino ? 'Itala ang Timbang' : 'Log Weight';
   String get statusSick => isFilipino ? 'May Sakit' : 'Sick';
   String get statusObservation => isFilipino ? 'Obserbasyon' : 'Under Observation';
   String get statusQuarantine => isFilipino ? 'Kuwarentenas' : 'Quarantine';
@@ -185,6 +202,16 @@ class AppStrings {
   String advanceStagePrompt(String targetStage) => isFilipino
       ? 'Nais mo bang i-advance ang growth stage ng batch patungong $targetStage?'
       : 'Do you want to advance the batch growth stage to $targetStage?';
+  String advanceHogStagePrompt(String hogName, String targetStage) => isFilipino
+      ? 'Nais mo bang ilipat ang yugto ng pakain para sa $hogName patungong $targetStage?'
+      : 'Do you want to advance the feed stage for $hogName to $targetStage?';
+  String hogStageUpdatedSuccess(String hogName, String targetStage) => isFilipino
+      ? 'Matagumpay na nailipat ang yugto ng $hogName sa $targetStage!'
+      : 'Successfully updated feed stage of $hogName to $targetStage!';
+  String get fatteningTag => isFilipino ? 'Pagpapataba' : 'Fattening';
+  String get sowBreedTag => isFilipino ? 'Palahi / Sow' : 'Sow / Breeding';
+  String get feedStageLabel => isFilipino ? 'Yugto ng Pakain' : 'Feed Stage';
+  String get hogDetailsTitle => isFilipino ? 'Detalye ng Baboy' : 'Hog Details';
   String get update => isFilipino ? 'I-update' : 'Update';
 
   // ================= Edit Profile Modal =================
@@ -329,6 +356,7 @@ class AppStrings {
     if (s == 'distributed') return filterDistributed;
     if (s == 'rejected') return filterRejected;
     if (s == 'healthy') return statusHealthy;
+    if (s == 'recovered') return statusRecovered;
     if (s == 'sick') return statusSick;
     if (s == 'under observation') return statusObservation;
     if (s == 'quarantine') return statusQuarantine;
@@ -336,7 +364,7 @@ class AppStrings {
     if (s == 'food poisoning') return foodPoisoning;
     if (s == 'fever') return fever;
     if (s == 'diarrhea') return diarrhea;
-    if (s == 'injury') return injury;
+    if (s == 'injury' || s == 'injured') return injury;
     return status;
   }
 

@@ -204,14 +204,48 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       }
 
       // 3. Fetch total capital invested and total hogs from investment_records
-      final capitalRes = await Supabase.instance.client
-          .from('investment_records')
-          .select('initial_capital, total_hog, hog_type')
-          .eq('hog_raiser_id', raiserId.toString());
+      List<dynamic> capitalRes = [];
+      try {
+        capitalRes = await Supabase.instance.client
+            .from('investment_records')
+            .select('id, initial_capital, total_hog, hog_type, stage, investment_date')
+            .eq('hog_raiser_id', raiserId.toString())
+            .order('investment_date', ascending: true);
+      } catch (_) {
+        try {
+          capitalRes = await Supabase.instance.client
+              .from('investment_records')
+              .select('id, initial_capital, total_hog, hog_type, stage')
+              .eq('hog_raiser_id', raiserId.toString());
+        } catch (_) {
+          capitalRes = [];
+        }
+      }
+
+      final invRows = List<Map<String, dynamic>>.from(capitalRes);
+      invRows.sort((a, b) {
+        final dateA = (a['investment_date'] ?? a['created_at'] ?? '').toString();
+        final dateB = (b['investment_date'] ?? b['created_at'] ?? '').toString();
+        final c = dateA.compareTo(dateB);
+        if (c != 0) return c;
+        final idA = int.tryParse((a['id'] ?? '').toString()) ?? 0;
+        final idB = int.tryParse((b['id'] ?? '').toString()) ?? 0;
+        return idA.compareTo(idB);
+      });
 
       double totalCapital = 0.0;
-      for (var row in (capitalRes as List? ?? [])) {
-        totalCapital += (row['initial_capital'] as num?)?.toDouble() ?? 0.0;
+      final List<String> investmentHogTypes = [];
+      for (var row in invRows) {
+        final cap = (row['initial_capital'] as num?)?.toDouble() ?? 0.0;
+        final count = (row['total_hog'] as num?)?.toInt() ?? 0;
+        final rawHType = (row['hog_type'] ?? 'Fattening').toString().trim();
+        final hType = rawHType.toLowerCase().contains('sow') || rawHType.toLowerCase().contains('breed')
+            ? 'Sow'
+            : 'Fattening';
+        totalCapital += cap;
+        for (int i = 0; i < count; i++) {
+          investmentHogTypes.add(hType);
+        }
       }
 
       // 4. Fetch assignments with flexible status matching
@@ -226,11 +260,19 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         try {
           assignmentsRes = await Supabase.instance.client
               .from('assignments')
-              .select('*')
+              .select('*, hog_types(*), batches(*)')
               .eq('hog_raiser_id', raiserId);
-        } catch (_) {}
+        } catch (_) {
+          try {
+            assignmentsRes = await Supabase.instance.client
+                .from('assignments')
+                .select('*')
+                .eq('hog_raiser_id', raiserId);
+          } catch (_) {}
+        }
       }
 
+      // Pre-fetch all batches safely to avoid losing assignments if relational join returns list or null
       List<dynamic> allBatchesRaw = [];
       try {
         allBatchesRaw = await Supabase.instance.client.from('batches').select('*');
@@ -262,6 +304,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           assignments.add(a);
         }
       }
+
 
       // 5. Fetch hogs strictly for this raiser's active assignments
       List<dynamic> hogsRes = [];
@@ -324,6 +367,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
 
         if (assignedBatchType.isNotEmpty) {
+          // The batch's assignment is the authoritative type for hogs in that batch!
           hog['pig_type'] = assignedBatchType.toLowerCase().contains('sow') || assignedBatchType.toLowerCase().contains('breed')
               ? 'Sow'
               : 'Fattening';
@@ -608,7 +652,17 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           final hasSow = activeTypes.any((t) => t.toLowerCase().contains('sow') || t.toLowerCase().contains('breed'));
           final hasFattening = activeTypes.any((t) => t.toLowerCase().contains('fatten'));
           if (hasSow && hasFattening) {
-            resolvedPigType = 'Sow & Fattening';
+            resolvedPigType = 'Sow and Fattening';
+          } else if (hasSow) {
+            resolvedPigType = 'Sow';
+          } else {
+            resolvedPigType = 'Fattening';
+          }
+        } else if (investmentHogTypes.isNotEmpty) {
+          final hasSow = investmentHogTypes.any((t) => t.toLowerCase().contains('sow') || t.toLowerCase().contains('breed'));
+          final hasFattening = investmentHogTypes.any((t) => t.toLowerCase().contains('fatten'));
+          if (hasSow && hasFattening) {
+            resolvedPigType = 'Sow and Fattening';
           } else if (hasSow) {
             resolvedPigType = 'Sow';
           } else {
@@ -704,18 +758,136 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
-  Future<void> _updateLifecycleStage(String targetStage) async {
+  Future<void> _checkAndNotifyAdminIfFinalStage(String targetStage, [dynamic targetHogId]) async {
+    final sLower = targetStage.trim().toLowerCase();
+    final isFinal = sLower == 'selling' || sLower == 'lactation';
+    if (!isFinal) return;
+
+    final raiserName = (_raiserData['name'] ?? 'Hog Raiser').toString().trim();
+    final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
+
+    String pigType = 'Fattening';
+    if (targetHogId != null && _hogsList.isNotEmpty) {
+      final matchedHog = _hogsList.firstWhere(
+        (h) => h['hog_id'] == targetHogId || h['hog_id']?.toString() == targetHogId.toString(),
+        orElse: () => <String, dynamic>{},
+      );
+      if (matchedHog.isNotEmpty) {
+        final raw = (matchedHog['pig_type'] ?? matchedHog['type_name'] ?? matchedHog['type'] ?? '').toString().trim().toLowerCase();
+        if (raw == 'sow' || raw.contains('breed')) {
+          pigType = 'Sow';
+        }
+      }
+    }
+    if (pigType == 'Fattening' && _activeAssignments.isNotEmpty) {
+      final assign = _activeAssignments.first;
+      final ht = assign['hog_types'];
+      if (ht is Map && ht['type_name'] != null) {
+        pigType = ht['type_name'].toString();
+      } else if (assign['pig_type'] != null) {
+        pigType = assign['pig_type'].toString();
+      } else if (_raiserData['pig_type'] != null) {
+        pigType = _raiserData['pig_type'].toString();
+      }
+    }
+
+    String batchName = 'Active Batch';
+    dynamic batchId;
+    if (_activeAssignments.isNotEmpty) {
+      final assign = _activeAssignments.first;
+      final b = assign['batches'];
+      if (b is Map) {
+        batchName = (b['batch_name'] ?? 'Batch #${b['batch_id']}').toString();
+        batchId = b['batch_id'] ?? b['id'];
+      } else {
+        batchId = assign['batch_id'];
+        batchName = 'Batch #$batchId';
+      }
+    }
+
+    final notifTitle = pigType.toLowerCase().contains('sow')
+        ? 'Batch Cycle Completed (Sow)'
+        : 'Batch Ready for Selling / Harvest (Fattening)';
+
+    final notifMessage = pigType.toLowerCase().contains('sow')
+        ? '$raiserName has reached the final stage ($targetStage) for $batchName (Sow). Ready for batch cycle completion.'
+        : '$raiserName has reached the final stage ($targetStage) for $batchName (Fattening). Ready for harvest & batch completion.';
+
+    try {
+      final existing = await Supabase.instance.client
+          .from('admin_notifications')
+          .select('notification_id')
+          .eq('type', 'batch')
+          .eq('is_read', false)
+          .like('message', '%$raiserName%')
+          .like('message', '%$targetStage%')
+          .limit(1);
+
+      if ((existing as List).isEmpty) {
+        await Supabase.instance.client.from('admin_notifications').insert({
+          'title': notifTitle,
+          'message': notifMessage,
+          'type': 'batch',
+          'is_read': false,
+          'metadata': {
+            'hog_raiser_id': raiserId,
+            'raiser_name': raiserName,
+            'batch_id': batchId,
+            'batch_name': batchName,
+            'pig_type': pigType,
+            'stage': targetStage,
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        });
+        debugPrint('Automatic milestone notification sent to admin: $batchName ($pigType - $targetStage)');
+      }
+    } catch (e) {
+      debugPrint('Notice sending milestone notification to admin: $e');
+    }
+  }
+
+  Future<void> _updateLifecycleStage(String targetStage, [dynamic targetHogId]) async {
     final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
     if (raiserId == null) return;
 
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client
-          .from('hog_raisers')
-          .update({'lifecycle_stage': targetStage})
-          .eq('hog_raiser_id', raiserId);
+      if (targetHogId != null) {
+        final sLower = targetStage.trim().toLowerCase();
+        int stageNum = 1;
+        if (sLower == 'booster') {
+          stageNum = 1;
+        } else if (sLower == 'pre-starter' || sLower == 'pre starter') {
+          stageNum = 2;
+        } else if (sLower == 'starter') {
+          stageNum = 3;
+        } else if (sLower == 'grower') {
+          stageNum = 4;
+        } else if (sLower == 'finisher' || sLower == 'breeder') {
+          stageNum = 5;
+        } else if (sLower == 'selling' || sLower == 'lactation') {
+          stageNum = 6;
+        }
+
+        await Supabase.instance.client
+            .from('hogs')
+            .update({
+              'stage_id': stageNum,
+              'last_updated': DateTime.now().toIso8601String(),
+            })
+            .eq('hog_id', targetHogId);
+      } else {
+        await Supabase.instance.client
+            .from('hog_raisers')
+            .update({'lifecycle_stage': targetStage})
+            .eq('hog_raiser_id', raiserId);
+      }
 
       await _fetchRaiserData();
+
+      if (targetStage.trim().toLowerCase() == 'selling' || targetStage.trim().toLowerCase() == 'lactation') {
+        _checkAndNotifyAdminIfFinalStage(targetStage, targetHogId);
+      }
 
       if (mounted) {
         PiggyToast.showSuccess(
@@ -795,16 +967,29 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       await Supabase.instance.client.from('hog_reports').insert(reportData);
 
       String nextHealth = 'Healthy';
-      if (reportType == 'Sick' || reportType == 'Food Poisoning' || reportType == 'Fever' || reportType == 'Diarrhea') {
+      final rTypeLower = reportType.toLowerCase().trim();
+      if (rTypeLower == 'sick' ||
+          rTypeLower == 'food poisoning' ||
+          rTypeLower == 'fever' ||
+          rTypeLower == 'diarrhea') {
         nextHealth = 'Sick';
-      } else if (reportType == 'Dead') {
+      } else if (rTypeLower == 'injury' || rTypeLower == 'injured') {
+        nextHealth = 'Injured';
+      } else if (rTypeLower == 'dead' || rTypeLower == 'deceased') {
         nextHealth = 'Dead';
+      } else if (rTypeLower == 'recovered' || rTypeLower == 'healthy') {
+        nextHealth = 'Healthy';
       }
 
       if (targetHogId != null) {
-        final Map<String, dynamic> updateData = {'health_status': nextHealth};
+        final Map<String, dynamic> updateData = {
+          'health_status': nextHealth,
+          'last_updated': DateTime.now().toIso8601String(),
+        };
         if (nextHealth == 'Dead') {
           updateData['status'] = 'dead';
+        } else {
+          updateData['status'] = 'active';
         }
 
         try {

@@ -142,6 +142,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     if (t.contains('diarrhea')) return Icons.water_drop_outlined;
     if (t.contains('injury')) return Icons.healing_rounded;
     if (t.contains('dead') || t.contains('deceased')) return Icons.dangerous_rounded;
+    if (t.contains('weight') || t.contains('timbang')) return Icons.scale_rounded;
+    if (t.contains('recover') || t.contains('healthy') || t.contains('nakabawi')) return Icons.check_circle_rounded;
     return Icons.medical_services_rounded;
   }
 
@@ -152,6 +154,8 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     if (t.contains('poison')) return const Color(0xFFEA580C);
     if (t.contains('diarrhea')) return const Color(0xFFF59E0B);
     if (t.contains('dead') || t.contains('deceased')) return const Color(0xFF64748B);
+    if (t.contains('weight') || t.contains('timbang')) return const Color(0xFF2563EB);
+    if (t.contains('recover') || t.contains('healthy') || t.contains('nakabawi')) return _successGreen;
     return const Color(0xFFEF4444);
   }
 
@@ -329,6 +333,330 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     } catch (_) {}
   }
 
+  Future<void> _logHogWeight(Map<String, dynamic> hog, double newWeight) async {
+    final hogId = hog['hog_id'];
+    if (hogId == null) return;
+
+    final strings = AppStrings.of(context);
+    final raiserId = widget.raiserData['hog_raiser_id'] ?? widget.raiserData['id'];
+    final batchId = hog['batch_id'] ?? (widget.activeAssignments.isNotEmpty ? widget.activeAssignments[0]['batch_id'] : null);
+
+    try {
+      await Supabase.instance.client.from('hogs').update({
+        'weight': newWeight,
+        'last_updated': DateTime.now().toIso8601String(),
+      }).eq('hog_id', hogId);
+
+      if (raiserId != null) {
+        final Map<String, dynamic> reportData = {
+          'hog_raiser_id': raiserId,
+          'hog_id': hogId,
+          'report_type': 'Weight Log',
+          'description': 'Recorded weight: ${newWeight.toStringAsFixed(1)} kg',
+        };
+        if (batchId != null) reportData['batch_id'] = batchId;
+        try {
+          await Supabase.instance.client.from('hog_reports').insert(reportData);
+        } catch (_) {}
+      }
+
+      setState(() {
+        hog['weight'] = newWeight;
+        hog['current_weight'] = newWeight;
+      });
+
+      if (mounted) {
+        final tag = hog['tag_number'] ?? (strings.isFilipino ? 'Baboy' : 'Hog');
+        PiggyToast.showSuccess(
+          context,
+          strings.isFilipino
+              ? 'Nai-save ang timbang na ${newWeight.toStringAsFixed(1)} kg para sa $tag'
+              : 'Weight logged at ${newWeight.toStringAsFixed(1)} kg for $tag',
+        );
+      }
+
+      try {
+        await widget.onRefresh();
+      } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        PiggyToast.showError(context, 'Error updating weight: $e');
+      }
+    }
+  }
+
+  Widget _buildWeightAdjustPill(BuildContext context, String text, VoidCallback onTap, bool isDark) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2D42) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Text(
+            text,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF1D4ED8),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showLogWeightModal(
+    BuildContext context,
+    Map<String, dynamic> hog,
+    int index,
+    String fallbackType,
+  ) {
+    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final inputBg = isDark ? const Color(0xFF1E2D42) : const Color(0xFFF8FAFC);
+    final inputBorder = isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0);
+
+    final tagNumber = hog['tag_number'] ?? '#${index + 1}';
+    final rawWeight = hog['weight'] ?? hog['current_weight'];
+    final initialWeight = rawWeight is num
+        ? rawWeight.toDouble()
+        : (double.tryParse(rawWeight?.toString() ?? '') ?? 20.0);
+
+    double currentWeightVal = initialWeight;
+    final weightController = TextEditingController(text: initialWeight.toStringAsFixed(1));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            void adjustWeight(double delta) {
+              setModalState(() {
+                currentWeightVal = (currentWeightVal + delta).clamp(1.0, 500.0);
+                weightController.text = currentWeightVal.toStringAsFixed(1);
+              });
+            }
+
+            return Container(
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 14,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.25 : 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.scale_rounded, color: Color(0xFF2563EB), size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                strings.isFilipino ? 'Itala ang Timbang' : 'Log Hog Weight',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 17,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${strings.isFilipino ? "Baboy" : "Hog"} $tagNumber • ${strings.isFilipino ? "Kasalukuyan" : "Current"}: ${initialWeight.toStringAsFixed(1)} kg',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF64748B)),
+                          onPressed: () => Navigator.pop(modalCtx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Quick Increment / Decrement Chips
+                    Text(
+                      strings.isFilipino ? 'Mabilisang Pagsasaayos (kg):' : 'Quick Adjustment (kg):',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildWeightAdjustPill(modalCtx, '-1.0 kg', () => adjustWeight(-1.0), isDark),
+                        const SizedBox(width: 8),
+                        _buildWeightAdjustPill(modalCtx, '-0.5 kg', () => adjustWeight(-0.5), isDark),
+                        const SizedBox(width: 8),
+                        _buildWeightAdjustPill(modalCtx, '+0.5 kg', () => adjustWeight(0.5), isDark),
+                        const SizedBox(width: 8),
+                        _buildWeightAdjustPill(modalCtx, '+1.0 kg', () => adjustWeight(1.0), isDark),
+                        const SizedBox(width: 8),
+                        _buildWeightAdjustPill(modalCtx, '+5.0 kg', () => adjustWeight(5.0), isDark),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Input field
+                    Text(
+                      strings.isFilipino ? 'Bagong Timbang (kg):' : 'New Weight (kg):',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: weightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                      ),
+                      decoration: InputDecoration(
+                        suffixText: 'kg',
+                        suffixStyle: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
+                        fillColor: inputBg,
+                        filled: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: inputBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(color: inputBorder),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        final parsed = double.tryParse(val);
+                        if (parsed != null && parsed > 0) {
+                          currentWeightVal = parsed;
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Actions
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(modalCtx),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: BorderSide(color: isDark ? const Color(0xFF3B506D) : const Color(0xFFCBD5E1)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: Text(
+                              strings.cancel,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: isDark ? PiggyTrunkTheme.ptMutedDark : const Color(0xFF64748B),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final parsed = double.tryParse(weightController.text.trim());
+                              if (parsed == null || parsed <= 0) {
+                                PiggyToast.showWarning(modalCtx, strings.isFilipino ? 'Maglagay ng wastong timbang.' : 'Please enter a valid weight.');
+                                return;
+                              }
+                              Navigator.pop(modalCtx);
+                              await _logHogWeight(hog, parsed);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: Text(
+                              strings.isFilipino ? 'I-save ang Timbang' : 'Save Weight',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   void _showHogDetailModal(
     BuildContext context,
@@ -645,30 +973,57 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   ),
                   const SizedBox(height: 22),
 
-                  // Action Button: Report Issue (Full-width & aligned)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _showAddReportDialog(context, hogId);
-                      },
-                      icon: const Icon(Icons.medical_services_outlined, size: 16),
-                      label: Text(
-                        strings.isFilipino ? 'Mag-ulat ng Isyu' : 'Report Issue',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
+                  // Action Buttons: Log Weight & Report Issue
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showLogWeightModal(context, hog, index, fallbackType);
+                          },
+                          icon: const Icon(Icons.scale_rounded, size: 16),
+                          label: Text(
+                            strings.logWeight,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showAddReportDialog(context, hogId);
+                          },
+                          icon: const Icon(Icons.medical_services_outlined, size: 16),
+                          label: Text(
+                            strings.isFilipino ? 'Mag-ulat ng Isyu' : 'Report Issue',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -1201,6 +1556,10 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         DropdownMenuItem(value: 'Diarrhea', child: Text(strings.diarrhea)),
                         DropdownMenuItem(value: 'Injury', child: Text(strings.injury)),
                         DropdownMenuItem(value: 'Dead', child: Text(strings.deceasedReport)),
+                        DropdownMenuItem(
+                          value: 'Recovered',
+                          child: Text(strings.isFilipino ? 'Nakabawi / Malusog' : 'Recovered / Healthy'),
+                        ),
                       ],
                       onChanged: (val) {
                         if (val != null) {

@@ -967,16 +967,29 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       await Supabase.instance.client.from('hog_reports').insert(reportData);
 
       String nextHealth = 'Healthy';
-      if (reportType == 'Sick' || reportType == 'Food Poisoning' || reportType == 'Fever' || reportType == 'Diarrhea') {
+      final rTypeLower = reportType.toLowerCase().trim();
+      if (rTypeLower == 'sick' ||
+          rTypeLower == 'food poisoning' ||
+          rTypeLower == 'fever' ||
+          rTypeLower == 'diarrhea') {
         nextHealth = 'Sick';
-      } else if (reportType == 'Dead') {
+      } else if (rTypeLower == 'injury' || rTypeLower == 'injured') {
+        nextHealth = 'Injured';
+      } else if (rTypeLower == 'dead' || rTypeLower == 'deceased') {
         nextHealth = 'Dead';
+      } else if (rTypeLower == 'recovered' || rTypeLower == 'healthy') {
+        nextHealth = 'Healthy';
       }
 
       if (targetHogId != null) {
-        final Map<String, dynamic> updateData = {'health_status': nextHealth};
+        final Map<String, dynamic> updateData = {
+          'health_status': nextHealth,
+          'last_updated': DateTime.now().toIso8601String(),
+        };
         if (nextHealth == 'Dead') {
           updateData['status'] = 'dead';
+        } else {
+          updateData['status'] = 'active';
         }
 
         try {
