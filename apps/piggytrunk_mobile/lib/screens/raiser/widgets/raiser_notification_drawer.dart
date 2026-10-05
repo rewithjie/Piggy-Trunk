@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import 'package:piggytrunk/services/notification_service.dart';
 import '../../../utils/app_strings.dart';
 import '../../../widgets/piggy_toast.dart';
 import 'raiser_empty_state.dart';
@@ -58,19 +59,47 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
       return t.contains('Stock Request Approved') || t.contains('Kahilingan ng Stock');
     });
 
-    return widget.notificationsList.where((n) {
-      final title = (n['title'] ?? '').toString();
-      final msg = (n['message'] ?? n['content'] ?? '').toString();
+    final seenKeys = <String>{};
+    final deduped = <Map<String, dynamic>>[];
+
+    for (final n in widget.notificationsList) {
+      final title = (n['title'] ?? '').toString().trim();
+      final msg = (n['message'] ?? n['content'] ?? '').toString().trim();
+      final type = (n['type'] ?? n['category'] ?? '').toString().trim().toLowerCase();
+
       final isTriggerDuplicate = (title == 'Stock Request Update') &&
           (msg.contains('Feeds has been') ||
               msg.contains('Medicines has been') ||
               msg.contains('Vitamins has been') ||
               msg.contains('supplies has been'));
       if (isTriggerDuplicate && hasApprovedStock) {
-        return false;
+        continue;
       }
-      return true;
-    }).toList();
+
+      final batchId = (n['metadata'] is Map ? (n['metadata']['batch_id'] ?? '') : '').toString().trim();
+      final isBatchNotif = type == 'batch_assigned' ||
+          title.toLowerCase().contains('batch') ||
+          msg.toLowerCase().contains('batch');
+
+      final String dedupKey;
+      if (isBatchNotif && batchId.isNotEmpty) {
+        dedupKey = 'batch_$batchId';
+      } else if (isBatchNotif) {
+        final batchMatch = RegExp(r'(batch[\w\s\-]+)', caseSensitive: false).firstMatch(msg);
+        final extractedBatch = batchMatch != null ? batchMatch.group(1)?.toLowerCase().trim() : '';
+        dedupKey = extractedBatch != null && extractedBatch.isNotEmpty ? 'batch_$extractedBatch' : '$title|$msg';
+      } else {
+        dedupKey = '$title|$msg';
+      }
+
+      if (seenKeys.contains(dedupKey)) {
+        continue;
+      }
+      seenKeys.add(dedupKey);
+      deduped.add(n);
+    }
+
+    return deduped;
   }
 
   List<Map<String, dynamic>> get _filteredNotifications {
@@ -339,8 +368,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                         final notif = displayList[index];
                         final isRead = notif['is_read'] == true;
                         final notifId = (notif['notification_id'] ?? notif['id']) as int?;
-                        final title = (notif['title'] ?? 'Notification').toString();
-                        final message = (notif['message'] ?? notif['content'] ?? '').toString();
+                        final rawTitle = (notif['title'] ?? 'Notification').toString();
+                        final rawMessage = (notif['message'] ?? notif['content'] ?? '').toString();
+                        final title = NotificationService.localizeTitle(rawTitle, strings.isFilipino);
+                        final message = NotificationService.localizeMessage(rawMessage, strings.isFilipino);
                         final timeStr = _formatTime(notif['created_at'], strings);
                         final type = (notif['type'] ?? notif['category'] ?? '').toString().toLowerCase();
 

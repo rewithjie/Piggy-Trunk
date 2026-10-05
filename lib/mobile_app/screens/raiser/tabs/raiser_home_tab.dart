@@ -62,15 +62,49 @@ class RaiserHomeTab extends StatelessWidget {
     }
   }
 
+  static int _compareBatchTypes(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final aType = (a['hog_types'] is Map
+            ? a['hog_types']['type_name']
+            : (a['hog_types'] is List && (a['hog_types'] as List).isNotEmpty
+                ? (a['hog_types'] as List).first['type_name']
+                : null)) ??
+        a['pig_type'] ??
+        '';
+    final bType = (b['hog_types'] is Map
+            ? b['hog_types']['type_name']
+            : (b['hog_types'] is List && (b['hog_types'] as List).isNotEmpty
+                ? (b['hog_types'] as List).first['type_name']
+                : null)) ??
+        b['pig_type'] ??
+        '';
+
+    int getPriority(dynamic t) {
+      final s = t.toString().toLowerCase();
+      if (s.contains('fatten')) return 0;
+      if (s.contains('sow') || s.contains('breed')) return 1;
+      return 2;
+    }
+
+    final aPrio = getPriority(aType);
+    final bPrio = getPriority(bType);
+    if (aPrio != bPrio) return aPrio.compareTo(bPrio);
+
+    final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+    final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+    return aId.compareTo(bId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final strings = AppStrings.of(context);
     final raiserName = raiserData['name'] ?? strings.hogRaiserRole;
 
-    // Active and Completed Batches Partitioning
-    final activeBatches = activeAssignments.where((a) => a['is_cycle_completed'] != true).toList();
-    final completedBatches = activeAssignments.where((a) => a['is_cycle_completed'] == true).toList();
+    // Active and Completed Batches Partitioning (Fattening ALWAYS first)
+    final activeBatches = activeAssignments.where((a) => a['is_cycle_completed'] != true).toList()
+      ..sort(_compareBatchTypes);
+    final completedBatches = activeAssignments.where((a) => a['is_cycle_completed'] == true).toList()
+      ..sort(_compareBatchTypes);
     final hasInvestment = initialCapital > 0 || investedAmount > 0;
 
     // Resilient fallback: Only reactivate if the batch's hogs are NOT all at final stage
@@ -689,7 +723,6 @@ class RaiserHomeTab extends StatelessWidget {
                     final batchAssign = activeBatches[bIdx];
                     final bAssignIdStr = (batchAssign['assignment_id'] ?? batchAssign['id'])?.toString();
                     final bHogs = activeHogsList.where((h) => h['assignment_id']?.toString() == bAssignIdStr).toList();
-                    final bRawName = (batchAssign['batches']?['batch_name'] ?? batchAssign['batch_name'] ?? 'Batch #${batchAssign['batch_id']}').toString();
                     final bRawType = (batchAssign['hog_types']?['type_name'] ?? batchAssign['pig_type'] ?? 'Fattening').toString();
                     final bIsSow = bRawType.toLowerCase().contains('sow') || bRawType.toLowerCase().contains('breed');
                     final bStages = bIsSow
@@ -707,7 +740,7 @@ class RaiserHomeTab extends StatelessWidget {
                           children: [
                             Text(
                               activeBatches.length > 1
-                                  ? '${strings.isFilipino ? "Mga Stage ng Pakain" : "Feeds Stages"} • ${bIsSow ? (strings.isFilipino ? "Inahing Baboy" : "Sow") : (strings.isFilipino ? "Fattening" : "Fattening")} ($bRawName)'
+                                  ? '${strings.isFilipino ? "Mga Stage ng Pakain" : "Feeds Stages"} • ${bIsSow ? (strings.isFilipino ? "Inahing Baboy" : "Sow") : "Fattening"}'
                                   : (strings.isFilipino ? 'Mga Stage ng Pakain' : 'Feeds Stages'),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
@@ -765,7 +798,7 @@ class RaiserHomeTab extends StatelessWidget {
                         ] else ...[
                           _buildFeedsCard(
                             context: context,
-                            title: bRawName,
+                            title: '${strings.isFilipino ? "Mga Stage ng Pakain" : "Feeds Stages"} • ${bIsSow ? (strings.isFilipino ? "Inahing Baboy" : "Sow") : "Fattening"}',
                             badgeText: bIsSow ? (strings.isFilipino ? 'Inahing Baboy' : 'Sow') : (strings.isFilipino ? 'Pangkaraniwan' : 'Fattening'),
                             stages: bStages,
                             activeStage: bCurrentStage,
@@ -921,14 +954,6 @@ class RaiserHomeTab extends StatelessWidget {
                     children: requestsList.take(3).map((req) {
                       final dateStr = _formatDate(req['request_date'] ?? '');
                       final status = (req['status'] ?? 'Pending').toString();
-                      final rawBatchName = (req['assignments']?['batches']?['batch_name'] ?? '').toString().trim();
-                      String batchName = rawBatchName;
-                      if (rawBatchName.contains('(')) {
-                        final parts = rawBatchName.split('(');
-                        if (parts.last.endsWith(')')) {
-                          batchName = parts.sublist(0, parts.length - 1).join('(').trim();
-                        }
-                      }
                       final feedType = (req['feed_type'] ?? '').toString().trim();
                       final category = (req['category'] ?? '').toString().trim();
                       final productName = feedType.isNotEmpty
@@ -940,7 +965,7 @@ class RaiserHomeTab extends StatelessWidget {
                       return _buildActivityItem(
                         context: context,
                         icon: Icons.assignment_outlined,
-                        title: batchName.isNotEmpty ? '$itemLabel ($batchName)' : itemLabel,
+                        title: itemLabel,
                         subtitle: '$dateStr • ${strings.isFilipino ? "Katayuan" : "Status"}: ${strings.formatStatus(status).toUpperCase()}',
                         isCompleted: status.toLowerCase() == 'approved',
                       );
@@ -2188,7 +2213,7 @@ class RaiserHomeTab extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        for (final bAssign in activeAssignments) ...[
+                        for (final bAssign in (List<Map<String, dynamic>>.from(activeAssignments)..sort(_compareBatchTypes))) ...[
                           Builder(
                             builder: (context) {
                               final bDone = bAssign['is_cycle_completed'] == true;

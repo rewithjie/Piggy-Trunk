@@ -63,24 +63,53 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
   late List<Map<String, dynamic>> _assignments;
   RealtimeChannel? _assignmentsChannel;
 
+  String _resolveAssignmentPigType(Map<String, dynamic> a) {
+    final htData = a['hog_types'];
+    String raw = '';
+    if (htData is Map) {
+      raw = htData['type_name']?.toString() ?? '';
+    } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+      raw = htData.first['type_name']?.toString() ?? '';
+    }
+    if (raw.isEmpty) {
+      raw = a['pig_type']?.toString() ??
+          widget.raiserData['pig_type']?.toString() ??
+          '';
+    }
+    return raw;
+  }
+
+  int _compareAssignments(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final aDone = a['is_cycle_completed'] == true;
+    final bDone = b['is_cycle_completed'] == true;
+    if (!aDone && bDone) return -1;
+    if (aDone && !bDone) return 1;
+
+    final aType = _resolveAssignmentPigType(a).toLowerCase();
+    final bType = _resolveAssignmentPigType(b).toLowerCase();
+    final aIsFat = aType.contains('fatten');
+    final bIsFat = bType.contains('fatten');
+    if (aIsFat && !bIsFat) return -1;
+    if (!aIsFat && bIsFat) return 1;
+
+    final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+    final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+    return bId.compareTo(aId);
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory.isNotEmpty ? widget.initialCategory : 'All';
     _assignments = List<Map<String, dynamic>>.from(widget.activeAssignments);
-    _assignments.sort((a, b) {
-      final aDone = a['is_cycle_completed'] == true;
-      final bDone = b['is_cycle_completed'] == true;
-      if (!aDone && bDone) return -1;
-      if (aDone && !bDone) return 1;
-
-      final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
-      final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
-      return bId.compareTo(aId);
-    });
+    _assignments.sort(_compareAssignments);
 
     if (_assignments.isNotEmpty) {
-      _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
+      final firstActive = _assignments.firstWhere(
+        (a) => a['is_cycle_completed'] != true,
+        orElse: () => _assignments[0],
+      );
+      _selectedAssignmentId = BigInt.from(firstActive['assignment_id'] as num);
     }
 
     _loadInventoryProducts();
@@ -94,10 +123,25 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     if (widget.activeAssignments != oldWidget.activeAssignments) {
       setState(() {
         _assignments = List<Map<String, dynamic>>.from(widget.activeAssignments);
+        _assignments.sort(_compareAssignments);
+        final currentSelected = _selectedAssignmentId != null
+            ? _assignments.firstWhere(
+                (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+                orElse: () => {},
+              )
+            : <String, dynamic>{};
+        final isCurrentCompleted = currentSelected.isNotEmpty && currentSelected['is_cycle_completed'] == true;
+        final hasNonCompleted = _assignments.any((a) => a['is_cycle_completed'] != true);
+
         if (_selectedAssignmentId == null ||
-            !_assignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId)) {
-          _selectedAssignmentId = _assignments.isNotEmpty
-              ? BigInt.from(_assignments[0]['assignment_id'] as num)
+            !_assignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId) ||
+            (isCurrentCompleted && hasNonCompleted)) {
+          final firstActive = _assignments.firstWhere(
+            (a) => a['is_cycle_completed'] != true,
+            orElse: () => _assignments.isNotEmpty ? _assignments[0] : <String, dynamic>{},
+          );
+          _selectedAssignmentId = firstActive.isNotEmpty
+              ? BigInt.from(firstActive['assignment_id'] as num)
               : null;
         }
       });
@@ -243,16 +287,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         }
       }
 
-      activeList.sort((a, b) {
-        final aDone = a['is_cycle_completed'] == true;
-        final bDone = b['is_cycle_completed'] == true;
-        if (!aDone && bDone) return -1;
-        if (aDone && !bDone) return 1;
-
-        final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
-        final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
-        return bId.compareTo(aId);
-      });
+      activeList.sort(_compareAssignments);
 
       if (mounted) {
         setState(() {
@@ -1781,7 +1816,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                     itemCount: _assignments.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (ctx, index) {
-                      final a = _assignments[index];
+                      final sortedList = List<Map<String, dynamic>>.from(_assignments)..sort(_compareAssignments);
+                      final a = sortedList[index];
                       final aId = BigInt.from(a['assignment_id'] as num);
                       final isSelected = aId == _selectedAssignmentId;
 
@@ -1816,141 +1852,162 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                       }
 
 
-                      return InkWell(
-                        onTap: () {
-                          setState(() => _selectedAssignmentId = aId);
-                          if (modalStateSetter != null) {
-                            modalStateSetter(() {});
-                          }
-                          Navigator.pop(ctx);
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFEFF6FF))
-                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
+                      final isCompleted = a['is_cycle_completed'] == true;
+
+                      return Opacity(
+                        opacity: isCompleted ? 0.6 : 1.0,
+                        child: InkWell(
+                          onTap: () {
+                            if (isCompleted) {
+                              PiggyToast.showWarning(
+                                context,
+                                strings.isFilipino
+                                    ? 'Nasa history na ang batch na ito at tapos na ang siklo. Bawal nang mag-request ng supply dito.'
+                                    : 'This batch cycle is completed and archived in history. You cannot request supplies for a completed batch.',
+                                title: strings.isFilipino ? 'Tapos na ang Siklo' : 'Cycle Completed',
+                              );
+                              return;
+                            }
+                            setState(() => _selectedAssignmentId = aId);
+                            if (modalStateSetter != null) {
+                              modalStateSetter(() {});
+                            }
+                            Navigator.pop(ctx);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
-                                  : borderColor,
-                              width: isSelected ? 1.8 : 1.0,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.1))
-                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  Icons.pets_rounded,
-                                  color: isSelected
-                                      ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
-                                      : mutedColor,
-                                  size: 20,
-                                ),
+                                  ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFEFF6FF))
+                                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                    : borderColor,
+                                width: isSelected ? 1.8 : 1.0,
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      displayBatchName,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 14,
-                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                        color: isSelected
-                                            ? (isDark ? Colors.white : _brandColor)
-                                            : textColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            rawHogType,
-                                            style: GoogleFonts.plusJakartaSans(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w700,
-                                              color: isDark ? Colors.white70 : _brandColor,
-                                            ),
-                                          ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.1))
+                                        : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    isCompleted ? Icons.history_rounded : Icons.pets_rounded,
+                                    color: isSelected
+                                        ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                        : mutedColor,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        displayBatchName,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 14,
+                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                          color: isSelected
+                                              ? (isDark ? Colors.white : _brandColor)
+                                              : textColor,
                                         ),
-                                        const SizedBox(width: 6),
-                                        if (a['is_cycle_completed'] == true)
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF14291F) : const Color(0xFFECFDF5),
-                                              borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.check_rounded, size: 10, color: Color(0xFF10B981)),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  strings.isFilipino ? 'Tapos na' : 'Concluded',
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    fontSize: 9.5,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        else
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                                               borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: Text(
-                                              strings.isFilipino ? 'Aktibo' : 'Active',
+                                              rawHogType,
                                               style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 9.5,
+                                                fontSize: 10.5,
                                                 fontWeight: FontWeight.w700,
-                                                color: const Color(0xFF10B981),
+                                                color: isDark ? Colors.white70 : _brandColor,
                                               ),
                                             ),
                                           ),
-                                      ],
-                                    ),
-                                  ],
+                                          const SizedBox(width: 6),
+                                          if (isCompleted)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.lock_rounded, size: 10, color: mutedColor),
+                                                  const SizedBox(width: 3),
+                                                  Text(
+                                                    strings.isFilipino ? 'Tapos na • Naka-lock' : 'Concluded • Locked',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 9.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: mutedColor,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                          else
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                strings.isFilipino ? 'Aktibo' : 'Active',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: const Color(0xFF10B981),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              if (isSelected)
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: Color(0xFF10B981),
-                                  size: 22,
-                                )
-                              else
-                                Icon(
-                                  Icons.radio_button_unchecked_rounded,
-                                  color: mutedColor.withValues(alpha: 0.6),
-                                  size: 22,
-                                ),
-                            ],
+                                const SizedBox(width: 8),
+                                if (isCompleted)
+                                  Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: mutedColor.withValues(alpha: 0.6),
+                                    size: 20,
+                                  )
+                                else if (isSelected)
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Color(0xFF10B981),
+                                    size: 22,
+                                  )
+                                else
+                                  Icon(
+                                    Icons.radio_button_unchecked_rounded,
+                                    color: mutedColor.withValues(alpha: 0.6),
+                                    size: 22,
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -2025,119 +2082,156 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       orElse: () => _assignments.first,
     );
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(18, 2, 18, 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: surfaceBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: InkWell(
-        onTap: hasMultipleBatches ? () => _showBatchPickerModal(context) : null,
-        borderRadius: BorderRadius.circular(10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.08),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Icon(Icons.pets_rounded, size: 14, color: isDark ? Colors.white : _brandColor),
+    final isConcluded = selectedAssignment['is_cycle_completed'] == true;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(18, 2, 18, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: surfaceBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.02),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
               ),
-              const SizedBox(width: 8),
-              Text(
-                strings.isFilipino ? 'Batch:' : 'Batch:',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: mutedColor,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  _formatAssignmentLabel(selectedAssignment),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: textColor,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (selectedAssignment['is_cycle_completed'] == true) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.08),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.5 : 0.25),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle_rounded, size: 10.5, color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
-                      const SizedBox(width: 3.5),
-                      Text(
-                        strings.isFilipino ? 'Tapos Na' : 'Completed',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              if (hasMultipleBatches) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        strings.isFilipino ? 'Palitan' : 'Change',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFF38BDF8) : _brandColor,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(
-                        Icons.unfold_more_rounded,
-                        size: 14,
-                        color: isDark ? const Color(0xFF38BDF8) : _brandColor,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
+          child: InkWell(
+            onTap: hasMultipleBatches ? () => _showBatchPickerModal(context) : null,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.08),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(Icons.pets_rounded, size: 14, color: isDark ? Colors.white : _brandColor),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Batch:',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: mutedColor,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _formatAssignmentLabel(selectedAssignment),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isConcluded) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_rounded, size: 10.5, color: mutedColor),
+                          const SizedBox(width: 3.5),
+                          Text(
+                            strings.isFilipino ? 'Tapos Na • Naka-lock' : 'Concluded • Locked',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: mutedColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (hasMultipleBatches) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            strings.isFilipino ? 'Palitan' : 'Change',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Icon(
+                            Icons.unfold_more_rounded,
+                            size: 14,
+                            color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ),
-      ),
+        if (isConcluded) ...[
+          Container(
+            margin: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_clock_rounded, color: Color(0xFFEF4444), size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    strings.isFilipino
+                        ? 'Naitapos na ang siklo ng batch na ito. Naka-lock na ang paghingi ng supply hanggang sa mag-assign ng panibagong batch ang Farm Admin.'
+                        : 'This batch cycle is completed. Supply requests are locked until Farm Admin assigns your next batch.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFB91C1C),
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 

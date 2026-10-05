@@ -271,6 +271,19 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
         rMap['batch_id'] = matchedBatchId;
         rMap['assignment_id'] = matchedAssignmentId;
 
+        final batchAssignmentIds = <String>{};
+        if (matchedBatchId != null && matchedBatchId.isNotEmpty) {
+          for (var a in assignmentsRaw) {
+            if (a is Map && (a['batch_id'] ?? '').toString() == matchedBatchId) {
+              final aId = (a['assignment_id'] ?? a['id'])?.toString();
+              if (aId != null && aId.isNotEmpty) batchAssignmentIds.add(aId);
+            }
+          }
+        }
+        if (matchedAssignmentId != null && matchedAssignmentId.isNotEmpty) {
+          batchAssignmentIds.add(matchedAssignmentId);
+        }
+
         // D. Calculate stocks spend and itemized history for this batch
         final List<Map<String, dynamic>> providedStocksList = [];
         double batchStocksSpend = 0.0;
@@ -284,7 +297,9 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           final reqAssignmentId = (req['assignment_id'] ?? '').toString();
 
           bool isMatch = false;
-          if (matchedAssignmentId != null && reqAssignmentId.isNotEmpty) {
+          if (batchAssignmentIds.isNotEmpty && reqAssignmentId.isNotEmpty) {
+            isMatch = batchAssignmentIds.contains(reqAssignmentId);
+          } else if (matchedAssignmentId != null && reqAssignmentId.isNotEmpty) {
             isMatch = (reqAssignmentId == matchedAssignmentId);
           } else if (reqRaiserId == raiserId) {
             isMatch = true;

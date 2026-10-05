@@ -420,7 +420,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
       if (assignedRaiserId.isNotEmpty && assignedRaiserId != 'unassigned' && assignedRaiserId != _selectedRaiserId && !_isEdit) {
         final rName = matchedBatch['raiser_name'] ?? 'another Hog Raiser';
         widget.onShowSnackBar(
-          '${matchedBatch['batch_name']} is already assigned to $rName. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
+          '${matchedBatch['batch_name']} is already assigned to $rName. Each batch can only be assigned to one Hog Raiser.',
           isError: true,
         );
         return;
@@ -435,7 +435,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
       if (rBatchId != null && rBatchId.isNotEmpty && !isDone && rBatchId != _selectedBatchId && !_isEdit) {
         final bName = matchedRaiser['assigned_batch_name'] ?? 'another Batch';
         widget.onShowSnackBar(
-          '${matchedRaiser['name']} is already managing $bName. Each Hog Raiser can only manage 1 active batch (1:1 ratio).',
+          '${matchedRaiser['name']} is already managing $bName. Each Hog Raiser can only manage one active batch at a time.',
           isError: true,
         );
         return;
@@ -487,7 +487,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
               if (!mounted) return;
               setState(() => _isSubmitting = false);
               widget.onShowSnackBar(
-                'This batch is already assigned to another Hog Raiser. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
+                'This batch is already assigned to another Hog Raiser. Each batch can only be assigned to one Hog Raiser.',
                 isError: true,
               );
               return;
@@ -505,7 +505,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             if (!mounted) return;
             setState(() => _isSubmitting = false);
             widget.onShowSnackBar(
-              '$raiserName is already assigned to another active batch. Each Hog Raiser belongs to 1 batch (1:1 ratio).',
+              '$raiserName is already assigned to another active batch. Each Hog Raiser can only manage one active batch at a time.',
               isError: true,
             );
             return;
@@ -1210,8 +1210,8 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                             subtitle: hasCurrentBatchRaiser
                                 ? 'Locked (Batch assigned to ${currentSelectedBatch!['raiser_name']})'
                                 : null,
-                            badge: hasCurrentBatchRaiser ? '1:1 Locked' : null,
-                            badgeColor: hasCurrentBatchRaiser ? (_isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8)) : null,
+                            badge: null,
+                            badgeColor: null,
                             isEnabled: !hasCurrentBatchRaiser,
                             icon: hasCurrentBatchRaiser ? Icons.lock_outline_rounded : Icons.person_off_outlined,
                             iconColor: _isDark ? const Color(0xFF94A3B8) : _mutedColor,
@@ -1254,14 +1254,14 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
 
                           if (isBatchAssignedToOther) {
                             subText = 'Locked (Batch assigned to ${currentSelectedBatch!['raiser_name']})';
-                            bColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
-                            badgeText = '1:1 Locked';
+                            bColor = null;
+                            badgeText = null;
                             itemIcon = Icons.lock_outline_rounded;
                             iconCol = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
                           } else if (isRaiserActiveInOther) {
                             subText = 'Locked (Active in $assignedBatchName)';
-                            bColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
-                            badgeText = '1:1 Locked';
+                            bColor = null;
+                            badgeText = null;
                             itemIcon = Icons.lock_outline_rounded;
                             iconCol = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
                           } else if (isAssignedToCurrent) {
@@ -1310,7 +1310,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                           if (assignedRaiserId.isNotEmpty && assignedRaiserId != 'unassigned' && assignedRaiserId != val) {
                             final assignedRaiserName = currentBatch['raiser_name'] ?? 'another Hog Raiser';
                             widget.onShowSnackBar(
-                              '${currentBatch['batch_name']} is already assigned to $assignedRaiserName. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
+                              '${currentBatch['batch_name']} is already assigned to $assignedRaiserName. Each batch can only be assigned to one Hog Raiser.',
                               isError: true,
                             );
                             return;
@@ -1329,7 +1329,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                             if (_selectedBatchId != null && _selectedBatchId != 'unassigned' && rBatchId != _selectedBatchId) {
                               final assignedBatchName = chosenRaiser['assigned_batch_name'] ?? 'another Batch';
                               widget.onShowSnackBar(
-                                '${chosenRaiser['name']} is already active in $assignedBatchName. Each Hog Raiser can only manage 1 batch (1:1 ratio).',
+                                '${chosenRaiser['name']} is already active in $assignedBatchName. Each Hog Raiser can only manage one active batch at a time.',
                                 isError: true,
                               );
                               return;

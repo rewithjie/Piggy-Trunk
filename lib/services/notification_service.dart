@@ -107,98 +107,242 @@ class NotificationService {
   /// Translates notification title based on the active language (isFilipino)
   static String localizeTitle(String title, bool isFilipino) {
     final clean = cleanText(title).trim();
-    if (isFilipino) return clean;
-
     final lower = clean.toLowerCase();
-    if (lower.contains('bagong investment na na-assign') ||
-        (lower.contains('bagong investment') && lower.contains('na-assign'))) {
-      return 'New Investment Assigned to You!';
+
+    if (isFilipino) {
+      if (lower.contains('new investment') || lower.contains('investment assigned')) {
+        return 'May Bagong Investment na Na-assign sa Iyo!';
+      }
+      if (lower.contains('new batch') || lower.contains('batch assigned')) {
+        return 'Bagong Batch na Na-assign sa Iyo!';
+      }
+      if (lower.contains('new funds') || lower.contains('funds allocated')) {
+        return 'May Bagong Pondo ang Iyong Batch!';
+      }
+      if (lower.contains('feeds restocked') || lower.contains('feeds & supplies')) {
+        return 'Nag-restock ng Feeds!';
+      }
+      if (lower.contains('has been approved') || lower.contains('request approved')) {
+        return 'Naaprubahan ang Iyong Request!';
+      }
+      if (lower.contains('was declined') || lower.contains('request declined')) {
+        return 'Tinanggihan ang Iyong Request';
+      }
+      if (lower.contains('stage updated') || lower.contains('lifecycle')) {
+        return 'Na-update ang Lifecycle Stage';
+      }
+      if (lower.contains('health report')) {
+        return 'Ulat sa Kalusugan';
+      }
+      if (lower.contains('stock request update')) {
+        return 'Update sa Kahilingan ng Stock';
+      }
+      return clean;
+    } else {
+      if (lower.contains('bagong investment') || lower.contains('investment na na-assign')) {
+        return 'New Investment Assigned to You!';
+      }
+      if (lower.contains('bagong batch') || lower.contains('batch na na-assign')) {
+        return 'New Batch Assigned to You!';
+      }
+      if (lower.contains('pondo ang iyong batch') || lower.contains('pondo para sa iyong batch') || lower.contains('bagong pondo')) {
+        return 'New Funds Allocated for Your Batch!';
+      }
+      if (lower.contains('nag-restock ng feeds') || lower.contains('bagong stock') || lower.contains('bagong supply')) {
+        return 'New Feeds & Supplies Available!';
+      }
+      if (lower.contains('naaprubahan ang iyong request') || lower.contains('naaprubahan')) {
+        return 'Your Request Has Been Approved!';
+      }
+      if (lower.contains('tinanggihan ang iyong request') || lower.contains('tinanggihan')) {
+        return 'Your Request Was Declined';
+      }
+      if (lower.contains('na-update ang lifecycle') || lower.contains('stage updated')) {
+        return 'Lifecycle Stage Updated';
+      }
+      if (lower.contains('ulat sa kalusugan') || lower.contains('health report')) {
+        return 'Health Report Update';
+      }
+      if (lower.contains('update sa kahilingan ng stock')) {
+        return 'Stock Request Update';
+      }
+      return clean;
     }
-    if (lower.contains('bagong batch na na-assign') ||
-        (lower.contains('bagong batch') && lower.contains('na-assign'))) {
-      return 'New Batch Assigned to You!';
-    }
-    if (lower.contains('pondo para sa iyong batch') || lower.contains('bagong pondo')) {
-      return 'New Funds Allocated for Your Batch!';
-    }
-    if (lower.contains('bagong stock ng feeds') || lower.contains('bagong supply')) {
-      return 'New Feeds & Supplies Available!';
-    }
-    if (lower.contains('naaprubahan ang iyong request') || lower.contains('naaprubahan')) {
-      return 'Your Request Has Been Approved!';
-    }
-    if (lower.contains('tinanggihan ang iyong request') || lower.contains('tinanggihan')) {
-      return 'Your Request Was Declined';
-    }
-    if (lower.contains('na-update ang lifecycle') || lower.contains('stage updated')) {
-      return 'Lifecycle Stage Updated';
-    }
-    if (lower.contains('ulat sa kalusugan') || lower.contains('health report')) {
-      return 'Health Report Update';
-    }
-    return clean;
   }
 
   /// Translates notification message based on the active language (isFilipino)
   static String localizeMessage(String message, bool isFilipino) {
     final clean = cleanText(message).trim();
-    if (isFilipino) return clean;
 
-    // Pattern 1: Nag-assign ang Admin ng bagong Investment na may X Type na may pondong ₱Y para sa iyong pangangalaga.
-    final investRegexWithCapital = RegExp(
-      r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*([a-zA-Z\s]+)?\s*na may pondong\s*([₱\d,.]+)\s*para sa iyong pangangalaga\.?',
-      caseSensitive: false,
-    );
-    final match1 = investRegexWithCapital.firstMatch(clean);
-    if (match1 != null) {
-      final count = match1.group(1) ?? '1';
-      final type = match1.group(2)?.trim() ?? 'hog';
-      final capital = match1.group(3) ?? '';
-      return 'Admin assigned a new investment of $count $type with a budget of $capital for your care.';
+    if (isFilipino) {
+      // 1. English -> Filipino: Investment with budget
+      final investRegexWithCapitalEng = RegExp(
+        r'admin assigned a new investment of\s*(\d+)\s*(.*?)\s*with a budget of\s*([₱\d,.]+)\s*for your care\.?',
+        caseSensitive: false,
+      );
+      final matchE1 = investRegexWithCapitalEng.firstMatch(clean);
+      if (matchE1 != null) {
+        final count = matchE1.group(1) ?? '1';
+        final type = matchE1.group(2)?.trim() ?? 'baboy';
+        final capital = matchE1.group(3) ?? '';
+        return 'Nag-assign ang Admin ng bagong investment na may $count $type na may pondong $capital para sa iyong pangangalaga.';
+      }
+
+      // 2. English -> Filipino: Simple Investment
+      final investRegexSimpleEng = RegExp(
+        r'admin assigned a new investment of\s*(\d+)\s*(.*?)\s*for your care\.?',
+        caseSensitive: false,
+      );
+      final matchE2 = investRegexSimpleEng.firstMatch(clean);
+      if (matchE2 != null) {
+        final count = matchE2.group(1) ?? '1';
+        final type = matchE2.group(2)?.trim() ?? 'baboy';
+        return 'Nag-assign ang Admin ng bagong investment na may $count $type para sa iyong pangangalaga.';
+      }
+
+      // 3. English -> Filipino: Batch assignment
+      final batchRegexEng = RegExp(
+        r'admin assigned\s*(.*?)\s*to you\.\s*you can now start monitoring and updating logs\.?',
+        caseSensitive: false,
+      );
+      final matchE3 = batchRegexEng.firstMatch(clean);
+      if (matchE3 != null) {
+        final batchName = matchE3.group(1)?.trim() ?? 'bagong batch';
+        return 'Na-assign sa iyo ng Admin ang $batchName. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.';
+      }
+
+      // 4. English -> Filipino: Partner funds
+      final partnerFundsEng1 = RegExp(
+        r'(.*?)\s*allocated\s*([₱\d,.]+)\s*in funds for\s*(.*?)\.?',
+        caseSensitive: false,
+      );
+      final matchPE1 = partnerFundsEng1.firstMatch(clean);
+      if (matchPE1 != null) {
+        final partner = matchPE1.group(1)?.trim() ?? 'Isang Partner Investor';
+        final amount = matchPE1.group(2)?.trim() ?? '';
+        final batch = matchPE1.group(3)?.trim() ?? 'batch';
+        return '$partner ang naglaan ng $amount na pondo para sa $batch.';
+      }
+
+      if (clean.toLowerCase().contains('partner allocated additional funds')) {
+        return clean
+            .replaceAll(RegExp(r'Partner allocated additional funds', caseSensitive: false), 'Naglaan ang partner ng karagdagang pondo')
+            .replaceAll(RegExp(r'for your batch', caseSensitive: false), 'para sa iyong batch');
+      }
+
+      // 5. English -> Filipino: Feed restock
+      final restockRegexEng = RegExp(
+        r'(.*?)\s*is now restocked and available \((.*?) units added\)\.?',
+        caseSensitive: false,
+      );
+      final matchRestockE = restockRegexEng.firstMatch(clean);
+      if (matchRestockE != null) {
+        final product = matchRestockE.group(1)?.trim() ?? 'Feeds';
+        final units = matchRestockE.group(2)?.trim() ?? '0';
+        return 'Ang $product ay na-restock na at available na ($units units ang naidagdag).';
+      }
+
+      // 6. English -> Filipino: Stock requests
+      final reqApprEng = RegExp(
+        r'your request for\s*(.*?)\s*has been approved\.?',
+        caseSensitive: false,
+      );
+      if (clean.toLowerCase().contains('your request has been approved for')) {
+        return clean
+            .replaceAll(RegExp(r'Your request has been approved for', caseSensitive: false), 'Naaprubahan ang iyong request para sa')
+            .replaceAll(RegExp(r'You can now claim it from the store\.?', caseSensitive: false), 'Maaari mo na itong kunin sa tindahan.');
+      } else if (reqApprEng.hasMatch(clean)) {
+        return clean.replaceAllMapped(reqApprEng, (m) => 'Naaprubahan ang iyong request para sa ${m.group(1)}.');
+      }
+
+      if (clean.toLowerCase().contains('your request was declined for')) {
+        return clean
+            .replaceAll(RegExp(r'Your request was declined for', caseSensitive: false), 'Tinanggihan ang iyong request para sa');
+      }
+
+      return clean;
+    } else {
+      // 1. Filipino -> English: Investment with budget (supports multiple comma-separated hog types e.g. "4 Fattening, Sow")
+      final investRegexWithCapitalTag = RegExp(
+        r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*(.*?)\s*na may pondong\s*([₱\d,.]+)\s*para sa iyong pangangalaga\.?',
+        caseSensitive: false,
+      );
+      final match1 = investRegexWithCapitalTag.firstMatch(clean);
+      if (match1 != null) {
+        final count = match1.group(1) ?? '1';
+        final type = match1.group(2)?.trim() ?? 'hog';
+        final capital = match1.group(3) ?? '';
+        return 'Admin assigned a new investment of $count $type with a budget of $capital for your care.';
+      }
+
+      // 2. Filipino -> English: Simple Investment
+      final investRegexSimpleTag = RegExp(
+        r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*(.*?)\s*para sa iyong pangangalaga\.?',
+        caseSensitive: false,
+      );
+      final match2 = investRegexSimpleTag.firstMatch(clean);
+      if (match2 != null) {
+        final count = match2.group(1) ?? '1';
+        final type = match2.group(2)?.trim() ?? 'hog';
+        return 'Admin assigned a new investment of $count $type for your care.';
+      }
+
+      // 3. Filipino -> English: Batch assignment
+      final batchRegexTag = RegExp(
+        r'na-assign sa iyo ng admin ang\s*(.*?)\.\s*maaari mo nang simulan ang pagsubaybay.*?logs\.?',
+        caseSensitive: false,
+      );
+      final match3 = batchRegexTag.firstMatch(clean);
+      if (match3 != null) {
+        final batchName = match3.group(1)?.trim() ?? 'the batch';
+        return 'Admin assigned $batchName to you. You can now start monitoring and updating logs.';
+      }
+
+      // 4. Filipino -> English: Partner funds
+      final partnerFundsTag1 = RegExp(
+        r'(.*?)\s*ang naglaan ng\s*([₱\d,.]+)\s*na pondo para sa\s*(.*?)\.?',
+        caseSensitive: false,
+      );
+      final matchP1 = partnerFundsTag1.firstMatch(clean);
+      if (matchP1 != null) {
+        final partner = matchP1.group(1)?.trim() ?? 'A Partner Investor';
+        final amount = matchP1.group(2)?.trim() ?? '';
+        final batch = matchP1.group(3)?.trim() ?? 'the batch';
+        return '$partner allocated $amount in funds for $batch.';
+      }
+
+      if (clean.toLowerCase().contains('naglaan ang partner ng karagdagang pondo')) {
+        return clean
+            .replaceAll(RegExp(r'Naglaan ang partner ng karagdagang pondo', caseSensitive: false), 'Partner allocated additional funds')
+            .replaceAll(RegExp(r'para sa iyong batch', caseSensitive: false), 'for your batch');
+      }
+
+      // 5. Filipino -> English: Feed restock
+      final restockRegexTag = RegExp(
+        r'ang\s*(.*?)\s*ay na-restock na at available na \((.*?) units ang naidagdag\)\.?',
+        caseSensitive: false,
+      );
+      final matchRestock = restockRegexTag.firstMatch(clean);
+      if (matchRestock != null) {
+        final product = matchRestock.group(1)?.trim() ?? 'Feeds';
+        final units = matchRestock.group(2)?.trim() ?? '0';
+        return '$product is now restocked and available ($units units added).';
+      }
+
+      // 6. Filipino -> English: Stock requests
+      if (clean.toLowerCase().contains('naaprubahan ang iyong request para sa')) {
+        return clean
+            .replaceAll(RegExp(r'Naaprubahan ang iyong request para sa', caseSensitive: false), 'Your request has been approved for')
+            .replaceAll(RegExp(r'Maaari mo na itong kunin sa tindahan\.?', caseSensitive: false), 'You can now claim it from the store.');
+      }
+
+      if (clean.toLowerCase().contains('tinanggihan ang iyong request para sa')) {
+        return clean
+            .replaceAll(RegExp(r'Tinanggihan ang iyong request para sa', caseSensitive: false), 'Your request was declined for');
+      }
+
+      return clean;
     }
-
-    final investRegexSimple = RegExp(
-      r'nag-assign ang admin ng bagong investment na may\s*(\d+)\s*([a-zA-Z\s]+)?\s*para sa iyong pangangalaga\.?',
-      caseSensitive: false,
-    );
-    final match2 = investRegexSimple.firstMatch(clean);
-    if (match2 != null) {
-      final count = match2.group(1) ?? '1';
-      final type = match2.group(2)?.trim() ?? 'hog';
-      return 'Admin assigned a new investment of $count $type for your care.';
-    }
-
-    // Pattern 2: Na-assign sa iyo ng Admin ang X. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.
-    final batchRegex = RegExp(
-      r'na-assign sa iyo ng admin ang\s*(.*?)\.\s*maaari mo nang simulan ang pagsubaybay.*?logs\.?',
-      caseSensitive: false,
-    );
-    final match3 = batchRegex.firstMatch(clean);
-    if (match3 != null) {
-      final batchName = match3.group(1) ?? 'the batch';
-      return 'Admin assigned $batchName to you. You can now start monitoring and updating logs.';
-    }
-
-    // Pattern 3: Naglaan ang partner ng karagdagang pondo...
-    if (clean.toLowerCase().contains('naglaan ang partner ng karagdagang pondo')) {
-      return clean
-          .replaceAll(RegExp(r'Naglaan ang partner ng karagdagang pondo', caseSensitive: false), 'Partner allocated additional funds')
-          .replaceAll(RegExp(r'para sa iyong batch', caseSensitive: false), 'for your batch');
-    }
-
-    // Pattern 4: Stock request approved / declined
-    if (clean.toLowerCase().contains('naaprubahan ang iyong request para sa')) {
-      return clean
-          .replaceAll(RegExp(r'Naaprubahan ang iyong request para sa', caseSensitive: false), 'Your request has been approved for')
-          .replaceAll(RegExp(r'Maaari mo na itong kunin sa tindahan\.?', caseSensitive: false), 'You can now claim it from the store.');
-    }
-
-    if (clean.toLowerCase().contains('tinanggihan ang iyong request para sa')) {
-      return clean
-          .replaceAll(RegExp(r'Tinanggihan ang iyong request para sa', caseSensitive: false), 'Your request was declined for');
-    }
-
-    return clean;
   }
 
   /// Shows a native OS status bar / lockscreen notification

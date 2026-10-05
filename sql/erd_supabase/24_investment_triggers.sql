@@ -148,23 +148,35 @@ begin
     from public.batches
     where batch_id = new.batch_id;
 
-    insert into public.raiser_notifications (
-      hog_raiser_id,
-      title,
-      message,
-      type,
-      metadata
-    ) values (
-      new.hog_raiser_id,
-      'Bagong Batch na Na-assign sa Iyo!',
-      'Na-assign sa iyo ng Admin ang ' || coalesce(b_name, 'bagong batch') || '. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.',
-      'batch_assigned',
-      jsonb_build_object(
-        'assignment_id', new.assignment_id,
-        'batch_id', new.batch_id,
-        'batch_name', b_name
-      )
-    );
+    -- Avoid duplicate notification for the same batch and raiser within 1 minute
+    if not exists (
+      select 1 from public.raiser_notifications
+      where hog_raiser_id = new.hog_raiser_id
+        and type = 'batch_assigned'
+        and (
+          (metadata->>'batch_id')::text = new.batch_id::text
+          or message ilike '%' || coalesce(b_name, '') || '%'
+        )
+        and created_at > (now() - interval '1 minute')
+    ) then
+      insert into public.raiser_notifications (
+        hog_raiser_id,
+        title,
+        message,
+        type,
+        metadata
+      ) values (
+        new.hog_raiser_id,
+        'Bagong Batch na Na-assign sa Iyo!',
+        'Na-assign sa iyo ng Admin ang ' || coalesce(b_name, 'bagong batch') || '. Maaari mo nang simulan ang pagsubaybay at pag-update ng logs.',
+        'batch_assigned',
+        jsonb_build_object(
+          'assignment_id', new.assignment_id,
+          'batch_id', new.batch_id,
+          'batch_name', b_name
+        )
+      );
+    end if;
   end if;
   return new;
 end;

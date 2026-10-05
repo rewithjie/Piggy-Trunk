@@ -14,6 +14,47 @@ class RaiserProfileTab extends StatelessWidget {
 
   static const Color _brandColor = Color(0xFF18314F);
 
+  static String _formatStage(dynamic rawStage, String pigType, AppStrings strings) {
+    if (rawStage == null) return strings.notSet;
+    final s = rawStage.toString().trim();
+    if (s.isEmpty || s == 'null' || s == 'N/A' || s == 'None' || s == strings.notSet) {
+      return strings.notSet;
+    }
+    final id = int.tryParse(s);
+    if (id != null) {
+      final isSow = pigType.toLowerCase().contains('sow') || pigType.toLowerCase().contains('breed');
+      final fatteningStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+      final sowStages = const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation'];
+      final list = isSow ? sowStages : fatteningStages;
+      if (id >= 1 && id <= list.length) return list[id - 1];
+      return 'Booster';
+    }
+    return s;
+  }
+
+  /// Formats fetched per-assignment stages for the Profile card.
+  /// Fattening is always listed before Sow / Breeding.
+  static String _formatProfileFeedsStage(String stage, String pigType) {
+    final normalizedType = pigType.toLowerCase();
+    final hasFattening = normalizedType.contains('fatten');
+    final hasSow = normalizedType.contains('sow') || normalizedType.contains('breed');
+
+    if (hasFattening && hasSow) {
+      final stages = stage.split(' ${String.fromCharCode(0x2022)} ');
+      final fatteningStage = stages.isNotEmpty
+          ? stages.first.replaceFirst(RegExp(r'^Fattening:\s*'), '').trim()
+          : stage;
+      final sowStage = stages.length > 1
+          ? stages[1].replaceFirst(RegExp(r'^Sow:\s*'), '').trim()
+          : stage;
+      return 'Fattening - $fatteningStage\nSow / Breeding - $sowStage';
+    }
+
+    if (hasSow) return 'Sow / Breeding - $stage';
+    if (hasFattening) return 'Fattening - $stage';
+    return stage;
+  }
+
   const RaiserProfileTab({
     super.key,
     required this.raiserData,
@@ -57,9 +98,8 @@ class RaiserProfileTab extends StatelessWidget {
     final type = (raiserData['pig_type'] != null && raiserData['pig_type'] != 'N/A' && raiserData['pig_type'] != 'None')
         ? raiserData['pig_type'].toString()
         : strings.unassigned;
-    final stage = (raiserData['lifecycle_stage'] != null && raiserData['lifecycle_stage'] != 'N/A' && raiserData['lifecycle_stage'] != 'None')
-        ? raiserData['lifecycle_stage'].toString()
-        : strings.notSet;
+    final stage = _formatStage(raiserData['lifecycle_stage'], type, strings);
+    final profileFeedsStage = _formatProfileFeedsStage(stage, type);
     final rawAvatar = raiserData['avatar_url'] as String?;
     final avatarUrl = (rawAvatar != null &&
             rawAvatar.trim().isNotEmpty &&
@@ -379,7 +419,7 @@ class RaiserProfileTab extends StatelessWidget {
                 Divider(height: 24, color: cardBorder),
                 _buildProfileRow(Icons.pets_outlined, strings.pigTypeAssignment, type, isDark),
                 Divider(height: 24, color: cardBorder),
-                _buildProfileRow(Icons.restaurant_rounded, strings.currentFeedsStage, stage, isDark),
+                _buildProfileRow(Icons.restaurant_rounded, strings.currentFeedsStage, profileFeedsStage, isDark),
                 Divider(height: 24, color: cardBorder),
                 _buildProfileRow(Icons.security_rounded, strings.systemAccess, strings.hogRaiserRole, isDark),
                 Divider(height: 24, color: cardBorder),

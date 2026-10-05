@@ -417,27 +417,27 @@ class _BatchHogsListState extends State<_BatchHogsList> {
       final assignId = widget.batch['assignment_id'];
       final batchId = widget.batch['batch_id'] ?? widget.batch['id'];
 
+      final Set<dynamic> allAssignIds = {};
+      if (batchId != null) {
+        try {
+          final assignRows = await Supabase.instance.client
+              .from('assignments')
+              .select('assignment_id')
+              .eq('batch_id', batchId);
+          for (var a in (assignRows as List? ?? [])) {
+            if (a is Map && a['assignment_id'] != null) allAssignIds.add(a['assignment_id']);
+          }
+        } catch (_) {}
+      }
+      if (assignId != null) allAssignIds.add(assignId);
+
       List<dynamic> res = [];
-      if (assignId != null) {
+      if (allAssignIds.isNotEmpty) {
         res = await Supabase.instance.client
             .from('hogs')
             .select('*')
-            .eq('assignment_id', assignId)
+            .inFilter('assignment_id', allAssignIds.toList())
             .order('hog_id', ascending: true);
-      } else if (batchId != null) {
-        final assignRow = await Supabase.instance.client
-            .from('assignments')
-            .select('assignment_id')
-            .eq('batch_id', batchId)
-            .maybeSingle();
-        if (assignRow != null) {
-          final aId = assignRow['assignment_id'];
-          res = await Supabase.instance.client
-              .from('hogs')
-              .select('*')
-              .eq('assignment_id', aId)
-              .order('hog_id', ascending: true);
-        }
       }
 
       if (mounted) {
@@ -485,7 +485,7 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                 Icon(
                   Icons.pets_rounded,
                   size: 16,
-                  color: isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary,
+                  color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptPrimary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -502,7 +502,7 @@ class _BatchHogsListState extends State<_BatchHogsList> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                color: isDark ? const Color(0xFF243B5B) : const Color(0xFFE2E8F0),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -510,7 +510,7 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
                 ),
               ),
             ),
@@ -589,13 +589,13 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.1),
+                        color: isDark ? const Color(0xFF243B5B).withValues(alpha: 0.6) : const Color(0xFFE2E8F0),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
                         Icons.pets_rounded,
                         size: 16,
-                        color: isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary,
+                        color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptPrimary,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -621,12 +621,12 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                               decoration: BoxDecoration(
                                 color: isComplete
                                     ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.22 : 0.12)
-                                    : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.12),
+                                    : (isDark ? const Color(0xFF243B5B) : const Color(0xFFE2E8F0)),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                   color: isComplete
                                       ? const Color(0xFF10B981).withValues(alpha: isDark ? 0.6 : 0.4)
-                                      : (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary).withValues(alpha: 0.25),
+                                      : cardBorder.withValues(alpha: isDark ? 0.7 : 0.8),
                                 ),
                               ),
                               child: Row(
@@ -643,7 +643,7 @@ class _BatchHogsListState extends State<_BatchHogsList> {
                                       fontWeight: FontWeight.w800,
                                       color: isComplete
                                           ? const Color(0xFF10B981)
-                                          : (isDark ? const Color(0xFF93C5FD) : PiggyTrunkTheme.ptPrimary),
+                                          : (isDark ? const Color(0xFFE2E8F0) : PiggyTrunkTheme.ptPrimary),
                                     ),
                                   ),
                                 ],

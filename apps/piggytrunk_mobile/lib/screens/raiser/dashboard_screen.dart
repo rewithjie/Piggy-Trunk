@@ -556,20 +556,65 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         } catch (_) {}
       }
 
-      // Deduplicate notifications list so raiser sees exactly 1 notification
+      // Deduplicate notifications list so raiser sees exactly 1 notification per event
       final List<Map<String, dynamic>> notifications = [];
+      final Set<String> seenNotifKeys = <String>{};
+      final List<int> duplicateIdsToDelete = [];
+
       for (final n in rawNotifications) {
-        final title = (n['title'] ?? '').toString();
-        final msg = (n['message'] ?? n['content'] ?? '').toString();
+        final notifId = (n['notification_id'] ?? n['id']) as int?;
+        final title = (n['title'] ?? '').toString().trim();
+        final msg = (n['message'] ?? n['content'] ?? '').toString().trim();
+        final type = (n['type'] ?? n['category'] ?? '').toString().trim().toLowerCase();
+
+        // 1. Suppress redundant stock trigger item if approved stock exists
         final isTriggerDuplicate = (title == 'Stock Request Update') &&
             (msg.contains('Feeds has been') ||
                 msg.contains('Medicines has been') ||
                 msg.contains('Vitamins has been') ||
                 msg.contains('supplies has been'));
         if (isTriggerDuplicate && hasApprovedStockNotif) {
-          continue; // Suppress redundant individual trigger item
+          if (notifId != null) duplicateIdsToDelete.add(notifId);
+          continue;
         }
+
+        // 2. Batch assignment duplicate check (same batch assigned triggers multiple times for multi-hog types)
+        final batchId = (n['metadata'] is Map ? (n['metadata']['batch_id'] ?? '') : '').toString().trim();
+        final isBatchNotif = type == 'batch_assigned' ||
+            title.toLowerCase().contains('batch') ||
+            msg.toLowerCase().contains('batch');
+
+        final String dedupKey;
+        if (isBatchNotif && batchId.isNotEmpty) {
+          dedupKey = 'batch_$batchId';
+        } else if (isBatchNotif) {
+          final batchMatch = RegExp(r'(batch[\w\s\-]+)', caseSensitive: false).firstMatch(msg);
+          final extractedBatch = batchMatch != null ? batchMatch.group(1)?.toLowerCase().trim() : '';
+          dedupKey = extractedBatch != null && extractedBatch.isNotEmpty ? 'batch_$extractedBatch' : '$title|$msg';
+        } else {
+          dedupKey = '$title|$msg';
+        }
+
+        if (seenNotifKeys.contains(dedupKey)) {
+          if (notifId != null) duplicateIdsToDelete.add(notifId);
+          continue;
+        }
+
+        seenNotifKeys.add(dedupKey);
         notifications.add(n);
+      }
+
+      // Automatically clean up duplicate notification rows from DB in the background
+      if (duplicateIdsToDelete.isNotEmpty) {
+        for (final dupId in duplicateIdsToDelete) {
+          try {
+            Supabase.instance.client
+                .from('raiser_notifications')
+                .delete()
+                .eq('notification_id', dupId)
+                .then((_) {}, onError: (_) {});
+          } catch (_) {}
+        }
       }
 
       // Resolve email, pig type, lifecycle stage and avatar with fallbacks
@@ -693,6 +738,47 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       combinedRaiserData['pig_type'] = resolvedPigType;
       combinedRaiserData['lifecycle_stage'] = resolvedStage;
 
+      // Sort assignments:
+      // 1. Active (non-completed) batches first, completed batches last
+      // 2. Pig Type: Fattening (0) ALWAYS first, Sow/Breeding (1) ALWAYS second
+      // 3. Natural order: earliest assignment_id first
+      assignments.sort((a, b) {
+        final aDone = a['is_cycle_completed'] == true;
+        final bDone = b['is_cycle_completed'] == true;
+        if (!aDone && bDone) return -1;
+        if (aDone && !bDone) return 1;
+
+        final aType = (a['hog_types'] is Map
+                ? a['hog_types']['type_name']
+                : (a['hog_types'] is List && (a['hog_types'] as List).isNotEmpty
+                    ? (a['hog_types'] as List).first['type_name']
+                    : null)) ??
+            a['pig_type'] ??
+            '';
+        final bType = (b['hog_types'] is Map
+                ? b['hog_types']['type_name']
+                : (b['hog_types'] is List && (b['hog_types'] as List).isNotEmpty
+                    ? (b['hog_types'] as List).first['type_name']
+                    : null)) ??
+            b['pig_type'] ??
+            '';
+
+        int getTypePriority(dynamic t) {
+          final s = t.toString().toLowerCase();
+          if (s.contains('fatten')) return 0;
+          if (s.contains('sow') || s.contains('breed')) return 1;
+          return 2;
+        }
+
+        final aPrio = getTypePriority(aType);
+        final bPrio = getTypePriority(bType);
+        if (aPrio != bPrio) return aPrio.compareTo(bPrio);
+
+        final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+        final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+        return aId.compareTo(bId);
+      });
+
       if (mounted) {
         setState(() {
           _raiserData = combinedRaiserData;
@@ -706,9 +792,25 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           _reportsList = reports;
           _notificationsList = notifications;
           if (_activeAssignments.isNotEmpty) {
-            final exists = _selectedAssignmentId != null &&
-                _activeAssignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId);
-            if (!exists) {
+            final currentSelected = _selectedAssignmentId != null
+                ? _activeAssignments.firstWhere(
+                    (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+                    orElse: () => {},
+                  )
+                : <String, dynamic>{};
+            final isCurrentCompleted = currentSelected.isNotEmpty && currentSelected['is_cycle_completed'] == true;
+            final hasNonCompleted = _activeAssignments.any((a) => a['is_cycle_completed'] != true);
+            final currentIsFattening = currentSelected.isNotEmpty &&
+                (currentSelected['hog_types']?['type_name'] ?? currentSelected['pig_type'] ?? '')
+                    .toString()
+                    .toLowerCase()
+                    .contains('fatten');
+            final hasFattening = _activeAssignments.any((a) {
+              final t = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().toLowerCase();
+              return t.contains('fatten') && a['is_cycle_completed'] != true;
+            });
+
+            if (currentSelected.isEmpty || (isCurrentCompleted && hasNonCompleted) || (hasFattening && !currentIsFattening)) {
               _selectedAssignmentId = BigInt.from(_activeAssignments[0]['assignment_id'] as num);
             }
           } else {

@@ -87,19 +87,44 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     }
   }
 
+  int _compareAssignments(Map<String, dynamic> a, Map<String, dynamic> b) {
+    final aDone = a['is_cycle_completed'] == true;
+    final bDone = b['is_cycle_completed'] == true;
+    if (!aDone && bDone) return -1;
+    if (aDone && !bDone) return 1;
+
+    final aType = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().toLowerCase();
+    final bType = (b['hog_types']?['type_name'] ?? b['pig_type'] ?? '').toString().toLowerCase();
+    int getPrio(String t) {
+      if (t.contains('fatten')) return 0;
+      if (t.contains('sow') || t.contains('breed')) return 1;
+      return 2;
+    }
+    final pA = getPrio(aType);
+    final pB = getPrio(bType);
+    if (pA != pB) return pA.compareTo(pB);
+
+    final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+    final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+    return aId.compareTo(bId);
+  }
+
   void _initSelectedBatch() {
-    final firstActive = widget.activeAssignments.firstWhere(
+    final sortedActive = List<Map<String, dynamic>>.from(widget.activeAssignments)
+      ..sort(_compareAssignments);
+
+    final firstActive = sortedActive.firstWhere(
       (a) => a['is_cycle_completed'] != true && (a['status'] ?? '').toString().toLowerCase() != 'completed',
       orElse: () => {},
     );
     if (widget.selectedAssignmentId != null &&
-        widget.activeAssignments.any((a) =>
+        sortedActive.any((a) =>
             BigInt.from(a['assignment_id'] as num) == widget.selectedAssignmentId)) {
       _selectedBatchAssignmentId = widget.selectedAssignmentId;
     } else if (firstActive.isNotEmpty) {
       _selectedBatchAssignmentId = BigInt.from(firstActive['assignment_id'] as num);
-    } else if (widget.activeAssignments.isNotEmpty) {
-      _selectedBatchAssignmentId = BigInt.from(widget.activeAssignments[0]['assignment_id'] as num);
+    } else if (sortedActive.isNotEmpty) {
+      _selectedBatchAssignmentId = BigInt.from(sortedActive[0]['assignment_id'] as num);
     } else {
       _selectedBatchAssignmentId = null;
     }
@@ -130,6 +155,318 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     }
   }
 
+  String _formatAssignmentLabel(Map<String, dynamic> a) {
+    final bData = a['batches'];
+    String rawBatchName = '';
+    if (bData is Map) {
+      rawBatchName = bData['batch_name']?.toString() ?? '';
+    } else if (bData is List && bData.isNotEmpty && bData.first is Map) {
+      rawBatchName = bData.first['batch_name']?.toString() ?? '';
+    }
+    if (rawBatchName.isEmpty) {
+      rawBatchName = (a['batch_name'] ?? (a['assignment_id'] != null ? 'Batch #${a['assignment_id']}' : 'No Batch')).toString();
+    }
+    String displayBatchName = rawBatchName;
+    if (rawBatchName.contains(' (')) {
+      final parts = rawBatchName.split(' (');
+      if (parts.last.endsWith(')')) {
+        displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
+      }
+    }
+    final htData = a['hog_types'];
+    String rawHogType = '';
+    if (htData is Map) {
+      rawHogType = htData['type_name']?.toString() ?? '';
+    } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+      rawHogType = htData.first['type_name']?.toString() ?? '';
+    }
+    if (rawHogType.isEmpty) {
+      rawHogType = a['pig_type']?.toString() ??
+          widget.raiserData['pig_type']?.toString() ??
+          '';
+    }
+    return '$displayBatchName${rawHogType.isNotEmpty ? " ($rawHogType)" : ""}';
+  }
+
+  void _showBatchPickerModal(BuildContext parentContext) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : _brandColor;
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
+    final strings = AppStrings.of(context);
+
+    showModalBottomSheet(
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.7,
+          ),
+          decoration: BoxDecoration(
+            color: surfaceBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: mutedColor.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.pets_rounded, color: isDark ? const Color(0xFF38BDF8) : _brandColor, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              strings.isFilipino ? 'Piliin ang Batch ng Alaga' : 'Select Batch of Hogs',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: textColor,
+                              ),
+                            ),
+                            Text(
+                              strings.isFilipino
+                                  ? 'Piliin kung aling batch ang titingnan at susubaybayan'
+                                  : 'Choose which batch to view and monitor',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: mutedColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close_rounded, color: textColor, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: borderColor),
+                Flexible(
+                  child: Builder(
+                    builder: (context) {
+                      final sortedAssignments = List<Map<String, dynamic>>.from(widget.activeAssignments)
+                        ..sort(_compareAssignments);
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        itemCount: sortedAssignments.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (ctx, index) {
+                          final a = sortedAssignments[index];
+                      final aId = BigInt.from(a['assignment_id'] as num);
+                      final isSelected = aId == _selectedBatchAssignmentId;
+
+                      final bData = a['batches'];
+                      String rawBatchName = '';
+                      if (bData is Map) {
+                        rawBatchName = bData['batch_name']?.toString() ?? '';
+                      } else if (bData is List && bData.isNotEmpty && bData.first is Map) {
+                        rawBatchName = bData.first['batch_name']?.toString() ?? '';
+                      }
+                      if (rawBatchName.isEmpty) {
+                        rawBatchName = (a['batch_name'] ?? 'Assignment #${a['assignment_id']}').toString();
+                      }
+                      String displayBatchName = rawBatchName;
+                      if (rawBatchName.contains(' (')) {
+                        final parts = rawBatchName.split(' (');
+                        if (parts.last.endsWith(')')) {
+                          displayBatchName = parts.sublist(0, parts.length - 1).join(' (');
+                        }
+                      }
+                      final htData = a['hog_types'];
+                      String rawHogType = '';
+                      if (htData is Map) {
+                        rawHogType = htData['type_name']?.toString() ?? '';
+                      } else if (htData is List && htData.isNotEmpty && htData.first is Map) {
+                        rawHogType = htData.first['type_name']?.toString() ?? '';
+                      }
+                      if (rawHogType.isEmpty) {
+                        rawHogType = a['pig_type']?.toString() ??
+                            widget.raiserData['pig_type']?.toString() ??
+                            'Fattening';
+                      }
+
+                      return InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedBatchAssignmentId = aId;
+                            _selectedHogIndex = 0;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFEFF6FF))
+                                : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                  : borderColor,
+                              width: isSelected ? 1.8 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF38BDF8).withValues(alpha: 0.2) : _brandColor.withValues(alpha: 0.1))
+                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.pets_rounded,
+                                  color: isSelected
+                                      ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                      : mutedColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      displayBatchName,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                        color: isSelected
+                                            ? (isDark ? Colors.white : _brandColor)
+                                            : textColor,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            rawHogType,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? Colors.white70 : _brandColor,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        if (a['is_cycle_completed'] == true)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF14291F) : const Color(0xFFECFDF5),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.check_rounded, size: 10, color: Color(0xFF10B981)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  strings.isFilipino ? 'Tapos na' : 'Concluded',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              strings.isFilipino ? 'Aktibo' : 'Active',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                                color: isSelected
+                                    ? (isDark ? const Color(0xFF38BDF8) : _brandColor)
+                                    : mutedColor.withValues(alpha: 0.5),
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Map<String, dynamic>? _findHog(dynamic hogId) {
     if (hogId == null) return null;
     final idStr = hogId.toString();
@@ -141,6 +478,64 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     return null;
   }
 
+  String _resolveHogSpecificType(Map<String, dynamic> hog) {
+    // 1. Try finding assignment
+    final hAssId = hog['assignment_id'];
+    if (hAssId != null) {
+      for (final a in widget.activeAssignments) {
+        if (a['assignment_id'] != null && (a['assignment_id'] as num).toInt() == (hAssId as num).toInt()) {
+          final ht = a['hog_types'];
+          String aType = '';
+          if (ht is Map) {
+            aType = (ht['type_name'] ?? '').toString();
+          } else if (ht is List && ht.isNotEmpty && ht.first is Map) {
+            aType = (ht.first['type_name'] ?? '').toString();
+          }
+          if (aType.isEmpty) {
+            aType = (a['pig_type'] ?? '').toString();
+          }
+          if (aType.isNotEmpty && !aType.toLowerCase().contains('and')) {
+            return aType.toLowerCase().contains('fatten') ? 'Fattening' : 'Sow/Breeding';
+          }
+        }
+      }
+    }
+
+    // 2. Check hog's direct pig_type
+    final directType = (hog['pig_type'] ?? '').toString().trim();
+    if (directType.isNotEmpty && !directType.toLowerCase().contains('and')) {
+      return directType.toLowerCase().contains('fatten') ? 'Fattening' : 'Sow/Breeding';
+    }
+
+    // 3. Check stage_id / lifecycle_stage
+    final stageName = (hog['lifecycle_stage'] ?? '').toString().toLowerCase();
+    if (stageName.contains('gestat') || stageName.contains('breed') || stageName.contains('lactat') || stageName.contains('dry')) {
+      return 'Sow/Breeding';
+    }
+
+    // 4. Position fallback if mixed raiser data
+    final totalHogs = List<Map<String, dynamic>>.from(widget.hogsList);
+    totalHogs.sort((a, b) {
+      final aId = a['hog_id'] as num? ?? 0;
+      final bId = b['hog_id'] as num? ?? 0;
+      return aId.compareTo(bId);
+    });
+    final idx = totalHogs.indexWhere((h) => h['hog_id']?.toString() == hog['hog_id']?.toString());
+    if (idx >= 0 && totalHogs.length > 1) {
+      final half = (totalHogs.length / 2).ceil();
+      return idx < half ? 'Fattening' : 'Sow/Breeding';
+    }
+
+    return 'Fattening';
+  }
+
+  String _formatHogTypeLabel(String resolvedType, AppStrings strings) {
+    if (resolvedType.toLowerCase().contains('fatten')) {
+      return strings.isFilipino ? 'Pampataba' : 'Fattening';
+    }
+    return strings.isFilipino ? 'Inahin / Sow' : 'Sow/Breeding';
+  }
+
   String _getHogDisplayName(dynamic hogId, AppStrings strings) {
     if (hogId == null) return strings.isFilipino ? 'Alagang Baboy' : 'Hog';
     final hog = _findHog(hogId);
@@ -149,13 +544,21 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
       if (hog['tag_number'] != null && hog['tag_number'].toString().isNotEmpty) {
         return '$hogPrefix ${hog['tag_number']}';
       }
-      final assignId = hog['assignment_id'];
-      final batchHogs = assignId != null
-          ? widget.hogsList.where((h) => h['assignment_id'] == assignId).toList()
-          : widget.hogsList;
-      final idx = batchHogs.indexOf(hog);
-      final num = idx >= 0 ? (idx + 1) : (widget.hogsList.indexOf(hog) + 1);
-      return '$hogPrefix #$num';
+      final sortedHogs = List<Map<String, dynamic>>.from(widget.hogsList);
+      sortedHogs.sort((a, b) {
+        final aType = _resolveHogSpecificType(a).toLowerCase();
+        final bType = _resolveHogSpecificType(b).toLowerCase();
+        final aIsFat = aType.contains('fatten');
+        final bIsFat = bType.contains('fatten');
+        if (aIsFat && !bIsFat) return -1;
+        if (!aIsFat && bIsFat) return 1;
+        final aId = a['hog_id'] as num? ?? 0;
+        final bId = b['hog_id'] as num? ?? 0;
+        return aId.compareTo(bId);
+      });
+      final idx = sortedHogs.indexWhere((h) => h['hog_id']?.toString() == hog['hog_id']?.toString());
+      final hogNum = idx >= 0 ? (idx + 1) : 1;
+      return '$hogPrefix #$hogNum';
     }
     return strings.isFilipino ? 'Alagang Baboy' : 'Hog';
   }
@@ -294,6 +697,23 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   }
 
   Future<void> _updateSpecificHogStage(Map<String, dynamic> hog, String targetStage, bool isBreeding) async {
+    final hogAssignId = hog['assignment_id']?.toString();
+    final hogAssign = widget.activeAssignments.firstWhere(
+      (a) => (a['assignment_id'] ?? a['id'])?.toString() == hogAssignId,
+      orElse: () => <String, dynamic>{},
+    );
+    if (hogAssign['is_cycle_completed'] == true || (hogAssign['status'] ?? '').toString().toLowerCase() == 'completed') {
+      final strings = AppStrings.of(context);
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Hindi maaaring baguhin ang stage ng alagang ito dahil tapos na ang siklo ng batch at nasa history na.'
+            : 'Cannot update stage. This hog belongs to a completed batch cycle archived in history.',
+        title: strings.isFilipino ? 'Tapos na ang Siklo' : 'Cycle Completed',
+      );
+      return;
+    }
+
     final hogId = hog['hog_id'];
     final hogIdStr = hogId?.toString() ?? '';
     final int stageNum = _stageNameToId(targetStage, isBreeding);
@@ -599,15 +1019,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                     ),
                   ] else ...[
                     // Interactive Feed Stage Quick Selector
-                    Text(
-                      strings.isFilipino ? 'Palitan ang Yugto ng Pakain para sa Baboy na Ito:' : 'Update Feed Stage for this Hog:',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
                     Builder(
                       builder: (context) {
                         Widget buildPill(String st) {
@@ -748,11 +1159,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
     final hogId = report['hog_id'];
     final hogName = _getHogDisplayName(hogId, strings);
     final rawType = (widget.raiserData['pig_type'] ?? '').toString().trim();
-    final pigTypeLabel = (rawType.isNotEmpty && rawType != 'N/A' && rawType != 'None')
-        ? rawType
-        : (widget.activeAssignments.isNotEmpty && widget.activeAssignments[0]['hog_types']?['type_name'] != null
-            ? widget.activeAssignments[0]['hog_types']['type_name'].toString()
-            : 'Fattening');
+    final targetHog = _findHog(hogId);
+    final targetHogType = targetHog != null ? _resolveHogSpecificType(targetHog) : '';
+    final targetHogTypeLabel = targetHogType.isNotEmpty
+        ? _formatHogTypeLabel(targetHogType, strings)
+        : ((rawType.isNotEmpty && rawType != 'N/A' && rawType != 'None') ? rawType : 'Fattening');
     final formattedTime = _formatReadableDateTime(report['created_at']);
     final reportColor = _getReportColor(type);
     final reportIcon = _getReportIcon(type);
@@ -897,7 +1308,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         context,
                         icon: Icons.pets_rounded,
                         label: strings.isFilipino ? 'Alagang Baboy' : 'Target Hog',
-                        value: '$hogName ($pigTypeLabel)',
+                        value: '$hogName ($targetHogTypeLabel)',
                         valueColor: textColor,
                       ),
                       Divider(height: 16, color: borderColor),
@@ -1034,28 +1445,47 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   }
 
   void _showAddReportDialog(BuildContext context, [BigInt? preSelectedHogId]) {
-    final targetAssignId = _selectedBatchAssignmentId ?? widget.selectedAssignmentId;
     final activeAssignIds = widget.activeAssignments
         .where((a) => a['is_cycle_completed'] != true && (a['status'] ?? '').toString().toLowerCase() != 'completed')
         .map((a) => (a['assignment_id'] as num).toInt())
         .toSet();
 
     final filteredHogs = widget.hogsList.where((h) {
-      if (preSelectedHogId != null && BigInt.from(h['hog_id'] as num) == preSelectedHogId) {
-        return true;
-      }
       final assId = h['assignment_id'];
-      if (assId == null) {
-        return activeAssignIds.isEmpty;
-      }
+      if (assId == null) return false;
       final assInt = (assId as num).toInt();
-      if (targetAssignId != null && BigInt.from(assInt) == targetAssignId) {
-        return true;
-      }
+      // Only allow hogs belonging to active, non-completed assignments
       return activeAssignIds.contains(assInt);
     }).toList();
 
+    if (filteredHogs.isEmpty) {
+      final strings = AppStrings.of(context);
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Walang aktibong alagang baboy na maaaring iulat. Naitapos na ang lahat ng siklo at naka-archive sa history.'
+            : 'No active hogs available for reporting. All batch cycles are completed and archived in history.',
+        title: strings.isFilipino ? 'Naitapos na ang Siklo' : 'All Cycles Completed',
+      );
+      return;
+    }
+
+    filteredHogs.sort((a, b) {
+      final aType = _resolveHogSpecificType(a).toLowerCase();
+      final bType = _resolveHogSpecificType(b).toLowerCase();
+      final aIsFat = aType.contains('fatten');
+      final bIsFat = bType.contains('fatten');
+      if (aIsFat && !bIsFat) return -1;
+      if (!aIsFat && bIsFat) return 1;
+      final aId = a['hog_id'] as num? ?? 0;
+      final bId = b['hog_id'] as num? ?? 0;
+      return aId.compareTo(bId);
+    });
+
     BigInt? selectedHogId = preSelectedHogId;
+    if (selectedHogId != null && !filteredHogs.any((h) => BigInt.from(h['hog_id'] as num) == selectedHogId)) {
+      selectedHogId = null;
+    }
     if (selectedHogId == null && filteredHogs.isNotEmpty) {
       selectedHogId = BigInt.from(filteredHogs[0]['hog_id'] as num);
     }
@@ -1076,12 +1506,6 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
             final inputBg = isDark ? const Color(0xFF1E2D42) : const Color(0xFFF8FAFC);
             final inputBorder = isDark ? const Color(0xFF3B506D) : const Color(0xFFE2E8F0);
             final dropdownBg = isDark ? const Color(0xFF1E2D42) : Colors.white;
-            final rawType = (widget.raiserData['pig_type'] ?? '').toString().trim();
-            final pigTypeLabel = (rawType.isNotEmpty && rawType != 'N/A' && rawType != 'None')
-                ? rawType
-                : (widget.activeAssignments.isNotEmpty && widget.activeAssignments[0]['hog_types']?['type_name'] != null
-                    ? widget.activeAssignments[0]['hog_types']['type_name'].toString()
-                    : 'Fattening');
 
             return Container(
               decoration: BoxDecoration(
@@ -1218,10 +1642,11 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                             items: List.generate(filteredHogs.length, (index) {
                               final h = filteredHogs[index];
                               final id = h['hog_id'];
-                              final tag = h['tag_number'] ?? '#${index + 1}';
+                              final specificType = _resolveHogSpecificType(h);
+                              final typeLabel = _formatHogTypeLabel(specificType, strings);
                               return DropdownMenuItem<BigInt>(
                                 value: BigInt.from(id as num),
-                                child: Text('${strings.isFilipino ? "Baboy" : "Hog"} $tag ($pigTypeLabel)'),
+                                child: Text('${strings.isFilipino ? "Baboy" : "Hog"} #${index + 1} ($typeLabel)'),
                               );
                             }),
                             onChanged: (val) {
@@ -1386,6 +1811,9 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _brandColor;
+    final surfaceBg = isDark ? PiggyTrunkTheme.ptSurfaceDark : Colors.white;
+    final borderColor = isDark ? PiggyTrunkTheme.ptBorderDark : PiggyTrunkTheme.ptBorder;
+    final mutedColor = isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted;
     final strings = AppStrings.of(context);
 
     final bool hasActiveBatch = widget.activeAssignments.isNotEmpty;
@@ -1519,7 +1947,7 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                     if (aId != null && selectedAssignId != null) {
                       return BigInt.from(aId as num) == selectedAssignId;
                     }
-                    return true;
+                    return selectedAssignId == null;
                   }).toList();
 
                   final String batchType = (selectedAssignment['hog_types']?['type_name'] ??
@@ -1572,122 +2000,173 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.activeAssignments.length > 1) ...[
-                        Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.layers_outlined,
-                                  size: 15,
-                                  color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  strings.isFilipino ? 'Piliin ang Batch:' : 'Select Batch:',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            ...widget.activeAssignments.map((a) {
-                              final aId = BigInt.from(a['assignment_id'] as num);
-                              final isSelected = _selectedBatchAssignmentId == aId;
-                              final aDone = a['is_cycle_completed'] == true ||
-                                  (a['status'] ?? '').toString().toLowerCase() == 'completed';
-                              final rawName = (a['batches']?['batch_name'] ?? a['batch_name'] ?? 'Batch #${a['batch_id']}').toString();
-                              final aType = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString();
-                              final typeLabel = aType.toLowerCase().contains('sow') ? 'Sow' : (aType.isNotEmpty ? 'Fattening' : '');
-
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedBatchAssignmentId = aId;
-                                    _selectedHogIndex = 0;
-                                  });
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? (isDark ? Colors.white : _brandColor)
-                                        : (aDone
-                                            ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))
-                                            : (isDark ? const Color(0xFF1E293B) : Colors.white)),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? (isDark ? Colors.white : _brandColor)
-                                          : (aDone
-                                              ? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))
-                                              : (isDark ? const Color(0xFF475569) : const Color(0xFFE2E8F0))),
-                                      width: isSelected ? 1.5 : 1.0,
+                      if (widget.activeAssignments.isNotEmpty) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: surfaceBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.02),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: InkWell(
+                            onTap: widget.activeAssignments.length > 1
+                                ? () => _showBatchPickerModal(context)
+                                : null,
+                            borderRadius: BorderRadius.circular(10),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.08),
+                                      borderRadius: BorderRadius.circular(7),
                                     ),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.2),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
+                                    child: Icon(Icons.pets_rounded, size: 14, color: isDark ? Colors.white : _brandColor),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Batch:',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: mutedColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      _formatAssignmentLabel(selectedAssignment),
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: textColor,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (selectedAssignment['is_cycle_completed'] == true) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.5 : 0.25),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.check_circle_rounded, size: 10.5, color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                                          const SizedBox(width: 3.5),
+                                          Text(
+                                            strings.isFilipino ? 'Tapos Na' : 'Completed',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
                                             ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        typeLabel.isNotEmpty ? '$rawName ($typeLabel)' : rawName,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                          color: isSelected
-                                              ? (isDark ? const Color(0xFF0F172A) : Colors.white)
-                                              : (aDone
-                                                  ? (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))
-                                                  : (isDark ? const Color(0xFFCBD5E1) : _brandColor)),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                        decoration: BoxDecoration(
-                                          color: aDone
-                                              ? (isSelected
-                                                  ? (isDark ? const Color(0xFF475569) : Colors.white24)
-                                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)))
-                                              : (isSelected
-                                                  ? (isDark ? const Color(0xFF059669) : const Color(0xFF10B981))
-                                                  : (isDark ? const Color(0xFF065F46) : const Color(0xFFD1FAE5))),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          aDone ? (strings.isFilipino ? 'Tapos na' : 'Concluded') : (strings.isFilipino ? 'Aktibo' : 'Active'),
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: aDone
-                                                ? (isSelected ? (isDark ? Colors.white : Colors.white70) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)))
-                                                : (isSelected ? Colors.white : (isDark ? const Color(0xFF6EE7B7) : const Color(0xFF047857))),
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
+                                    ),
+                                  ],
+                                  if (widget.activeAssignments.length > 1) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            strings.isFilipino ? 'Palitan' : 'Change',
+                                            style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Icon(
+                                            Icons.unfold_more_rounded,
+                                            size: 14,
+                                            color: isDark ? const Color(0xFF38BDF8) : _brandColor,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 14),
+                      ],
+
+                      if (isBatchConcluded) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF14291F) : const Color(0xFFECFDF5),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.6 : 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.history_edu_rounded, color: Color(0xFF10B981), size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      strings.isFilipino ? 'Naitapos na ang Siklo (Kasaysayan)' : 'Batch Cycle Completed (Archived)',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDark ? Colors.white : const Color(0xFF065F46),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      strings.isFilipino
+                                          ? 'Ang batch na ito ay tapos na at naka-archive sa history. Hindi na maaaring palitan ang stage o mag-ulat.'
+                                          : 'All hogs in this batch reached selling stage and are archived in history. Stage updates and reports are locked.',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 11,
+                                        color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF047857),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
 
                       // ==================== FEEDS STAGES TIMELINE CARD ====================
@@ -1975,38 +2454,39 @@ class _RaiserHogsTabState extends State<RaiserHogsTab> {
                         color: textColor,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => _showAddReportDialog(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.white : _brandColor,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.25),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.add_rounded, size: 16, color: isDark ? const Color(0xFF0F172A) : Colors.white),
-                            const SizedBox(width: 5),
-                            Text(
-                              strings.addReportButton,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    if (!isBatchConcluded)
+                      GestureDetector(
+                        onTap: () => _showAddReportDialog(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white : _brandColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isDark ? Colors.white : _brandColor).withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.add_rounded, size: 16, color: isDark ? const Color(0xFF0F172A) : Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                strings.addReportButton,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
