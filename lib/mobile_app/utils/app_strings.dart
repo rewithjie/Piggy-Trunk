@@ -157,8 +157,6 @@ class AppStrings {
   String get submitReportButton => isFilipino ? 'Magsumite ng Ulat' : 'Submit Report';
   String get searchHog => isFilipino ? 'Maghanap ng tag number...' : 'Search tag number...';
   String get statusHealthy => isFilipino ? 'Malusog' : 'Healthy';
-  String get statusRecovered => isFilipino ? 'Nakabawi' : 'Recovered';
-  String get logWeight => isFilipino ? 'Itala ang Timbang' : 'Log Weight';
   String get statusSick => isFilipino ? 'May Sakit' : 'Sick';
   String get statusObservation => isFilipino ? 'Obserbasyon' : 'Under Observation';
   String get statusQuarantine => isFilipino ? 'Kuwarentenas' : 'Quarantine';
@@ -356,7 +354,6 @@ class AppStrings {
     if (s == 'distributed') return filterDistributed;
     if (s == 'rejected') return filterRejected;
     if (s == 'healthy') return statusHealthy;
-    if (s == 'recovered') return statusRecovered;
     if (s == 'sick') return statusSick;
     if (s == 'under observation') return statusObservation;
     if (s == 'quarantine') return statusQuarantine;
@@ -364,7 +361,7 @@ class AppStrings {
     if (s == 'food poisoning') return foodPoisoning;
     if (s == 'fever') return fever;
     if (s == 'diarrhea') return diarrhea;
-    if (s == 'injury' || s == 'injured') return injury;
+    if (s == 'injury') return injury;
     return status;
   }
 
