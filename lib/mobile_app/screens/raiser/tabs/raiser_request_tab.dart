@@ -6,6 +6,9 @@ class RaiserRequestTab extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
   final Map<String, dynamic> raiserData;
   final List<Map<String, dynamic>> requestsList;
+  final double investedAmount;
+  final double initialCapital;
+  final double stocksSpendAmount;
   final Future<void> Function() onRefresh;
 
   const RaiserRequestTab({
@@ -13,6 +16,9 @@ class RaiserRequestTab extends StatefulWidget {
     required this.activeAssignments,
     required this.raiserData,
     required this.requestsList,
+    this.investedAmount = 0.0,
+    this.initialCapital = 0.0,
+    this.stocksSpendAmount = 0.0,
     required this.onRefresh,
   });
 
@@ -42,6 +48,9 @@ class _RaiserRequestTabState extends State<RaiserRequestTab> {
     return RequestFormScreen(
       activeAssignments: widget.activeAssignments,
       raiserData: widget.raiserData,
+      investedAmount: widget.investedAmount,
+      initialCapital: widget.initialCapital,
+      stocksSpendAmount: widget.stocksSpendAmount,
       initialCategory: _selectedCategoryForForm,
       showBackButton: false,
       onBack: () {

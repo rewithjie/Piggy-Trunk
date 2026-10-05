@@ -298,29 +298,39 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                       scrollDirection: Axis.horizontal,
                       child: SizedBox(
                         width: tableWidth,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_viewMode == 'DIRECT') ...[
-                              _buildTableHeader(isDark, cardBorder, hintText),
-                              if (filteredDirect.isEmpty)
-                                _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getDirectEmptyMessage())
-                              else
-                                ...List.generate(
-                                  filteredDirect.length,
-                                  (index) => _buildTableRow(filteredDirect[index], index, isDark, cardBorder, titleColor, hintText),
-                                ),
-                            ] else ...[
-                              _buildPartnerTableHeader(isDark, cardBorder, hintText),
-                              if (filteredPartner.isEmpty)
-                                _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getPartnerEmptyMessage())
-                              else
-                                ...List.generate(
-                                  filteredPartner.length,
-                                  (index) => _buildPartnerTableRow(filteredPartner[index], index, isDark, cardBorder, titleColor, hintText),
-                                ),
-                            ],
-                          ],
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF132238) : Colors.white,
+                            border: Border.all(color: cardBorder, width: 1.0),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(11),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_viewMode == 'DIRECT') ...[
+                                  _buildTableHeader(isDark, cardBorder, hintText),
+                                  if (filteredDirect.isEmpty)
+                                    _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getDirectEmptyMessage())
+                                  else
+                                    ...List.generate(
+                                      filteredDirect.length,
+                                      (index) => _buildTableRow(filteredDirect[index], index, isDark, cardBorder, titleColor, hintText),
+                                    ),
+                                ] else ...[
+                                  _buildPartnerTableHeader(isDark, cardBorder, hintText),
+                                  if (filteredPartner.isEmpty)
+                                    _buildEmptyPlaceholder(tableWidth, cardBorder, titleColor, _getPartnerEmptyMessage())
+                                  else
+                                    ...List.generate(
+                                      filteredPartner.length,
+                                      (index) => _buildPartnerTableRow(filteredPartner[index], index, isDark, cardBorder, titleColor, hintText),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -771,7 +781,6 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
         border: Border(bottom: BorderSide(color: cardBorder, width: 1.2)),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(
         children: [
@@ -862,10 +871,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     final hasBatch = batchName != 'Unassigned' && batchName != 'No Batch';
     final isCompleted = inv.stage.toLowerCase() == 'completed';
     final isArchived = inv.stage.toLowerCase() == 'archived';
+    final rowBg = index % 2 == 1
+        ? (isDark ? const Color(0xFF16253B) : const Color(0xFFF8FAFD))
+        : (isDark ? const Color(0xFF132238) : Colors.white);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
+        color: rowBg,
         border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.5))),
       ),
       child: Row(
@@ -901,9 +914,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: hasBatch
-                      ? (isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
-                      : hintText,
+                  color: hasBatch ? titleColor : hintText,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -935,9 +946,7 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  color: inv.stocksValue > 0
-                      ? (isDark ? const Color(0xFF38BDF8) : PiggyTrunkTheme.ptPrimary)
-                      : hintText,
+                  color: inv.stocksValue > 0 ? titleColor : hintText,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1108,14 +1117,12 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     );
   }
 
-  // PARTNER INVESTMENTS TABLE
   Widget _buildPartnerTableHeader(bool isDark, Color cardBorder, Color hintText) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B2E48) : const Color(0xFFEDF4FC),
         border: Border(bottom: BorderSide(color: cardBorder, width: 1.2)),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(
         children: [
@@ -1172,10 +1179,14 @@ class _InvestmentTableViewState extends State<InvestmentTableView> {
     final dt = DateTime.tryParse(dateStr) ?? DateTime.now();
     final rawInvId = p['investment_id'] ?? p['id'];
     final investmentId = rawInvId is int ? rawInvId : int.tryParse(rawInvId?.toString() ?? '');
+    final rowBg = index % 2 == 1
+        ? (isDark ? const Color(0xFF16253B) : const Color(0xFFF8FAFD))
+        : (isDark ? const Color(0xFF132238) : Colors.white);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
+        color: rowBg,
         border: Border(bottom: BorderSide(color: cardBorder.withValues(alpha: 0.5))),
       ),
       child: Row(

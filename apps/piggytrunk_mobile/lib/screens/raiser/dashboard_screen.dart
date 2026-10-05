@@ -204,13 +204,24 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       }
 
       // 3. Fetch total capital invested and total hogs from investment_records
-      final capitalRes = await Supabase.instance.client
-          .from('investment_records')
-          .select('initial_capital, total_hog, hog_type')
-          .eq('hog_raiser_id', raiserId.toString());
+      List<dynamic> capitalRes = [];
+      try {
+        capitalRes = await Supabase.instance.client
+            .from('investment_records')
+            .select('initial_capital, total_hog, hog_type, batch_id, batch_name, stage')
+            .eq('hog_raiser_id', raiserId.toString());
+      } catch (_) {
+        try {
+          capitalRes = await Supabase.instance.client
+              .from('investment_records')
+              .select('initial_capital, total_hog, hog_type')
+              .eq('hog_raiser_id', raiserId.toString());
+        } catch (_) {}
+      }
 
+      final invRows = List<Map<String, dynamic>>.from(capitalRes);
       double totalCapital = 0.0;
-      for (var row in (capitalRes as List? ?? [])) {
+      for (var row in invRows) {
         totalCapital += (row['initial_capital'] as num?)?.toDouble() ?? 0.0;
       }
 
@@ -263,6 +274,30 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
+      // Self-healing: If assignments is empty but investment_records has batch info for this raiser
+      if (assignments.isEmpty && invRows.isNotEmpty) {
+        final latestInvWithBatch = invRows.reversed.firstWhere(
+          (inv) => (inv['batch_name'] ?? '').toString().trim().isNotEmpty && inv['batch_name'] != 'Unassigned',
+          orElse: () => invRows.last,
+        );
+        final bName = (latestInvWithBatch['batch_name'] ?? 'Active Batch').toString();
+        final bId = latestInvWithBatch['batch_id'];
+        assignments.add({
+          'assignment_id': null,
+          'batch_id': bId,
+          'batch_name': bName,
+          'status': 'active',
+          'is_cycle_completed': false,
+          'batches': {
+            'batch_id': bId,
+            'batch_name': bName,
+            'status': 'Active',
+          },
+          'pig_type': latestInvWithBatch['hog_type'] ?? 'Fattening',
+          'lifecycle_stage': latestInvWithBatch['stage'] ?? 'Booster',
+        });
+      }
+
       // 5. Fetch hogs strictly for this raiser's active assignments
       List<dynamic> hogsRes = [];
       final activeAssignmentIds = assignments
@@ -288,6 +323,19 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
+      if (hogsRes.isEmpty) {
+        try {
+          final fallbackHogs = await Supabase.instance.client
+              .from('hogs')
+              .select('*, assignments!inner(*)')
+              .eq('assignments.hog_raiser_id', raiserId)
+              .eq('status', 'active');
+          if (fallbackHogs.isNotEmpty) {
+            hogsRes = fallbackHogs;
+          }
+        } catch (_) {}
+      }
+
       var hogs = List<Map<String, dynamic>>.from(hogsRes)
           .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
           .toList();
@@ -297,6 +345,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         final bId = b['hog_id'] as num? ?? 0;
         return aId.compareTo(bId);
       });
+
+      // Ensure any orphan hogs for this raiser are associated with the active assignment
+      if (assignments.isNotEmpty && hogs.isNotEmpty) {
+        final validAssignIds = assignments.map((a) => (a['assignment_id'] ?? a['id'])?.toString()).whereType<String>().toSet();
+        final defaultAssignId = assignments.first['assignment_id'] ?? assignments.first['id'];
+        for (var h in hogs) {
+          final hAId = h['assignment_id']?.toString();
+          if (hAId == null || !validAssignIds.contains(hAId)) {
+            h['assignment_id'] = defaultAssignId;
+          }
+        }
+      }
 
       // Create lookup map of assignment_id -> assignment to strictly isolate hog types by their own batch
       final Map<String, Map<String, dynamic>> assignmentMap = {};

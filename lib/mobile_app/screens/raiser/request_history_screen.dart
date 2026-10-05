@@ -83,7 +83,7 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
       try {
         res = await Supabase.instance.client
             .from('stock_requests')
-            .select('*, assignments(batches(batch_name))')
+            .select('*, assignments(status, batches(batch_name, status))')
             .eq('hog_raiser_id', raiserId)
             .order('request_date', ascending: false)
             .order('request_id', ascending: false);
@@ -478,6 +478,15 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 }
                               }
 
+                              final assignStatus = (req['assignments']?['status'] ?? '').toString().toLowerCase();
+                              final batchStatus = (req['assignments']?['batches']?['status'] ?? '').toString().toLowerCase();
+                              final isConcluded = assignStatus == 'completed' ||
+                                  assignStatus == 'finished' ||
+                                  batchStatus == 'completed' ||
+                                  batchStatus == 'archived' ||
+                                  batchStatus == 'sold' ||
+                                  batchStatus == 'finished';
+
                               Color statusColor;
                               Color statusBgColor;
 
@@ -501,9 +510,15 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                   margin: const EdgeInsets.only(bottom: 14),
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: surfaceBg,
+                                    color: isConcluded
+                                        ? (isDark ? const Color(0xFF142032) : const Color(0xFFF8FAFC))
+                                        : surfaceBg,
                                     borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(color: cardBorder),
+                                    border: Border.all(
+                                      color: isConcluded
+                                          ? (isDark ? Colors.white12 : const Color(0xFFE2E8F0))
+                                          : cardBorder,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
@@ -552,13 +567,39 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 3),
-                                                Text(
-                                                  '$batchName • $dateStr',
-                                                  style: GoogleFonts.plusJakartaSans(
-                                                    fontSize: 12,
-                                                    color: mutedColor,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
+                                                Wrap(
+                                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                                  spacing: 6,
+                                                  runSpacing: 4,
+                                                  children: [
+                                                    Text(
+                                                      '$batchName • $dateStr',
+                                                      style: GoogleFonts.plusJakartaSans(
+                                                        fontSize: 12,
+                                                        color: mutedColor,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                    if (isConcluded)
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                        decoration: BoxDecoration(
+                                                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                                          borderRadius: BorderRadius.circular(5),
+                                                          border: Border.all(
+                                                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          strings.isFilipino ? 'Tapos na' : 'Concluded',
+                                                          style: GoogleFonts.plusJakartaSans(
+                                                            fontSize: 9.5,
+                                                            fontWeight: FontWeight.w700,
+                                                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                               ],
                                             ),
@@ -779,9 +820,15 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: surfaceBg,
+                                  color: isConcluded
+                                      ? (isDark ? const Color(0xFF142032) : const Color(0xFFF8FAFC))
+                                      : surfaceBg,
                                   borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(color: cardBorder),
+                                  border: Border.all(
+                                    color: isConcluded
+                                        ? (isDark ? Colors.white12 : const Color(0xFFE2E8F0))
+                                        : cardBorder,
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
@@ -835,13 +882,39 @@ class _RequestHistoryScreenState extends State<RequestHistoryScreen> {
                                                 ),
                                               ),
                                               const SizedBox(height: 3),
-                                              Text(
-                                                '$batchName • $dateStr',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  color: mutedColor,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
+                                              Wrap(
+                                                crossAxisAlignment: WrapCrossAlignment.center,
+                                                spacing: 6,
+                                                runSpacing: 4,
+                                                children: [
+                                                  Text(
+                                                    '$batchName • $dateStr',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12,
+                                                      color: mutedColor,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  if (isConcluded)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                                                        borderRadius: BorderRadius.circular(5),
+                                                        border: Border.all(
+                                                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        strings.isFilipino ? 'Tapos na' : 'Concluded',
+                                                        style: GoogleFonts.plusJakartaSans(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w700,
+                                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             ],
                                           ),

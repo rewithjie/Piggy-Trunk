@@ -11,6 +11,9 @@ import '../../widgets/piggy_toast.dart';
 class RequestFormScreen extends StatefulWidget {
   final List<Map<String, dynamic>> activeAssignments;
   final Map<String, dynamic> raiserData;
+  final double investedAmount;
+  final double initialCapital;
+  final double stocksSpendAmount;
   final String initialCategory;
   final bool showBackButton;
   final VoidCallback onBack;
@@ -21,6 +24,9 @@ class RequestFormScreen extends StatefulWidget {
     super.key,
     required this.activeAssignments,
     required this.raiserData,
+    this.investedAmount = 0.0,
+    this.initialCapital = 0.0,
+    this.stocksSpendAmount = 0.0,
     this.initialCategory = 'All',
     this.showBackButton = true,
     required this.onBack,
@@ -62,6 +68,16 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
     super.initState();
     _selectedCategory = widget.initialCategory.isNotEmpty ? widget.initialCategory : 'All';
     _assignments = List<Map<String, dynamic>>.from(widget.activeAssignments);
+    _assignments.sort((a, b) {
+      final aDone = a['is_cycle_completed'] == true;
+      final bDone = b['is_cycle_completed'] == true;
+      if (!aDone && bDone) return -1;
+      if (aDone && !bDone) return 1;
+
+      final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+      final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+      return bId.compareTo(aId);
+    });
 
     if (_assignments.isNotEmpty) {
       _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
@@ -158,20 +174,148 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
         }
       }
 
+      final activeAssignmentIds = activeList
+          .map((a) => a['assignment_id'] ?? a['id'])
+          .where((id) => id != null)
+          .toList();
+
+      List<dynamic> hogsRes = [];
+      if (activeAssignmentIds.isNotEmpty) {
+        try {
+          hogsRes = await _supabase
+              .from('hogs')
+              .select('*')
+              .inFilter('assignment_id', activeAssignmentIds);
+        } catch (_) {}
+      }
+      final hogs = List<Map<String, dynamic>>.from(hogsRes)
+          .where((h) => (h['health_status'] ?? '').toString().toLowerCase() != 'dead')
+          .toList();
+
+      for (var a in activeList) {
+        final aIdStr = (a['assignment_id'] ?? a['id'])?.toString();
+        final b = a['batches'] is Map ? a['batches'] as Map : null;
+        final bStatus = (b?['status'] ?? b?['batch_status'] ?? '').toString().toLowerCase();
+        final isExplicitlyCompleted = bStatus == 'completed' ||
+            bStatus == 'sold' ||
+            bStatus == 'finished' ||
+            bStatus == 'harvested' ||
+            (a['status'] ?? '').toString().toLowerCase() == 'completed' ||
+            (a['status'] ?? '').toString().toLowerCase() == 'finished';
+
+        final assignHogs = hogs.where((h) => h['assignment_id']?.toString() == aIdStr).toList();
+        final rawHogType = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().toLowerCase();
+        final isSow = rawHogType.contains('sow') || rawHogType.contains('breed');
+
+        if (isExplicitlyCompleted) {
+          a['is_cycle_completed'] = true;
+        } else if (assignHogs.isNotEmpty) {
+          final allHogsAtFinalStage = assignHogs.every((h) {
+            final hStatus = (h['status'] ?? '').toString().trim().toLowerCase();
+            final s = (h['stage_id'] ?? h['lifecycle_stage'] ?? h['stage'] ?? '').toString().trim().toLowerCase();
+            return hStatus == 'completed' || (isSow
+                ? (s == 'lactation' || s == '6' || s.contains('lactat'))
+                : (s == 'selling' || s == 'sold' || s == '6' || s.contains('sell')));
+          });
+          a['is_cycle_completed'] = allHogsAtFinalStage;
+        } else {
+          final assignStage = (a['lifecycle_stage'] ?? a['current_stage'] ?? '').toString().trim().toLowerCase();
+          bool stageCompleted = false;
+          if (isSow && (assignStage == 'lactation' || assignStage.contains('lactat'))) {
+            stageCompleted = true;
+          } else if (!isSow && (assignStage == 'selling' || assignStage == 'sold' || assignStage.contains('sell'))) {
+            stageCompleted = true;
+          }
+          a['is_cycle_completed'] = stageCompleted;
+        }
+
+        // Carry over per-batch capital isolation from widget.activeAssignments
+        final matchWidget = widget.activeAssignments.firstWhere(
+          (w) => (w['assignment_id'] ?? w['id'])?.toString() == aIdStr,
+          orElse: () => <String, dynamic>{},
+        );
+        if (matchWidget.isNotEmpty) {
+          a['initial_capital'] = matchWidget['initial_capital'];
+          a['stocks_spend'] = matchWidget['stocks_spend'];
+          a['remaining_capital'] = matchWidget['remaining_capital'];
+          a['provided_stocks'] = matchWidget['provided_stocks'];
+          a['is_investment_depleted'] = matchWidget['is_investment_depleted'];
+        }
+      }
+
+      activeList.sort((a, b) {
+        final aDone = a['is_cycle_completed'] == true;
+        final bDone = b['is_cycle_completed'] == true;
+        if (!aDone && bDone) return -1;
+        if (aDone && !bDone) return 1;
+
+        final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+        final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+        return bId.compareTo(aId);
+      });
+
       if (mounted) {
         setState(() {
           _assignments = activeList;
           if (_assignments.isEmpty) {
             _selectedAssignmentId = null;
-          } else if (_selectedAssignmentId == null ||
-              !_assignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId)) {
-            _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
+          } else {
+            final currentSelected = _selectedAssignmentId != null
+                ? _assignments.firstWhere(
+                    (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+                    orElse: () => {},
+                  )
+                : <String, dynamic>{};
+            final isCurrentCompleted = currentSelected.isNotEmpty && currentSelected['is_cycle_completed'] == true;
+            final hasNonCompleted = _assignments.any((a) => a['is_cycle_completed'] != true);
+
+            if (currentSelected.isEmpty || (isCurrentCompleted && hasNonCompleted)) {
+              _selectedAssignmentId = BigInt.from(_assignments[0]['assignment_id'] as num);
+            }
           }
         });
       }
     } catch (e) {
       debugPrint('Error refreshing assignments: $e');
     }
+  }
+
+  Map<String, dynamic> get _selectedAssignment {
+    if (_assignments.isEmpty) return {};
+    return _assignments.firstWhere(
+      (a) => _selectedAssignmentId != null && BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+      orElse: () => _assignments.first,
+    );
+  }
+
+  bool get _isCurrentBatchCompleted {
+    final a = _selectedAssignment;
+    return a['is_cycle_completed'] == true;
+  }
+
+  double get _currentBatchInitialCapital {
+    final a = _selectedAssignment;
+    final cap = (a['initial_capital'] as num?)?.toDouble();
+    if (cap != null && cap > 0) return cap;
+    return widget.initialCapital;
+  }
+
+  double get _currentBatchStocksSpend {
+    final a = _selectedAssignment;
+    final spend = (a['stocks_spend'] as num?)?.toDouble();
+    if (spend != null) return spend;
+    return widget.stocksSpendAmount;
+  }
+
+  double get _currentBatchInvestedAmount {
+    final a = _selectedAssignment;
+    final rem = (a['remaining_capital'] as num?)?.toDouble();
+    if (rem != null) return rem;
+    return widget.investedAmount;
+  }
+
+  bool get _isInvestmentDepleted {
+    return _currentBatchInvestedAmount <= 0 && (_currentBatchInitialCapital > 0 || _currentBatchStocksSpend > 0);
   }
 
   @override
@@ -298,6 +442,17 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
       );
       return;
     }
+    if (_isCurrentBatchCompleted) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Tapos na ang siklo ng batch na ito. Bawal nang humiling ng karagdagang supply. Mangyaring maghintay sa susunod na batch mula sa Farm Admin.'
+            : 'This batch cycle is completed. Supplies can no longer be requested for this batch. Please wait for Farm Admin to assign your next batch.',
+        title: strings.isFilipino ? 'Tapos na ang Siklo' : 'Cycle Completed',
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
     if (product.units <= 0) {
       PiggyToast.showWarning(
         context,
@@ -417,6 +572,61 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
             : 'Please select at least 1 item to request.',
       );
       return;
+    }
+
+    if (_isCurrentBatchCompleted) {
+      PiggyToast.showWarning(
+        context,
+        strings.isFilipino
+            ? 'Tapos na ang siklo ng batch na ito. Bawal nang humiling ng karagdagang supply. Mangyaring maghintay sa susunod na batch mula sa Farm Admin.'
+            : 'This batch cycle is completed. Supplies can no longer be requested for this batch. Please wait for Farm Admin to assign your next batch.',
+        title: strings.isFilipino ? 'Batch Natapos Na' : 'Batch Cycle Completed',
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    if (_isInvestmentDepleted) {
+      final bool? proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  strings.isFilipino ? 'Naubos na ang Puhunan' : 'Investment Depleted',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            strings.isFilipino
+                ? 'Paalala: Naubos na ang inyong natitirang puhunan (₱0.00). Ang kahilingang ito ay mangangailangan ng espesyal na pag-apruba mula sa Farm Admin. Nais mo bang magpatuloy?'
+                : 'Notice: Your remaining investment budget is ₱0.00. This supply request exceeds your remaining capital and will require special Farm Admin review. Do you want to submit anyway for admin approval?',
+            style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(strings.isFilipino ? 'Kanselahin' : 'Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _brandColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(strings.isFilipino ? 'Isumite Pa Rin' : 'Submit for Review'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
     }
 
     setState(() => _isSubmitting = true);
@@ -949,21 +1159,29 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                                       decoration: BoxDecoration(
-                                        color: isDark
-                                            ? const Color(0xFF064E3B).withValues(alpha: 0.4)
-                                            : const Color(0xFFECFDF5),
+                                        color: _isCurrentBatchCompleted
+                                            ? (isDark ? const Color(0xFF10B981).withValues(alpha: 0.2) : const Color(0xFFECFDF5))
+                                            : (isDark ? const Color(0xFF064E3B).withValues(alpha: 0.4) : const Color(0xFFECFDF5)),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
-                                          color: isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0),
+                                          color: _isCurrentBatchCompleted
+                                              ? (isDark ? const Color(0xFF10B981).withValues(alpha: 0.5) : const Color(0xFFA7F3D0))
+                                              : (isDark ? const Color(0xFF059669) : const Color(0xFFA7F3D0)),
                                         ),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF10B981)),
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 12,
+                                            color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                          ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            strings.isFilipino ? 'Aktibo' : 'Active',
+                                            _isCurrentBatchCompleted
+                                                ? (strings.isFilipino ? 'Tapos Na' : 'Cycle Completed')
+                                                : (strings.isFilipino ? 'Aktibo' : 'Active'),
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 10.5,
                                               fontWeight: FontWeight.w700,
@@ -1232,7 +1450,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: (_cart.isEmpty || _isSubmitting)
+                            onPressed: (_cart.isEmpty || _isSubmitting || _isCurrentBatchCompleted)
                                 ? null
                                 : () async {
                                     Navigator.pop(modalCtx);
@@ -1241,6 +1459,8 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isDark ? Colors.white : _brandColor,
                               foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                              disabledBackgroundColor: mutedColor.withValues(alpha: 0.15),
+                              disabledForegroundColor: mutedColor,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               elevation: 0,
@@ -1255,14 +1475,18 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        strings.isFilipino ? 'Isumite ang Kahilingan' : 'Submit Request',
+                                        _isCurrentBatchCompleted
+                                            ? (strings.isFilipino ? 'Tapos na ang Siklo ng Batch' : 'Batch Cycle Completed')
+                                            : (strings.isFilipino ? 'Isumite ang Kahilingan' : 'Submit Request'),
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w800,
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      const Icon(Icons.arrow_forward_rounded, size: 18),
+                                      if (!_isCurrentBatchCompleted) ...[
+                                        const SizedBox(width: 6),
+                                        const Icon(Icons.arrow_forward_rounded, size: 18),
+                                      ],
                                     ],
                                   ),
                           ),
@@ -1667,7 +1891,47 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                                             ),
                                           ),
                                         ),
-
+                                        const SizedBox(width: 6),
+                                        if (a['is_cycle_completed'] == true)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isDark ? const Color(0xFF14291F) : const Color(0xFFECFDF5),
+                                              borderRadius: BorderRadius.circular(6),
+                                              border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.check_rounded, size: 10, color: Color(0xFF10B981)),
+                                                const SizedBox(width: 3),
+                                                Text(
+                                                  strings.isFilipino ? 'Tapos na' : 'Concluded',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              strings.isFilipino ? 'Aktibo' : 'Active',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF10B981),
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -1812,6 +2076,35 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (selectedAssignment['is_cycle_completed'] == true) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.2 : 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.5 : 0.25),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_rounded, size: 10.5, color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669)),
+                      const SizedBox(width: 3.5),
+                      Text(
+                        strings.isFilipino ? 'Tapos Na' : 'Completed',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (hasMultipleBatches) ...[
                 const SizedBox(width: 6),
                 Container(
@@ -1957,6 +2250,112 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                 ),
               // Active Batch Banner / Selector
               _buildActiveBatchBanner(isDark, textColor, surfaceBg, borderColor, mutedColor, strings),
+              if (_isCurrentBatchCompleted || _isInvestmentDepleted)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 2, 18, 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: isDark ? PiggyTrunkTheme.ptSurfaceDark : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? PiggyTrunkTheme.ptBorderDark : const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: (_isCurrentBatchCompleted
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF64748B))
+                                .withValues(alpha: isDark ? 0.2 : 0.1),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(
+                            _isCurrentBatchCompleted
+                                ? Icons.task_alt_rounded
+                                : Icons.account_balance_wallet_outlined,
+                            size: 18,
+                            color: _isCurrentBatchCompleted
+                                ? (isDark ? const Color(0xFF34D399) : const Color(0xFF059669))
+                                : (isDark ? const Color(0xFF94A3B8) : _brandColor),
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _isCurrentBatchCompleted
+                                    ? (strings.isFilipino ? 'Tapos na ang Siklo ng Batch' : 'Batch Cycle Completed')
+                                    : (strings.isFilipino ? 'Puhunan ay Naubos Na' : 'Investment Budget Concluded'),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 2.5),
+                              Text(
+                                _isCurrentBatchCompleted
+                                    ? (strings.isFilipino
+                                        ? 'Nakatapos na ang siklo ng batch na ito. Pansamantalang sarado ang supply requests habang hinihintay ang susunod na batch mula sa Farm Admin.'
+                                        : 'This batch has completed its cycle. Supply requests are paused until your next batch assignment from Farm Admin.')
+                                    : (strings.isFilipino
+                                        ? 'Naubos na ang natitirang puhunan (₱0.00). Makipag-ugnayan sa Farm Admin para sa replenishment o adjustment.'
+                                        : 'Remaining investment budget is ₱0.00. Please coordinate with Farm Admin for replenishment or adjustments.'),
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: mutedColor,
+                                  height: 1.35,
+                                ),
+                              ),
+                              if (_isCurrentBatchCompleted && _isInvestmentDepleted) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: mutedColor.withValues(alpha: 0.6),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      strings.isFilipino
+                                          ? 'Natitirang Puhunan: ₱0.00 • Naisara na ang alokasyon'
+                                          : 'Remaining Budget: ₱0.00 • Investment capital concluded',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: mutedColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
@@ -2110,7 +2509,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
           ),
 
           // Floating Bottom Request Bar
-          if (_cart.isNotEmpty)
+          if (_cart.isNotEmpty && !_isCurrentBatchCompleted)
             Positioned(
               left: 18,
               right: 18,
@@ -2481,7 +2880,7 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                           ),
                         ),
                       )
-                    else if (widget.activeAssignments.isEmpty)
+                    else if (widget.activeAssignments.isEmpty || _isCurrentBatchCompleted)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7.5),
                         decoration: BoxDecoration(
@@ -2491,10 +2890,12 @@ class _RequestFormScreenState extends State<RequestFormScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.lock_outline_rounded, size: 14, color: mutedColor),
+                            Icon(_isCurrentBatchCompleted ? Icons.check_circle_outline_rounded : Icons.lock_outline_rounded, size: 14, color: mutedColor),
                             const SizedBox(width: 4),
                             Text(
-                              strings.isFilipino ? 'Bawal' : 'Locked',
+                              _isCurrentBatchCompleted
+                                  ? (strings.isFilipino ? 'Tapos Na' : 'Completed')
+                                  : (strings.isFilipino ? 'Bawal' : 'Locked'),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,

@@ -67,7 +67,7 @@ class RaiserHomeTab extends StatelessWidget {
     final raiserName = raiserData['name'] ?? strings.hogRaiserRole;
 
     // Active assignment & investment details
-    final hasActiveBatch = activeAssignments.isNotEmpty;
+    final hasActiveBatch = activeAssignments.isNotEmpty || hogsList.isNotEmpty;
     final hasInvestment = investedAmount > 0;
     final List<String> allBatchNames = [];
     for (var a in activeAssignments) {
@@ -199,7 +199,9 @@ class RaiserHomeTab extends StatelessWidget {
                           border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
                         ),
                         child: Text(
-                          hasActiveBatch ? activeBatchName.toUpperCase() : (strings.isFilipino ? 'WALANG BATCH' : 'NO BATCH ASSIGNED'),
+                          (hasActiveBatch || activeBatchName.isNotEmpty)
+                              ? (activeBatchName.isNotEmpty ? activeBatchName.toUpperCase() : 'ACTIVE BATCH')
+                              : (strings.isFilipino ? 'WALANG BATCH' : 'NO BATCH ASSIGNED'),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w800,

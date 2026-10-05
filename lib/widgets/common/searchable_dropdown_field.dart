@@ -224,14 +224,28 @@ class _SearchableDropdownFieldState<T> extends State<SearchableDropdownField<T>>
           child: Row(
             children: [
               // Prefix icon
-              Icon(
-                selected?.icon ?? widget.defaultPrefixIcon ?? Icons.arrow_drop_down_circle_outlined,
-                size: 18,
-                color: isUnassigned
-                    ? _muted
-                    : (selected?.iconColor ??
-                        (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)),
-              ),
+              () {
+                final selIconCol = selected?.iconColor;
+                final Color prefixCol = isUnassigned
+                    ? (widget.isDark ? const Color(0xFF94A3B8) : _muted)
+                    : (widget.isDark
+                        ? (selIconCol != null &&
+                                selIconCol != PiggyTrunkTheme.ptPrimary &&
+                                selIconCol != const Color(0xFF4B6281) &&
+                                selIconCol != const Color(0xFF243B53) &&
+                                selIconCol != const Color(0xFF64748B) &&
+                                selIconCol != const Color(0xFF60A5FA) &&
+                                selIconCol != const Color(0xFF93C5FD)
+                            ? selIconCol
+                            : const Color(0xFF9CB0C9))
+                        : (selIconCol ?? PiggyTrunkTheme.ptPrimary));
+
+                return Icon(
+                  selected?.icon ?? widget.defaultPrefixIcon ?? Icons.arrow_drop_down_circle_outlined,
+                  size: 18,
+                  color: prefixCol,
+                );
+              }(),
               const SizedBox(width: 10),
 
               // Selected text & badge
@@ -487,7 +501,7 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
                     Icon(
                       Icons.search_rounded,
                       size: 17,
-                      color: widget.isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      color: widget.isDark ? const Color(0xFF9CB0C9) : const Color(0xFF64748B),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -612,11 +626,18 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
                         final isSelected = item.value == widget.selectedValue;
                         final isKeyboardFocused = index == _focusedIndex;
                         final iconCol = !item.isEnabled
-                            ? widget.mutedColor.withValues(alpha: 0.5)
-                            : (item.iconColor ??
-                                (isSelected
-                                    ? (widget.isDark ? Colors.white : PiggyTrunkTheme.ptPrimary)
-                                    : (widget.isDark ? const Color(0xFFCBD5E1) : PiggyTrunkTheme.ptPrimary)));
+                            ? (widget.isDark ? const Color(0xFF64748B) : widget.mutedColor.withValues(alpha: 0.5))
+                            : (widget.isDark
+                                ? (item.iconColor != null &&
+                                        item.iconColor != PiggyTrunkTheme.ptPrimary &&
+                                        item.iconColor != const Color(0xFF4B6281) &&
+                                        item.iconColor != const Color(0xFF243B53) &&
+                                        item.iconColor != const Color(0xFF64748B) &&
+                                        item.iconColor != const Color(0xFF60A5FA) &&
+                                        item.iconColor != const Color(0xFF93C5FD)
+                                    ? item.iconColor!
+                                    : (isSelected ? Colors.white : const Color(0xFF9CB0C9)))
+                                : (item.iconColor ?? (isSelected ? PiggyTrunkTheme.ptPrimary : PiggyTrunkTheme.ptPrimary)));
 
                         return Material(
                           color: Colors.transparent,
@@ -651,7 +672,9 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
                                     width: 32,
                                     height: 32,
                                     decoration: BoxDecoration(
-                                      color: iconCol.withValues(alpha: widget.isDark ? 0.16 : 0.1),
+                                      color: widget.isDark
+                                          ? const Color(0xFF1E2E44)
+                                          : const Color(0xFFEDF2F9),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Icon(
@@ -703,12 +726,14 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: item.badgeColor?.withValues(alpha: widget.isDark ? 0.18 : 0.12) ??
-                                            (widget.isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+                                        color: item.badgeColor != null && item.badgeColor == PiggyTrunkTheme.ptSuccess
+                                            ? PiggyTrunkTheme.ptSuccess.withValues(alpha: widget.isDark ? 0.18 : 0.12)
+                                            : (widget.isDark ? const Color(0xFF1E2C42) : const Color(0xFFE8EEF7)),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                          color: item.badgeColor?.withValues(alpha: 0.3) ??
-                                              (widget.isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                                          color: item.badgeColor != null && item.badgeColor == PiggyTrunkTheme.ptSuccess
+                                              ? PiggyTrunkTheme.ptSuccess.withValues(alpha: 0.35)
+                                              : (widget.isDark ? const Color(0xFF2C3E5A) : const Color(0xFFCCD9EB)),
                                           width: 0.8,
                                         ),
                                       ),
@@ -717,8 +742,9 @@ class _DropdownMenuContentState<T> extends State<_DropdownMenuContent<T>> {
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 10.5,
                                           fontWeight: FontWeight.w600,
-                                          color: item.badgeColor ??
-                                              (widget.isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569)),
+                                          color: item.badgeColor != null && item.badgeColor == PiggyTrunkTheme.ptSuccess
+                                              ? PiggyTrunkTheme.ptSuccess
+                                              : (widget.isDark ? const Color(0xFFCBD5E1) : PiggyTrunkTheme.ptPrimary),
                                         ),
                                       ),
                                     ),

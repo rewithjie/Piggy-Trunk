@@ -208,14 +208,14 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       try {
         capitalRes = await Supabase.instance.client
             .from('investment_records')
-            .select('id, initial_capital, total_hog, hog_type, stage, investment_date')
+            .select('*')
             .eq('hog_raiser_id', raiserId.toString())
             .order('investment_date', ascending: true);
       } catch (_) {
         try {
           capitalRes = await Supabase.instance.client
               .from('investment_records')
-              .select('id, initial_capital, total_hog, hog_type, stage')
+              .select('*')
               .eq('hog_raiser_id', raiserId.toString());
         } catch (_) {
           capitalRes = [];
@@ -248,28 +248,20 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
-      // 4. Fetch assignments with flexible status matching
+      // 4. Fetch all assignments for this raiser (both active and completed)
       List<dynamic> assignmentsRes = [];
       try {
         assignmentsRes = await Supabase.instance.client
             .from('assignments')
             .select('*, hog_types(*), batches(*)')
-            .eq('hog_raiser_id', raiserId)
-            .or('status.eq.active,status.eq.Active,status.eq.assigned');
+            .eq('hog_raiser_id', raiserId);
       } catch (_) {
         try {
           assignmentsRes = await Supabase.instance.client
               .from('assignments')
-              .select('*, hog_types(*), batches(*)')
+              .select('*')
               .eq('hog_raiser_id', raiserId);
-        } catch (_) {
-          try {
-            assignmentsRes = await Supabase.instance.client
-                .from('assignments')
-                .select('*')
-                .eq('hog_raiser_id', raiserId);
-          } catch (_) {}
-        }
+        } catch (_) {}
       }
 
       // Pre-fetch all batches safely to avoid losing assignments if relational join returns list or null
@@ -305,6 +297,29 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
+      // Self-healing: If assignments is empty but investment_records has batch info for this raiser
+      if (assignments.isEmpty && invRows.isNotEmpty) {
+        final latestInvWithBatch = invRows.reversed.firstWhere(
+          (inv) => (inv['batch_name'] ?? '').toString().trim().isNotEmpty && inv['batch_name'] != 'Unassigned',
+          orElse: () => invRows.last,
+        );
+        final bName = (latestInvWithBatch['batch_name'] ?? 'Active Batch').toString();
+        final bId = latestInvWithBatch['batch_id'];
+        assignments.add({
+          'assignment_id': null,
+          'batch_id': bId,
+          'batch_name': bName,
+          'status': 'active',
+          'is_cycle_completed': false,
+          'batches': {
+            'batch_id': bId,
+            'batch_name': bName,
+            'status': 'Active',
+          },
+          'pig_type': latestInvWithBatch['hog_type'] ?? 'Fattening',
+          'lifecycle_stage': latestInvWithBatch['stage'] ?? 'Booster',
+        });
+      }
 
       // 5. Fetch hogs strictly for this raiser's active assignments
       List<dynamic> hogsRes = [];
@@ -318,17 +333,27 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           hogsRes = await Supabase.instance.client
               .from('hogs')
               .select('*')
-              .inFilter('assignment_id', activeAssignmentIds)
-              .eq('status', 'active');
+              .inFilter('assignment_id', activeAssignmentIds);
         } catch (_) {
           try {
             hogsRes = await Supabase.instance.client
                 .from('hogs')
                 .select('*, assignments!inner(*)')
-                .eq('assignments.hog_raiser_id', raiserId)
-                .eq('status', 'active');
+                .eq('assignments.hog_raiser_id', raiserId);
           } catch (_) {}
         }
+      }
+
+      if (hogsRes.isEmpty) {
+        try {
+          final fallbackHogs = await Supabase.instance.client
+              .from('hogs')
+              .select('*, assignments!inner(*)')
+              .eq('assignments.hog_raiser_id', raiserId);
+          if (fallbackHogs.isNotEmpty) {
+            hogsRes = fallbackHogs;
+          }
+        } catch (_) {}
       }
 
       var hogs = List<Map<String, dynamic>>.from(hogsRes)
@@ -340,6 +365,18 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         final bId = b['hog_id'] as num? ?? 0;
         return aId.compareTo(bId);
       });
+
+      // Ensure any orphan hogs for this raiser are associated with the active assignment
+      if (assignments.isNotEmpty && hogs.isNotEmpty) {
+        final validAssignIds = assignments.map((a) => (a['assignment_id'] ?? a['id'])?.toString()).whereType<String>().toSet();
+        final defaultAssignId = assignments.first['assignment_id'] ?? assignments.first['id'];
+        for (var h in hogs) {
+          final hAId = h['assignment_id']?.toString();
+          if (hAId == null || !validAssignIds.contains(hAId)) {
+            h['assignment_id'] = defaultAssignId;
+          }
+        }
+      }
 
       // Create lookup map of assignment_id -> assignment to strictly isolate hog types by their own batch
       final Map<String, Map<String, dynamic>> assignmentMap = {};
@@ -383,7 +420,50 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
         }
       }
 
-      // 6. Fetch stock requests & calculate distributed stocks spend
+      // Mark cycle completion for each assignment based on status or terminal hog stages
+      for (var a in assignments) {
+        final aIdStr = (a['assignment_id'] ?? a['id'])?.toString();
+        final b = a['batches'] is Map ? a['batches'] as Map : null;
+        final bStatus = (b?['status'] ?? b?['batch_status'] ?? '').toString().toLowerCase();
+
+        final assignHogs = hogs.where((h) => h['assignment_id']?.toString() == aIdStr).toList();
+        final rawHogType = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().toLowerCase();
+        final isSow = rawHogType.contains('sow') || rawHogType.contains('breed');
+
+        final isExplicitlyCompleted = bStatus == 'completed' ||
+            bStatus == 'sold' ||
+            bStatus == 'finished' ||
+            bStatus == 'harvested' ||
+            (a['status'] ?? '').toString().toLowerCase() == 'completed' ||
+            (a['status'] ?? '').toString().toLowerCase() == 'finished';
+
+        if (isExplicitlyCompleted) {
+          a['is_cycle_completed'] = true;
+        } else if (assignHogs.isNotEmpty) {
+          // If there are hogs in this batch, the cycle is completed if ALL hogs reached final terminal stage or are marked completed!
+          final allHogsAtFinalStage = assignHogs.every((h) {
+            final hStatus = (h['status'] ?? '').toString().trim().toLowerCase();
+            final s = (h['stage_id'] ?? h['lifecycle_stage'] ?? h['stage'] ?? '').toString().trim().toLowerCase();
+            return hStatus == 'completed' ||
+                (isSow
+                    ? (s == 'lactation' || s == '6' || s.contains('lactat'))
+                    : (s == 'selling' || s == 'sold' || s == '6' || s.contains('sell')));
+          });
+          a['is_cycle_completed'] = allHogsAtFinalStage;
+        } else {
+          final assignStage = (a['lifecycle_stage'] ?? a['current_stage'] ?? '').toString().trim().toLowerCase();
+          bool stageCompleted = false;
+          if (isSow && (assignStage == 'lactation' || assignStage.contains('lactat'))) {
+            stageCompleted = true;
+          } else if (!isSow && (assignStage == 'selling' || assignStage == 'sold' || assignStage.contains('sell'))) {
+            stageCompleted = true;
+          }
+          a['is_cycle_completed'] = stageCompleted;
+        }
+      }
+
+
+      // 6. Fetch stock requests & product price catalog
       List<dynamic> requestsRes = [];
       try {
         requestsRes = await Supabase.instance.client
@@ -458,55 +538,136 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       }
 
       const double defaultFeedPrice = 1650.0;
-      double totalStocksSpend = 0.0;
-      final List<Map<String, dynamic>> providedStocks = [];
 
-      for (var req in requests) {
-        final status = (req['status'] ?? '').toString().toLowerCase();
-        if (status == 'approved' || status == 'completed' || status == 'distributed') {
-          final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
-          final fType = (req['feed_type'] ?? '').toString().trim();
-          final cat = (req['category'] ?? '').toString().trim();
-          final fTypeLower = fType.toLowerCase();
-          final catLower = cat.toLowerCase();
+      // 7. Calculate Per-Assignment Capital & Stock Spend (Strict Isolation)
+      for (var a in assignments) {
+        final aId = (a['assignment_id'] ?? a['id'])?.toString();
+        final aBatchId = a['batch_id']?.toString();
+        final aBatchName = (a['batches']?['batch_name'] ?? a['batch_name'] ?? '').toString().trim().toLowerCase();
+        final aRawType = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().trim().toLowerCase();
+        final aIsSow = aRawType.contains('sow') || aRawType.contains('breed');
 
-          double unitPrice = productPriceMap[fTypeLower] ?? productPriceMap[catLower] ?? 0.0;
-          if (unitPrice == 0.0 && fTypeLower.isNotEmpty) {
-            for (var entry in productPriceMap.entries) {
-              if (entry.key.isNotEmpty &&
-                  (fTypeLower.contains(entry.key) || entry.key.contains(fTypeLower))) {
-                unitPrice = entry.value;
-                break;
+        // Match investment record(s) for this assignment
+        List<Map<String, dynamic>> matchingInvs = invRows.where((row) {
+          final bId = row['batch_id']?.toString();
+          final bName = (row['batch_name'] ?? '').toString().trim().toLowerCase();
+          return (aBatchId != null && bId == aBatchId) ||
+                 (aBatchName.isNotEmpty && bName == aBatchName);
+        }).toList();
+
+        // Fallback match by hog type if no direct batch match
+        if (matchingInvs.isEmpty && invRows.isNotEmpty) {
+          matchingInvs = invRows.where((row) {
+            final rawHType = (row['hog_type'] ?? '').toString().trim().toLowerCase();
+            final rowIsSow = rawHType.contains('sow') || rawHType.contains('breed');
+            return aIsSow ? rowIsSow : !rowIsSow;
+          }).toList();
+        }
+
+        // If only 1 assignment exists overall, use all records
+        if (matchingInvs.isEmpty && assignments.length == 1) {
+          matchingInvs = invRows;
+        }
+
+        final assignCapital = matchingInvs.fold<double>(
+          0.0,
+          (sum, row) => sum + ((row['initial_capital'] as num?)?.toDouble() ?? 0.0),
+        );
+
+        // Match requests strictly for this assignment
+        double assignSpend = 0.0;
+        final List<Map<String, dynamic>> assignProvidedStocks = [];
+
+        for (var req in requests) {
+          final reqAssignId = (req['assignment_id'] ?? req['assignments']?['assignment_id'])?.toString();
+          final reqBatchId = req['assignments']?['batch_id']?.toString();
+
+          bool belongsToThisAssign = false;
+          if (aId != null && reqAssignId != null && reqAssignId == aId) {
+            belongsToThisAssign = true;
+          } else if (aBatchId != null && reqBatchId != null && reqBatchId == aBatchId) {
+            belongsToThisAssign = true;
+          } else if (reqAssignId == null && assignments.length == 1) {
+            belongsToThisAssign = true;
+          } else if (reqAssignId == null &&
+              a['is_cycle_completed'] == true &&
+              assignments.any((other) => other['is_cycle_completed'] != true)) {
+            // Legacy requests without assignment_id belong to completed/historical batch, NOT to the fresh active batch
+            belongsToThisAssign = true;
+          }
+
+          if (!belongsToThisAssign) continue;
+
+          final status = (req['status'] ?? '').toString().toLowerCase();
+          if (status == 'approved' || status == 'completed' || status == 'distributed') {
+            final qty = (req['quantity'] as num?)?.toDouble() ?? 1.0;
+            final fType = (req['feed_type'] ?? '').toString().trim();
+            final cat = (req['category'] ?? '').toString().trim();
+            final fTypeLower = fType.toLowerCase();
+            final catLower = cat.toLowerCase();
+
+            double unitPrice = productPriceMap[fTypeLower] ?? productPriceMap[catLower] ?? 0.0;
+            if (unitPrice == 0.0 && fTypeLower.isNotEmpty) {
+              for (var entry in productPriceMap.entries) {
+                if (entry.key.isNotEmpty &&
+                    (fTypeLower.contains(entry.key) || entry.key.contains(fTypeLower))) {
+                  unitPrice = entry.value;
+                  break;
+                }
               }
             }
-          }
-          if (unitPrice == 0.0) {
-            unitPrice = defaultFeedPrice;
-          }
+            if (unitPrice == 0.0) unitPrice = defaultFeedPrice;
 
-          final totalAmount = qty * unitPrice;
-          totalStocksSpend += totalAmount;
+            final totalAmount = qty * unitPrice;
+            assignSpend += totalAmount;
 
-          providedStocks.add({
-            'request_id': req['request_id'],
-            'product_name': fType.isNotEmpty ? fType : (cat.isNotEmpty ? cat : 'Feeds / Supplies'),
-            'category': cat.isNotEmpty ? cat : 'Feeds',
-            'quantity': qty.toInt(),
-            'unit_price': unitPrice,
-            'total_amount': totalAmount,
-            'request_date': req['request_date'] ?? req['created_at'],
-            'decision_date': req['decision_date'],
-            'status': req['status'] ?? 'approved',
-            'notes': req['notes'] ?? '',
-          });
+            assignProvidedStocks.add({
+              'request_id': req['request_id'],
+              'product_name': fType.isNotEmpty ? fType : (cat.isNotEmpty ? cat : 'Feeds / Supplies'),
+              'category': cat.isNotEmpty ? cat : 'Feeds',
+              'quantity': qty.toInt(),
+              'unit_price': unitPrice,
+              'total_amount': totalAmount,
+              'request_date': req['request_date'] ?? req['created_at'],
+              'decision_date': req['decision_date'],
+              'status': req['status'] ?? 'approved',
+              'notes': req['notes'] ?? '',
+            });
+          }
         }
+
+        final double assignRemaining = assignCapital > 0
+            ? (assignCapital - assignSpend).clamp(0.0, double.infinity)
+            : 0.0;
+
+        a['initial_capital'] = assignCapital;
+        a['stocks_spend'] = assignSpend;
+        a['remaining_capital'] = assignRemaining;
+        a['provided_stocks'] = assignProvidedStocks;
+        a['is_investment_depleted'] = assignRemaining <= 0 && (assignCapital > 0 || assignSpend > 0);
       }
 
-      // Option B: Deductive / Remaining Capital Budget model (Pabawas)
-      // Initial Capital is the allocated budget; approved stock requests deduct from this budget.
-      final double combinedInvestedAmount = totalCapital > 0
-          ? (totalCapital - totalStocksSpend).clamp(0.0, double.infinity)
-          : 0.0;
+      // Sort assignments: Active/non-completed batches first, newest assignment_id first
+      assignments.sort((a, b) {
+        final aDone = a['is_cycle_completed'] == true;
+        final bDone = b['is_cycle_completed'] == true;
+        if (!aDone && bDone) return -1;
+        if (aDone && !bDone) return 1;
+
+        final aId = a['assignment_id'] is num ? (a['assignment_id'] as num).toInt() : 0;
+        final bId = b['assignment_id'] is num ? (b['assignment_id'] as num).toInt() : 0;
+        return bId.compareTo(aId);
+      });
+
+      // Primary assignment is the first active (non-completed) batch, or first batch if all completed
+      final primaryAssign = assignments.isNotEmpty
+          ? assignments.firstWhere((a) => a['is_cycle_completed'] != true, orElse: () => assignments.first)
+          : null;
+
+      final double combinedInvestedAmount = (primaryAssign?['remaining_capital'] as num?)?.toDouble() ?? 0.0;
+      totalCapital = (primaryAssign?['initial_capital'] as num?)?.toDouble() ?? 0.0;
+      final double totalStocksSpend = (primaryAssign?['stocks_spend'] as num?)?.toDouble() ?? 0.0;
+      final List<Map<String, dynamic>> providedStocks = List<Map<String, dynamic>>.from(primaryAssign?['provided_stocks'] ?? []);
 
       // 7. Fetch health reports
       final reportsRes = await Supabase.instance.client
@@ -635,8 +796,11 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       String resolvedStage = 'No Active Batch';
 
       if (assignments.isNotEmpty) {
+        final activeAssignmentsList = assignments.where((a) => a['is_cycle_completed'] != true).toList();
+        final targetAssignments = activeAssignmentsList.isNotEmpty ? activeAssignmentsList : assignments;
+
         final List<String> activeTypes = [];
-        for (var a in assignments) {
+        for (var a in targetAssignments) {
           final tName = (a['hog_types'] is Map
                   ? a['hog_types']['type_name']
                   : (a['hog_types'] is List && (a['hog_types'] as List).isNotEmpty
@@ -672,13 +836,26 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           resolvedPigType = 'Fattening';
         }
 
-        resolvedStage = assignments[0]['lifecycle_stage']?.toString() ??
-            assignments[0]['current_stage']?.toString() ??
-            (raiser['lifecycle_stage'] != null &&
-                    raiser['lifecycle_stage'].toString().trim().isNotEmpty &&
-                    raiser['lifecycle_stage'] != 'N/A'
-                ? raiser['lifecycle_stage'].toString().trim()
-                : 'Active Cycle');
+        final targetAssign = primaryAssign ?? assignments[0];
+        final pAssignIdStr = (targetAssign['assignment_id'] ?? targetAssign['id'])?.toString();
+        final pAssignHogs = hogs.where((h) => h['assignment_id']?.toString() == pAssignIdStr).toList();
+
+        final isTargetSow = resolvedPigType.toLowerCase().contains('sow') && !resolvedPigType.toLowerCase().contains('fattening');
+        final defaultStage = isTargetSow ? 'Gilt' : 'Booster';
+
+        if (targetAssign['is_cycle_completed'] == true && !assignments.any((a) => a['is_cycle_completed'] != true)) {
+          resolvedStage = 'Completed Cycle';
+        } else if (pAssignHogs.isNotEmpty) {
+          final dbStage = pAssignHogs[0]['stage_id'] ?? pAssignHogs[0]['lifecycle_stage'] ?? pAssignHogs[0]['stage'];
+          resolvedStage = dbStage != null ? dbStage.toString() : defaultStage;
+        } else {
+          final assignStage = targetAssign['lifecycle_stage']?.toString() ?? targetAssign['current_stage']?.toString();
+          if (assignStage != null && assignStage.isNotEmpty && assignStage.toLowerCase() != 'lactation' && assignStage.toLowerCase() != 'selling') {
+            resolvedStage = assignStage;
+          } else {
+            resolvedStage = defaultStage;
+          }
+        }
       }
 
       final Map<String, dynamic> combinedRaiserData = Map<String, dynamic>.from(raiser);
@@ -700,9 +877,16 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           _reportsList = reports;
           _notificationsList = notifications;
           if (_activeAssignments.isNotEmpty) {
-            final exists = _selectedAssignmentId != null &&
-                _activeAssignments.any((a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId);
-            if (!exists) {
+            final currentSelected = _selectedAssignmentId != null
+                ? _activeAssignments.firstWhere(
+                    (a) => BigInt.from(a['assignment_id'] as num) == _selectedAssignmentId,
+                    orElse: () => {},
+                  )
+                : <String, dynamic>{};
+            final isCurrentCompleted = currentSelected.isNotEmpty && currentSelected['is_cycle_completed'] == true;
+            final hasNonCompleted = _activeAssignments.any((a) => a['is_cycle_completed'] != true);
+
+            if (currentSelected.isEmpty || (isCurrentCompleted && hasNonCompleted)) {
               _selectedAssignmentId = BigInt.from(_activeAssignments[0]['assignment_id'] as num);
             }
           } else {
@@ -1877,6 +2061,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                           activeAssignments: _activeAssignments,
                           raiserData: _raiserData,
                           requestsList: _requestsList,
+                          investedAmount: _investedAmount,
+                          initialCapital: _initialCapital,
+                          stocksSpendAmount: _stocksSpendAmount,
                           onRefresh: _fetchRaiserData,
                         ),
                         RaiserHogsTab(

@@ -220,8 +220,6 @@ class InvestmentDrawer {
           if (rId.isNotEmpty && activeRaisers.any((r) => r['id'] == rId)) {
             selectedRaiserId = rId;
           }
-          final count = matched['hog_count'];
-          if (count != null && count > 0) totalHogCtrl.text = count.toString();
           final pt = (matched['pig_type'] ?? 'Fattening').toString();
           if (pt.isNotEmpty) {
             final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
@@ -421,8 +419,6 @@ class InvestmentDrawer {
                                         if (val != 'unassigned') {
                                           final matched = activeBatches.firstWhere((b) => b['batch_id'] == val, orElse: () => {});
                                           selectedRaiserId = (matched['raiser_id'] ?? '').toString();
-                                          final count = matched['hog_count'];
-                                          if (count != null && count > 0) totalHogCtrl.text = count.toString();
                                           final pt = (matched['pig_type'] ?? 'Fattening').toString();
                                           if (pt.isNotEmpty) {
                                             final parsed = pt.split(RegExp(r'[,;]')).map((s) => s.trim()).where((s) => s.isNotEmpty).map((s) => s.toLowerCase().contains('sow') ? 'Sow / Breeding' : 'Fattening').toSet().toList();
@@ -462,7 +458,7 @@ class InvestmentDrawer {
                                         child: Text(
                                           '₱',
                                           style: GoogleFonts.plusJakartaSans(
-                                            color: isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                                            color: hintText,
                                             fontSize: 16,
                                             fontWeight: FontWeight.w800,
                                           ),

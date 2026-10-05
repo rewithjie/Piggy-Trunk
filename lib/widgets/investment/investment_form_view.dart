@@ -148,19 +148,59 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         }
       }
 
+      final Map<String, String> batchStatusMap = {
+        for (var b in batchesRaw)
+          (b['batch_id'] ?? b['id'] ?? '').toString(): (b['status'] ?? b['batch_status'] ?? 'Active').toString().toLowerCase()
+      };
+
       // Map active raisers to assigned batches (1 is to 1 tracking)
-      final Map<String, Map<String, String>> raiserAssignedBatchMap = {};
+      final Map<String, Map<String, dynamic>> raiserAssignedBatchMap = {};
       for (var a in assignmentsRaw) {
         if (a is! Map) continue;
-        final st = (a['status'] ?? 'active').toString().toLowerCase();
-        if (st == 'completed' || st == 'archived') continue;
-
+        final assignId = (a['assignment_id'] ?? a['id'])?.toString() ?? '';
         final rId = (a['hog_raiser_id'] ?? '').toString();
         final bId = (a['batch_id'] ?? '').toString();
         final bName = batchNamesMap[bId] ?? 'Batch #$bId';
+        final bStatus = batchStatusMap[bId] ?? 'active';
+        final st = (a['status'] ?? 'active').toString().toLowerCase();
+
+        // Check if batch itself is explicitly completed or archived
+        final bool isBatchCompleted = bStatus == 'completed' || bStatus == 'archived' || bStatus == 'harvested' || bStatus == 'sold';
+        final bool isAssignCompleted = st == 'completed' || st == 'archived' || st == 'finished';
+
+        // Check if all hogs of this assignment reached terminal stage (sow in lactation, fattening in selling/sold)
+        final assignHogs = hogsRaw.where((h) {
+          if (h is! Map) return false;
+          final hAssignId = (h['assignment_id'] ?? '').toString();
+          final hBatchId = (h['batch_id'] ?? '').toString();
+          final hRaiserId = (h['hog_raiser_id'] ?? '').toString();
+          return (assignId.isNotEmpty && hAssignId == assignId) ||
+                 (bId.isNotEmpty && hBatchId == bId) ||
+                 (rId.isNotEmpty && hRaiserId == rId);
+        }).toList();
+
+        bool allHogsCycleDone = false;
+        if (assignHogs.isNotEmpty) {
+          final htStr = (a['hog_types']?['type_name'] ?? a['pig_type'] ?? '').toString().toLowerCase();
+          final isSow = htStr.contains('sow') || htStr.contains('breed');
+          allHogsCycleDone = assignHogs.every((h) {
+            final s = (h['stage_id'] ?? h['lifecycle_stage'] ?? h['stage'] ?? '').toString().trim().toLowerCase();
+            return isSow ? (s == 'lactation' || s == '6' || s.contains('lactat')) : (s == 'selling' || s == 'sold' || s == '6' || s.contains('sell'));
+          });
+        }
+
+        final bool isCycleCompleted = isBatchCompleted || isAssignCompleted || allHogsCycleDone;
 
         if (rId.isNotEmpty && bId.isNotEmpty) {
-          raiserAssignedBatchMap[rId] = {'batch_id': bId, 'batch_name': bName};
+          final existing = raiserAssignedBatchMap[rId];
+          if (existing == null || (existing['is_completed'] == true && !isCycleCompleted)) {
+            raiserAssignedBatchMap[rId] = {
+              'batch_id': bId,
+              'batch_name': bName,
+              'is_completed': isCycleCompleted,
+              'status': st,
+            };
+          }
         }
       }
 
@@ -214,8 +254,11 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         if (idStr.isEmpty) continue;
 
         final assignedInfo = raiserAssignedBatchMap[idStr];
-        final assignedBatchId = assignedInfo?['batch_id'];
-        final assignedBatchName = assignedInfo?['batch_name'];
+        final assignedBatchId = assignedInfo?['batch_id']?.toString();
+        final assignedBatchName = assignedInfo?['batch_name']?.toString();
+        final rStage = (rMap['lifecycle_stage'] ?? rMap['current_stage'] ?? '').toString().toLowerCase();
+        final isRaiserStageCompleted = rStage.contains('lactat') || rStage.contains('sell') || rStage == 'completed';
+        final isBatchCompleted = (assignedInfo?['is_completed'] == true) || isRaiserStageCompleted;
 
         final raiserEntry = {
           'id': idStr,
@@ -224,6 +267,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
           'phone': rMap['phone'] ?? 'N/A',
           'assigned_batch_id': assignedBatchId,
           'assigned_batch_name': assignedBatchName,
+          'is_batch_completed': isBatchCompleted,
           'real_pk_col': 'hog_raiser_id',
         };
         parsedRaisers.add(raiserEntry);
@@ -351,16 +395,17 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
 
     // Each batch can only be assigned to one Hog Raiser, but a Hog Raiser can manage multiple active batches (e.g. Fattening and Sow/Breeding)
 
-    // 1-IS-TO-1 STRICT VALIDATION 2: Batch cannot be assigned to multiple raisers
+    // 1-IS-TO-1 STRICT VALIDATION: Batch cannot be assigned to multiple raisers
     if (!isBatchUnassigned && !isRaiserUnassigned) {
       final matchedBatch = _activeBatches.firstWhere(
         (b) => b['batch_id'].toString() == _selectedBatchId,
         orElse: () => {},
       );
-      if (matchedBatch.isNotEmpty && matchedBatch['is_assigned_elsewhere'] == true && !_isEdit) {
+      final assignedRaiserId = (matchedBatch['raiser_id'] ?? '').toString();
+      if (assignedRaiserId.isNotEmpty && assignedRaiserId != 'unassigned' && assignedRaiserId != _selectedRaiserId && !_isEdit) {
         final rName = matchedBatch['raiser_name'] ?? 'another Hog Raiser';
         widget.onShowSnackBar(
-          '${matchedBatch['batch_name']} is already assigned to $rName. Each batch can only be assigned to one Hog Raiser (1:1 ratio).',
+          '${matchedBatch['batch_name']} is already assigned to $rName. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
           isError: true,
         );
         return;
@@ -398,20 +443,19 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
       if (!isRaiserUnassigned && !isBatchUnassigned && int.tryParse(_selectedRaiserId!) != null) {
         final parsedRaiserId = int.parse(_selectedRaiserId!);
         try {
-          final batchAssign = await _supabase
+          final batchAssigns = await _supabase
               .from('assignments')
               .select('assignment_id, hog_raiser_id')
               .eq('batch_id', _selectedBatchId!)
-              .eq('status', 'active')
-              .maybeSingle();
+              .or('status.eq.active,status.eq.Active');
 
-          if (batchAssign != null) {
-            final assignedRaiserId = batchAssign['hog_raiser_id'];
+          for (final bA in (batchAssigns as List? ?? [])) {
+            final assignedRaiserId = bA['hog_raiser_id'];
             if (assignedRaiserId != null && assignedRaiserId != parsedRaiserId && !_isEdit) {
               if (!mounted) return;
               setState(() => _isSubmitting = false);
               widget.onShowSnackBar(
-                'This batch is already assigned to another Hog Raiser. Each batch can only be assigned to one Hog Raiser.',
+                'This batch is already assigned to another Hog Raiser. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
                 isError: true,
               );
               return;
@@ -419,36 +463,6 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
           }
         } catch (valErr) {
           debugPrint('Notice during batch assignment pre-validation: $valErr');
-        }
-      }
-
-      // A batch keeps one hog type. Don't let a Sow investment re-label an existing Fattening batch (or vice versa).
-      if (!isBatchUnassigned && !_isEdit) {
-        try {
-          final existingRows = await _supabase
-              .from('assignments')
-              .select('hog_types(type_name), status')
-              .eq('batch_id', _selectedBatchId!)
-              .neq('status', 'archived')
-              .neq('status', 'completed');
-          for (final row in (existingRows as List)) {
-            final ht = row['hog_types'];
-            final existingType = (ht is Map ? ht['type_name'] : null)?.toString().toLowerCase() ?? '';
-            if (existingType.isEmpty) continue;
-            final existingIsSow = existingType.contains('sow') || existingType.contains('breed');
-            final newIsSow = hogTypeStr.toLowerCase().contains('sow');
-            if (existingIsSow != newIsSow) {
-              if (!mounted) return;
-              setState(() => _isSubmitting = false);
-              widget.onShowSnackBar(
-                '$batchName is already a ${existingIsSow ? 'Sow / Breeding' : 'Fattening'} batch. Please create a new batch for ${newIsSow ? 'Sow / Breeding' : 'Fattening'} hogs.',
-                isError: true,
-              );
-              return;
-            }
-          }
-        } catch (typeErr) {
-          debugPrint('Notice during batch hog type validation: $typeErr');
         }
       }
 
@@ -517,36 +531,107 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         // Check if an assignment already exists for this batch
         final existingAssign = await _supabase
             .from('assignments')
-            .select('assignment_id, hog_type_id')
+            .select('assignment_id, hog_type_id, hog_raiser_id')
             .eq('batch_id', _selectedBatchId!)
             .limit(1)
             .maybeSingle();
 
+        if (existingAssign != null) {
+          final existingRaiserId = (existingAssign['hog_raiser_id'] ?? '').toString();
+          if (existingRaiserId.isNotEmpty && !isRaiserUnassigned && _selectedRaiserId != existingRaiserId) {
+            widget.onShowSnackBar('This batch is already assigned to another Hog Raiser. Each batch belongs to 1 Hog Raiser (1:1 ratio).', isError: true);
+            setState(() => _isSubmitting = false);
+            return;
+          }
+        }
+
         if (!isRaiserUnassigned && int.tryParse(_selectedRaiserId!) != null) {
           final parsedRaiserId = int.parse(_selectedRaiserId!);
 
+          // 1 Raiser = 1 Batch: Conclude any previous active assignment for this raiser
+          try {
+            final prevAssigns = await _supabase
+                .from('assignments')
+                .select('assignment_id, hog_type_id, status')
+                .eq('hog_raiser_id', parsedRaiserId)
+                .neq('batch_id', _selectedBatchId!)
+                .or('status.eq.active,status.eq.Active,status.eq.assigned');
+            for (final pa in (prevAssigns as List? ?? [])) {
+              if (pa is! Map) continue;
+              await _supabase
+                  .from('assignments')
+                  .update({'status': 'completed'})
+                  .eq('assignment_id', pa['assignment_id']);
+            }
+          } catch (prevErr) {
+            debugPrint('Notice concluding previous assignments for raiser $parsedRaiserId: $prevErr');
+          }
+
+          final isSow = hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed');
+          final defaultStage = isSow ? 'Gilt' : 'Booster';
+
+          dynamic targetAssignPk;
           if (existingAssign != null) {
-            final assignPk = existingAssign['assignment_id'];
+            targetAssignPk = existingAssign['assignment_id'];
+            final existingRaiserId = (existingAssign['hog_raiser_id'] ?? '').toString();
             await _supabase.from('assignments').update({
-              'hog_raiser_id': parsedRaiserId,
-              'status': 'active',
-              // Keep the batch's existing hog type; only fill it if missing.
-              if (existingAssign['hog_type_id'] == null) 'hog_type_id': finalHogTypeId,
-            }).eq('assignment_id', assignPk);
+                if (existingRaiserId.isEmpty) 'hog_raiser_id': parsedRaiserId,
+                'status': 'active',
+                'hog_type_id': finalHogTypeId,
+              }).eq('assignment_id', targetAssignPk);
+
+            // Reactivate batch in batches table
+            try {
+              await _supabase.from('batches').update({'status': 'Active'}).eq('batch_id', _selectedBatchId!);
+            } catch (_) {}
 
             // Seed hogs for the assignment
             try {
-              final existingHogs = await _supabase.from('hogs').select('hog_id').eq('assignment_id', assignPk);
-              final existingCount = (existingHogs as List).length;
-              final needed = _isEdit ? (parsedTotalHog - existingCount) : parsedTotalHog;
-              if (needed > 0) {
-                for (int i = 0; i < needed; i++) {
+              final existingHogs = await _supabase.from('hogs').select('hog_id, stage_id, status').eq('assignment_id', targetAssignPk);
+              final existingList = existingHogs as List;
+              final hasCompletedHogs = existingList.any((h) {
+                final st = h['stage_id'] as num?;
+                return (st != null && st >= 6) || (h['status'] ?? '').toString().toLowerCase() == 'completed';
+              });
+
+              if (hasCompletedHogs && !_isEdit) {
+                // Archive previous completed cycle hogs so fresh batch cycle starts cleanly
+                await _supabase.from('hogs').update({
+                  'status': 'completed',
+                  'last_updated': DateTime.now().toIso8601String(),
+                }).eq('assignment_id', targetAssignPk);
+
+                for (int i = 0; i < parsedTotalHog; i++) {
                   await _supabase.from('hogs').insert({
-                    'assignment_id': assignPk,
+                    'assignment_id': targetAssignPk,
                     'status': 'active',
                     'health_status': 'healthy',
-                    'weight': 15.0,
+                    'stage_id': 1,
+                    'last_updated': DateTime.now().toIso8601String(),
                   });
+                }
+              } else {
+                final activeExisting = existingList.where((h) => h['status'] != 'completed').toList();
+                final needed = parsedTotalHog - activeExisting.length;
+                if (needed > 0) {
+                  for (int i = 0; i < needed; i++) {
+                    await _supabase.from('hogs').insert({
+                      'assignment_id': targetAssignPk,
+                      'status': 'active',
+                      'health_status': 'healthy',
+                      'stage_id': 1,
+                      'last_updated': DateTime.now().toIso8601String(),
+                    });
+                  }
+                }
+                // When starting a new investment cycle on this batch, update existing hogs to match
+                if (!_isEdit && activeExisting.isNotEmpty) {
+                  await _supabase.from('hogs').update({
+                    'stage_id': 1,
+                    'status': 'active',
+                    'health_status': 'healthy',
+                    'last_updated': DateTime.now().toIso8601String(),
+                  }).eq('assignment_id', targetAssignPk);
                 }
               }
             } catch (hErr) {
@@ -561,16 +646,22 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
               'assigned_date': DateTime.now().toIso8601String().split('T').first,
             }).select('assignment_id').maybeSingle();
 
+            // Reactivate batch in batches table
+            try {
+              await _supabase.from('batches').update({'status': 'Active'}).eq('batch_id', _selectedBatchId!);
+            } catch (_) {}
+
             if (assignRes != null) {
-              final newAssignId = assignRes['assignment_id'];
-              if (newAssignId != null) {
+              targetAssignPk = assignRes['assignment_id'];
+              if (targetAssignPk != null) {
                 try {
                   for (int i = 0; i < parsedTotalHog; i++) {
                     await _supabase.from('hogs').insert({
-                      'assignment_id': newAssignId,
+                      'assignment_id': targetAssignPk,
                       'status': 'active',
                       'health_status': 'healthy',
-                      'weight': 15.0,
+                      'stage_id': 1,
+                      'last_updated': DateTime.now().toIso8601String(),
                     });
                   }
                 } catch (_) {}
@@ -578,29 +669,14 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
             }
           }
 
-          // Update hog raiser status and type without wiping an existing type (e.g. keep Fattening when adding Sow)
-          final isSow = hogTypeStr.toLowerCase().contains('sow') || hogTypeStr.toLowerCase().contains('breed');
-          final defaultStage = isSow ? 'Gilt' : 'Booster';
-          String currentType = '';
-          try {
-            final cur = await _supabase
-                .from('hog_raisers')
-                .select('pig_type')
-                .eq('hog_raiser_id', parsedRaiserId)
-                .maybeSingle();
-            currentType = (cur?['pig_type'] ?? '').toString().toLowerCase();
-          } catch (_) {}
-          final hadType = currentType.isNotEmpty && currentType != 'none' && currentType != 'n/a';
-          final hadSow = currentType.contains('sow') || currentType.contains('breed');
-          final hadFattening = currentType.contains('fatten');
-          final hasSow = hadSow || isSow;
-          final hasFattening = hadFattening || !isSow;
+          final String overallType = isSow ? 'Sow' : 'Fattening';
+
           await _supabase
               .from('hog_raisers')
               .update({
                 'status': 'Active',
-                if (!hadType) 'lifecycle_stage': defaultStage,
-                'pig_type': hasSow && hasFattening ? 'Sow and Fattening' : (hasSow ? 'Sow' : 'Fattening'),
+                'lifecycle_stage': defaultStage,
+                'pig_type': overallType,
               })
               .eq('hog_raiser_id', parsedRaiserId);
         }
@@ -610,19 +686,28 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
         try {
           final raiserAssign = await _supabase
               .from('assignments')
-              .select('assignment_id')
+              .select('assignment_id, batch_id')
               .eq('hog_raiser_id', parsedRaiserId)
-              .eq('status', 'active')
+              .order('assignment_id', ascending: false)
               .limit(1)
               .maybeSingle();
+
           if (raiserAssign != null) {
             final targetAssignId = raiserAssign['assignment_id'];
+            final bId = raiserAssign['batch_id'];
+            await _supabase.from('assignments').update({'status': 'active'}).eq('assignment_id', targetAssignId);
+            if (bId != null) {
+              try {
+                await _supabase.from('batches').update({'status': 'Active'}).eq('batch_id', bId);
+              } catch (_) {}
+            }
             for (int i = 0; i < parsedTotalHog; i++) {
               await _supabase.from('hogs').insert({
                 'assignment_id': targetAssignId,
                 'status': 'active',
                 'health_status': 'healthy',
-                'weight': 15.0,
+                'stage_id': 1,
+                'last_updated': DateTime.now().toIso8601String(),
               });
             }
           }
@@ -1031,10 +1116,12 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                               : (hasRaiser ? 'Raiser: $rName • $count hogs' : (count > 0 ? '$count hogs' : null)),
                           badge: hasRaiser ? rName : null,
                           badgeColor: hasRaiser
-                              ? (_isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary)
+                              ? (_isDark ? const Color(0xFFCBD5E1) : PiggyTrunkTheme.ptPrimary)
                               : null,
                           icon: isUnassigned ? Icons.layers_clear_outlined : Icons.layers_outlined,
-                          iconColor: isUnassigned ? _mutedColor : null,
+                          iconColor: isUnassigned
+                              ? (_isDark ? const Color(0xFF94A3B8) : _mutedColor)
+                              : (_isDark ? const Color(0xFF9CB0C9) : PiggyTrunkTheme.ptPrimary),
                           searchKeywords: '${b['batch_name']} $rName',
                         );
                       }).toList(),
@@ -1048,24 +1135,10 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                               orElse: () => {},
                             );
                             final rId = (matched['raiser_id'] ?? '').toString();
-                            if (rId.isNotEmpty) {
+                            if (rId.isNotEmpty && rId != 'unassigned') {
                               if (_activeRaisers.any((r) => r['id'].toString() == rId)) {
                                 _selectedRaiserId = rId;
                               }
-                            } else {
-                              // If current selected raiser is locked for this new batch, reset raiser to unassigned
-                              final currentRaiser = _activeRaisers.firstWhere(
-                                (r) => r['id'].toString() == _selectedRaiserId,
-                                orElse: () => {},
-                              );
-                              final rBatch = currentRaiser['assigned_batch_id']?.toString();
-                              if (rBatch != null && rBatch.isNotEmpty && rBatch != val) {
-                                _selectedRaiserId = 'unassigned';
-                              }
-                            }
-                            final count = matched['hog_count'];
-                            if (count != null && count > 0 && _totalHogCtrl.text.isEmpty) {
-                              _totalHogCtrl.text = count.toString();
                             }
                             final pt = (matched['pig_type'] ?? 'Fattening').toString().trim();
                             if (pt.isNotEmpty && pt != 'N/A') {
@@ -1113,58 +1186,98 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                               ? 'No Authorized Raisers (Unassigned)'
                               : 'Unassigned (General Pool)',
                           icon: Icons.person_off_outlined,
-                          iconColor: _mutedColor,
+                          iconColor: _isDark ? const Color(0xFF94A3B8) : _mutedColor,
                           searchKeywords: 'unassigned general pool none',
                         ),
                         ..._activeRaisers.map((r) {
                           final rBatchId = r['assigned_batch_id']?.toString();
                           final hasBatch = rBatchId != null && rBatchId.isNotEmpty;
                           final assignedBatchName = r['assigned_batch_name'] ?? 'another Batch';
+                          final isBatchCompleted = r['is_batch_completed'] == true;
 
-                          // Is this raiser assigned to a DIFFERENT active batch?
-                          final isAssignedToOther = hasBatch &&
-                              (_selectedBatchId != null &&
-                                  _selectedBatchId != 'unassigned' &&
-                                  rBatchId != _selectedBatchId);
+                          final currentSelectedBatch = (_selectedBatchId != null && _selectedBatchId != 'unassigned')
+                              ? _activeBatches.firstWhere((b) => b['batch_id'].toString() == _selectedBatchId, orElse: () => {})
+                              : null;
+                          final currentBatchRaiserId = (currentSelectedBatch?['raiser_id'] ?? '').toString();
+                          final hasCurrentBatchRaiser = currentBatchRaiserId.isNotEmpty && currentBatchRaiserId != 'unassigned';
+                          final bool isLockedOut = hasCurrentBatchRaiser && r['id'].toString() != currentBatchRaiserId;
 
-                          // Is this raiser the assigned raiser for the currently selected batch?
                           final isAssignedToCurrent = hasBatch &&
                               _selectedBatchId != null &&
                               _selectedBatchId != 'unassigned' &&
                               rBatchId == _selectedBatchId;
 
                           String subText = '';
-                          if (isAssignedToOther) {
-                            subText = 'Active in $assignedBatchName';
-                          } else if (isAssignedToCurrent) {
-                            subText = 'Assigned to $assignedBatchName';
-                          } else if (hasBatch) {
-                            subText = assignedBatchName;
-                          }
-
-                          final defaultBadgeCol = _isDark ? const Color(0xFF60A5FA) : PiggyTrunkTheme.ptPrimary;
                           Color? bColor;
-                          if (isAssignedToOther) {
-                            bColor = _isDark ? const Color(0xFFFBBF24) : Colors.amber.shade800;
+                          String? badgeText;
+                          IconData itemIcon;
+                          Color? iconCol;
+
+                          if (isLockedOut) {
+                            subText = 'Locked (Batch assigned to ${currentSelectedBatch!['raiser_name']})';
+                            bColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+                            badgeText = '1:1 Locked';
+                            itemIcon = Icons.lock_outline_rounded;
+                            iconCol = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+                          } else if (isBatchCompleted) {
+                            subText = 'Available (Completed $assignedBatchName)';
+                            bColor = PiggyTrunkTheme.ptSuccess;
+                            badgeText = 'Available';
+                            itemIcon = Icons.check_circle_outline_rounded;
+                            iconCol = PiggyTrunkTheme.ptSuccess;
+                          } else if (isAssignedToCurrent) {
+                            subText = 'Currently assigned to $assignedBatchName';
+                            bColor = _isDark ? const Color(0xFFCBD5E1) : PiggyTrunkTheme.ptPrimary;
+                            badgeText = assignedBatchName;
+                            itemIcon = Icons.person_rounded;
+                            iconCol = _isDark ? const Color(0xFF9CB0C9) : PiggyTrunkTheme.ptPrimary;
                           } else if (hasBatch) {
-                            bColor = defaultBadgeCol;
+                            subText = 'Assigned to $assignedBatchName';
+                            bColor = _isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+                            badgeText = assignedBatchName;
+                            itemIcon = Icons.person_rounded;
+                            iconCol = _isDark ? const Color(0xFF9CB0C9) : const Color(0xFF4B6281);
+                          } else {
+                            subText = 'Ready to assign';
+                            bColor = null;
+                            badgeText = null;
+                            itemIcon = Icons.person_outline_rounded;
+                            iconCol = _isDark ? const Color(0xFF9CB0C9) : const Color(0xFF64748B);
                           }
 
                           return SearchableDropdownItem<String>(
                             value: r['id'].toString(),
                             label: r['name'].toString(),
                             subtitle: subText.isNotEmpty ? subText : null,
-                            badge: hasBatch ? assignedBatchName : null,
+                            badge: badgeText,
                             badgeColor: bColor,
-                            isEnabled: !isAssignedToOther,
-                            icon: isAssignedToOther ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
-                            iconColor: isAssignedToOther ? _mutedColor : null,
-                            searchKeywords: '${r['name']} $assignedBatchName ${r['pig_type'] ?? ''}',
+                            isEnabled: !isLockedOut,
+                            icon: itemIcon,
+                            iconColor: iconCol,
+                            searchKeywords: '${r['name']} $assignedBatchName ${r['pig_type'] ?? ''} ${isBatchCompleted ? 'available completed' : ''}',
                           );
                         }),
                       ],
                       onChanged: (val) {
                         if (val == null) return;
+                        // 1:1 Batch-to-Raiser Enforcement:
+                        // If the currently selected batch is already assigned to a DIFFERENT raiser, prevent changing the raiser!
+                        if (_selectedBatchId != null && _selectedBatchId != 'unassigned' && val != 'unassigned') {
+                          final currentBatch = _activeBatches.firstWhere(
+                            (b) => b['batch_id'].toString() == _selectedBatchId,
+                            orElse: () => {},
+                          );
+                          final assignedRaiserId = (currentBatch['raiser_id'] ?? '').toString();
+                          if (assignedRaiserId.isNotEmpty && assignedRaiserId != 'unassigned' && assignedRaiserId != val) {
+                            final assignedRaiserName = currentBatch['raiser_name'] ?? 'another Hog Raiser';
+                            widget.onShowSnackBar(
+                              '${currentBatch['batch_name']} is already assigned to $assignedRaiserName. Each batch belongs to 1 Hog Raiser (1:1 ratio).',
+                              isError: true,
+                            );
+                            return;
+                          }
+                        }
+
                         final matched = _activeRaisers.firstWhere(
                           (r) => r['id'].toString() == val,
                           orElse: () => {},
@@ -1172,11 +1285,12 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                         setState(() {
                           _selectedRaiserId = val;
                           if (val != 'unassigned') {
-                            final assignedBId = matched['assigned_batch_id']?.toString();
-                            if (assignedBId != null &&
-                                assignedBId.isNotEmpty &&
-                                _activeBatches.any((b) => b['batch_id'].toString() == assignedBId)) {
-                              _selectedBatchId = assignedBId;
+                            // If this raiser already has an active batch and no batch is currently selected, auto-select it!
+                            final rBatchId = matched['assigned_batch_id']?.toString();
+                            if (rBatchId != null && rBatchId.isNotEmpty && (_selectedBatchId == null || _selectedBatchId == 'unassigned')) {
+                              if (_activeBatches.any((b) => b['batch_id'].toString() == rBatchId)) {
+                                _selectedBatchId = rBatchId;
+                              }
                             }
                             final pt = (matched['pig_type'] ?? '').toString().trim();
                             if (pt.isNotEmpty && pt != 'N/A') {
@@ -1221,7 +1335,7 @@ class _InvestmentFormViewState extends State<InvestmentFormView> {
                           child: Text(
                             '₱',
                             style: GoogleFonts.plusJakartaSans(
-                              color: _isDark ? Colors.white : PiggyTrunkTheme.ptPrimary,
+                              color: _mutedColor,
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
                             ),
