@@ -1,4 +1,5 @@
-// Dashboard Models without json_serializable (manual parsing)
+/// Dashboard Models without json_serializable (manual parsing)
+library;
 
 class AdminUser {
   final String name;
@@ -130,8 +131,6 @@ class InvestmentSummary {
   final int totalActive;
   final int batchCount;
   final InvestmentAllocation allocation;
-  final double initialCapital;
-  final double stocksProvided;
   final double totalCapital;
   final double expectedProfit;
 
@@ -139,26 +138,18 @@ class InvestmentSummary {
     required this.totalActive,
     required this.batchCount,
     required this.allocation,
-    this.initialCapital = 0.0,
-    this.stocksProvided = 0.0,
     required this.totalCapital,
     required this.expectedProfit,
   });
 
   factory InvestmentSummary.fromJson(Map<String, dynamic> json) {
-    final initCap = (json['initialCapital'] as num?)?.toDouble() ?? 0.0;
-    final stocks = (json['stocksProvided'] as num?)?.toDouble() ?? 0.0;
-    final totCap = (json['totalCapital'] as num?)?.toDouble() ?? (initCap + stocks);
-
     return InvestmentSummary(
       totalActive: json['totalActive'] ?? 0,
       batchCount: json['batchCount'] ?? 0,
       allocation: InvestmentAllocation.fromJson(
         (json['allocation'] as Map<String, dynamic>?) ?? {},
       ),
-      initialCapital: initCap,
-      stocksProvided: stocks,
-      totalCapital: totCap,
+      totalCapital: (json['totalCapital'] as num?)?.toDouble() ?? 0.0,
       expectedProfit: (json['expectedProfit'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -178,6 +169,7 @@ class DashboardData {
   });
 
   factory DashboardData.fromJson(Map<String, dynamic> json) {
+    print('Parsing dashboard data...');
     final raisersData = (json['raisers'] as List?)
             ?.map((e) => Raiser.fromJson(e as Map<String, dynamic>))
             .toList() ??
