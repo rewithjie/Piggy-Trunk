@@ -7,6 +7,7 @@ void showBatchRaiserDetailsDrawer({
   required Map<String, dynamic> batch,
   required VoidCallback onInvestNow,
   VoidCallback? onViewActivities,
+  VoidCallback? onViewLifecycle,
 }) {
   showModalBottomSheet(
     context: context,
@@ -16,6 +17,7 @@ void showBatchRaiserDetailsDrawer({
       batch: batch,
       onInvestNow: onInvestNow,
       onViewActivities: onViewActivities,
+      onViewLifecycle: onViewLifecycle,
     ),
   );
 }
@@ -24,6 +26,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
   final Map<String, dynamic> batch;
   final VoidCallback onInvestNow;
   final VoidCallback? onViewActivities;
+  final VoidCallback? onViewLifecycle;
 
   static const Color _brandNavy = Color(0xFF18314F);
   static const Color _accentGreen = Color(0xFF10B981);
@@ -32,6 +35,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     required this.batch,
     required this.onInvestNow,
     this.onViewActivities,
+    this.onViewLifecycle,
   });
 
   static const List<String> _fatteningStages = [
@@ -578,6 +582,37 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  if (onViewLifecycle != null) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          onViewLifecycle?.call();
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: isDark ? const Color(0xFF334155) : cardBorder, width: 1.2),
+                          padding: EdgeInsets.symmetric(vertical: fit.dp(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(fit.dp(14)),
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.timeline_rounded,
+                          size: fit.dp(18),
+                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                        ),
+                        label: Text(
+                          'Lifecycle',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: fit.sp(12.5),
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : primaryTextColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: fit.dp(8)),
+                  ],
                   if (onViewActivities != null) ...[
                     Expanded(
                       child: OutlinedButton.icon(
@@ -600,14 +635,14 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                         label: Text(
                           'Raiser Logs',
                           style: GoogleFonts.plusJakartaSans(
-                            fontSize: fit.sp(13.0),
+                            fontSize: fit.sp(12.5),
                             fontWeight: FontWeight.w700,
                             color: isDark ? Colors.white : primaryTextColor,
                           ),
                         ),
                       ),
                     ),
-                    SizedBox(width: fit.dp(12)),
+                    SizedBox(width: fit.dp(8)),
                   ],
                   Expanded(
                     flex: 2,

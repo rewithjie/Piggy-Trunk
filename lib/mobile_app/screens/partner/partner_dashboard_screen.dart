@@ -1976,6 +1976,18 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                       'total_hogs': 15,
                       'mortality': 0,
                       'stage': 'Booster',
+                      'hogs': List.generate(
+                        15,
+                        (idx) => {
+                          'hog_id': idx + 1,
+                          'tag_number': 'HOG-${idx + 1}',
+                          'index': idx + 1,
+                          'pig_type': 'Fattening',
+                          'stage': 'Booster',
+                          'health_status': 'Healthy',
+                          'status': 'active',
+                        },
+                      ),
                       'status': 'Active',
                     };
 
@@ -2037,7 +2049,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         try {
           final reportsRes = await Supabase.instance.client
               .from('hog_reports')
-              .select('report_id, report_type, description, created_at, hog_raiser_id, hog_id, batch_id')
+              .select('report_id, report_type, description, created_at, hog_raiser_id, hog_id')
               .order('created_at', ascending: false)
               .limit(30);
 
@@ -2419,13 +2431,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         onViewProjects: () => setState(() => _currentIndex = 1),
         onNavigateToTab: (idx) {
           setState(() {
-            if (idx == 2) {
-              _currentIndex = 3;
-            } else if (idx == 3) {
-              _currentIndex = 4;
-            } else {
-              _currentIndex = idx;
-            }
+            _currentIndex = idx.clamp(0, 4);
           });
         },
         onMarkNotificationAsRead: _markNotificationAsRead,

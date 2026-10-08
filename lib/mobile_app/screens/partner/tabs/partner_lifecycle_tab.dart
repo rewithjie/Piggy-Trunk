@@ -116,6 +116,27 @@ class _PartnerLifecycleTabState extends State<PartnerLifecycleTab> {
     if (widget.hogsList.isNotEmpty) {
       return widget.hogsList;
     }
+    if (proj != null) {
+      final int count = (proj['total_hogs'] as num?)?.toInt() ?? 15;
+      if (count > 0) {
+        final isSow = (proj['hog_type'] ?? '').toString().toLowerCase().contains('sow');
+        final stage = (proj['stage'] ?? proj['lifecycle_stage'] ?? 'Grower').toString();
+        final half = (count / 2).ceil();
+        return List.generate(count, (i) {
+          final hogIsSow = (isSow && i >= half) || (proj['hog_type'] ?? '').toString().toLowerCase() == 'sow';
+          final sName = hogIsSow ? 'Booster' : stage;
+          return {
+            'hog_id': i + 1,
+            'tag_number': 'HOG-${i + 1}',
+            'index': i + 1,
+            'pig_type': hogIsSow ? 'Sow' : 'Fattening',
+            'stage': sName,
+            'health_status': 'Healthy',
+            'status': 'active',
+          };
+        });
+      }
+    }
     return [];
   }
 

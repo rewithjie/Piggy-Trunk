@@ -432,58 +432,82 @@ class PartnerHomeTab extends StatelessWidget {
                 SizedBox(height: fit.dp(18.0)),
 
             // ==================== 3. QUICK ACTIONS GRID ====================
-            Row(
+            Column(
               children: [
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context: context,
-                    fit: fit,
-                    title: strings.isFilipino ? 'Puhunan' : strings.fundBatch,
-                    subtitle: strings.investNow,
-                    icon: Icons.add_card_rounded,
-                    accentColor: const Color(0xFF10B981),
-                    onTap: () {
-                      if (onNavigateToTab != null) {
-                        onNavigateToTab!(1); // Switch to Investment tab
-                      } else {
-                        onViewProjects();
-                      }
-                    },
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickActionCard(
+                        context: context,
+                        fit: fit,
+                        title: strings.isFilipino ? 'Puhunan' : strings.fundBatch,
+                        subtitle: strings.investNow,
+                        icon: Icons.add_card_rounded,
+                        accentColor: const Color(0xFF10B981),
+                        onTap: () {
+                          if (onNavigateToTab != null) {
+                            onNavigateToTab!(1); // Switch to Investment tab
+                          } else {
+                            onViewProjects();
+                          }
+                        },
+                      ),
+                    ),
+                    SizedBox(width: fit.dp(12)),
+                    Expanded(
+                      child: _buildQuickActionCard(
+                        context: context,
+                        fit: fit,
+                        title: strings.isFilipino ? 'Siklo ng Baboy' : strings.navLifecycle,
+                        subtitle: strings.isFilipino ? 'Yugto ng paglaki' : 'Stage tracking',
+                        icon: Icons.timeline_rounded,
+                        accentColor: const Color(0xFF3B82F6),
+                        onTap: () {
+                          if (onNavigateToTab != null) {
+                            onNavigateToTab!(2); // Switch to Lifecycle tab
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: fit.dp(12)),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context: context,
-                    fit: fit,
-                    title: strings.isFilipino ? 'Mga Ulat' : strings.recentActivities,
-                    subtitle: strings.isFilipino ? 'Updates' : 'Live updates',
-                    icon: Icons.feed_rounded,
-                    accentColor: const Color(0xFFF59E0B),
-                    onTap: () {
-                      if (onNavigateToTab != null) {
-                        onNavigateToTab!(2); // Switch to Activities tab
-                      } else {
-                        onSeeAllActivities();
-                      }
-                    },
-                  ),
-                ),
-                SizedBox(width: fit.dp(12)),
-                Expanded(
-                  child: _buildQuickActionCard(
-                    context: context,
-                    fit: fit,
-                    title: strings.profile,
-                    subtitle: strings.isFilipino ? 'Account' : 'Account info',
-                    icon: Icons.person_rounded,
-                    accentColor: const Color(0xFF3B82F6),
-                    onTap: () {
-                      if (onNavigateToTab != null) {
-                        onNavigateToTab!(3); // Switch to Profile tab
-                      }
-                    },
-                  ),
+                SizedBox(height: fit.dp(12)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildQuickActionCard(
+                        context: context,
+                        fit: fit,
+                        title: strings.isFilipino ? 'Mga Ulat' : strings.recentActivities,
+                        subtitle: strings.isFilipino ? 'Field updates' : 'Live updates',
+                        icon: Icons.feed_rounded,
+                        accentColor: const Color(0xFFF59E0B),
+                        onTap: () {
+                          if (onNavigateToTab != null) {
+                            onNavigateToTab!(3); // Switch to Activities tab
+                          } else {
+                            onSeeAllActivities();
+                          }
+                        },
+                      ),
+                    ),
+                    SizedBox(width: fit.dp(12)),
+                    Expanded(
+                      child: _buildQuickActionCard(
+                        context: context,
+                        fit: fit,
+                        title: strings.profile,
+                        subtitle: strings.isFilipino ? 'Account' : 'Account info',
+                        icon: Icons.person_rounded,
+                        accentColor: const Color(0xFF8B5CF6),
+                        onTap: () {
+                          if (onNavigateToTab != null) {
+                            onNavigateToTab!(4); // Switch to Profile tab
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -539,7 +563,7 @@ class PartnerHomeTab extends StatelessWidget {
               InkWell(
                 onTap: () {
                   if (onNavigateToTab != null) {
-                    onNavigateToTab!(2);
+                    onNavigateToTab!(1);
                   } else {
                     onViewProjects();
                   }
@@ -633,9 +657,14 @@ class PartnerHomeTab extends StatelessWidget {
                           onViewProjects();
                         }
                       },
-                      onViewActivities: () {
+                      onViewLifecycle: () {
                         if (onNavigateToTab != null) {
                           onNavigateToTab!(2);
+                        }
+                      },
+                      onViewActivities: () {
+                        if (onNavigateToTab != null) {
+                          onNavigateToTab!(3);
                         } else {
                           onSeeAllActivities();
                         }
