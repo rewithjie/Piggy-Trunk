@@ -11,6 +11,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   RealtimeChannel? _realtimeChannel;
   bool _isInitialized = false;
+  final Map<String, DateTime> _recentNotificationDebounce = {};
 
   /// Initializes native notification settings and Android notification channel
   Future<void> initialize() async {
@@ -131,6 +132,18 @@ class NotificationService {
       if (lower.contains('stage updated') || lower.contains('lifecycle')) {
         return 'Na-update ang Lifecycle Stage';
       }
+      if (lower.contains('investment confirmed')) {
+        return 'Nakumpirma ang Iyong Puhunan!';
+      }
+      if (lower.contains('investment approved')) {
+        return 'Naaprubahan ang Iyong Puhunan!';
+      }
+      if (lower.contains('investment declined')) {
+        return 'Tinanggihan ang Iyong Puhunan';
+      }
+      if (lower.contains('batch ready for selling') || lower.contains('harvest')) {
+        return 'Handa na ang Batch para Ibenta / Anihin!';
+      }
       if (lower.contains('health report')) {
         return 'Ulat sa Kalusugan';
       }
@@ -139,6 +152,18 @@ class NotificationService {
       }
       return clean;
     } else {
+      if (lower.contains('nakumpirma ang iyong puhunan')) {
+        return 'Investment Confirmed!';
+      }
+      if (lower.contains('naaprubahan ang iyong puhunan')) {
+        return 'Investment Approved!';
+      }
+      if (lower.contains('tinanggihan ang iyong puhunan')) {
+        return 'Investment Declined';
+      }
+      if (lower.contains('handa na ang batch para ibenta') || lower.contains('anihin')) {
+        return 'Batch Ready for Selling / Harvest!';
+      }
       if (lower.contains('bagong investment') || lower.contains('investment na na-assign')) {
         return 'New Investment Assigned to You!';
       }
@@ -258,6 +283,43 @@ class NotificationService {
       if (clean.toLowerCase().contains('your request was declined for')) {
         return clean
             .replaceAll(RegExp(r'Your request was declined for', caseSensitive: false), 'Tinanggihan ang iyong request para sa');
+      }
+
+      // English -> Filipino: Partner Investment
+      final pInvConfEng = RegExp(
+        r'you have successfully funded\s*([₱\d,.]+)\s*for\s*(.*?)\.?',
+        caseSensitive: false,
+      );
+      final matchPIC = pInvConfEng.firstMatch(clean);
+      if (matchPIC != null) {
+        final amount = matchPIC.group(1)?.trim() ?? '';
+        final batch = matchPIC.group(2)?.trim() ?? 'batch';
+        return 'Matagumpay kang naglaan ng $amount na pondo para sa $batch.';
+      }
+
+      final pInvApprEng = RegExp(
+        r'admin has approved and activated your investment for\s*(.*?)\.?',
+        caseSensitive: false,
+      );
+      final matchPIA = pInvApprEng.firstMatch(clean);
+      if (matchPIA != null) {
+        final batch = matchPIA.group(1)?.trim() ?? 'batch';
+        return 'Inaprubahan at pinagana ng Admin ang iyong puhunan para sa $batch.';
+      }
+
+      final pInvDecEng = RegExp(
+        r'your investment request for\s*(.*?)\s*was declined by admin\.?',
+        caseSensitive: false,
+      );
+      final matchPID = pInvDecEng.firstMatch(clean);
+      if (matchPID != null) {
+        final batch = matchPID.group(1)?.trim() ?? 'batch';
+        return 'Ang iyong kahilingan sa pamumuhunan para sa $batch ay tinanggihan ng Admin.';
+      }
+
+      if (clean.toLowerCase().contains('ready for harvest & payout distribution')) {
+        return clean
+            .replaceAll(RegExp(r'has reached (.*?). Ready for harvest & payout distribution!?', caseSensitive: false), 'ay umabot na sa yugtong handa na para sa pag-ani at pamamahagi ng kita!');
       }
 
       return clean;
@@ -398,6 +460,7 @@ class NotificationService {
   Future<void> startRoleRealtimeListener({
     required String role,
     required String userId,
+    String? secondaryId,
   }) async {
     await stopListener(); // Ensure clean channel state
 
@@ -419,7 +482,7 @@ class NotificationService {
 
     final channelName = roleLower == 'cashier'
         ? 'public:stock_requests_notifs'
-        : 'public:$tableName:user_$userId';
+        : 'public:$tableName:user_${userId}_${secondaryId ?? ''}';
 
     try {
       final client = Supabase.instance.client;
@@ -450,12 +513,31 @@ class NotificationService {
                   newRecord['hog_raiser_id']?.toString();
               
               // If user ID matches or if broadcast/admin/partner notification
-              if (notifUserId == null || notifUserId == userId || roleLower == 'admin' || roleLower == 'partner' || roleLower == 'partner_investor') {
+              final bool matches = notifUserId == null ||
+                  notifUserId == userId ||
+                  (secondaryId != null && notifUserId == secondaryId) ||
+                  roleLower == 'admin' ||
+                  roleLower == 'partner' ||
+                  roleLower == 'partner_investor';
+
+              if (matches) {
                 final title = newRecord['title']?.toString() ?? 'PiggyTrunk Alert';
                 final body = newRecord['message']?.toString() ??
                     newRecord['content']?.toString() ??
                     newRecord['body']?.toString() ??
                     'You have a new update in PiggyTrunk.';
+
+                // Real-time deduplication / debounce to prevent redundant popups
+                final dedupeKey = '$roleLower:${title.trim()}:${body.trim()}';
+                final now = DateTime.now();
+                if (_recentNotificationDebounce.containsKey(dedupeKey)) {
+                  final lastSeen = _recentNotificationDebounce[dedupeKey]!;
+                  if (now.difference(lastSeen).inSeconds < 8) {
+                    debugPrint("Skipping redundant realtime notification popup: $dedupeKey");
+                    return;
+                  }
+                }
+                _recentNotificationDebounce[dedupeKey] = now;
 
                 showNotification(
                   title: title,

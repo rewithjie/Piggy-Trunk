@@ -34,7 +34,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     this.onViewActivities,
   });
 
-  static const List<String> _stages = [
+  static const List<String> _fatteningStages = [
     'Booster',
     'Pre-starter',
     'Starter',
@@ -42,8 +42,17 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     'Finisher',
   ];
 
-  int _getStageIndex(String stage) {
-    final idx = _stages.indexWhere((s) => s.toLowerCase() == stage.toLowerCase());
+  static const List<String> _sowStages = [
+    'Booster',
+    'Pre-starter',
+    'Starter',
+    'Grower',
+    'Breeder',
+    'Lactation',
+  ];
+
+  int _getStageIndex(String stage, List<String> stages) {
+    final idx = stages.indexWhere((s) => s.toLowerCase() == stage.toLowerCase());
     return idx != -1 ? idx : 0;
   }
 
@@ -61,7 +70,6 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     final String bName = batch['batch_name'] ?? batch['title'] ?? 'Batch Project';
-    final String bCode = batch['batch_code'] ?? '#BATCH-${batch['batch_id'] ?? batch['id'] ?? '1'}';
     final String raiserName = batch['assigned_raiser'] ?? batch['raiser_name'] ?? 'Hog Raiser';
     final String? rawLoc = batch['location'] ?? batch['address'];
     final String location = (rawLoc != null && rawLoc.trim().isNotEmpty && rawLoc.trim().toLowerCase() != 'n/a')
@@ -81,12 +89,24 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
         : null;
     final String rawHogType = (batch['hog_type'] ?? batch['pig_type'] ?? '').toString().trim();
     final String hogType = (rawHogType.isEmpty || rawHogType.toUpperCase() == 'N/A') ? 'Fattening' : rawHogType;
+    final bool isSow = hogType.toLowerCase().contains('sow') || hogType.toLowerCase().contains('breed');
+    final List<String> stages = isSow ? _sowStages : _fatteningStages;
+
     final String rawStage = (batch['stage'] ?? batch['lifecycle_stage'] ?? '').toString().trim();
-    final String stage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
+    String stage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Booster' : rawStage;
+
+    // Sanitize stage: Fattening batches should never display breeding stages (like 'Gilt')
+    if (!isSow && (stage.toLowerCase() == 'gilt' || !stages.any((s) => s.toLowerCase() == stage.toLowerCase()))) {
+      stage = 'Booster';
+    } else if (isSow && stage.toLowerCase() == 'gilt') {
+      stage = 'Breeder';
+    }
+
     final int totalHogs = (batch['total_hogs'] as num?)?.toInt() ?? (batch['total_hog'] as num?)?.toInt() ?? 0;
     final String appliedDate = batch['date_created']?.toString().split('T')[0] ?? batch['appliedDate'] ?? 'Active Season';
 
-    final currentStageIdx = _getStageIndex(stage);
+    final currentStageIdx = _getStageIndex(stage, stages);
+    final displayStage = stages[currentStageIdx];
 
     return Container(
       constraints: BoxConstraints(
@@ -130,22 +150,6 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(horizontal: fit.dp(8), vertical: fit.dp(3.5)),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                                borderRadius: BorderRadius.circular(fit.dp(6)),
-                              ),
-                              child: Text(
-                                bCode,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: fit.sp(11.0),
-                                  fontWeight: FontWeight.w700,
-                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: fit.dp(6)),
                             Container(
                               padding: EdgeInsets.symmetric(horizontal: fit.dp(8), vertical: fit.dp(3.5)),
                               decoration: BoxDecoration(
@@ -387,7 +391,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                 fit: fit,
                                 label: 'TOTAL HOGS',
                                 count: '$totalHogs',
-                                color: _brandNavy,
+                                color: isDark ? Colors.white : _brandNavy,
                                 isDark: isDark,
                               ),
                               SizedBox(width: fit.dp(12)),
@@ -450,7 +454,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                     ),
                                     SizedBox(width: fit.dp(5)),
                                     Text(
-                                      '$stage Stage',
+                                      '$displayStage Stage',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: fit.sp(11.0),
                                         fontWeight: FontWeight.w800,
@@ -466,8 +470,8 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
 
                           // Interactive 5-Step Progress Track
                           Row(
-                            children: List.generate(_stages.length, (i) {
-                              final sName = _stages[i];
+                            children: List.generate(stages.length, (i) {
+                              final sName = stages[i];
                               final isCurrent = i == currentStageIdx;
                               final isCompleted = i < currentStageIdx;
 
@@ -527,7 +531,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
                                         Expanded(
                                           child: Container(
                                             height: 3,
-                                            color: i == _stages.length - 1
+                                            color: i == stages.length - 1
                                                 ? Colors.transparent
                                                 : (i < currentStageIdx
                                                     ? (isDark ? Colors.white : _brandNavy)
@@ -696,6 +700,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
     required Color color,
     required bool isDark,
   }) {
+    final effectiveColor = (isDark && color == _brandNavy) ? Colors.white : color;
     return Expanded(
       child: Container(
         padding: EdgeInsets.symmetric(vertical: fit.dp(10)),
@@ -720,7 +725,7 @@ class _BatchRaiserDetailsContent extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fit.sp(16.0),
                 fontWeight: FontWeight.w900,
-                color: color,
+                color: effectiveColor,
               ),
             ),
           ],

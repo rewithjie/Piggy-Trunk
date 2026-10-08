@@ -98,30 +98,87 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
     }
   }
 
-  List<Map<String, dynamic>> _getFilteredNotifications() {
-    if (_selectedFilter == 'History') return widget.notifications;
+  String _notifFingerprint(Map<String, dynamic> n) {
+    final meta = n['metadata'];
+    dynamic reportId;
+    if (meta is Map) {
+      reportId = meta['report_id'] ?? meta['reportId'];
+    }
+    if (reportId != null && reportId.toString().trim().isNotEmpty) {
+      return 'rep_${reportId.toString().trim()}';
+    }
+    final t = NotificationService.cleanText(n['title']?.toString() ?? '').toLowerCase().trim();
+    final m = NotificationService.cleanText(n['message']?.toString() ?? '').toLowerCase().trim();
+    final created = n['created_at']?.toString() ?? '';
+    final d = created.length >= 10 ? created.substring(0, 10) : '';
+    return '$t|$m|$d';
+  }
 
-    return widget.notifications.where((n) {
-      final isRead = n['is_read'] == true;
-      if (isRead) return false;
-
-      final type = (n['type'] as String?)?.toLowerCase() ?? '';
-      final title = (n['title'] as String?)?.toLowerCase() ?? '';
-      final msg = (n['message'] as String?)?.toLowerCase() ?? '';
-
-      if (_selectedFilter == 'Hog Updates') {
-        return type.contains('report') ||
-            type.contains('health') ||
-            title.contains('raiser') ||
-            title.contains('update') ||
-            msg.contains('logged');
-      } else if (_selectedFilter == 'Investments') {
-        return type.contains('invest') || title.contains('investment') || msg.contains('invest');
-      } else if (_selectedFilter == 'Stage Progress') {
-        return type.contains('stage') || title.contains('stage') || msg.contains('progress');
+  int get _distinctUnreadCount {
+    final Set<String> seen = {};
+    int count = 0;
+    for (var n in widget.notifications) {
+      if (n['is_read'] != true) {
+        final key = _notifFingerprint(n);
+        if (!seen.contains(key)) {
+          seen.add(key);
+          count++;
+        }
       }
-      return true;
-    }).toList();
+    }
+    return count;
+  }
+
+  int get _distinctTotalCount {
+    final Set<String> seen = {};
+    int count = 0;
+    for (var n in widget.notifications) {
+      final key = _notifFingerprint(n);
+      if (!seen.contains(key)) {
+        seen.add(key);
+        count++;
+      }
+    }
+    return count;
+  }
+
+  List<Map<String, dynamic>> _getFilteredNotifications() {
+    final rawList = _selectedFilter == 'History'
+        ? widget.notifications
+        : widget.notifications.where((n) {
+            final isRead = n['is_read'] == true;
+            if (isRead) return false;
+
+            final type = (n['type'] as String?)?.toLowerCase() ?? '';
+            final title = (n['title'] as String?)?.toLowerCase() ?? '';
+            final msg = (n['message'] as String?)?.toLowerCase() ?? '';
+
+            if (_selectedFilter == 'Hog Updates') {
+              return type.contains('report') ||
+                  type.contains('health') ||
+                  title.contains('raiser') ||
+                  title.contains('update') ||
+                  title.contains('health') ||
+                  msg.contains('logged') ||
+                  msg.contains('reported');
+            } else if (_selectedFilter == 'Investments') {
+              return type.contains('invest') || title.contains('investment') || msg.contains('invest');
+            } else if (_selectedFilter == 'Stage Progress') {
+              return type.contains('stage') || title.contains('stage') || msg.contains('progress');
+            }
+            return true;
+          }).toList();
+
+    final List<Map<String, dynamic>> deduped = [];
+    final Set<String> seen = {};
+    for (var n in rawList) {
+      final key = _notifFingerprint(n);
+      if (!seen.contains(key)) {
+        seen.add(key);
+        deduped.add(n);
+      }
+    }
+    return deduped;
   }
 
   @override
@@ -134,7 +191,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
     final cardBorder = isDark ? const Color(0xFF28354A) : const Color(0xFFE2E8F0);
 
     final filteredList = _getFilteredNotifications();
-    final unreadCount = widget.notifications.where((n) => n['is_read'] != true).length;
+    final unreadCount = _distinctUnreadCount;
 
     return Container(
       constraints: BoxConstraints(
@@ -176,13 +233,13 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                     Container(
                       padding: EdgeInsets.all(fit.dp(8)),
                       decoration: BoxDecoration(
-                        color: _brandColor.withValues(alpha: isDark ? 0.3 : 0.08),
+                        color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.08),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.notifications_rounded,
                         size: fit.dp(20),
-                        color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                        color: isDark ? Colors.white : _brandColor,
                       ),
                     ),
                     SizedBox(width: fit.dp(10)),
@@ -239,7 +296,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: fit.sp(12.5),
                             fontWeight: FontWeight.w700,
-                            color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                            color: isDark ? Colors.white : _brandColor,
                           ),
                         ),
                       ),
@@ -413,12 +470,17 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
     final displayLabel = label ?? filterKey;
     int? count;
     if (filterKey == 'Active') {
-      final unread = widget.notifications.where((n) => n['is_read'] != true).length;
+      final unread = _distinctUnreadCount;
       if (unread > 0) count = unread;
     } else if (filterKey == 'History') {
-      final total = widget.notifications.length;
+      final total = _distinctTotalCount;
       if (total > 0) count = total;
     }
+
+    final selectedBg = isDark ? Colors.white : _brandColor;
+    final unselectedBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final selectedTextColor = isDark ? _brandColor : Colors.white;
+    final unselectedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = filterKey),
@@ -426,9 +488,7 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
         duration: const Duration(milliseconds: 180),
         padding: EdgeInsets.symmetric(horizontal: fit.dp(14), vertical: fit.dp(7)),
         decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? const Color(0xFF3B82F6) : _brandColor)
-              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+          color: isSelected ? selectedBg : unselectedBg,
           borderRadius: BorderRadius.circular(fit.dp(20)),
           border: Border.all(
             color: isSelected
@@ -436,6 +496,15 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                 : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
             width: 1,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1.5),
+                  ),
+                ]
+              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -444,8 +513,8 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
               displayLabel,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: fit.sp(12),
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? Colors.white : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? selectedTextColor : unselectedTextColor,
               ),
             ),
             if (count != null) ...[
@@ -454,7 +523,9 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                 padding: EdgeInsets.symmetric(horizontal: fit.dp(5), vertical: fit.dp(1)),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Colors.white.withValues(alpha: 0.25)
+                      ? (isDark
+                          ? _brandColor.withValues(alpha: 0.12)
+                          : Colors.white.withValues(alpha: 0.25))
                       : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                   borderRadius: BorderRadius.circular(fit.dp(8)),
                 ),
@@ -463,7 +534,9 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: fit.sp(10),
                     fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                    color: isSelected
+                        ? selectedTextColor
+                        : (isDark ? Colors.white70 : const Color(0xFF334155)),
                   ),
                 ),
               ),
@@ -485,13 +558,13 @@ class _PartnerNotificationDrawerContentState extends State<_PartnerNotificationD
             Container(
               padding: EdgeInsets.all(fit.dp(16)),
               decoration: BoxDecoration(
-                color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 _selectedFilter == 'History' ? Icons.history_rounded : Icons.done_all_rounded,
                 size: fit.dp(36),
-                color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                color: isDark ? Colors.white : _brandColor,
               ),
             ),
             SizedBox(height: fit.dp(12)),

@@ -9,6 +9,7 @@ class RaiserProfileTab extends StatelessWidget {
   final Map<String, dynamic> raiserData;
   final VoidCallback onPickAndUploadAvatar;
   final VoidCallback onRestoreDefaultAvatar;
+  final VoidCallback? onResetProfile;
   final VoidCallback onShowEditProfileDialog;
   final VoidCallback onHandleSignOut;
 
@@ -60,6 +61,7 @@ class RaiserProfileTab extends StatelessWidget {
     required this.raiserData,
     required this.onPickAndUploadAvatar,
     required this.onRestoreDefaultAvatar,
+    this.onResetProfile,
     required this.onShowEditProfileDialog,
     required this.onHandleSignOut,
   });
@@ -347,7 +349,7 @@ class RaiserProfileTab extends StatelessWidget {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: onRestoreDefaultAvatar,
+                    onTap: onResetProfile ?? onRestoreDefaultAvatar,
                     child: Row(
                       children: [
                         Icon(Icons.refresh_rounded, size: 16, color: titleColor),

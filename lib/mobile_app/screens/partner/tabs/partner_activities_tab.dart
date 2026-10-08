@@ -8,20 +8,14 @@ class PartnerActivitiesTab extends StatefulWidget {
   final List<Map<String, dynamic>> activitiesList;
   final Future<void> Function() onRefresh;
   final VoidCallback? onNavigateToBatches;
-  final String currentStage; // Booster, Pre-Starter, Starter, Grower, Finisher
-  final String? raiserName;
-  final int totalHogs;
-  final bool hasActiveProject;
+  final VoidCallback? onNavigateToLifecycle;
 
   const PartnerActivitiesTab({
     super.key,
     required this.activitiesList,
     required this.onRefresh,
     this.onNavigateToBatches,
-    this.currentStage = 'Grower',
-    this.raiserName,
-    this.totalHogs = 0,
-    this.hasActiveProject = false,
+    this.onNavigateToLifecycle,
   });
 
   @override
@@ -35,25 +29,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
   static const Color _accentAmber = Color(0xFFF59E0B);
   static const Color _accentPurple = Color(0xFF8B5CF6);
 
-  static const List<String> _stages = [
-    'Booster',
-    'Pre-Starter',
-    'Starter',
-    'Grower',
-    'Finisher',
-  ];
-
-  int _getStageIndex(String stage) {
-    final s = stage.toLowerCase().replaceAll('-', '').replaceAll(' ', '');
-    if (s.contains('finisher') || s.contains('harvest')) return 4;
-    if (s.contains('grower')) return 3;
-    if (s.contains('prestarter') || s.contains('pre')) return 1;
-    if (s.contains('starter')) return 2;
-    if (s.contains('booster')) return 0;
-    return 3; // default to Grower
-  }
-
-  String _selectedFilter = 'All'; // 'All', 'Health', 'Medication', 'Feeding', 'Lifecycle'
+  String _selectedFilter = 'All'; // 'All' or 'Reports'
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -71,39 +47,13 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
 
       // Category filter
       bool matchesCategory = true;
-      if (_selectedFilter == 'Health') {
-        matchesCategory = type.contains('health') ||
-            type.contains('sick') ||
-            type.contains('fever') ||
-            type.contains('poison') ||
-            type.contains('diarrhea') ||
-            type.contains('injur') ||
-            type.contains('dead') ||
-            title.contains('health') ||
-            title.contains('fever') ||
-            title.contains('alert') ||
-            desc.contains('health') ||
-            desc.contains('check');
-      } else if (_selectedFilter == 'Medication') {
-        matchesCategory = type.contains('vaccin') ||
-            type.contains('med') ||
-            title.contains('vaccin') ||
-            desc.contains('vaccin') ||
-            desc.contains('dose');
-      } else if (_selectedFilter == 'Feeding') {
-        matchesCategory = type.contains('feed') ||
-            type.contains('weight') ||
-            title.contains('feed') ||
-            desc.contains('feed') ||
-            desc.contains('kg');
-      } else if (_selectedFilter == 'Lifecycle') {
-        matchesCategory = type.contains('stage') ||
-            type.contains('growth') ||
-            title.contains('stage') ||
-            desc.contains('stage') ||
-            desc.contains('booster') ||
-            desc.contains('grower') ||
-            desc.contains('finisher');
+      if (_selectedFilter == 'Reports') {
+        // Exclude pure investment milestone records, focus on farm raiser field updates
+        final isInvestment = type.contains('invest') ||
+            (act['report_id'] ?? '').toString().startsWith('inv_') ||
+            title.contains('funded') ||
+            title.contains('invest');
+        matchesCategory = !isInvestment;
       }
 
       if (!matchesCategory) return false;
@@ -124,7 +74,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     } else if (t.contains('vaccin') || t.contains('med')) {
       return _accentPurple;
     } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
-        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
+        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead') || t.contains('mortality')) {
       return const Color(0xFFEF4444);
     } else if (t.contains('feed') || t.contains('weight') || t.contains('nutrition')) {
       return _accentAmber;
@@ -141,7 +91,7 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     } else if (t.contains('vaccin') || t.contains('med')) {
       return Icons.medication_rounded;
     } else if (t.contains('sick') || t.contains('health') || t.contains('observation')
-        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead')) {
+        || t.contains('fever') || t.contains('poison') || t.contains('diarrhea') || t.contains('injur') || t.contains('dead') || t.contains('mortality')) {
       return Icons.health_and_safety_rounded;
     } else if (t.contains('feed') || t.contains('weight') || t.contains('nutrition')) {
       return Icons.monitor_weight_rounded;
@@ -174,67 +124,44 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ==================== 1. CATEGORY FILTER CHIPS ====================
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
-                  _buildFilterChip(
-                    fit: fit,
-                    label: strings.isFilipino ? 'Lahat ng Log' : 'All Logs',
-                    value: 'All',
-                    isDark: isDark,
-                  ),
-                  SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(
-                    fit: fit,
-                    label: strings.isFilipino ? 'Kalusugan' : 'Health',
-                    value: 'Health',
-                    isDark: isDark,
-                    icon: Icons.health_and_safety_outlined,
-                  ),
-                  SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(
-                    fit: fit,
-                    label: strings.isFilipino ? 'Bakuna at Gamot' : 'Vaccines',
-                    value: 'Medication',
-                    isDark: isDark,
-                    icon: Icons.medication_outlined,
-                  ),
-                  SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(
-                    fit: fit,
-                    label: strings.isFilipino ? 'Pagkain' : 'Feeding',
-                    value: 'Feeding',
-                    isDark: isDark,
-                    icon: Icons.monitor_weight_outlined,
-                  ),
-                  SizedBox(width: fit.dp(8)),
-                  _buildFilterChip(
-                    fit: fit,
-                    label: strings.isFilipino ? 'Yugto ng Buhay' : 'Lifecycle',
-                    value: 'Lifecycle',
-                    isDark: isDark,
-                    icon: Icons.trending_up_rounded,
-                  ),
-                ],
-              ),
+            // ==================== 1. FILTER PILLS ====================
+            Row(
+              children: [
+                _buildFilterChip(
+                  fit: fit,
+                  label: strings.isFilipino ? 'Lahat ng Log' : 'All Logs',
+                  value: 'All',
+                  isDark: isDark,
+                  icon: Icons.list_alt_rounded,
+                ),
+                SizedBox(width: fit.dp(8)),
+                _buildFilterChip(
+                  fit: fit,
+                  label: strings.isFilipino ? 'Mga Ulat ng Raiser' : 'Raiser Reports',
+                  value: 'Reports',
+                  isDark: isDark,
+                  icon: Icons.health_and_safety_outlined,
+                ),
+              ],
             ),
             SizedBox(height: fit.dp(16)),
 
-            // ==================== 2. HOG RAISER REPORTS FEED ====================
+            // ==================== 2. ACTIVITIES LIST ====================
             if (filteredActivities.isEmpty) ...[
-              _buildModernEmptyState(
+              _buildCategoryEmptyState(
                 fit: fit,
                 isDark: isDark,
                 cardBg: cardBgColor,
                 cardBorder: cardBorderColor,
-                secondaryBg: secondaryBgColor,
                 primaryText: primaryTextColor,
                 mutedText: mutedTextColor,
+                filter: _selectedFilter,
+                strings: strings,
               ),
-              SizedBox(height: fit.dp(16)),
+              if (widget.onNavigateToBatches != null) ...[
+                SizedBox(height: fit.dp(16)),
+                _buildExploreBatchesButton(fit: fit, isDark: isDark, strings: strings),
+              ],
             ] else ...[
               // Summary counter
               Padding(
@@ -243,9 +170,9 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      strings.isFilipino
-                          ? 'MGA ULAT NG RAISER (${filteredActivities.length})'
-                          : 'HOG RAISER REPORTS (${filteredActivities.length})',
+                      _selectedFilter == 'Reports'
+                          ? (strings.isFilipino ? 'MGA ULAT NG RAISER (${filteredActivities.length})' : 'RAISER FIELD REPORTS (${filteredActivities.length})')
+                          : (strings.isFilipino ? 'LAHAT NG AKTIBIDAD (${filteredActivities.length})' : 'ALL ACTIVITIES & LOGS (${filteredActivities.length})'),
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: fit.sp(11.5),
                         fontWeight: FontWeight.w800,
@@ -370,7 +297,6 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                               ],
                               if (!isInvestment && raiserName.isNotEmpty) ...[
                                 SizedBox(height: fit.dp(10)),
-                                // Raiser Attribution Badge
                                 Row(
                                   children: [
                                     Icon(
@@ -397,48 +323,6 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
                     ),
                   );
                 },
-              ),
-              SizedBox(height: fit.dp(16)),
-            ],
-
-            // ==================== 3. LIFECYCLE STAGE CARD (AT BOTTOM) ====================
-            _buildLifecycleStageCard(
-              fit: fit,
-              isDark: isDark,
-              cardBg: cardBgColor,
-              cardBorder: cardBorderColor,
-              primaryText: primaryTextColor,
-              mutedText: mutedTextColor,
-            ),
-
-            // Action CTA to Explore Batches
-            if (filteredActivities.isEmpty && widget.onNavigateToBatches != null) ...[
-              SizedBox(height: fit.dp(16)),
-              SizedBox(
-                width: double.infinity,
-                height: fit.dp(48),
-                child: ElevatedButton.icon(
-                  onPressed: widget.onNavigateToBatches,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? Colors.white : _brandColor,
-                    foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(fit.dp(14))),
-                  ),
-                  icon: Icon(
-                    Icons.inventory_2_outlined,
-                    size: fit.dp(18),
-                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                  ),
-                  label: Text(
-                    strings.isFilipino ? 'Tingnan ang mga Batch' : 'Explore Available Batches',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(13.5),
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? const Color(0xFF0F172A) : Colors.white,
-                    ),
-                  ),
-                ),
               ),
             ],
           ],
@@ -510,19 +394,32 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
     );
   }
 
-  // ==================== 4. MODERN CLEAN EMPTY STATE ====================
-  Widget _buildModernEmptyState({
+  // Context-aware empty state for filters
+  Widget _buildCategoryEmptyState({
     required ScreenFit fit,
     required bool isDark,
     required Color cardBg,
     required Color cardBorder,
-    required Color secondaryBg,
     required Color primaryText,
     required Color mutedText,
+    required String filter,
+    required AppStrings strings,
   }) {
+    IconData icon = Icons.assignment_outlined;
+    String title = strings.noReportsYet;
+    String subtitle = strings.noReportsSubtitle;
+
+    if (filter == 'Reports') {
+      icon = Icons.health_and_safety_rounded;
+      title = strings.isFilipino ? 'Walang Sakit na Naitala' : 'No Health Alerts Reported';
+      subtitle = strings.isFilipino
+          ? 'Lahat ng 4 na baboy sa batch na ito ay malulusog at nasa maayos na kalagayan.'
+          : 'All 4 hogs in this batch are healthy with regular checkups on track.';
+    }
+
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: fit.dp(24), vertical: fit.dp(28)),
+      padding: EdgeInsets.symmetric(horizontal: fit.dp(20), vertical: fit.dp(24)),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(fit.dp(20)),
@@ -539,352 +436,69 @@ class _PartnerActivitiesTabState extends State<PartnerActivitiesTab> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: fit.dp(54),
-            height: fit.dp(54),
+            width: fit.dp(48),
+            height: fit.dp(48),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                width: 1.2,
-              ),
             ),
-            child: Icon(
-              Icons.assignment_outlined,
-              size: fit.dp(24),
-              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-            ),
+            child: Icon(icon, size: fit.dp(22), color: isDark ? const Color(0xFF38BDF8) : _brandColor),
           ),
-          SizedBox(height: fit.dp(12)),
+          SizedBox(height: fit.dp(10)),
           Text(
-            AppStrings.of(context).noReportsYet,
+            title,
             style: GoogleFonts.plusJakartaSans(
-              fontSize: fit.sp(15.0),
+              fontSize: fit.sp(14.5),
               fontWeight: FontWeight.w800,
               color: primaryText,
-              letterSpacing: -0.2,
             ),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: fit.dp(4)),
           Text(
-            AppStrings.of(context).noReportsSubtitle,
+            subtitle,
             style: GoogleFonts.plusJakartaSans(
               fontSize: fit.sp(12.0),
               fontWeight: FontWeight.w500,
               color: mutedText,
-              height: 1.3,
+              height: 1.35,
             ),
             textAlign: TextAlign.center,
-          ),
-          SizedBox(height: fit.dp(14)),
-          // Refresh action button
-          SizedBox(
-            height: fit.dp(36),
-            child: OutlinedButton.icon(
-              onPressed: widget.onRefresh,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: cardBorder, width: 1.2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(fit.dp(10))),
-                padding: EdgeInsets.symmetric(horizontal: fit.dp(16)),
-              ),
-              icon: Icon(Icons.refresh_rounded, size: fit.dp(14), color: primaryText),
-              label: Text(
-                AppStrings.of(context).refreshReports,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: fit.sp(11.5),
-                  fontWeight: FontWeight.w700,
-                  color: primaryText,
-                ),
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  // ==================== 5. LIFECYCLE STAGE COMPONENT ====================
-  Widget _buildLifecycleStageCard({
+  Widget _buildExploreBatchesButton({
     required ScreenFit fit,
     required bool isDark,
-    required Color cardBg,
-    required Color cardBorder,
-    required Color primaryText,
-    required Color mutedText,
+    required AppStrings strings,
   }) {
-    final strings = AppStrings.of(context);
-    if (!widget.hasActiveProject) {
-      return Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(fit.dp(16)),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(fit.dp(20)),
-          border: Border.all(color: cardBorder, width: 1.1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: fit.dp(42),
-              height: fit.dp(42),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.timeline_rounded,
-                size: fit.dp(20),
-                color: isDark ? const Color(0xFF93C5FD) : _brandColor,
-              ),
-            ),
-            SizedBox(width: fit.dp(12)),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    strings.isFilipino ? 'Pagsubaybay sa Siklo ng Buhay ng Baboy' : 'Hog Lifecycle Tracking',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(13.5),
-                      fontWeight: FontWeight.w800,
-                      color: primaryText,
-                    ),
-                  ),
-                  SizedBox(height: fit.dp(2)),
-                  Text(
-                    strings.isFilipino
-                        ? 'Mag-pondo muna ng aktibong batch upang masubaybayan ang iyong mga baboy sa lahat ng 5 yugto ng paglaki (Booster hanggang Finisher).'
-                        : 'Fund an active batch to track your hogs across all 5 growth stages (Booster to Finisher).',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(11.5),
-                      color: mutedText,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final int currentStageIdx = _getStageIndex(widget.currentStage);
-    final String currentStageName = _stages[currentStageIdx];
-    final String raiser = widget.raiserName?.trim() ?? '';
-    final int totalHogs = widget.totalHogs;
-
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: EdgeInsets.all(fit.dp(18)),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(fit.dp(20)),
-        border: Border.all(color: cardBorder, width: 1.1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+      height: fit.dp(48),
+      child: ElevatedButton.icon(
+        onPressed: widget.onNavigateToBatches,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isDark ? Colors.white : _brandColor,
+          foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(fit.dp(14))),
+        ),
+        icon: Icon(
+          Icons.inventory_2_outlined,
+          size: fit.dp(18),
+          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        ),
+        label: Text(
+          strings.isFilipino ? 'Tingnan ang mga Batch' : 'Explore Available Batches',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: fit.sp(13.5),
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFF0F172A) : Colors.white,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.timeline_rounded,
-                    size: fit.dp(18),
-                    color: isDark ? const Color(0xFF93C5FD) : _brandColor,
-                  ),
-                  SizedBox(width: fit.dp(8)),
-                  Text(
-                    strings.isFilipino ? 'Yugto ng Buhay' : 'Lifecycle Stage',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: fit.sp(14.0),
-                      fontWeight: FontWeight.w800,
-                      color: primaryText,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4)),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(fit.dp(12)),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                    width: 0.8,
-                  ),
-                ),
-                child: Text(
-                  strings.isFilipino ? 'Yugtong $currentStageName' : '$currentStageName Stage',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: fit.sp(11.0),
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF64748B),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: fit.dp(16)),
-
-          // Stepper Timeline Nodes
-          Row(
-            children: List.generate(_stages.length, (index) {
-              final stageName = _stages[index];
-              final bool isCompleted = index < currentStageIdx;
-              final bool isCurrent = index == currentStageIdx;
-
-              return Expanded(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        // Left connecting line
-                        Expanded(
-                          child: Container(
-                            height: 2.5,
-                            color: index == 0
-                                ? Colors.transparent
-                                : (index <= currentStageIdx
-                                    ? (isDark ? Colors.white : _brandColor)
-                                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
-                          ),
-                        ),
-                        // Node Circle
-                        Container(
-                          width: fit.dp(28),
-                          height: fit.dp(28),
-                          decoration: BoxDecoration(
-                            color: isCompleted
-                                ? const Color(0xFF10B981)
-                                : (isCurrent
-                                    ? (isDark ? Colors.white : _brandColor)
-                                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9))),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isCompleted
-                                  ? const Color(0xFF10B981)
-                                  : (isCurrent
-                                      ? (isDark ? Colors.white : _brandColor)
-                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))),
-                              width: isCurrent ? 2 : 1.2,
-                            ),
-                          ),
-                          child: Icon(
-                            isCompleted
-                                ? Icons.check_rounded
-                                : (isCurrent ? Icons.trending_up_rounded : Icons.lock_outline_rounded),
-                            size: fit.dp(14),
-                            color: isCompleted
-                                ? Colors.white
-                                : (isCurrent
-                                    ? (isDark ? const Color(0xFF0F172A) : Colors.white)
-                                    : (isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8))),
-                          ),
-                        ),
-                        // Right connecting line
-                        Expanded(
-                          child: Container(
-                            height: 2.5,
-                            color: index == _stages.length - 1
-                                ? Colors.transparent
-                                : (index < currentStageIdx
-                                    ? (isDark ? Colors.white : _brandColor)
-                                    : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: fit.dp(8)),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        stageName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(10.0),
-                          fontWeight: isCurrent ? FontWeight.w800 : FontWeight.w600,
-                          color: isCurrent
-                              ? (isDark ? Colors.white : _brandColor)
-                              : (isCompleted ? primaryText : mutedText),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
-
-          if (raiser.isNotEmpty || totalHogs > 0) ...[
-            SizedBox(height: fit.dp(14)),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: fit.dp(12), vertical: fit.dp(8)),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF131F33) : const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(fit.dp(12)),
-                border: Border.all(
-                  color: isDark ? const Color(0xFF1E2F48) : const Color(0xFFE2E8F0),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.person_pin_circle_outlined,
-                    size: fit.dp(15),
-                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                  ),
-                  SizedBox(width: fit.dp(6)),
-                  Expanded(
-                    child: Text(
-                      raiser.isNotEmpty ? 'Assigned Raiser: $raiser' : 'Assigned Farm Raiser',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: fit.sp(11.5),
-                        fontWeight: FontWeight.w600,
-                        color: mutedText,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (totalHogs > 0) ...[
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: fit.dp(8), vertical: fit.dp(2)),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(fit.dp(8)),
-                      ),
-                      child: Text(
-                        '$totalHogs Hogs Active',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(10.5),
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF10B981),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

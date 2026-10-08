@@ -77,6 +77,24 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
               if (mounted) _fetchRaiserData(showLoading: false);
             },
           )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'raiser_notifications',
+            callback: (payload) {
+              debugPrint('Dashboard realtime: raiser_notifications updated, refreshing silently...');
+              if (mounted) _fetchRaiserData(showLoading: false);
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'investments',
+            callback: (payload) {
+              debugPrint('Dashboard realtime: investments updated, refreshing silently...');
+              if (mounted) _fetchRaiserData(showLoading: false);
+            },
+          )
           .subscribe();
     } catch (e) {
       debugPrint('Error subscribing to dashboard assignments realtime: $e');
@@ -202,6 +220,13 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       if (raiserId == null) {
         throw Exception('Raiser ID is null!');
       }
+
+      // Keep native notification listener synced with both Auth UUID and integer hog_raiser_id
+      NotificationService().startRoleRealtimeListener(
+        role: 'raiser',
+        userId: user.id,
+        secondaryId: raiserId.toString(),
+      );
 
       // 3. Fetch total capital invested and total hogs from investment_records
       List<dynamic> capitalRes = [];
@@ -756,11 +781,9 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           continue;
         }
 
-        // 2. Batch assignment duplicate check (same batch assigned triggers multiple times for multi-hog types)
+        // 2. Batch assignment duplicate check (only deduplicate batch_assigned triggers)
         final batchId = (n['metadata'] is Map ? (n['metadata']['batch_id'] ?? '') : '').toString().trim();
-        final isBatchNotif = type == 'batch_assigned' ||
-            title.toLowerCase().contains('batch') ||
-            msg.toLowerCase().contains('batch');
+        final isBatchNotif = type == 'batch_assigned';
 
         final String dedupKey;
         if (isBatchNotif && batchId.isNotEmpty) {
@@ -1172,6 +1195,30 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           },
         });
         debugPrint('Automatic milestone notification sent to admin: $batchName ($pigType - $targetStage)');
+
+        // Also notify partner investors who funded this batch
+        if (batchId != null) {
+          try {
+            final partnerInvs = await Supabase.instance.client
+                .from('investments')
+                .select('partner_investor_id')
+                .eq('batch_id', batchId);
+            for (var inv in partnerInvs) {
+              final pId = inv['partner_investor_id'];
+              if (pId != null) {
+                try {
+                  await Supabase.instance.client.from('partner_notifications').insert({
+                    'partner_investor_id': pId,
+                    'title': notifTitle,
+                    'message': '$batchName has reached $targetStage. Ready for harvest & payout distribution!',
+                    'type': 'stage',
+                    'is_read': false,
+                  });
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
+        }
       }
     } catch (e) {
       debugPrint('Notice sending milestone notification to admin: $e');
@@ -1574,22 +1621,279 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
     }
   }
 
+  Future<void> _resetProfileToDefault() async {
+    final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
+    final userId = _raiserData['user_id'];
+    final strings = AppStrings.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : _brandColor;
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          surfaceTintColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  strings.resetAccountDetailsTitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            strings.resetAccountDetailsBody,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: mutedTextColor,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.cancel,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: mutedTextColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _brandColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.yesReset,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      final currentEmail = (_raiserData['email'] ?? user?.email ?? '').toString().trim();
+
+      // Resolve registered name
+      String defaultName = "";
+      if (user != null) {
+        final meta = user.userMetadata ?? {};
+        final reg = (meta['registered_name'] ?? meta['original_name'] ?? meta['initial_name'])?.toString().trim();
+        if (reg != null && reg.isNotEmpty && reg.toLowerCase() != 'hog raiser') {
+          defaultName = reg;
+        }
+      }
+
+      if (defaultName.isEmpty && currentEmail.isNotEmpty) {
+        try {
+          final notif = await Supabase.instance.client
+              .from('admin_notifications')
+              .select('metadata')
+              .eq('type', 'user_registration')
+              .filter('metadata->>email', 'eq', currentEmail)
+              .order('created_at', ascending: true)
+              .limit(1)
+              .maybeSingle();
+
+          if (notif != null && notif['metadata'] != null) {
+            final meta = notif['metadata'];
+            if (meta is Map && meta['name'] != null) {
+              final n = meta['name'].toString().trim();
+              if (n.isNotEmpty && n.toLowerCase() != 'hog raiser') {
+                defaultName = n;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (defaultName.isEmpty && currentEmail.contains('@')) {
+        final prefix = currentEmail.split('@').first.trim();
+        if (prefix.isNotEmpty) {
+          final parts = prefix.replaceAll(RegExp(r'[._\-]'), ' ').split(' ');
+          defaultName = parts
+              .where((p) => p.isNotEmpty)
+              .map((p) => p[0].toUpperCase() + p.substring(1).toLowerCase())
+              .join(' ');
+        }
+      }
+
+      if (defaultName.isEmpty) defaultName = "Hog Raiser";
+
+      String defaultFirst = defaultName;
+      String defaultLast = "";
+      final nameParts = defaultName.trim().replaceAll(RegExp(r'\s+'), ' ').split(' ');
+      if (nameParts.length > 1) {
+        defaultFirst = nameParts.first;
+        defaultLast = nameParts.sublist(1).join(' ');
+      }
+
+      // Update auth user metadata
+      if (user != null) {
+        try {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(
+              data: {
+                'first_name': defaultFirst,
+                'middle_initial': '',
+                'last_name': defaultLast,
+                'full_name': defaultName,
+                'name': defaultName,
+                'registered_name': defaultName,
+                'avatar_url': null,
+                'picture': null,
+              },
+            ),
+          );
+        } catch (_) {}
+      }
+
+      // Update app_users
+      if (userId != null) {
+        try {
+          await Supabase.instance.client.from('app_users').update({
+            'name': defaultName,
+          }).eq('user_id', userId);
+        } catch (_) {}
+      }
+
+      // Update hog_raisers
+      if (raiserId != null) {
+        try {
+          await Supabase.instance.client.from('hog_raisers').update({
+            'name': defaultName,
+            'phone': 'N/A',
+            'address': 'N/A',
+            'avatar_url': null,
+          }).eq('hog_raiser_id', raiserId);
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _raiserData['name'] = defaultName;
+          _raiserData['phone'] = 'N/A';
+          _raiserData['address'] = 'N/A';
+          _raiserData.remove('avatar_url');
+        });
+
+        PiggyToast.showSuccess(
+          context,
+          strings.accountDetailsRestoredSuccess,
+        );
+      }
+
+      await _fetchRaiserData();
+    } catch (e) {
+      debugPrint('Error resetting raiser profile: $e');
+      if (mounted) {
+        PiggyToast.showError(context, 'Failed to reset profile: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   void _showEditProfileDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currentName = _raiserData['name'] ?? '';
-    final currentPhone = _raiserData['phone'] ?? '';
-    final currentAddress = _raiserData['address'] ?? '';
+    final currentName = (_raiserData['name'] ?? '').toString();
+    final currentPhone = (_raiserData['phone'] ?? '').toString();
+    final currentAddress = (_raiserData['address'] ?? '').toString();
 
-    final nameController = TextEditingController(text: currentName == 'N/A' ? '' : currentName);
+    // Parse First, Middle Initial, and Last Name from auth metadata or currentName
+    final userMeta = Supabase.instance.client.auth.currentUser?.userMetadata ?? {};
+    String prefillFirst = (userMeta['first_name'] ?? '').toString().trim();
+    String prefillMiddle = (userMeta['middle_initial'] ?? userMeta['middle_name'] ?? '').toString().trim();
+    String prefillLast = (userMeta['last_name'] ?? '').toString().trim();
+
+    if (prefillFirst.isEmpty && prefillLast.isEmpty && currentName.isNotEmpty && currentName != 'Hog Raiser' && currentName != 'N/A') {
+      final nameClean = currentName.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final parts = nameClean.split(' ');
+      if (parts.length == 1) {
+        prefillFirst = parts[0];
+      } else if (parts.length == 2) {
+        prefillFirst = parts[0];
+        prefillLast = parts[1];
+      } else if (parts.length >= 3) {
+        if (parts[1].endsWith('.') || parts[1].length <= 2) {
+          prefillFirst = parts[0];
+          prefillMiddle = parts[1].replaceAll('.', '');
+          prefillLast = parts.sublist(2).join(' ');
+        } else {
+          prefillFirst = parts.sublist(0, parts.length - 1).join(' ');
+          prefillLast = parts.last;
+        }
+      }
+    }
+
+    final firstNameCtrl = TextEditingController(text: prefillFirst);
+    final middleInitialCtrl = TextEditingController(text: prefillMiddle);
+    final lastNameCtrl = TextEditingController(text: prefillLast);
     final phoneController = TextEditingController(text: currentPhone == 'N/A' ? '' : currentPhone);
     final addressController = TextEditingController(text: currentAddress == 'N/A' ? '' : currentAddress);
 
     final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final titleColor = isDark ? Colors.white : _brandColor;
-    final inputBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
     final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
     final hintColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
-    final fieldIconColor = isDark ? Colors.white70 : hintColor;
     final actionColor = isDark ? Colors.white : _brandColor;
 
     showModalBottomSheet(
@@ -1599,6 +1903,10 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
       builder: (ctx) {
         final strings = AppStrings.of(ctx);
         bool isDetectingGps = false;
+        String? firstNameError;
+        String? lastNameError;
+        String? phoneError;
+
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             Future<void> autoDetectGps() async {
@@ -1666,6 +1974,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                 );
               }
             }
+
             return Padding(
               padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
               child: Container(
@@ -1681,344 +1990,515 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                   ],
                 ),
                 child: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Drag Handle Pill
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF475569) : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Header Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Top Drag Handle Pill
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF475569) : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Header Row
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.person_outline_rounded,
-                                color: isDark ? Colors.white : _brandColor,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              strings.editProfileTitle,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: titleColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Divider(color: borderColor, height: 1),
-                    const SizedBox(height: 18),
-
-                    // 1. Pangalan
-                    Text(
-                      strings.fullName,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: titleColor,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: nameController,
-                      textCapitalization: TextCapitalization.words,
-                      inputFormatters: const [CapitalizeWordsInputFormatter()],
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                      decoration: InputDecoration(
-                        hintText: strings.enterFullNameHint,
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Icon(Icons.badge_outlined, color: fieldIconColor, size: 20),
-                        filled: true,
-                        fillColor: inputBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: actionColor, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 2. Phone Number (Numerical Only!)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          strings.phoneLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: titleColor,
-                          ),
-                        ),
-                        Text(
-                          strings.numbersOnlyNotice,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: isDark ? Colors.white60 : hintColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: phoneController,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                      ],
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                      decoration: InputDecoration(
-                        hintText: '09XXXXXXXXX',
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Icon(Icons.phone_iphone_rounded, color: fieldIconColor, size: 20),
-                        filled: true,
-                        fillColor: inputBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: actionColor, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // 3. Address
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          strings.address,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: titleColor,
-                          ),
-                        ),
-                        InkWell(
-                          onTap: isDetectingGps ? null : autoDetectGps,
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                            Row(
                               children: [
-                                if (isDetectingGps)
-                                  SizedBox(
-                                    width: 12,
-                                    height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1.8,
-                                      color: actionColor,
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+                                      width: 1,
                                     ),
-                                  )
-                                else
-                                  Icon(
-                                    Icons.my_location_rounded,
-                                    size: 14,
-                                    color: actionColor,
                                   ),
-                                const SizedBox(width: 4),
+                                  child: Icon(
+                                    Icons.person_outline_rounded,
+                                    color: isDark ? Colors.white : _brandColor,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
                                 Text(
-                                  isDetectingGps ? strings.detectingGps : strings.autoDetectLocation,
+                                  strings.editProfileTitle,
                                   style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: actionColor,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    color: titleColor,
                                   ),
                                 ),
                               ],
                             ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Divider(color: borderColor, height: 1),
+                        const SizedBox(height: 18),
+
+                        // 1. First Name & Middle Initial Row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildRaiserFieldHeaderRow(
+                                    label: strings.firstNameLabel,
+                                    titleColor: titleColor,
+                                  ),
+                                  _buildRaiserInputField(
+                                    context,
+                                    controller: firstNameCtrl,
+                                    hintText: 'e.g. Juan',
+                                    icon: Icons.person_outline_rounded,
+                                    hasError: firstNameError != null,
+                                    inputFormatters: const [NameInputFormatter()],
+                                    onChanged: (_) {
+                                      if (firstNameError != null) setModalState(() => firstNameError = null);
+                                    },
+                                  ),
+                                  _buildRaiserInlineErrorText(firstNameError),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildRaiserFieldHeaderRow(
+                                    label: strings.middleInitialLabel,
+                                    titleColor: titleColor,
+                                    trailing: Text(
+                                      strings.optionalLabel,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: hintColor,
+                                      ),
+                                    ),
+                                  ),
+                                  _buildRaiserInputField(
+                                    context,
+                                    controller: middleInitialCtrl,
+                                    hintText: 'M.',
+                                    maxLength: 2,
+                                    icon: Icons.edit_note_rounded,
+                                    textCapitalization: TextCapitalization.characters,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\u00D1\u00F1]')),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // 2. Last Name Field
+                        _buildRaiserFieldHeaderRow(
+                          label: strings.lastNameLabel,
+                          titleColor: titleColor,
+                        ),
+                        _buildRaiserInputField(
+                          context,
+                          controller: lastNameCtrl,
+                          hintText: 'e.g. Dela Cruz',
+                          icon: Icons.badge_outlined,
+                          hasError: lastNameError != null,
+                          inputFormatters: const [NameInputFormatter()],
+                          onChanged: (_) {
+                            if (lastNameError != null) setModalState(() => lastNameError = null);
+                          },
+                        ),
+                        _buildRaiserInlineErrorText(lastNameError),
+                        const SizedBox(height: 14),
+
+                        // 3. Phone Number Field
+                        _buildRaiserFieldHeaderRow(
+                          label: strings.phoneLabel,
+                          titleColor: titleColor,
+                          trailing: Text(
+                            strings.phoneHelperNotice,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: hintColor,
+                            ),
                           ),
+                        ),
+                        _buildRaiserInputField(
+                          context,
+                          controller: phoneController,
+                          hintText: '09XXXXXXXXX',
+                          icon: Icons.phone_iphone_rounded,
+                          keyboardType: TextInputType.phone,
+                          hasError: phoneError != null,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          onChanged: (_) {
+                            if (phoneError != null) setModalState(() => phoneError = null);
+                          },
+                        ),
+                        _buildRaiserInlineErrorText(phoneError),
+                        const SizedBox(height: 14),
+
+                        // 4. Address Field with Auto-Detect Action
+                        _buildRaiserFieldHeaderRow(
+                          label: strings.address,
+                          titleColor: titleColor,
+                          trailing: InkWell(
+                            onTap: isDetectingGps ? null : autoDetectGps,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isDetectingGps)
+                                    SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.8,
+                                        color: actionColor,
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      Icons.my_location_rounded,
+                                      size: 14,
+                                      color: actionColor,
+                                    ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isDetectingGps ? strings.detectingGps : strings.autoDetectLocation,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: actionColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        _buildRaiserInputField(
+                          context,
+                          controller: addressController,
+                          readOnly: true,
+                          onTap: isDetectingGps ? null : autoDetectGps,
+                          hintText: isDetectingGps ? strings.detectingGps : strings.tapToDetectGpsAddress,
+                          icon: Icons.location_on_outlined,
+                          suffixIcon: isDetectingGps
+                              ? Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: actionColor,
+                                    ),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (addressController.text.trim().isNotEmpty)
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                        tooltip: strings.cancel,
+                                        onPressed: () {
+                                          setModalState(() {
+                                            addressController.clear();
+                                          });
+                                        },
+                                      ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.my_location_rounded,
+                                        size: 20,
+                                        color: actionColor,
+                                      ),
+                                      tooltip: strings.autoDetectLocation,
+                                      onPressed: autoDetectGps,
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
+                                  backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  strings.cancel,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    color: isDark ? Colors.white : hintColor,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final first = firstNameCtrl.text.trim();
+                                  final middle = middleInitialCtrl.text.trim().replaceAll('.', '').toUpperCase();
+                                  final last = lastNameCtrl.text.trim();
+                                  final newPhone = phoneController.text.trim();
+                                  final newAddr = addressController.text.trim();
+
+                                  // Validate First Name (letters, spaces, accents, ñ/Ñ only)
+                                  String? fErr;
+                                  if (first.isEmpty) {
+                                    fErr = strings.firstNameRequired;
+                                  } else if (!RegExp(r"^[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF \-'\.]+$").hasMatch(first)) {
+                                    fErr = strings.nameInvalidCharacters;
+                                  }
+
+                                  // Validate Last Name (letters, spaces, accents, ñ/Ñ only)
+                                  String? lErr;
+                                  if (last.isEmpty) {
+                                    lErr = strings.lastNameRequired;
+                                  } else if (!RegExp(r"^[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF \-'\.]+$").hasMatch(last)) {
+                                    lErr = strings.nameInvalidCharacters;
+                                  }
+
+                                  // Validate Phone (optional, but if provided must start with 09 and be 11 digits)
+                                  String? pErr;
+                                  if (newPhone.isNotEmpty) {
+                                    if (!newPhone.startsWith('09')) {
+                                      pErr = strings.phoneMustStart09;
+                                    } else if (newPhone.length != 11) {
+                                      pErr = strings.phoneMustBe11Digits;
+                                    }
+                                  }
+
+                                  if (fErr != null || lErr != null || pErr != null) {
+                                    setModalState(() {
+                                      firstNameError = fErr;
+                                      lastNameError = lErr;
+                                      phoneError = pErr;
+                                    });
+                                    return;
+                                  }
+
+                                  final newCombinedName = [
+                                    first,
+                                    if (middle.isNotEmpty) '$middle.',
+                                    last,
+                                  ].where((p) => p.isNotEmpty).join(' ');
+
+                                  Navigator.pop(ctx);
+                                  await _updateProfile(
+                                    newCombinedName,
+                                    newPhone,
+                                    newAddr,
+                                    firstName: first,
+                                    middleInitial: middle,
+                                    lastName: last,
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isDark ? Colors.white : _brandColor,
+                                  foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  strings.saveChanges,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: addressController,
-                      readOnly: false,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14, color: titleColor, fontWeight: FontWeight.w600),
-                      decoration: InputDecoration(
-                        hintText: strings.enterAddressHint,
-                        hintStyle: GoogleFonts.plusJakartaSans(fontSize: 13, color: hintColor),
-                        prefixIcon: Icon(Icons.location_on_outlined, color: fieldIconColor, size: 20),
-                        suffixIcon: isDetectingGps
-                            ? Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: actionColor),
-                                ),
-                              )
-                            : IconButton(
-                                icon: Icon(
-                                  Icons.my_location_rounded,
-                                  color: actionColor,
-                                  size: 18,
-                                ),
-                                tooltip: strings.autoDetectLocation,
-                                onPressed: isDetectingGps ? null : autoDetectGps,
-                              ),
-                        filled: true,
-                        fillColor: inputBg,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: borderColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: actionColor, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Action Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
-                              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text(
-                              strings.cancel,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                color: isDark ? Colors.white : hintColor,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final newName = nameController.text.trim();
-                              final newPhone = phoneController.text.trim();
-                              final newAddr = addressController.text.trim();
-
-                              if (newName.isEmpty) {
-                                PiggyToast.showWarning(
-                                  context,
-                                  strings.pleaseEnterFullName,
-                                );
-                                return;
-                              }
-
-                              if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                                PiggyToast.showWarning(
-                                  context,
-                                  strings.invalidPhoneNumber,
-                                );
-                                return;
-                              }
-
-                              Navigator.pop(ctx);
-                              await _updateProfile(
-                                newName,
-                                newPhone,
-                                newAddr,
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? Colors.white : _brandColor,
-                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text(
-                              strings.saveChanges,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
-  },
-);
-}
+  }
 
-  Future<void> _updateProfile(String newName, String newPhone, String newAddress) async {
+  Widget _buildRaiserFieldHeaderRow({
+    required String label,
+    required Color titleColor,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: titleColor,
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRaiserInlineErrorText(String? errorText) {
+    if (errorText == null || errorText.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, left: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 13, color: Color(0xFFEF4444)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              errorText,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFFEF4444),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRaiserInputField(
+    BuildContext context, {
+    required TextEditingController controller,
+    required String hintText,
+    IconData? icon,
+    Widget? suffixIcon,
+    bool hasError = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    int? maxLength,
+    ValueChanged<String>? onChanged,
+    TextInputType? keyboardType,
+    TextCapitalization textCapitalization = TextCapitalization.words,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveFormatters = inputFormatters ??
+        (keyboardType == TextInputType.phone ? null : const [CapitalizeWordsInputFormatter()]);
+    final errorBorderColor = const Color(0xFFEF4444);
+    final normalBorderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
+    return TextField(
+      controller: controller,
+      readOnly: readOnly,
+      enableInteractiveSelection: !readOnly,
+      showCursor: !readOnly,
+      onTap: onTap,
+      keyboardType: readOnly ? TextInputType.none : keyboardType,
+      textCapitalization: textCapitalization,
+      maxLength: maxLength,
+      inputFormatters: effectiveFormatters,
+      onChanged: onChanged,
+      style: GoogleFonts.plusJakartaSans(
+        color: isDark ? Colors.white : _brandColor,
+        fontWeight: FontWeight.w600,
+        fontSize: 14,
+      ),
+      decoration: InputDecoration(
+        counterText: '',
+        hintText: hintText,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          fontWeight: FontWeight.w500,
+          fontSize: 13.5,
+        ),
+        prefixIcon: icon != null
+            ? Icon(icon, size: 20, color: hasError ? errorBorderColor : (isDark ? Colors.white70 : _brandColor))
+            : null,
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        contentPadding: EdgeInsets.symmetric(horizontal: icon != null ? 14 : 16, vertical: 13),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: hasError ? errorBorderColor : normalBorderColor,
+            width: hasError ? 1.4 : 1.0,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: hasError ? errorBorderColor : (isDark ? Colors.white : _brandColor),
+            width: 1.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateProfile(
+    String newName,
+    String newPhone,
+    String newAddress, {
+    String? firstName,
+    String? middleInitial,
+    String? lastName,
+  }) async {
     final raiserId = _raiserData['hog_raiser_id'] ?? _raiserData['id'];
     if (raiserId == null) return;
 
@@ -2037,6 +2517,23 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
           await Supabase.instance.client.from('app_users').update({
             'name': newName,
           }).eq('user_id', userId);
+        } catch (_) {}
+      }
+
+      // Keep Supabase auth user metadata synchronized
+      if (firstName != null && lastName != null) {
+        try {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(
+              data: {
+                'first_name': firstName,
+                'middle_initial': middleInitial ?? '',
+                'last_name': lastName,
+                'full_name': newName,
+                'name': newName,
+              },
+            ),
+          );
         } catch (_) {}
       }
 
@@ -2232,6 +2729,7 @@ class _MobileDashboardScreenState extends State<MobileDashboardScreen> {
                           raiserData: _raiserData,
                           onPickAndUploadAvatar: _pickAndUploadAvatar,
                           onRestoreDefaultAvatar: _restoreDefaultAvatar,
+                          onResetProfile: _resetProfileToDefault,
                           onShowEditProfileDialog: _showEditProfileDialog,
                           onHandleSignOut: _handleSignOut,
                         ),

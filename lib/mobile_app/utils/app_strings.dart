@@ -189,6 +189,16 @@ class AppStrings {
   String get resetProfileConfirmBody => isFilipino
       ? 'Sigurado ka bang nais mong ibalik sa default ang iyong profile picture at mga setting?'
       : 'Are you sure you want to restore your profile picture and settings to default?';
+  String get resetAccountDetailsTitle => isFilipino ? 'I-reset ang mga Detalye ng Account?' : 'Reset Account Details?';
+  String get resetAccountDetailsBody => isFilipino
+      ? 'Sigurado ka bang nais mong ibalik sa default ang lahat ng detalye ng iyong account? Ibabalik nito ang iyong pangalan sa rehistradong pangalan, tatanggalin ang custom na telepono at address, at ibabalik ang default na avatar.'
+      : 'Are you sure you want to restore all your account details to default? This will revert your name back to your registered name, clear custom phone and address information, and restore the default avatar.';
+  String get accountDetailsRestoredSuccess => isFilipino
+      ? 'Matagumpay na naibalik sa default ang mga detalye ng account!'
+      : 'Account details restored to default successfully!';
+  String get changePhotoOption => isFilipino ? 'Larawan ng Profile' : 'Profile Photo';
+  String get uploadNewPhoto => isFilipino ? 'Mag-upload ng Bagong Larawan' : 'Upload New Photo';
+  String get restoreDefaultLogo => isFilipino ? 'Ibalik ang Default na Logo' : 'Restore Default Logo';
   String get no => isFilipino ? 'Hindi' : 'No';
   String get yesReset => isFilipino ? 'Oo, I-reset' : 'Yes, Reset';
   String get noWeightRecorded => isFilipino ? 'Walang tala ng timbang' : 'No weight recorded';
@@ -215,6 +225,16 @@ class AppStrings {
   // ================= Edit Profile Modal =================
   String get editProfileTitle => isFilipino ? 'I-edit ang Profile' : 'Edit Profile';
   String get fullName => isFilipino ? 'Buong Pangalan' : 'Full Name';
+  String get firstNameLabel => isFilipino ? 'Unang Pangalan' : 'First Name';
+  String get lastNameLabel => isFilipino ? 'Apelyido' : 'Last Name';
+  String get middleInitialLabel => isFilipino ? 'Gitnang Inisyal' : 'Middle Initial';
+  String get optionalLabel => isFilipino ? '(Opsyonal)' : '(Optional)';
+  String get phoneHelperNotice => isFilipino ? '09XXXXXXXXX (11 digits)' : '09XXXXXXXXX (11 digits)';
+  String get firstNameRequired => isFilipino ? 'Kailangan ang unang pangalan.' : 'First name is required.';
+  String get lastNameRequired => isFilipino ? 'Kailangan ang apelyido.' : 'Last name is required.';
+  String get nameInvalidCharacters => isFilipino ? 'Hindi pinapayagan ang numero o simbolo.' : 'Numbers and symbols are not allowed.';
+  String get phoneMustStart09 => isFilipino ? 'Dapat magsimula sa 09 ang numero.' : 'Must start with 09 (e.g. 09XXXXXXXXX).';
+  String get phoneMustBe11Digits => isFilipino ? 'Dapat eksaktong 11-digit ang numero.' : 'Must be exactly 11 digits.';
   String get enterFullNameHint => isFilipino ? 'Ilagay ang inyong buong pangalan' : 'Enter your full name';
   String get phoneLabel => isFilipino ? 'Numero ng Telepono' : 'Phone Number';
   String get numbersOnlyNotice => isFilipino ? 'Numero lamang (11 digits)' : 'Numbers only (11 digits)';
@@ -228,7 +248,8 @@ class AppStrings {
   String get pressBackAgainToExit => isFilipino ? 'Pindutin ulit ang Back button upang isara ang app.' : 'Press Back button again to exit the app.';
 
   // ================= Cashier Module Strings =================
-  String get cashierGreeting => isFilipino ? 'Kumusta Kahera,' : 'Hello Cashier,';
+  String get cashierGreeting => helloGreeting;
+
   String get cashierRole => isFilipino ? 'Staff ng Tindahan / POS' : 'Cashier Staff';
   String get todaySales => isFilipino ? 'Kabuuang Benta Ngayong Araw' : 'Today\'s Total Sales';
   String get todayTransactions => isFilipino ? 'Mga Transaksyon' : 'Transactions';
@@ -285,6 +306,9 @@ class AppStrings {
   String get openSettings => isFilipino ? 'Buksan ang Settings' : 'Open Settings';
   String get locationSavedToast => isFilipino ? 'Nai-save ang lokasyon:' : 'Location saved:';
   String get locationDetectedToast => isFilipino ? 'Natukoy ang lokasyon:' : 'Location detected:';
+  String get tapToDetectGpsAddress => isFilipino
+      ? 'I-tap upang i-detect ang lokasyon gamit ang GPS'
+      : 'Tap to auto-detect location via GPS';
 
   // ================= Settings / Language =================
   String get settings => isFilipino ? 'Mga Setting' : 'Settings';
@@ -294,7 +318,8 @@ class AppStrings {
   String get filipino => 'Filipino';
 
   // ================= Partner Investor Module Strings =================
-  String get partnerGreeting => isFilipino ? 'Kumusta Kasosyo,' : 'Hello Partner Investor,';
+  String get partnerGreeting => helloGreeting;
+
   String get partnerRole => isFilipino ? 'Kasosyong Mamumuhunan' : 'Partner Investor';
   String get portfolioOverview => isFilipino ? 'Portfolio' : 'Portfolio Overview';
   String get totalInvested => isFilipino ? 'KABUUANG NAIPUHUNAN' : 'TOTAL INVESTED';
@@ -322,7 +347,9 @@ class AppStrings {
   String get myInvestments => isFilipino ? 'Aking mga Puhunan' : 'My Investments';
   String get myInvestmentsSubtitle => isFilipino ? 'Subaybayan ang iyong mga pinondohang proyekto' : 'Track your funded projects and returns';
   String get navInvestment => isFilipino ? 'PUHUNAN' : 'INVESTMENT';
+  String get navLifecycle => isFilipino ? 'LIFECYCLE' : 'LIFECYCLE';
   String get navActivities => isFilipino ? 'AKTIBIDAD' : 'ACTIVITIES';
+  String get raiserReports => isFilipino ? 'Mga Ulat ng Raiser' : 'Raiser Reports';
   String get noReportsYet => isFilipino ? 'Walang Ulat sa Ngayon' : 'No Reports Yet';
   String get noReportsSubtitle => isFilipino ? 'Lalabas dito ang mga update ng tagapag-alaga.' : 'Updates & logs from your raisers will appear here.';
   String get refreshReports => isFilipino ? 'I-refresh' : 'Refresh Reports';
@@ -345,6 +372,18 @@ class AppStrings {
   String get passwordsDoNotMatch => isFilipino ? 'Hindi magkatugma ang bagong password.' : 'New passwords do not match.';
   String get passwordChangedSuccess => isFilipino ? 'Matagumpay na napalitan ang iyong password!' : 'Password changed successfully!';
   String get googleAccountNotice => isFilipino ? 'Naka-link ang account mo gamit ang Google. Maaari kang mag-set ng password dito.' : 'Your account is linked with Google. You can set a password here to sign in with email and password as well.';
+
+  // ================= Auth & Role Selection =================
+  String get selectRoleTitle => isFilipino ? 'Mag-sign In sa Piggy Trunk' : 'Sign In to Piggy Trunk';
+  String get selectRoleSubtitle => isFilipino ? 'Piliin ang uri ng iyong account upang magpatuloy' : 'Choose your account role to continue';
+  String get hogRaiserOptionTitle => isFilipino ? 'Tagapag-alaga (Hog Raiser)' : 'Hog Raiser';
+  String get partnerOptionTitle => isFilipino ? 'Kasosyong Mamumuhunan (Partner)' : 'Partner Investor';
+  String get hogRaiserRoleDesc => isFilipino ? 'Pamahalaan ang mga batch ng baboy, supplies, at kalusugan' : 'Manage livestock, feed supplies, and health updates';
+  String get partnerRoleDesc => isFilipino ? 'Mamuhunan sa mga batch, portfolio, at subaybayan ang kita' : 'Fund hog batches, track your portfolio, and live updates';
+  String get alreadyHaveAccountSignIn => isFilipino ? 'May account na? Mag-sign In' : 'Already have an account? Sign In';
+  String signInContinueAs(String roleLabel) => isFilipino ? 'Mag-sign in upang magpatuloy bilang $roleLabel' : 'Sign in to continue as $roleLabel';
+
+
 
   // ================= Formatting Helpers =================
   String formatStatus(String status) {

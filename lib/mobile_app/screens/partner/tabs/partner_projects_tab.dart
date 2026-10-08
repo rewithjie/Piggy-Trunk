@@ -6,6 +6,7 @@ import '../../../utils/screen_fit_util.dart';
 import '../../../utils/app_strings.dart';
 import '../widgets/batch_raiser_details_drawer.dart';
 import '../../../services/auth_session_service.dart';
+import '../../../widgets/piggy_toast.dart';
 
 class PartnerProjectsTab extends StatefulWidget {
   final List<Map<String, dynamic>> projectsList;
@@ -63,12 +64,9 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
   void _startInvestmentFlow([Map<String, dynamic>? batch]) {
     if (widget.projectsList.isEmpty && batch == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No active batches available for investment at the moment.'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PiggyToast.showWarning(
+        context,
+        'No active batches available for investment at the moment.',
       );
       return;
     }
@@ -93,12 +91,9 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
   Future<void> _confirmInvestment() async {
     if (_parsedAmount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid investment amount (e.g. ₱1,000).'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PiggyToast.showWarning(
+        context,
+        'Please enter a valid investment amount (e.g. ₱1,000).',
       );
       return;
     }
@@ -108,15 +103,23 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       int? partnerInvestorId;
+      String partnerName = user?.userMetadata?['name'] ??
+          user?.userMetadata?['full_name'] ??
+          user?.email ??
+          'Partner Investor';
 
       // 1. Resolve via Supabase authenticated user if present
       if (user != null) {
         try {
           final profile = await Supabase.instance.client
               .from('app_users')
-              .select('user_id')
+              .select('user_id, name')
               .eq('supabase_user_id', user.id)
               .maybeSingle();
+
+          if (profile != null && profile['name'] != null && profile['name'].toString().trim().isNotEmpty) {
+            partnerName = profile['name'].toString().trim();
+          }
 
           final appUserId = profile != null ? profile['user_id'] : null;
 
@@ -154,11 +157,14 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
           if (searchEmail.isNotEmpty || user != null) {
             final profile = await Supabase.instance.client
                 .from('app_users')
-                .select('user_id')
+                .select('user_id, name')
                 .or('email.eq.$searchEmail,supabase_user_id.eq.${user?.id ?? ""}')
                 .maybeSingle();
 
             final appUserId = profile != null ? profile['user_id'] : null;
+            if (profile != null && profile['name'] != null && profile['name'].toString().trim().isNotEmpty) {
+              partnerName = profile['name'].toString().trim();
+            }
             if (appUserId != null) {
               final partnerRec = await Supabase.instance.client
                   .from('partner_investors')
@@ -199,16 +205,11 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
             .maybeSingle();
 
         if (existingBatch == null) {
-          final rawRaiserId = _selectedBatch?['hog_raiser_id'] ?? _selectedBatch?['batch_id'];
-          final int? rId = rawRaiserId is int ? rawRaiserId : int.tryParse(rawRaiserId?.toString() ?? '');
           final batchData = <String, dynamic>{
             'batch_id': batchId,
             'batch_name': _selectedBatch?['batch_name'] ?? 'Batch #$batchId',
             'date_created': DateTime.now().toIso8601String().split('T').first,
           };
-          if (rId != null) {
-            batchData['hog_raiser_id'] = rId;
-          }
           await Supabase.instance.client.from('batches').insert(batchData);
         }
       } catch (bErr) {
@@ -226,8 +227,126 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
           'date_invested': DateTime.now().toIso8601String().split('T').first,
         });
         dbInserted = true;
+        debugPrint('Investment successfully inserted into Supabase investments table!');
       } catch (insErr) {
-        debugPrint('Notice: Supabase investment insert: $insErr');
+        debugPrint('Notice: Supabase investment insert (check RLS policies): $insErr');
+      }
+
+      // 5. Always dispatch notifications to Admin, Raiser, and Partner
+      // (Decoupled so Admin Web notification arrives even if investments RLS is pending)
+      try {
+        final batchName = _selectedBatch?['batch_name'] ?? 'Batch #$batchId';
+        final formattedAmt = _formatCurrency(_parsedAmount);
+
+        // A. Notify Admin Portal
+        try {
+          await Supabase.instance.client.from('admin_notifications').insert({
+            'title': 'New Partner Investment',
+            'message': '$partnerName invested ₱$formattedAmt in $batchName.',
+            'type': 'investment',
+            'is_read': false,
+            'metadata': {
+              'partner_investor_id': partnerInvestorId,
+              'partner_name': partnerName,
+              'batch_id': batchId,
+              'batch_name': batchName,
+              'amount': _parsedAmount,
+            },
+          });
+          debugPrint('Successfully dispatched new investment notification to admin_notifications table!');
+        } catch (adminErr) {
+          debugPrint('Notice dispatching admin notification: $adminErr');
+        }
+
+        // B. Notify Assigned Hog Raiser
+        int? rId;
+        final rawRaiserId = _selectedBatch?['hog_raiser_id'];
+        if (rawRaiserId is int) {
+          rId = rawRaiserId;
+        } else if (rawRaiserId != null) {
+          rId = int.tryParse(rawRaiserId.toString());
+        }
+
+        // Fallback 1: Query assignments table by batch_id if rId is null
+        if (rId == null) {
+          try {
+            final assignData = await Supabase.instance.client
+                .from('assignments')
+                .select('hog_raiser_id')
+                .eq('batch_id', batchId)
+                .maybeSingle();
+            if (assignData != null && assignData['hog_raiser_id'] != null) {
+              rId = int.tryParse(assignData['hog_raiser_id'].toString());
+            }
+          } catch (e) {
+            debugPrint('Notice resolving raiser ID from assignments: $e');
+          }
+        }
+
+        // Fallback 2: Query hog_raisers table by assigned_raiser name
+        if (rId == null) {
+          final raiserNameStr = (_selectedBatch?['assigned_raiser'] ??
+                  _selectedBatch?['raiser_name'] ??
+                  '')
+              .toString()
+              .trim();
+          if (raiserNameStr.isNotEmpty &&
+              !raiserNameStr.toLowerCase().contains('unassigned') &&
+              !raiserNameStr.toLowerCase().contains('livestock')) {
+            try {
+              final raiserRow = await Supabase.instance.client
+                  .from('hog_raisers')
+                  .select('hog_raiser_id')
+                  .ilike('name', '%$raiserNameStr%')
+                  .limit(1)
+                  .maybeSingle();
+              if (raiserRow != null && raiserRow['hog_raiser_id'] != null) {
+                rId = int.tryParse(raiserRow['hog_raiser_id'].toString());
+              }
+            } catch (e) {
+              debugPrint('Notice resolving raiser ID from hog_raisers by name: $e');
+            }
+          }
+        }
+
+        if (rId != null) {
+          try {
+            await Supabase.instance.client.from('raiser_notifications').insert({
+              'hog_raiser_id': rId,
+              'title': 'May Bagong Investment sa Iyong Batch! 🐷',
+              'message': '$partnerName nag-invest ng ₱$formattedAmt para sa $batchName.',
+              'type': 'investment',
+              'is_read': false,
+              'metadata': {
+                'batch_id': batchId,
+                'batch_name': batchName,
+                'amount': _parsedAmount,
+                'partner_name': partnerName,
+                'partner_investor_id': partnerInvestorId,
+              },
+            });
+            debugPrint('Successfully dispatched raiser notification to raiser ID: $rId');
+          } catch (rNotifErr) {
+            debugPrint('Notice dispatching raiser notification: $rNotifErr');
+          }
+        }
+
+        // C. Notify Partner Investor
+        if (partnerInvestorId != null) {
+          try {
+            await Supabase.instance.client.from('partner_notifications').insert({
+              'partner_investor_id': partnerInvestorId,
+              'title': 'Investment Confirmed',
+              'message': 'You have successfully funded ₱$formattedAmt for $batchName.',
+              'type': 'investment',
+              'is_read': false,
+            });
+          } catch (pNotifErr) {
+            debugPrint('Notice dispatching partner notification: $pNotifErr');
+          }
+        }
+      } catch (notifErr) {
+        debugPrint('Notice dispatching investment notifications: $notifErr');
       }
 
       // 5. Always persist to local session cache so the UI immediately reflects the investment!
@@ -250,16 +369,11 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            dbInserted
-                ? 'Investment of ₱${_formatCurrency(_parsedAmount)} confirmed & synced to server!'
-                : 'Investment of ₱${_formatCurrency(_parsedAmount)} confirmed in your portfolio!',
-          ),
-          backgroundColor: const Color(0xFF2FB36F),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PiggyToast.showSuccess(
+        context,
+        dbInserted
+            ? 'Investment of ₱${_formatCurrency(_parsedAmount)} confirmed & synced to server!'
+            : 'Investment of ₱${_formatCurrency(_parsedAmount)} confirmed in your portfolio!',
       );
 
       await widget.onRefresh();
@@ -273,12 +387,9 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
     } catch (e) {
       debugPrint('Error confirming investment: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Notice: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-          ),
+        PiggyToast.showError(
+          context,
+          'Notice: $e',
         );
       }
     } finally {
@@ -666,13 +777,13 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                       Container(
                         padding: EdgeInsets.all(fit.dp(20)),
                         decoration: BoxDecoration(
-                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                          color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.06),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.inventory_2_outlined,
                           size: fit.dp(44),
-                          color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                          color: isDark ? Colors.white : _brandColor,
                         ),
                       ),
                       SizedBox(height: fit.dp(16)),
@@ -724,7 +835,6 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
               else
                 ...batchesList.map((batch) {
                   final String batchName = batch['batch_name'] ?? batch['title'] ?? 'Batch Project';
-                  final String batchCode = batch['batch_code'] ?? '#BATCH-${batch['batch_id'] ?? '1'}';
                   final String rawStage = (batch['stage'] ?? batch['lifecycle_stage'] ?? 'Grower').toString().trim();
                   final String stage = (rawStage.isEmpty || rawStage.toUpperCase() == 'N/A') ? 'Grower' : rawStage;
                   final String rawHogType = (batch['hog_type'] ?? batch['pig_type'] ?? 'Fattening').toString().trim();
@@ -758,27 +868,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
                             runSpacing: fit.dp(6),
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              // 1. Batch Code Pill
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(fit.dp(20)),
-                                  border: Border.all(
-                                    color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Text(
-                                  batchCode,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: fit.sp(11.0),
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ),
-                              // 2. Hog Type Badge (e.g. Fattening)
+                              // 1. Hog Type Badge (e.g. Fattening)
                               Container(
                                 padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4.5)),
                                 decoration: BoxDecoration(
@@ -996,6 +1086,9 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
 
 
   Widget _buildMetricColumn(ScreenFit fit, String label, String value, Color valueColor, bool isDark) {
+    final effectiveColor = (isDark && (valueColor == _brandColor || valueColor == const Color(0xFF18314F)))
+        ? Colors.white
+        : valueColor;
     return Expanded(
       child: Column(
         children: [
@@ -1014,7 +1107,7 @@ class _PartnerProjectsTabState extends State<PartnerProjectsTab> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: fit.sp(16.0),
               fontWeight: FontWeight.w800,
-              color: valueColor,
+              color: effectiveColor,
             ),
           ),
         ],

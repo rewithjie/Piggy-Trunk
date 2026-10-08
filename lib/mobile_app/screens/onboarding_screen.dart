@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
+import '../utils/app_strings.dart';
+
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -189,7 +191,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   Navigator.pushReplacementNamed(context, '/login');
                                 },
                                 child: Text(
-                                  'Already have an account? Sign In',
+                                  AppStrings.of(context).alreadyHaveAccountSignIn,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -197,6 +199,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                   ),
                                 ),
                               ),
+
+
                             ],
                           )
                         : SizedBox(
@@ -259,6 +263,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+
+
 
 class OnboardingData {
   final String title;

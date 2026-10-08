@@ -1,17 +1,22 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:piggytrunk/theme/app_theme.dart';
 import 'package:piggytrunk/services/notification_service.dart';
 
 import 'tabs/partner_home_tab.dart';
 import 'tabs/partner_projects_tab.dart';
 import 'tabs/partner_activities_tab.dart';
+import 'tabs/partner_lifecycle_tab.dart';
 import 'tabs/partner_profile_tab.dart';
 import 'widgets/partner_dashboard_skeleton.dart';
 import '../../services/auth_session_service.dart';
+import '../../services/location_service.dart';
+import '../../widgets/piggy_toast.dart';
 import '../../utils/capitalization_formatters.dart';
 import '../../utils/app_strings.dart';
 
@@ -32,6 +37,8 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
   String _partnerPhone = "N/A";
   String _partnerAddress = "N/A";
   String? _partnerAvatarUrl;
+  int? _appUserId;
+  int? _partnerInvestorId;
 
   // Financial & Investment Data
   double _investedAmount = 0.0;
@@ -107,12 +114,12 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated successfully!'),
-            backgroundColor: Color(0xFF2FB36F),
-            behavior: SnackBarBehavior.floating,
-          ),
+        final strings = AppStrings.of(context);
+        PiggyToast.showSuccess(
+          context,
+          strings.isFilipino
+              ? 'Matagumpay na na-update ang profile picture!'
+              : 'Profile picture updated successfully!',
         );
       }
     } catch (e) {
@@ -249,269 +256,108 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     }
 
     if (mounted) {
+      final strings = AppStrings.of(context);
       setState(() {
         _partnerAvatarUrl = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile picture restored to default successfully!'),
-          backgroundColor: Color(0xFF18314F),
-          behavior: SnackBarBehavior.floating,
-        ),
+      PiggyToast.showSuccess(
+        context,
+        strings.isFilipino
+            ? 'Naibalik sa default ang profile picture!'
+            : 'Profile picture restored to default successfully!',
       );
     }
   }
 
-  void _showEditProfileDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final nameCtrl = TextEditingController(text: _partnerName == 'N/A' ? '' : _partnerName);
-    final phoneCtrl = TextEditingController(text: _partnerPhone == 'N/A' ? '' : _partnerPhone);
-    final addrCtrl = TextEditingController(text: _partnerAddress == 'N/A' ? '' : _partnerAddress);
+  Future<void> _handleAvatarTap() async {
+    if (_partnerAvatarUrl == null || _partnerAvatarUrl!.isEmpty) {
+      await _pickAndUploadAvatar();
+      return;
+    }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
     final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
     final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
-    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2);
-    final hintColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        final strings = AppStrings.of(ctx);
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: BoxDecoration(
-              color: sheetBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
-                  blurRadius: 20,
-                  offset: const Offset(0, -4),
+        return Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  strings.changePhotoOption,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF18314F).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.photo_library_rounded, color: Color(0xFF18314F), size: 20),
+                  ),
+                  title: Text(
+                    strings.uploadNewPhoto,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickAndUploadAvatar();
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 20),
+                  ),
+                  title: Text(
+                    strings.restoreDefaultLogo,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFEF4444),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _restoreDefaultAvatar();
+                  },
                 ),
               ],
-            ),
-            child: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Drag Handle Pill
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF475569) : Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Header Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.person_outline_rounded,
-                                color: isDark ? Colors.white : const Color(0xFF18314F),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              strings.editProfileTitle,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: titleColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Divider(color: borderColor, height: 1),
-                    const SizedBox(height: 18),
-
-                    _buildDialogInputField(
-                      context,
-                      controller: nameCtrl,
-                      label: strings.fullName,
-                      icon: Icons.person_outline_rounded,
-                      inputFormatters: const [],
-                    ),
-                    const SizedBox(height: 14),
-                    _buildDialogInputField(
-                      context,
-                      controller: phoneCtrl,
-                      label: '${strings.phoneLabel} (${strings.numbersOnlyNotice})',
-                      icon: Icons.phone_outlined,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(11),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    _buildDialogInputField(
-                      context,
-                      controller: addrCtrl,
-                      label: strings.address,
-                      icon: Icons.location_on_outlined,
-                    ),
-                    const SizedBox(height: 24),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
-                              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text(
-                              strings.cancel,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                color: isDark ? Colors.white : hintColor,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final newName = nameCtrl.text.trim();
-                              final newPhone = phoneCtrl.text.trim();
-                              final newAddr = addrCtrl.text.trim();
-
-                              if (newName.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(strings.pleaseEnterFullName),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              if (newPhone.isNotEmpty && (newPhone.length != 11 || !newPhone.startsWith('09'))) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(strings.invalidPhoneNumber),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setState(() {
-                                if (newName.isNotEmpty) _partnerName = newName;
-                                _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
-                                _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
-                              });
-
-                              Navigator.pop(ctx);
-
-                              try {
-                                final user = Supabase.instance.client.auth.currentUser;
-                                final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : user?.email;
-
-                                if (user != null && newName.isNotEmpty) {
-                                  await Supabase.instance.client
-                                      .from('app_users')
-                                      .update({'name': newName})
-                                      .eq('supabase_user_id', user.id);
-                                } else if (emailToUse != null && emailToUse.isNotEmpty && newName.isNotEmpty) {
-                                  await Supabase.instance.client
-                                      .from('app_users')
-                                      .update({'name': newName})
-                                      .eq('email', emailToUse);
-                                }
-
-                                if (emailToUse != null && emailToUse.isNotEmpty) {
-                                  final appUser = await Supabase.instance.client
-                                      .from('app_users')
-                                      .select('user_id')
-                                      .eq('email', emailToUse)
-                                      .maybeSingle();
-
-                                  if (appUser != null && appUser['user_id'] != null) {
-                                    await Supabase.instance.client
-                                        .from('partner_investors')
-                                        .update({
-                                          'contact_number': newPhone.isNotEmpty ? newPhone : null,
-                                          'address': newAddr.isNotEmpty ? newAddr : null,
-                                        })
-                                        .eq('user_id', appUser['user_id']);
-                                  }
-                                }
-                              } catch (e) {
-                                debugPrint('Error updating user name in DB: $e');
-                              }
-
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(strings.profileUpdateSuccess),
-                                    backgroundColor: const Color(0xFF2FB36F),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? Colors.white : const Color(0xFF18314F),
-                              foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: Text(
-                              strings.saveChanges,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
         );
@@ -519,11 +365,963 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     );
   }
 
+  Future<String> _resolveDefaultName() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : (user?.email ?? '');
+
+    // 1. Check user_metadata for stored registered_name or initial_name
+    if (user != null) {
+      final meta = user.userMetadata ?? {};
+      final reg = (meta['registered_name'] ?? meta['original_name'] ?? meta['initial_name'])?.toString().trim();
+      if (reg != null && reg.isNotEmpty && reg.toLowerCase() != 'partner investor' && reg.toLowerCase() != 'partner') {
+        return reg;
+      }
+
+      // 2. Check provider identities (e.g. Google sign-in)
+      final identities = user.identities;
+      if (identities != null) {
+        for (final id in identities) {
+          final idData = id.identityData;
+          if (idData != null) {
+            final idName = (idData['full_name'] ?? idData['name'])?.toString().trim();
+            if (idName != null && idName.isNotEmpty && idName.toLowerCase() != 'partner investor') {
+              return idName;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Check admin_notifications for the original user_registration record
+    try {
+      if (emailToUse.isNotEmpty) {
+        final notif = await Supabase.instance.client
+            .from('admin_notifications')
+            .select('metadata')
+            .eq('type', 'user_registration')
+            .filter('metadata->>email', 'eq', emailToUse.trim())
+            .order('created_at', ascending: true)
+            .limit(1)
+            .maybeSingle();
+
+        if (notif != null && notif['metadata'] != null) {
+          final meta = notif['metadata'];
+          if (meta is Map && meta['name'] != null) {
+            final notifName = meta['name'].toString().trim();
+            if (notifName.isNotEmpty && notifName.toLowerCase() != 'partner investor') {
+              return notifName;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Notice checking admin_notifications for registered name: $e');
+    }
+
+    // 4. Derive from email address prefix (e.g. justrejie@gmail.com -> Just Rejie)
+    if (emailToUse.contains('@')) {
+      final prefix = emailToUse.split('@').first.trim();
+      if (prefix.isNotEmpty) {
+        final parts = prefix.replaceAll(RegExp(r'[._\-]'), ' ').split(' ');
+        final formatted = parts
+            .where((p) => p.isNotEmpty)
+            .map((p) => p[0].toUpperCase() + p.substring(1).toLowerCase())
+            .join(' ');
+        if (formatted.isNotEmpty) return formatted;
+      }
+    }
+
+    return "Partner Investor";
+  }
+
+  Future<void> _resetProfileToDefault() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+    final dialogBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          surfaceTintColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  strings.resetAccountDetailsTitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            strings.resetAccountDetailsBody,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: mutedTextColor,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.cancel,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: mutedTextColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18314F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.yesReset,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final defaultName = await _resolveDefaultName();
+      String defaultFirstName = defaultName;
+      String defaultLastName = '';
+      final parts = defaultName.trim().replaceAll(RegExp(r'\s+'), ' ').split(' ');
+      if (parts.length > 1) {
+        defaultFirstName = parts.first;
+        defaultLastName = parts.sublist(1).join(' ');
+      }
+
+      final user = Supabase.instance.client.auth.currentUser;
+      final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : (user?.email ?? '');
+
+      if (user != null) {
+        try {
+          await Supabase.instance.client.auth.updateUser(
+            UserAttributes(
+              data: {
+                'first_name': defaultFirstName,
+                'middle_initial': '',
+                'last_name': defaultLastName,
+                'full_name': defaultName,
+                'name': defaultName,
+                'registered_name': defaultName,
+                'avatar_url': null,
+                'picture': null,
+              },
+            ),
+          );
+        } catch (e) {
+          debugPrint('Notice updating auth user metadata on reset: $e');
+        }
+      }
+
+      int? targetUserId = _appUserId;
+      if (targetUserId == null && emailToUse.isNotEmpty) {
+        try {
+          final appUser = await Supabase.instance.client
+              .from('app_users')
+              .select('user_id')
+              .eq('email', emailToUse)
+              .maybeSingle();
+          if (appUser != null && appUser['user_id'] != null) {
+            targetUserId = appUser['user_id'] is int
+                ? appUser['user_id'] as int
+                : int.tryParse(appUser['user_id'].toString());
+          }
+        } catch (_) {}
+      }
+
+      // 1. Update app_users
+      try {
+        if (targetUserId != null) {
+          await Supabase.instance.client
+              .from('app_users')
+              .update({'name': defaultName})
+              .eq('user_id', targetUserId);
+        } else if (user != null) {
+          await Supabase.instance.client
+              .from('app_users')
+              .update({'name': defaultName})
+              .eq('supabase_user_id', user.id);
+        } else if (emailToUse.isNotEmpty) {
+          await Supabase.instance.client
+              .from('app_users')
+              .update({'name': defaultName})
+              .eq('email', emailToUse);
+        }
+      } catch (e) {
+        debugPrint('Notice updating app_users name on reset: $e');
+      }
+
+      // 2. Update partner_investors
+      try {
+        if (targetUserId != null) {
+          await Supabase.instance.client
+              .from('partner_investors')
+              .update({
+                'contact_number': null,
+                'address': null,
+                'avatar_url': null,
+              })
+              .eq('user_id', targetUserId);
+        } else if (_partnerInvestorId != null) {
+          await Supabase.instance.client
+              .from('partner_investors')
+              .update({
+                'contact_number': null,
+                'address': null,
+                'avatar_url': null,
+              })
+              .eq('partner_investor_id', _partnerInvestorId!);
+        }
+      } catch (e) {
+        debugPrint('Notice updating partner_investors on reset: $e');
+      }
+
+      if (mounted) {
+        setState(() {
+          _partnerName = defaultName;
+          _partnerPhone = 'N/A';
+          _partnerAddress = 'N/A';
+          _partnerAvatarUrl = null;
+        });
+
+        PiggyToast.showSuccess(
+          context,
+          strings.accountDetailsRestoredSuccess,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error resetting profile to default: $e');
+      if (mounted) {
+        PiggyToast.showError(context, 'Failed to reset profile: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showEditProfileDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Parse First, Middle Initial, and Last Name from auth metadata or _partnerName
+    final userMeta = Supabase.instance.client.auth.currentUser?.userMetadata ?? {};
+    String prefillFirst = (userMeta['first_name'] ?? '').toString().trim();
+    String prefillMiddle = (userMeta['middle_initial'] ?? userMeta['middle_name'] ?? '').toString().trim();
+    String prefillLast = (userMeta['last_name'] ?? '').toString().trim();
+
+    if (prefillFirst.isEmpty && prefillLast.isEmpty && _partnerName.isNotEmpty && _partnerName != 'Partner Investor' && _partnerName != 'N/A') {
+      final nameClean = _partnerName.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final parts = nameClean.split(' ');
+      if (parts.length == 1) {
+        prefillFirst = parts[0];
+      } else if (parts.length == 2) {
+        prefillFirst = parts[0];
+        prefillLast = parts[1];
+      } else if (parts.length >= 3) {
+        if (parts[1].endsWith('.') || parts[1].length <= 2) {
+          prefillFirst = parts[0];
+          prefillMiddle = parts[1].replaceAll('.', '');
+          prefillLast = parts.sublist(2).join(' ');
+        } else {
+          prefillFirst = parts.sublist(0, parts.length - 1).join(' ');
+          prefillLast = parts.last;
+        }
+      }
+    }
+
+    final firstNameCtrl = TextEditingController(text: prefillFirst);
+    final middleInitialCtrl = TextEditingController(text: prefillMiddle);
+    final lastNameCtrl = TextEditingController(text: prefillLast);
+    final phoneCtrl = TextEditingController(text: _partnerPhone == 'N/A' ? '' : _partnerPhone);
+    final addrCtrl = TextEditingController(text: _partnerAddress == 'N/A' ? '' : _partnerAddress);
+
+    final sheetBg = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF18314F);
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2);
+    final hintColor = isDark ? const Color(0xFF94A3B8) : PiggyTrunkTheme.ptMuted;
+    final actionColor = isDark ? Colors.white : const Color(0xFF18314F);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final strings = AppStrings.of(ctx);
+        bool isDetectingGps = false;
+        String? firstNameError;
+        String? lastNameError;
+        String? phoneError;
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            Future<void> autoDetectGps() async {
+              setModalState(() => isDetectingGps = true);
+              final result = await LocationService.instance.getCurrentAddress(requestPermission: true);
+              setModalState(() => isDetectingGps = false);
+
+              if (result.success && result.address != null && result.address!.trim().isNotEmpty) {
+                addrCtrl.text = result.address!.trim();
+                if (ctx.mounted) {
+                  PiggyToast.showSuccess(ctx, '${strings.locationDetectedToast} ${result.address}');
+                }
+              } else if (result.isPermanentlyDenied) {
+                if (ctx.mounted) {
+                  showDialog(
+                    context: ctx,
+                    builder: (dCtx) => AlertDialog(
+                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      title: Row(
+                        children: [
+                          const Icon(Icons.location_off_rounded, color: Color(0xFFF59E0B), size: 24),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              strings.locationDisabledTitle,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                      content: Text(
+                        strings.locationDisabledDesc,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          height: 1.45,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: Text(strings.cancel, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(dCtx);
+                            LocationService.instance.openAppSettings();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF007AFF),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: Text(strings.openSettings, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              } else if (ctx.mounted) {
+                PiggyToast.showWarning(
+                  ctx,
+                  result.errorMessage ?? 'Could not detect location. You can type it manually.',
+                );
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: sheetBg,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top Drag Handle Pill
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF475569) : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Header Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF334155) : const Color(0xFFDBEAFE),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.person_outline_rounded,
+                                    color: isDark ? Colors.white : const Color(0xFF18314F),
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  strings.editProfileTitle,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    color: titleColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              icon: Icon(Icons.close_rounded, color: isDark ? Colors.white70 : hintColor, size: 22),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Divider(color: borderColor, height: 1),
+                        const SizedBox(height: 18),
+
+                        // 1. First Name & Middle Initial Row
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldHeaderRow(
+                                    label: strings.firstNameLabel,
+                                    titleColor: titleColor,
+                                  ),
+                                  _buildDialogInputField(
+                                    context,
+                                    controller: firstNameCtrl,
+                                    hintText: 'e.g. Juan',
+                                    icon: Icons.person_outline_rounded,
+                                    hasError: firstNameError != null,
+                                    inputFormatters: const [NameInputFormatter()],
+                                    onChanged: (_) {
+                                      if (firstNameError != null) setModalState(() => firstNameError = null);
+                                    },
+                                  ),
+                                  _buildInlineErrorText(firstNameError),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldHeaderRow(
+                                    label: strings.middleInitialLabel,
+                                    titleColor: titleColor,
+                                    trailing: Text(
+                                      strings.optionalLabel,
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: hintColor,
+                                      ),
+                                    ),
+                                  ),
+                                  _buildDialogInputField(
+                                    context,
+                                    controller: middleInitialCtrl,
+                                    hintText: 'M.',
+                                    maxLength: 2,
+                                    icon: Icons.edit_note_rounded,
+                                    textCapitalization: TextCapitalization.characters,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\u00D1\u00F1]')),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // 2. Last Name Field
+                        _buildFieldHeaderRow(
+                          label: strings.lastNameLabel,
+                          titleColor: titleColor,
+                        ),
+                        _buildDialogInputField(
+                          context,
+                          controller: lastNameCtrl,
+                          hintText: 'e.g. Dela Cruz',
+                          icon: Icons.badge_outlined,
+                          hasError: lastNameError != null,
+                          inputFormatters: const [NameInputFormatter()],
+                          onChanged: (_) {
+                            if (lastNameError != null) setModalState(() => lastNameError = null);
+                          },
+                        ),
+                        _buildInlineErrorText(lastNameError),
+                        const SizedBox(height: 14),
+
+                        // 3. Phone Number Field
+                        _buildFieldHeaderRow(
+                          label: strings.phoneLabel,
+                          titleColor: titleColor,
+                          trailing: Text(
+                            strings.phoneHelperNotice,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: hintColor,
+                            ),
+                          ),
+                        ),
+                        _buildDialogInputField(
+                          context,
+                          controller: phoneCtrl,
+                          hintText: '09XXXXXXXXX',
+                          icon: Icons.phone_iphone_rounded,
+                          keyboardType: TextInputType.phone,
+                          hasError: phoneError != null,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(11),
+                          ],
+                          onChanged: (_) {
+                            if (phoneError != null) setModalState(() => phoneError = null);
+                          },
+                        ),
+                        _buildInlineErrorText(phoneError),
+                        const SizedBox(height: 14),
+
+                        // 4. Address Field with Auto-Detect Action
+                        _buildFieldHeaderRow(
+                          label: strings.address,
+                          titleColor: titleColor,
+                          trailing: InkWell(
+                            onTap: isDetectingGps ? null : autoDetectGps,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isDetectingGps)
+                                    SizedBox(
+                                      width: 12,
+                                      height: 12,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1.8,
+                                        color: actionColor,
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      Icons.my_location_rounded,
+                                      size: 14,
+                                      color: actionColor,
+                                    ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isDetectingGps ? strings.detectingGps : strings.autoDetectLocation,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: actionColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        _buildDialogInputField(
+                          context,
+                          controller: addrCtrl,
+                          readOnly: true,
+                          onTap: isDetectingGps ? null : autoDetectGps,
+                          hintText: isDetectingGps ? strings.detectingGps : strings.tapToDetectGpsAddress,
+                          icon: Icons.location_on_outlined,
+                          suffixIcon: isDetectingGps
+                              ? Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: actionColor,
+                                    ),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (addrCtrl.text.trim().isNotEmpty)
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                        ),
+                                        tooltip: strings.cancel,
+                                        onPressed: () {
+                                          setModalState(() {
+                                            addrCtrl.clear();
+                                          });
+                                        },
+                                      ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.my_location_rounded,
+                                        size: 20,
+                                        color: actionColor,
+                                      ),
+                                      tooltip: strings.autoDetectLocation,
+                                      onPressed: autoDetectGps,
+                                    ),
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Action Buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: isDark ? const Color(0xFF334155) : borderColor, width: 1.2),
+                                  backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  strings.cancel,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    color: isDark ? Colors.white : hintColor,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  final first = firstNameCtrl.text.trim();
+                                  final middle = middleInitialCtrl.text.trim().replaceAll('.', '').toUpperCase();
+                                  final last = lastNameCtrl.text.trim();
+                                  final newPhone = phoneCtrl.text.trim();
+                                  final newAddr = addrCtrl.text.trim();
+
+                                  // Validate First Name (letters, spaces, accents, ñ/Ñ only)
+                                  String? fErr;
+                                  if (first.isEmpty) {
+                                    fErr = strings.firstNameRequired;
+                                  } else if (!RegExp(r"^[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF \-'\.]+$").hasMatch(first)) {
+                                    fErr = strings.nameInvalidCharacters;
+                                  }
+
+                                  // Validate Last Name (letters, spaces, accents, ñ/Ñ only)
+                                  String? lErr;
+                                  if (last.isEmpty) {
+                                    lErr = strings.lastNameRequired;
+                                  } else if (!RegExp(r"^[a-zA-Z\u00C0-\u024F\u1E00-\u1EFF \-'\.]+$").hasMatch(last)) {
+                                    lErr = strings.nameInvalidCharacters;
+                                  }
+
+                                  // Validate Phone (optional, but if provided must start with 09 and be 11 digits)
+                                  String? pErr;
+                                  if (newPhone.isNotEmpty) {
+                                    if (!newPhone.startsWith('09')) {
+                                      pErr = strings.phoneMustStart09;
+                                    } else if (newPhone.length != 11) {
+                                      pErr = strings.phoneMustBe11Digits;
+                                    }
+                                  }
+
+                                  if (fErr != null || lErr != null || pErr != null) {
+                                    setModalState(() {
+                                      firstNameError = fErr;
+                                      lastNameError = lErr;
+                                      phoneError = pErr;
+                                    });
+                                    return;
+                                  }
+
+                                  final newCombinedName = [
+                                    first,
+                                    if (middle.isNotEmpty) '$middle.',
+                                    last,
+                                  ].where((p) => p.isNotEmpty).join(' ');
+
+                                  setState(() {
+                                    if (newCombinedName.isNotEmpty) _partnerName = newCombinedName;
+                                    _partnerPhone = newPhone.isNotEmpty ? newPhone : 'N/A';
+                                    _partnerAddress = newAddr.isNotEmpty ? newAddr : 'N/A';
+                                  });
+
+                                  Navigator.pop(ctx);
+
+                                  try {
+                                    final user = Supabase.instance.client.auth.currentUser;
+                                    final emailToUse = _partnerEmail.isNotEmpty ? _partnerEmail : user?.email;
+
+                                    if (user != null && newCombinedName.isNotEmpty) {
+                                      await Supabase.instance.client
+                                          .from('app_users')
+                                          .update({'name': newCombinedName})
+                                          .eq('supabase_user_id', user.id);
+                                    } else if (emailToUse != null && emailToUse.isNotEmpty && newCombinedName.isNotEmpty) {
+                                      await Supabase.instance.client
+                                          .from('app_users')
+                                          .update({'name': newCombinedName})
+                                          .eq('email', emailToUse);
+                                    }
+
+                                    // Update Supabase auth user metadata so First, Middle, Last names stay synchronized
+                                    try {
+                                      final existingMeta = user?.userMetadata ?? {};
+                                      final regName = (existingMeta['registered_name'] ?? existingMeta['original_name'] ?? _partnerName).toString().trim();
+                                      await Supabase.instance.client.auth.updateUser(
+                                        UserAttributes(
+                                          data: {
+                                            'first_name': first,
+                                            'middle_initial': middle,
+                                            'last_name': last,
+                                            'full_name': newCombinedName,
+                                            'name': newCombinedName,
+                                            if (regName.isNotEmpty && regName.toLowerCase() != 'partner investor')
+                                              'registered_name': regName,
+                                          },
+                                        ),
+                                      );
+                                    } catch (_) {}
+
+                                    int? targetUserId;
+                                    if (emailToUse != null && emailToUse.isNotEmpty) {
+                                      final appUser = await Supabase.instance.client
+                                          .from('app_users')
+                                          .select('user_id')
+                                          .eq('email', emailToUse)
+                                          .maybeSingle();
+
+                                      if (appUser != null && appUser['user_id'] != null) {
+                                        targetUserId = appUser['user_id'] is int
+                                            ? appUser['user_id'] as int
+                                            : int.tryParse(appUser['user_id'].toString());
+                                      }
+                                    }
+                                    targetUserId ??= _appUserId;
+
+                                    if (targetUserId != null) {
+                                      await Supabase.instance.client
+                                          .from('partner_investors')
+                                          .update({
+                                            'contact_number': newPhone.isNotEmpty ? newPhone : null,
+                                            'address': newAddr.isNotEmpty ? newAddr : null,
+                                          })
+                                          .eq('user_id', targetUserId);
+
+                                      try {
+                                        await Supabase.instance.client
+                                            .from('app_users')
+                                            .update({
+                                              'address': newAddr.isNotEmpty ? newAddr : null,
+                                            })
+                                            .eq('user_id', targetUserId);
+                                      } catch (_) {}
+                                    } else if (_partnerInvestorId != null) {
+                                      await Supabase.instance.client
+                                          .from('partner_investors')
+                                          .update({
+                                            'contact_number': newPhone.isNotEmpty ? newPhone : null,
+                                            'address': newAddr.isNotEmpty ? newAddr : null,
+                                          })
+                                          .eq('partner_investor_id', _partnerInvestorId!);
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Error updating user name in DB: $e');
+                                  }
+
+                                  if (mounted) {
+                                    PiggyToast.showSuccess(
+                                      context,
+                                      strings.profileUpdateSuccess,
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isDark ? Colors.white : const Color(0xFF18314F),
+                                  foregroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  strings.saveChanges,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFieldHeaderRow({
+    required String label,
+    required Color titleColor,
+    Widget? trailing,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: titleColor,
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineErrorText(String? errorText) {
+    if (errorText == null || errorText.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, left: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, size: 13, color: Color(0xFFEF4444)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              errorText,
+              style: GoogleFonts.plusJakartaSans(
+                color: const Color(0xFFEF4444),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDialogInputField(
     BuildContext context, {
     required TextEditingController controller,
-    required String label,
-    required IconData icon,
+    required String hintText,
+    IconData? icon,
+    Widget? suffixIcon,
+    bool hasError = false,
+    bool readOnly = false,
+    VoidCallback? onTap,
+    int? maxLength,
+    ValueChanged<String>? onChanged,
     TextInputType? keyboardType,
     TextCapitalization textCapitalization = TextCapitalization.words,
     List<TextInputFormatter>? inputFormatters,
@@ -531,34 +1329,53 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveFormatters = inputFormatters ??
         (keyboardType == TextInputType.phone ? null : const [CapitalizeWordsInputFormatter()]);
+    final errorBorderColor = const Color(0xFFEF4444);
+    final normalBorderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2);
+
     return TextField(
       controller: controller,
-      keyboardType: keyboardType,
+      readOnly: readOnly,
+      enableInteractiveSelection: !readOnly,
+      showCursor: !readOnly,
+      onTap: onTap,
+      keyboardType: readOnly ? TextInputType.none : keyboardType,
       textCapitalization: textCapitalization,
+      maxLength: maxLength,
       inputFormatters: effectiveFormatters,
+      onChanged: onChanged,
       style: GoogleFonts.plusJakartaSans(
         color: isDark ? Colors.white : const Color(0xFF18314F),
         fontWeight: FontWeight.w600,
         fontSize: 14,
       ),
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.plusJakartaSans(
-          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
+        counterText: '',
+        hintText: hintText,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+          fontWeight: FontWeight.w500,
+          fontSize: 13.5,
         ),
-        prefixIcon: Icon(icon, size: 20, color: isDark ? Colors.white70 : const Color(0xFF18314F)),
+        prefixIcon: icon != null
+            ? Icon(icon, size: 20, color: hasError ? errorBorderColor : (isDark ? Colors.white70 : const Color(0xFF18314F)))
+            : null,
+        suffixIcon: suffixIcon,
         filled: true,
         fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: EdgeInsets.symmetric(horizontal: icon != null ? 14 : 16, vertical: 13),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? const Color(0xFF334155) : const Color(0xFFE6EBF2)),
+          borderSide: BorderSide(
+            color: hasError ? errorBorderColor : normalBorderColor,
+            width: hasError ? 1.4 : 1.0,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: isDark ? Colors.white : const Color(0xFF18314F), width: 1.5),
+          borderSide: BorderSide(
+            color: hasError ? errorBorderColor : (isDark ? Colors.white : const Color(0xFF18314F)),
+            width: 1.5,
+          ),
         ),
       ),
     );
@@ -684,6 +1501,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         final int? appUserId = profile?['user_id'] is int
             ? profile!['user_id'] as int
             : int.tryParse(profile?['user_id']?.toString() ?? '');
+        _appUserId = appUserId;
 
         int? partnerInvestorId;
         if (appUserId != null) {
@@ -722,14 +1540,15 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               }
             } else {
               final inserted = await Supabase.instance.client
-                  .from('partner_investors')
-                  .insert({'user_id': appUserId})
-                  .select('partner_investor_id')
-                  .maybeSingle();
+                .from('partner_investors')
+                .insert({'user_id': appUserId})
+                .select('partner_investor_id')
+                .maybeSingle();
               if (inserted != null) {
                 partnerInvestorId = inserted['partner_investor_id'] as int?;
               }
             }
+            _partnerInvestorId = partnerInvestorId;
           } catch (e) {
             debugPrint('Notice on partner_investors record: $e');
           }
@@ -737,6 +1556,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
 
         // 2. Fetch Batches, Assignments, Hog Raisers, and Hogs
         List<Map<String, dynamic>> allBatches = [];
+        final Map<String, Map<String, dynamic>> raiserMap = {};
         try {
           final List<dynamic> batchesRes = await Supabase.instance.client
               .from('batches')
@@ -753,7 +1573,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           }
 
           // Fetch all hog raisers with their user details to resolve real names, addresses, and stages
-          final Map<String, Map<String, dynamic>> raiserMap = {};
           try {
             final List<dynamic> raisersRes = await Supabase.instance.client
                 .from('hog_raisers')
@@ -862,23 +1681,28 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           try {
             hogsRes = await Supabase.instance.client
                 .from('hogs')
-                .select('hog_id, assignment_id, health_status, weight');
-          } catch (_) {}
+                .select('*');
+          } catch (hErr) {
+            debugPrint('Notice on hogs query: $hErr');
+          }
 
           for (var b in batchesRes) {
             final bId = b['batch_id'] ?? b['id'];
             final bIdStr = bId.toString();
 
-            // Find matching assignment
+            // Find all matching assignments for this batch
+            final batchAssigns = assignmentsRes.where((a) {
+              if (a is! Map) return false;
+              return a['batch_id']?.toString() == bIdStr || a['id']?.toString() == bIdStr;
+            }).map((a) => Map<String, dynamic>.from(a as Map)).toList();
+
             Map<String, dynamic>? matchingAssign;
-            for (var a in assignmentsRes) {
-              if (a is Map && (a['batch_id']?.toString() == bIdStr || a['id']?.toString() == bIdStr)) {
-                if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
-                  matchingAssign = Map<String, dynamic>.from(a);
-                  break;
-                }
-                matchingAssign ??= Map<String, dynamic>.from(a);
+            for (var a in batchAssigns) {
+              if ((a['status'] ?? '').toString().toLowerCase() == 'active') {
+                matchingAssign = a;
+                break;
               }
+              matchingAssign ??= a;
             }
 
             String raiserName = 'Unassigned';
@@ -886,7 +1710,6 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
             String raiserPhone = 'N/A';
             String stage = 'Grower';
             String hogType = 'Fattening';
-            dynamic assignId = matchingAssign?['assignment_id'];
             String? raiserIdStr;
 
             if (matchingAssign != null) {
@@ -916,20 +1739,114 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 raiserPhone = firstRaiser['phone'] ?? 'N/A';
                 stage = firstRaiser['lifecycle_stage'] ?? 'Grower';
                 hogType = firstRaiser['pig_type'] ?? 'Fattening';
+                raiserIdStr = firstRaiser['hog_raiser_id']?.toString();
               }
             }
 
-            final batchHogs = assignId != null
-                ? hogsRes.where((h) => h['assignment_id']?.toString() == assignId.toString()).toList()
-                : [];
+            // Fattening batches should not inherit 'Gilt' (breeding stage)
+            if (hogType.toLowerCase().contains('fatten') && stage.toLowerCase() == 'gilt') {
+              stage = 'Booster';
+            }
+
+            // Collect all hogs linked to any assignment in this batch
+            final batchAssignIds = batchAssigns
+                .map((a) => (a['assignment_id'] ?? a['id'])?.toString())
+                .where((id) => id != null && id.isNotEmpty)
+                .toSet();
+
+            final rawBatchHogs = hogsRes.where((h) {
+              final aId = h['assignment_id']?.toString();
+              return aId != null && batchAssignIds.contains(aId);
+            }).toList();
+
+            if (rawBatchHogs.isEmpty && raiserIdStr != null) {
+              final raiserAssignIds = assignmentsRes
+                  .where((a) => (a['hog_raiser_id'] ?? '').toString() == raiserIdStr)
+                  .map((a) => (a['assignment_id'] ?? a['id'])?.toString())
+                  .where((id) => id != null && id.isNotEmpty)
+                  .toSet();
+              final matchingHogs = hogsRes.where((h) {
+                final aId = h['assignment_id']?.toString();
+                return aId != null && raiserAssignIds.contains(aId);
+              }).toList();
+              if (matchingHogs.isNotEmpty) {
+                rawBatchHogs.addAll(matchingHogs);
+              }
+            }
+
+            // Map each individual hog with its exact pig type and stage
+            final mappedBatchHogs = <Map<String, dynamic>>[];
+            for (int i = 0; i < rawBatchHogs.length; i++) {
+              final h = rawBatchHogs[i];
+              final aId = h['assignment_id']?.toString();
+              final assign = batchAssigns.firstWhere(
+                (a) => (a['assignment_id'] ?? a['id'])?.toString() == aId,
+                orElse: () => matchingAssign ?? {},
+              );
+              final rawTypeId = (assign['hog_type_id'] ?? '').toString();
+              String typeName = hogTypeMap[rawTypeId] ?? (assign['pig_type'] ?? 'Fattening').toString();
+              if (typeName.toLowerCase().contains('sow') || typeName.toLowerCase().contains('breed')) {
+                typeName = 'Sow';
+              } else {
+                typeName = 'Fattening';
+              }
+              final isSow = typeName == 'Sow';
+              final sId = int.tryParse(h['stage_id']?.toString() ?? '');
+              final stageList = isSow
+                  ? const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Breeder', 'Lactation']
+                  : const ['Booster', 'Pre-Starter', 'Starter', 'Grower', 'Finisher', 'Selling'];
+              final stageName = (sId != null && sId >= 1 && sId <= stageList.length)
+                  ? stageList[sId - 1]
+                  : (isSow ? 'Booster' : stage);
+
+              final rawWeight = h['current_weight'] ?? h['weight'];
+              final weightStr = rawWeight != null ? '$rawWeight kg' : null;
+
+              mappedBatchHogs.add({
+                'hog_id': h['hog_id'] ?? (i + 1),
+                'tag_number': h['tag_number'] ?? 'HOG-${h['hog_id'] ?? (i + 1)}',
+                'index': i + 1,
+                'pig_type': typeName,
+                'stage_id': sId ?? 1,
+                'stage': stageName,
+                'health_status': (h['health_status'] ?? 'Healthy').toString(),
+                'status': (h['status'] ?? 'active').toString(),
+                'weight': weightStr,
+              });
+            }
 
             // Read actual hog count from hogs table; if 0, check investment_records allocation
-            int hogsCount = batchHogs.length;
+            int hogsCount = mappedBatchHogs.isNotEmpty ? mappedBatchHogs.length : rawBatchHogs.length;
             if (hogsCount == 0 && raiserIdStr != null && raiserHogCountMap.containsKey(raiserIdStr)) {
               hogsCount = raiserHogCountMap[raiserIdStr]!;
             }
 
-            final int mortality = batchHogs.where((h) => (h['health_status'] ?? '').toString().toLowerCase() == 'deceased').length;
+            // If hogs table had no rows but count is known (e.g. 4 active hogs), synthesize individual hogs
+            if (mappedBatchHogs.isEmpty && hogsCount > 0) {
+              final half = (hogsCount / 2).ceil();
+              for (int i = 0; i < hogsCount; i++) {
+                final isSow = (hogType.toLowerCase().contains('sow') && i >= half) || hogType.toLowerCase() == 'sow';
+                final stageName = isSow ? 'Booster' : stage;
+                mappedBatchHogs.add({
+                  'hog_id': i + 1,
+                  'tag_number': 'HOG-${i + 1}',
+                  'index': i + 1,
+                  'pig_type': isSow ? 'Sow' : 'Fattening',
+                  'stage_id': isSow ? 1 : 1,
+                  'stage': stageName,
+                  'health_status': 'Healthy',
+                  'status': 'active',
+                });
+              }
+            }
+
+            final int mortality = mappedBatchHogs.where((h) => (h['health_status'] ?? '').toString().toLowerCase() == 'dead').length;
+
+            final hasSow = mappedBatchHogs.any((h) => (h['pig_type'] ?? '').toString().toLowerCase().contains('sow'));
+            final hasFattening = mappedBatchHogs.any((h) => (h['pig_type'] ?? '').toString().toLowerCase().contains('fatten'));
+            final compositeType = (hasSow && hasFattening)
+                ? 'Fattening, Sow/Breeding'
+                : (hasSow ? 'Sow / Breeding' : 'Fattening');
 
             allBatches.add({
               'batch_id': bId,
@@ -940,11 +1857,13 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               'location': raiserAddress,
               'phone': raiserPhone,
               'contact': raiserPhone,
-              'hog_type': hogType,
-              'total_hogs': hogsCount,
+              'hog_type': compositeType,
+              'total_hogs': mappedBatchHogs.isNotEmpty ? mappedBatchHogs.length : hogsCount,
               'mortality': mortality,
               'stage': stage,
+              'hogs': mappedBatchHogs,
               'date_created': b['date_created'],
+              'hog_raiser_id': int.tryParse(raiserIdStr ?? '') ?? matchingAssign?['hog_raiser_id'],
               'status': 'Active',
             });
           }
@@ -974,6 +1893,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 'mortality': 0,
                 'stage': rStage == 'ACTIVE' || rStage == 'PENDING' ? 'Grower' : (r['stage'] ?? 'Grower'),
                 'date_created': r['investment_date'],
+                'hog_raiser_id': r['hog_raiser_id'],
                 'status': 'Active',
               });
             }
@@ -1013,6 +1933,7 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
                 'total_hogs': 15,
                 'mortality': 0,
                 'stage': safeStage,
+                'hog_raiser_id': rId,
                 'status': 'Active',
               });
             }
@@ -1116,35 +2037,54 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         try {
           final reportsRes = await Supabase.instance.client
               .from('hog_reports')
-              .select('report_id, report_type, description, created_at, hog_raiser_id, hog_raisers(name)')
+              .select('report_id, report_type, description, created_at, hog_raiser_id, hog_id, batch_id')
               .order('created_at', ascending: false)
-              .limit(15);
+              .limit(30);
 
           for (var rep in reportsRes) {
             final rType = (rep['report_type'] ?? 'Health Check').toString();
-            final desc = rep['description'] ?? '';
-            final raiserName = rep['hog_raisers']?['name'] ?? 'Hog Raiser';
+            final desc = (rep['description'] ?? '').toString();
+            final rId = rep['hog_raiser_id']?.toString() ?? '';
+            final raiserName = raiserMap[rId]?['name'] ?? 'Hog Raiser';
             final createdAt = rep['created_at'] != null
                 ? DateTime.tryParse(rep['created_at'].toString()) ?? DateTime.now()
                 : DateTime.now();
 
             IconData icon = Icons.assignment_outlined;
             final lower = rType.toLowerCase();
-            if (lower.contains('sick') || lower.contains('health') || lower.contains('observation')
-                || lower.contains('fever') || lower.contains('poison') || lower.contains('diarrhea') || lower.contains('injur') || lower.contains('dead')) {
+            String titleEn = '$rType Alert';
+            String titleFil = 'Alerto: $rType';
+
+            if (lower.contains('dead') || lower.contains('mortality')) {
+              icon = Icons.error_outline_rounded;
+              titleEn = 'Mortality Report';
+              titleFil = 'Ulat ng Pagkamatay';
+            } else if (lower.contains('sick') || lower.contains('fever') || lower.contains('swine') || lower.contains('poison') || lower.contains('diarrhea') || lower.contains('injur')) {
               icon = Icons.health_and_safety_rounded;
-            } else if (lower.contains('vaccin') || lower.contains('med')) {
+              titleEn = 'Health Observation: $rType';
+              titleFil = 'Pagsusuri sa Kalusugan: $rType';
+            } else if (lower.contains('vaccin') || lower.contains('med') || lower.contains('deworm')) {
               icon = Icons.medication_rounded;
+              titleEn = 'Vaccine & Medication';
+              titleFil = 'Bakuna at Gamot';
             } else if (lower.contains('feed') || lower.contains('weight')) {
               icon = Icons.monitor_weight_rounded;
+              titleEn = 'Feeding & Nutrition';
+              titleFil = 'Pagpapakain at Nutrisyon';
             } else if (lower.contains('stage') || lower.contains('growth')) {
               icon = Icons.trending_up_rounded;
+              titleEn = 'Lifecycle Milestone';
+              titleFil = 'Yugto ng Paglaki';
             }
 
             liveActivities.add({
               'report_id': rep['report_id'],
-              'title': '$rType Alert',
+              'title': titleEn,
+              'title_en': titleEn,
+              'title_fil': titleFil,
               'description': desc.isNotEmpty ? desc : 'Health update submitted by $raiserName',
+              'desc_en': desc.isNotEmpty ? desc : 'Health update submitted by $raiserName',
+              'desc_fil': desc.isNotEmpty ? desc : 'Ulat pangkalusugan mula kay $raiserName',
               'date': _formatRelativeTime(createdAt),
               'created_at': rep['created_at'],
               'icon': icon,
@@ -1154,6 +2094,33 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           }
         } catch (e) {
           debugPrint('Notice fetching hog reports: $e');
+        }
+
+        // Include individual hog stage milestones in Activities
+        if (partnerProjects.isNotEmpty) {
+          final pBatch = partnerProjects.first;
+          final batchHogsList = List<Map<String, dynamic>>.from(pBatch['hogs'] ?? []);
+          final bRaiser = pBatch['assigned_raiser'] ?? pBatch['raiser_name'] ?? 'Hog Raiser';
+
+          for (var hog in batchHogsList) {
+            final hTag = hog['tag_number'] ?? 'Hog #${hog['hog_id']}';
+            final hType = hog['pig_type'] ?? 'Fattening';
+            final hStage = hog['stage'] ?? 'Booster';
+            liveActivities.add({
+              'report_id': 'stage_${hog['hog_id']}',
+              'title': '$hTag ($hType) • $hStage Stage',
+              'title_en': '$hTag ($hType) • $hStage Stage',
+              'title_fil': '$hTag ($hType) • Yugtong $hStage',
+              'description': '$bRaiser is currently managing $hTag ($hType) at the $hStage lifecycle stage.',
+              'desc_en': '$bRaiser is currently managing $hTag ($hType) at the $hStage lifecycle stage.',
+              'desc_fil': 'Kasalukuyang inaalagaan ni $bRaiser ang $hTag ($hType) sa yugtong $hStage.',
+              'date': 'Active Milestone',
+              'created_at': DateTime.now().toIso8601String(),
+              'icon': Icons.trending_up_rounded,
+              'raiser_name': bRaiser,
+              'type': 'Lifecycle',
+            });
+          }
         }
 
         // Include investment milestones in Recent Activities
@@ -1214,7 +2181,39 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               .limit(40);
 
           if (pNotifs.isNotEmpty) {
-            _notificationsList = List<Map<String, dynamic>>.from(pNotifs);
+            final List<Map<String, dynamic>> deduped = [];
+            final Set<String> seenKeys = <String>{};
+
+            for (var raw in pNotifs) {
+              if (raw is! Map) continue;
+              final notif = Map<String, dynamic>.from(raw);
+              final notifId = (notif['notification_id'] as num?)?.toInt();
+              final key = _buildNotificationDeduplicationKey(notif);
+
+              if (!seenKeys.contains(key)) {
+                seenKeys.add(key);
+                notif['linked_ids'] = notifId != null ? <int>[notifId] : <int>[];
+                deduped.add(notif);
+              } else {
+                // Merge duplicate into existing record: keep all duplicate IDs linked
+                final existingIndex = deduped.indexWhere(
+                  (item) => _buildNotificationDeduplicationKey(item) == key,
+                );
+                if (existingIndex != -1) {
+                  final existing = deduped[existingIndex];
+                  final List<int> linked = List<int>.from(existing['linked_ids'] ?? []);
+                  if (notifId != null && !linked.contains(notifId)) {
+                    linked.add(notifId);
+                  }
+                  existing['linked_ids'] = linked;
+                  // If ANY duplicate copy is unread, the visible notification remains unread
+                  if (notif['is_read'] != true) {
+                    existing['is_read'] = false;
+                  }
+                }
+              }
+            }
+            _notificationsList = deduped;
           } else {
             _notificationsList = [];
           }
@@ -1228,6 +2227,83 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         setState(() => _isLoading = false);
       }
     }
+
+    _autoDetectLocationIfNeeded();
+  }
+
+  Future<void> _autoDetectLocationIfNeeded() async {
+    if (kIsWeb) return;
+
+    final currentAddress = _partnerAddress.trim();
+    final bool hasValidAddress = currentAddress.isNotEmpty &&
+        currentAddress != 'N/A' &&
+        currentAddress != 'Not Set' &&
+        currentAddress != 'Farm Location Not Set' &&
+        currentAddress != 'Location Not Set';
+
+    // If partner already has a valid address saved, do not prompt
+    if (hasValidAddress) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    final userId = user?.id ?? _appUserId?.toString();
+    if (userId == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final promptKey = 'prompted_location_partner_$userId';
+    if (prefs.getBool(promptKey) == true) return;
+
+    try {
+      final result = await LocationService.instance.getCurrentAddress(requestPermission: true);
+
+      // Save prompt flag so we don't prompt repeatedly on every screen load
+      await prefs.setBool(promptKey, true);
+
+      if (result.success && result.address != null && result.address!.trim().isNotEmpty) {
+        final detectedAddress = result.address!.trim();
+
+        if (_partnerInvestorId != null) {
+          try {
+            await Supabase.instance.client
+                .from('partner_investors')
+                .update({'address': detectedAddress})
+                .eq('partner_investor_id', _partnerInvestorId!);
+          } catch (e) {
+            debugPrint('Error updating partner_investors address by id: $e');
+          }
+        } else if (_appUserId != null) {
+          try {
+            await Supabase.instance.client
+                .from('partner_investors')
+                .update({'address': detectedAddress})
+                .eq('user_id', _appUserId!);
+          } catch (e) {
+            debugPrint('Error updating partner_investors address by user_id: $e');
+          }
+        }
+
+        if (_appUserId != null) {
+          try {
+            await Supabase.instance.client
+                .from('app_users')
+                .update({'address': detectedAddress})
+                .eq('user_id', _appUserId!);
+          } catch (_) {}
+        }
+
+        if (mounted) {
+          setState(() {
+            _partnerAddress = detectedAddress;
+          });
+          final strings = AppStrings.of(context);
+          PiggyToast.showSuccess(
+            context,
+            '${strings.locationSavedToast} $detectedAddress',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[LocationPrompt] Error requesting partner location: $e');
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -1237,19 +2313,58 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     }
   }
 
+  String _buildNotificationDeduplicationKey(Map<String, dynamic> notif) {
+    final meta = notif['metadata'];
+    dynamic reportId;
+    if (meta is Map) {
+      reportId = meta['report_id'] ?? meta['reportId'];
+    }
+    if (reportId != null && reportId.toString().trim().isNotEmpty) {
+      return 'rep_${reportId.toString().trim()}';
+    }
+
+    final cleanTitle = NotificationService.cleanText(notif['title']?.toString() ?? '')
+        .trim()
+        .toLowerCase();
+    final cleanMsg = NotificationService.cleanText(notif['message']?.toString() ?? '')
+        .trim()
+        .toLowerCase();
+    final rawTime = notif['created_at']?.toString() ?? '';
+    final datePrefix = rawTime.length >= 10 ? rawTime.substring(0, 10) : '';
+    return '${cleanTitle}___${cleanMsg}___$datePrefix';
+  }
+
   Future<void> _markNotificationAsRead(int id) async {
+    List<int> idsToMark = [id];
+
     setState(() {
-      final index = _notificationsList.indexWhere((n) => (n['notification_id'] ?? '').toString() == id.toString());
+      final index = _notificationsList.indexWhere((n) {
+        final nid = (n['notification_id'] ?? '').toString();
+        final linked = (n['linked_ids'] as List?)?.map((e) => e.toString()).toList() ?? [];
+        return nid == id.toString() || linked.contains(id.toString());
+      });
       if (index != -1) {
-        _notificationsList[index]['is_read'] = true;
+        final item = _notificationsList[index];
+        item['is_read'] = true;
+        final linked = (item['linked_ids'] as List?)?.cast<int>() ?? [];
+        if (linked.isNotEmpty) {
+          idsToMark = linked;
+        }
       }
     });
 
     try {
-      await Supabase.instance.client
-          .from('partner_notifications')
-          .update({'is_read': true})
-          .eq('notification_id', id);
+      if (idsToMark.length == 1) {
+        await Supabase.instance.client
+            .from('partner_notifications')
+            .update({'is_read': true})
+            .eq('notification_id', idsToMark.first);
+      } else {
+        await Supabase.instance.client
+            .from('partner_notifications')
+            .update({'is_read': true})
+            .inFilter('notification_id', idsToMark);
+      }
     } catch (e) {
       debugPrint('Notice updating is_read for notification #$id: $e');
     }
@@ -1263,16 +2378,19 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
     });
 
     try {
-      final unreadIds = _notificationsList
-          .map((n) => (n['notification_id'] as num?)?.toInt())
-          .whereType<int>()
-          .toList();
+      final Set<int> allIds = {};
+      for (var n in _notificationsList) {
+        final nid = (n['notification_id'] as num?)?.toInt();
+        if (nid != null) allIds.add(nid);
+        final linked = (n['linked_ids'] as List?)?.cast<int>() ?? [];
+        allIds.addAll(linked);
+      }
 
-      if (unreadIds.isNotEmpty) {
+      if (allIds.isNotEmpty) {
         await Supabase.instance.client
             .from('partner_notifications')
             .update({'is_read': true})
-            .inFilter('notification_id', unreadIds);
+            .inFilter('notification_id', allIds.toList());
       }
     } catch (e) {
       debugPrint('Notice marking all notifications read: $e');
@@ -1297,9 +2415,19 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         activitiesList: _activitiesList,
         notificationsList: _notificationsList,
         onRefresh: _fetchPartnerData,
-        onSeeAllActivities: () => setState(() => _currentIndex = 2),
+        onSeeAllActivities: () => setState(() => _currentIndex = 3),
         onViewProjects: () => setState(() => _currentIndex = 1),
-        onNavigateToTab: (idx) => setState(() => _currentIndex = idx),
+        onNavigateToTab: (idx) {
+          setState(() {
+            if (idx == 2) {
+              _currentIndex = 3;
+            } else if (idx == 3) {
+              _currentIndex = 4;
+            } else {
+              _currentIndex = idx;
+            }
+          });
+        },
         onMarkNotificationAsRead: _markNotificationAsRead,
         onMarkAllRead: _markAllNotificationsRead,
       ),
@@ -1307,22 +2435,33 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         projectsList: _availableBatches,
         onRefresh: _fetchPartnerData,
       ),
+      PartnerLifecycleTab(
+        projectsList: _projectsList,
+        batchName: _projectsList.isNotEmpty
+            ? _projectsList.first['batch_name']?.toString()
+            : null,
+        raiserName: _projectsList.isNotEmpty
+            ? (_projectsList.first['assigned_raiser'] ?? _projectsList.first['raiser_name'])?.toString()
+            : null,
+        hogsList: _projectsList.isNotEmpty
+            ? List<Map<String, dynamic>>.from(_projectsList.first['hogs'] ?? [])
+            : [],
+        currentStage: (_projectsList.isNotEmpty
+            ? (_projectsList.first['stage'] ?? _projectsList.first['lifecycle_stage'])
+            : 'Booster').toString(),
+        hogType: _projectsList.isNotEmpty
+            ? (_projectsList.first['hog_type']?.toString() ?? 'Fattening')
+            : 'Fattening',
+        hasActiveProject: _projectsList.isNotEmpty,
+        activitiesList: _activitiesList,
+        onRefresh: _fetchPartnerData,
+        onNavigateToBatches: () => setState(() => _currentIndex = 1),
+      ),
       PartnerActivitiesTab(
         activitiesList: _activitiesList,
         onRefresh: _fetchPartnerData,
         onNavigateToBatches: () => setState(() => _currentIndex = 1),
-        hasActiveProject: _projectsList.isNotEmpty,
-        currentStage: (_projectsList.isNotEmpty
-                ? (_projectsList.first['stage'] ?? _projectsList.first['lifecycle_stage'])
-                : 'Booster').toString(),
-        raiserName: _projectsList.isNotEmpty
-            ? (_projectsList.first['assigned_raiser'] ?? _projectsList.first['raiser_name'])?.toString()
-            : null,
-        totalHogs: _projectsList.isNotEmpty
-            ? (int.tryParse(_projectsList.first['total_hogs']?.toString() ?? '') ??
-                int.tryParse(_projectsList.first['total_heads']?.toString() ?? '') ??
-                0)
-            : 0,
+        onNavigateToLifecycle: () => setState(() => _currentIndex = 2),
       ),
       PartnerProfileTab(
         partnerName: _partnerName,
@@ -1330,8 +2469,9 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         partnerPhone: _partnerPhone,
         partnerAddress: _partnerAddress,
         partnerAvatarUrl: _partnerAvatarUrl,
-        onPickAndUploadAvatar: _pickAndUploadAvatar,
+        onPickAndUploadAvatar: _handleAvatarTap,
         onRestoreDefaultAvatar: _restoreDefaultAvatar,
+        onResetProfile: _resetProfileToDefault,
         onShowEditProfileDialog: _showEditProfileDialog,
         onLogout: _handleLogout,
       ),
@@ -1350,16 +2490,11 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
         final now = DateTime.now();
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                strings.isFilipino
-                    ? 'Pindutin ulit ang Back button upang isara ang app.'
-                    : 'Press back again to exit the app.',
-              ),
-              duration: const Duration(seconds: 2),
-              backgroundColor: const Color(0xFF18314F),
-            ),
+          PiggyToast.showInfo(
+            context,
+            strings.isFilipino
+                ? 'Pindutin ulit ang Back button upang isara ang app.'
+                : 'Press back again to exit the app.',
           );
           return;
         }
@@ -1400,11 +2535,11 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
           selectedItemColor: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F),
           unselectedItemColor: isDark ? const Color(0xff9cb0c9) : PiggyTrunkTheme.ptMuted,
           selectedLabelStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
           ),
           unselectedLabelStyle: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
+            fontSize: 10.5,
             fontWeight: FontWeight.w600,
           ),
           items: [
@@ -1417,6 +2552,11 @@ class _PartnerDashboardScreenState extends State<PartnerDashboardScreen> {
               icon: const Icon(Icons.account_balance_wallet_outlined),
               activeIcon: Icon(Icons.account_balance_wallet_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
               label: strings.navInvestment,
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.timeline_rounded),
+              activeIcon: Icon(Icons.timeline_rounded, color: isDark ? const Color(0xffecf2ff) : const Color(0xFF18314F)),
+              label: strings.navLifecycle,
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.article_outlined),

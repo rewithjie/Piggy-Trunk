@@ -13,6 +13,7 @@ class CashierProfileTab extends StatelessWidget {
   final String? cashierAvatarUrl;
   final VoidCallback onPickAndUploadAvatar;
   final VoidCallback onRestoreDefaultAvatar;
+  final VoidCallback? onResetProfile;
   final VoidCallback onShowEditProfileDialog;
   final VoidCallback onHandleLogout;
 
@@ -27,6 +28,7 @@ class CashierProfileTab extends StatelessWidget {
     required this.cashierAvatarUrl,
     required this.onPickAndUploadAvatar,
     required this.onRestoreDefaultAvatar,
+    this.onResetProfile,
     required this.onShowEditProfileDialog,
     required this.onHandleLogout,
   });
@@ -195,7 +197,7 @@ class CashierProfileTab extends StatelessWidget {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: onRestoreDefaultAvatar,
+                    onTap: onResetProfile ?? onRestoreDefaultAvatar,
                     child: Row(
                       children: [
                         Icon(Icons.refresh_rounded, size: 16, color: titleColor),

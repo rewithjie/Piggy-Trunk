@@ -7,6 +7,7 @@ import 'partner_hog_updates_tab.dart';
 class PartnerMyProjectsTab extends StatefulWidget {
   final List<Map<String, dynamic>> projectsList;
   final double investedAmount;
+  final List<Map<String, dynamic>> activitiesList;
   final Future<void> Function() onRefresh;
   final VoidCallback? onMakeInvestment;
 
@@ -14,6 +15,7 @@ class PartnerMyProjectsTab extends StatefulWidget {
     super.key,
     required this.projectsList,
     required this.investedAmount,
+    this.activitiesList = const [],
     required this.onRefresh,
     this.onMakeInvestment,
   });
@@ -76,12 +78,19 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
       final int mortality = (proj['mortality'] as num?)?.toInt() ?? 0;
       final String stage = proj['stage'] ?? "Grower";
 
+      final matchingReports = widget.activitiesList.where((act) {
+        final rName = (act['raiser_name'] ?? '').toString().toLowerCase();
+        final curRaiser = raiserName.toLowerCase();
+        return (curRaiser.isNotEmpty && rName.isNotEmpty) &&
+            (curRaiser.contains(rName) || rName.contains(curRaiser));
+      }).toList();
+
       return PartnerHogUpdatesTab(
         raiserName: raiserName,
         totalHog: hogs,
         totalMortality: mortality,
         currentStage: stage,
-        reportsList: const [],
+        reportsList: matchingReports.isNotEmpty ? matchingReports : widget.activitiesList,
         onRefresh: widget.onRefresh,
         onBack: () => setState(() => _selectedProjectForUpdates = null),
       );
@@ -183,7 +192,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                               Icons.folder_special_rounded,
                               size: fit.dp(16),
                               color: _selectedSubTab == 0
-                                  ? (isDark ? const Color(0xFF93C5FD) : _brandColor)
+                                  ? (isDark ? Colors.white : _brandColor)
                                   : mutedTextColor,
                             ),
                             SizedBox(width: fit.dp(6)),
@@ -246,7 +255,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                               Icons.history_rounded,
                               size: fit.dp(16),
                               color: _selectedSubTab == 1
-                                  ? (isDark ? const Color(0xFF93C5FD) : _brandColor)
+                                  ? (isDark ? Colors.white : _brandColor)
                                   : mutedTextColor,
                             ),
                             SizedBox(width: fit.dp(6)),
@@ -294,13 +303,13 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                       Container(
                         padding: EdgeInsets.all(fit.dp(20)),
                         decoration: BoxDecoration(
-                          color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                          color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.06),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           Icons.folder_open_rounded,
                           size: fit.dp(44),
-                          color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                          color: isDark ? Colors.white : _brandColor,
                         ),
                       ),
                       SizedBox(height: fit.dp(16)),
@@ -398,7 +407,6 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                 // Active Project Cards
                 ...activeProjects.map((project) {
                   final String title = project['title'] ?? project['batch_name'] ?? 'Batch Project';
-                  final String batchCode = project['batch_code'] ?? '#BATCH-${project['batch_id'] ?? '1'}';
                   final String status = project['status'] ?? 'Active';
                   final String stage = project['stage'] ?? 'Grower';
                   final String hogType = project['hog_type'] ?? 'Fattening';
@@ -433,26 +441,10 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                         Padding(
                           padding: EdgeInsets.fromLTRB(fit.dp(16), fit.dp(16), fit.dp(16), 0),
                           child: Wrap(
-                            alignment: WrapAlignment.spaceBetween,
-                            crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: fit.dp(8),
                             runSpacing: fit.dp(8),
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: fit.dp(10), vertical: fit.dp(4)),
-                                decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(fit.dp(8)),
-                                ),
-                                child: Text(
-                                  batchCode,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: fit.sp(11.5),
-                                    fontWeight: FontWeight.w700,
-                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                  ),
-                                ),
-                              ),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -740,13 +732,13 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
                     Container(
                       padding: EdgeInsets.all(fit.dp(20)),
                       decoration: BoxDecoration(
-                        color: _brandColor.withValues(alpha: isDark ? 0.25 : 0.06),
+                        color: isDark ? Colors.white.withValues(alpha: 0.1) : _brandColor.withValues(alpha: 0.06),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.history_toggle_off_rounded,
                         size: fit.dp(44),
-                        color: isDark ? const Color(0xFF93C5FD) : _brandColor,
+                        color: isDark ? Colors.white : _brandColor,
                       ),
                     ),
                     SizedBox(height: fit.dp(16)),
@@ -806,6 +798,9 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
   }
 
   Widget _buildMetricColumn(ScreenFit fit, String label, String value, Color valueColor, bool isDark) {
+    final effectiveColor = (isDark && (valueColor == _brandColor || valueColor == const Color(0xFF18314F)))
+        ? Colors.white
+        : valueColor;
     return Expanded(
       child: Column(
         children: [
@@ -824,7 +819,7 @@ class _PartnerMyProjectsTabState extends State<PartnerMyProjectsTab> {
             style: GoogleFonts.plusJakartaSans(
               fontSize: fit.sp(17.0),
               fontWeight: FontWeight.w800,
-              color: valueColor,
+              color: effectiveColor,
             ),
           ),
         ],

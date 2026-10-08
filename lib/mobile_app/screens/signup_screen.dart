@@ -367,6 +367,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         data: {
           'full_name': fullName,
           'name': fullName,
+          'registered_name': fullName,
           'last_name': _lastNameController.text.trim(),
           'first_name': _firstNameController.text.trim(),
           'middle_initial': _middleInitialController.text

@@ -682,6 +682,216 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
     }
   }
 
+  Future<void> _resetProfileToDefault() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final strings = AppStrings.of(context);
+    final dialogBg = isDark ? const Color(0xFF151F2E) : Colors.white;
+    final titleColor = isDark ? const Color(0xFFECF2FF) : const Color(0xFF18314F);
+    final mutedTextColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          surfaceTintColor: dialogBg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.refresh_rounded, color: Color(0xFFD97706), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  strings.resetAccountDetailsTitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            strings.resetAccountDetailsBody,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: mutedTextColor,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        width: 1.2,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.cancel,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: mutedTextColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF18314F),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                      strings.yesReset,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final user = _supabase.auth.currentUser;
+      final emailToUse = _cashierEmail.isNotEmpty ? _cashierEmail : (user?.email ?? '');
+
+      String defaultName = "";
+      if (user != null) {
+        final meta = user.userMetadata ?? {};
+        final reg = (meta['registered_name'] ?? meta['original_name'] ?? meta['initial_name'])?.toString().trim();
+        if (reg != null && reg.isNotEmpty && reg.toLowerCase() != 'cashier staff') {
+          defaultName = reg;
+        }
+      }
+
+      if (defaultName.isEmpty && emailToUse.isNotEmpty) {
+        try {
+          final notif = await _supabase
+              .from('admin_notifications')
+              .select('metadata')
+              .eq('type', 'user_registration')
+              .filter('metadata->>email', 'eq', emailToUse)
+              .order('created_at', ascending: true)
+              .limit(1)
+              .maybeSingle();
+
+          if (notif != null && notif['metadata'] != null) {
+            final meta = notif['metadata'];
+            if (meta is Map && meta['name'] != null) {
+              final n = meta['name'].toString().trim();
+              if (n.isNotEmpty && n.toLowerCase() != 'cashier staff') {
+                defaultName = n;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (defaultName.isEmpty && emailToUse.contains('@')) {
+        final prefix = emailToUse.split('@').first.trim();
+        if (prefix.isNotEmpty) {
+          final parts = prefix.replaceAll(RegExp(r'[._\-]'), ' ').split(' ');
+          defaultName = parts
+              .where((p) => p.isNotEmpty)
+              .map((p) => p[0].toUpperCase() + p.substring(1).toLowerCase())
+              .join(' ');
+        }
+      }
+
+      if (defaultName.isEmpty) defaultName = "Cashier Staff";
+
+      String defaultFirst = defaultName;
+      String defaultLast = "";
+      final nameParts = defaultName.trim().replaceAll(RegExp(r'\s+'), ' ').split(' ');
+      if (nameParts.length > 1) {
+        defaultFirst = nameParts.first;
+        defaultLast = nameParts.sublist(1).join(' ');
+      }
+
+      if (user != null) {
+        try {
+          await _supabase.auth.updateUser(
+            UserAttributes(
+              data: {
+                'first_name': defaultFirst,
+                'middle_initial': '',
+                'last_name': defaultLast,
+                'full_name': defaultName,
+                'name': defaultName,
+                'registered_name': defaultName,
+                'avatar_url': null,
+                'picture': null,
+              },
+            ),
+          );
+        } catch (_) {}
+      }
+
+      try {
+        await _supabase
+            .from('app_users')
+            .update({
+              'name': defaultName,
+              'avatar_url': null,
+            })
+            .or('supabase_user_id.eq.${user?.id},email.eq.$emailToUse');
+      } catch (_) {}
+
+      try {
+        await _supabase
+            .from('cashiers')
+            .update({
+              'avatar_url': null,
+            })
+            .eq('email', emailToUse);
+      } catch (_) {}
+
+      setState(() {
+        _cashierName = defaultName;
+        _cashierPhone = 'Not set';
+        _cashierAddress = 'Not set';
+        _cashierAvatarUrl = null;
+      });
+
+      _showSnackBar(strings.accountDetailsRestoredSuccess);
+      await _fetchProfile();
+    } catch (e) {
+      _showSnackBar('Error resetting profile: $e', isError: true);
+    }
+  }
+
   void _showEditProfileDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentName = _cashierName == 'Cashier Staff' ? '' : _cashierName;
@@ -1614,6 +1824,7 @@ class _CashierDashboardScreenState extends State<CashierDashboardScreen> {
                       cashierAvatarUrl: _cashierAvatarUrl,
                       onPickAndUploadAvatar: _pickAndUploadAvatar,
                       onRestoreDefaultAvatar: _restoreDefaultAvatar,
+                      onResetProfile: _resetProfileToDefault,
                       onShowEditProfileDialog: _showEditProfileDialog,
                       onHandleLogout: _handleLogout,
                     ),

@@ -152,6 +152,10 @@ class PartnerHomeTab extends StatelessWidget {
             : projectsList.where((p) => ((p['invested_amount'] as num?)?.toDouble() ?? 0) > 0).toList())
         : <Map<String, dynamic>>[];
 
+    final displayProjects = (hasInvestments && effectiveFunded.isNotEmpty)
+        ? effectiveFunded
+        : projectsList;
+
     final uniqueRaisers = effectiveFunded
         .map((p) => p['assigned_raiser'] ?? p['raiser_name'] ?? '')
         .where((r) => r.toString().trim().isNotEmpty)
@@ -185,13 +189,14 @@ class PartnerHomeTab extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        strings.partnerGreeting,
+                        strings.helloGreeting,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: fit.sp(13.0),
+                          fontSize: fit.sp(14.0),
                           fontWeight: FontWeight.w500,
                           color: isDark ? PiggyTrunkTheme.ptMutedDark : PiggyTrunkTheme.ptMuted,
                         ),
                       ),
+
                       const SizedBox(height: 2),
                       FittedBox(
                         fit: BoxFit.scaleDown,
@@ -529,7 +534,7 @@ class PartnerHomeTab extends StatelessWidget {
             ),
             SizedBox(height: fit.dp(12.0)),
 
-            if (projectsList.isEmpty)
+            if (displayProjects.isEmpty)
               // Callout Banner to Invest
               InkWell(
                 onTap: () {
@@ -607,7 +612,7 @@ class PartnerHomeTab extends StatelessWidget {
             else
               // Preview list of active project cards
               Column(
-                children: projectsList.take(2).map((proj) {
+                children: displayProjects.take(2).map((proj) {
                   final String bName = proj['batch_name'] ?? 'Batch Project';
                   final String raiser = proj['assigned_raiser'] ?? proj['raiser_name'] ?? 'Assigned Raiser';
                   final String rawStage = (proj['stage'] ?? proj['lifecycle_stage'] ?? 'Grower').toString().trim();

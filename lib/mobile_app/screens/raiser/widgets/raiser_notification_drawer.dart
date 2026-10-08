@@ -77,9 +77,7 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
       }
 
       final batchId = (n['metadata'] is Map ? (n['metadata']['batch_id'] ?? '') : '').toString().trim();
-      final isBatchNotif = type == 'batch_assigned' ||
-          title.toLowerCase().contains('batch') ||
-          msg.toLowerCase().contains('batch');
+      final isBatchNotif = type == 'batch_assigned';
 
       final String dedupKey;
       if (isBatchNotif && batchId.isNotEmpty) {
@@ -559,6 +557,10 @@ class _RaiserNotificationDrawerContentState extends State<_RaiserNotificationDra
                           notifIcon = Icons.health_and_safety_rounded;
                           iconColor = const Color(0xFFEF4444);
                           iconBg = isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFEF2F2);
+                        } else if (type.contains('invest')) {
+                          notifIcon = Icons.account_balance_wallet_rounded;
+                          iconColor = const Color(0xFF10B981);
+                          iconBg = isDark ? const Color(0xFF064E3B) : const Color(0xFFECFDF5);
                         } else if (type.contains('batch') || type.contains('stage') || type.contains('hog')) {
                           notifIcon = Icons.pets_rounded;
                           iconColor = const Color(0xFF10B981);

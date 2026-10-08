@@ -433,6 +433,29 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           .from('investments')
           .update({'status': 'active'})
           .eq('investment_id', investmentId);
+
+      // Notify Partner Investor
+      try {
+        final inv = partnerInvestments.firstWhere(
+          (p) => (p['investment_id'] ?? p['id'])?.toString() == investmentId.toString(),
+          orElse: () => <String, dynamic>{},
+        );
+        final rawPId = inv['partner_investor_id'];
+        final int? pId = rawPId is int ? rawPId : int.tryParse(rawPId?.toString() ?? '');
+        final bName = inv['batch_name'] ?? 'your funded batch';
+        if (pId != null) {
+          await _supabase.from('partner_notifications').insert({
+            'partner_investor_id': pId,
+            'title': 'Investment Approved!',
+            'message': 'Admin has approved and activated your investment for $bName.',
+            'type': 'investment',
+            'is_read': false,
+          });
+        }
+      } catch (notifErr) {
+        debugPrint('Notice dispatching approval notification: $notifErr');
+      }
+
       _showThemedSnackBar('Partner Investment approved and activated!');
       _loadInvestments();
     } catch (e) {
@@ -446,6 +469,29 @@ class _InvestmentsScreenState extends State<InvestmentsScreen> {
           .from('investments')
           .update({'status': 'rejected'})
           .eq('investment_id', investmentId);
+
+      // Notify Partner Investor
+      try {
+        final inv = partnerInvestments.firstWhere(
+          (p) => (p['investment_id'] ?? p['id'])?.toString() == investmentId.toString(),
+          orElse: () => <String, dynamic>{},
+        );
+        final rawPId = inv['partner_investor_id'];
+        final int? pId = rawPId is int ? rawPId : int.tryParse(rawPId?.toString() ?? '');
+        final bName = inv['batch_name'] ?? 'your funded batch';
+        if (pId != null) {
+          await _supabase.from('partner_notifications').insert({
+            'partner_investor_id': pId,
+            'title': 'Investment Declined',
+            'message': 'Your investment request for $bName was declined by Admin.',
+            'type': 'investment',
+            'is_read': false,
+          });
+        }
+      } catch (notifErr) {
+        debugPrint('Notice dispatching decline notification: $notifErr');
+      }
+
       _showThemedSnackBar('Partner Investment declined.');
       _loadInvestments();
     } catch (e) {

@@ -34,6 +34,7 @@ migrate_working_dir/
 !/build/web/
 /coverage/
 .env
+.env.*
 .env.local
 
 # Symbolication related
@@ -47,3 +48,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .vercel
+
+# Graphify knowledge graph outputs
+graphify-out/

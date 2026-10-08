@@ -10,6 +10,8 @@ import '../utils/screen_fit_util.dart';
 import '../widgets/piggy_toast.dart';
 import '../widgets/forgot_password_modal.dart';
 import '../widgets/install_pwa_banner.dart';
+import '../services/locale_provider.dart';
+
 
 const String googleLogoSvg = '''
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -583,6 +585,71 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Widget _buildRoleSegmentedButton({
+    required String roleKey,
+    required String title,
+    required IconData icon,
+  }) {
+    final cur = (_targetRole ?? 'hog_raiser').toLowerCase();
+    final bool isSelected = (roleKey == 'partner')
+        ? (cur.contains('partner') || cur.contains('investor'))
+        : (roleKey == 'cashier')
+            ? cur.contains('cashier')
+            : (cur.contains('raiser') || (!cur.contains('partner') && !cur.contains('investor') && !cur.contains('cashier')));
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _targetRole = roleKey;
+            _clearErrors();
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF18314F) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF18314F).withValues(alpha: 0.18),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF475569),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     // Universal ScreenFit Auto-Scaling
@@ -600,24 +667,25 @@ class _LoginScreenState extends State<LoginScreen> {
     final double buttonHeight = fit.dp(54.0);
     final double textOffsetV = 0.0;
 
-    const String backText = 'Back';
-    const String actionTitle = 'Sign In';
+    final isFilipino = SettingsProvider.of(context)?.currentLocale == 'fil';
+    final String backText = isFilipino ? 'Bumalik' : 'Back';
+    final String actionTitle = isFilipino ? 'Mag-sign In' : 'Sign In';
 
-    String roleLabel = 'Hog Raiser';
-    IconData roleIcon = Icons.pets_rounded;
+    String roleLabel = isFilipino ? 'Tagapag-alaga' : 'Hog Raiser';
     final r = (_targetRole ?? 'hog_raiser').toLowerCase();
     if (r.contains('cashier')) {
       roleLabel = 'Cashier';
-      roleIcon = Icons.point_of_sale_rounded;
     } else if (r.contains('partner') || r.contains('investor')) {
-      roleLabel = 'Partner Investor';
-      roleIcon = Icons.trending_up_rounded;
+      roleLabel = isFilipino ? 'Kasosyong Mamumuhunan' : 'Partner Investor';
     } else {
-      roleLabel = 'Hog Raiser';
-      roleIcon = Icons.pets_rounded;
+      roleLabel = isFilipino ? 'Tagapag-alaga' : 'Hog Raiser';
     }
 
-    final String subtitleText = 'Sign in to continue as $roleLabel';
+
+    final String subtitleText = isFilipino
+        ? 'Mag-sign in upang magpatuloy bilang $roleLabel'
+        : 'Sign in to continue as $roleLabel';
+
 
     return Scaffold(
       body: Container(
@@ -768,40 +836,41 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 8),
 
-                          // Plain Static Role Badge Indicator (Palatandaan Only - No Switcher)
+                          // Interactive 3-Role Segmented Selector (Hog Raiser, Partner, Cashier)
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
+                            constraints: const BoxConstraints(maxWidth: 380),
+                            margin: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF18314F).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(20),
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: const Color(0xFF18314F).withValues(alpha: 0.2),
-                                width: 1.2,
+                                color: const Color(0xFFE2E8F0),
+                                width: 1.0,
                               ),
                             ),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
-                                  roleIcon,
-                                  size: 16,
-                                  color: const Color(0xFF18314F),
+                                _buildRoleSegmentedButton(
+                                  roleKey: 'hog_raiser',
+                                  title: isFilipino ? 'Tagapag-alaga' : 'Hog Raiser',
+                                  icon: Icons.pets_rounded,
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  roleLabel,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12.0,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF18314F),
-                                  ),
+                                _buildRoleSegmentedButton(
+                                  roleKey: 'partner',
+                                  title: isFilipino ? 'Kasosyo' : 'Partner',
+                                  icon: Icons.trending_up_rounded,
+                                ),
+                                _buildRoleSegmentedButton(
+                                  roleKey: 'cashier',
+                                  title: 'Cashier',
+                                  icon: Icons.point_of_sale_rounded,
                                 ),
                               ],
                             ),
                           ),
+
+
                         ],
                       ),
                     ),
@@ -887,7 +956,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               // Username/Email Label
                               Text(
-                                'Username or Email Address',
+                                isFilipino ? 'Username o Email Address' : 'Username or Email Address',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: labelFontSize,
                                   fontWeight: FontWeight.w700,
@@ -958,7 +1027,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       width: 1.6,
                                     ),
                                   ),
-                                  hintText: 'Enter username or email',
+                                  hintText: isFilipino ? 'Ilagay ang username o email' : 'Enter username or email',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFF64748B),
                                     fontSize: inputFontSize,
@@ -1048,7 +1117,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       width: 1.6,
                                     ),
                                   ),
-                                  hintText: 'Enter password',
+                                  hintText: isFilipino ? 'Ilagay ang password' : 'Enter password',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     color: const Color(0xFF64748B),
                                     fontSize: inputFontSize,
@@ -1095,7 +1164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           Icon(Icons.lock_rounded, size: 13, color: Colors.grey.shade500),
                                           const SizedBox(width: 4),
                                           Text(
-                                            'Forgot Password?',
+                                            isFilipino ? 'Nakalimutan ang Password?' : 'Forgot Password?',
                                             style: GoogleFonts.plusJakartaSans(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
@@ -1132,7 +1201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             const Icon(Icons.mark_email_read_outlined, size: 14, color: Color(0xFF2366CC)),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'Forgot Password?',
+                                              isFilipino ? 'Nakalimutan ang Password?' : 'Forgot Password?',
                                               style: GoogleFonts.plusJakartaSans(
                                                 fontSize: 12.5,
                                                 fontWeight: FontWeight.w600,
@@ -1153,7 +1222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         Icon(Icons.lock_outline_rounded, size: 13, color: Colors.grey.shade400),
                                         const SizedBox(width: 4),
                                         Text(
-                                          'Forgot Password?',
+                                          isFilipino ? 'Nakalimutan ang Password?' : 'Forgot Password?',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w600,
@@ -1165,6 +1234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   },
                                 ),
                               ),
+
                               SizedBox(height: fieldSpacing * 1.2),
 
                               // Sign In Button (Piggy Brand Navy Gradient without arrow icon)
@@ -1218,7 +1288,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         )
                                       : Text(
-                                          'Sign In',
+                                          actionTitle,
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 16.5,
                                             fontWeight: FontWeight.w700,
@@ -1245,7 +1315,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       horizontal: 12.0,
                                     ),
                                     child: Text(
-                                      'or continue with',
+                                      isFilipino ? 'o magpatuloy gamit ang' : 'or continue with',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12.5,
                                         fontWeight: FontWeight.w600,
@@ -1315,7 +1385,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             ),
                                             const SizedBox(width: 10.0),
                                             Text(
-                                              'Continue with Google',
+                                              isFilipino ? 'Magpatuloy gamit ang Google' : 'Continue with Google',
                                               style:
                                                   GoogleFonts.plusJakartaSans(
                                                     fontSize: 14.5,
@@ -1340,7 +1410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              "Don't have an account? ",
+                              isFilipino ? 'Wala pang account? ' : "Don't have an account? ",
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13.5,
                                 color: const Color(0xFF64748B),
@@ -1356,7 +1426,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   );
                                 },
                               child: Text(
-                                'Sign Up',
+                                isFilipino ? 'Mag-sign Up' : 'Sign Up',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
@@ -1365,6 +1435,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
+
                           ],
                         ),
                         SizedBox(height: fieldSpacing),

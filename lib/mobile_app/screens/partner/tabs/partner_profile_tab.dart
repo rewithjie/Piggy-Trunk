@@ -14,6 +14,7 @@ class PartnerProfileTab extends StatelessWidget {
   final String? partnerAvatarUrl;
   final VoidCallback onPickAndUploadAvatar;
   final VoidCallback onRestoreDefaultAvatar;
+  final VoidCallback? onResetProfile;
   final VoidCallback onShowEditProfileDialog;
   final VoidCallback onLogout;
 
@@ -28,6 +29,7 @@ class PartnerProfileTab extends StatelessWidget {
     this.partnerAvatarUrl,
     required this.onPickAndUploadAvatar,
     required this.onRestoreDefaultAvatar,
+    this.onResetProfile,
     required this.onShowEditProfileDialog,
     required this.onLogout,
   });
@@ -190,7 +192,7 @@ class PartnerProfileTab extends StatelessWidget {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: onRestoreDefaultAvatar,
+                    onTap: onResetProfile ?? onRestoreDefaultAvatar,
                     child: Row(
                       children: [
                         Icon(
@@ -259,7 +261,7 @@ class PartnerProfileTab extends StatelessWidget {
                 Divider(height: fit.dp(24.0), color: cardBorderColor),
                 _buildProfileRow(fit, isDark, Icons.phone_iphone_rounded, strings.phoneNumber, phone, primaryTextColor, mutedTextColor),
                 Divider(height: fit.dp(24.0), color: cardBorderColor),
-                _buildProfileRow(fit, isDark, Icons.location_on_outlined, strings.farmAddress, address, primaryTextColor, mutedTextColor),
+                _buildProfileRow(fit, isDark, Icons.location_on_outlined, strings.address, address, primaryTextColor, mutedTextColor),
                 Divider(height: fit.dp(24.0), color: cardBorderColor),
                 _buildProfileRow(fit, isDark, Icons.security_rounded, strings.systemAccess, strings.partnerRole, primaryTextColor, mutedTextColor),
                 Divider(height: fit.dp(24.0), color: cardBorderColor),

@@ -29,8 +29,9 @@ class PartnerDashboardSkeleton extends StatelessWidget {
       case 1:
         return _buildProjectsSkeleton(context, isDark);
       case 2:
-        return _buildActivitiesSkeleton(context, isDark);
       case 3:
+        return _buildActivitiesSkeleton(context, isDark);
+      case 4:
         return _buildProfileSkeleton(context, isDark);
       case 0:
       default:
